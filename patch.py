@@ -4,17 +4,14 @@ from OpenGL.GL import *
 from OpenGL.GL import shaders
 from OpenGL.GL import arrays
 
-
 class Patch:
-    def __init__(self):
-        grid = np.array([[[-1.0, -1.0, 0.0, 0.0], [1.0, -1.0, 1.0, 0.0]], [[-1.0, 1.0, 0.0, 1.0], [1.0, 1.0, 1.0, 1.0]]],
-                        dtype=np.float32)
-
-        # construct a vertex buffer, index buffer
-        self.vertices = arrays.vbo.VBO(grid)
+    def __init__(self, vertex_grid):
+        # construct vertex buffer and index buffer
+        vertex_grid = np.array(vertex_grid, dtype=np.float32)
+        self.vertices = arrays.vbo.VBO(vertex_grid)
         i = 0
-        nr = grid.shape[0]
-        nc = grid.shape[1]
+        nr = vertex_grid.shape[0]
+        nc = vertex_grid.shape[1]
         indices = np.zeros((nr - 1) * (2 * nc + 1), np.uint16)
         for r in range(nr - 1):
             # emit triangle strip (single row)
@@ -79,10 +76,8 @@ class Patch:
         glEnableVertexAttribArray(0)
         glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 16, self.vertices)  # first two float32 are screen coordinates
         glEnableVertexAttribArray(1)
-        glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 16,
-                              self.vertices + 8)  # second two float32 are texture coordinates
-        # glUniformBlockBinding(self.program, glGetUniformBlockIndex(self.program, "globals"),
-        #                      1)  # bind globals to block 1
+        glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 16, self.vertices + 8)  # second two are texture coordinates
+
         glUniform1i(glGetUniformLocation(self.program, "texSampler"), 0)  # use texture unit 0 for the texture
         glActiveTexture(GL_TEXTURE0 + 0)
         glBindTexture(GL_TEXTURE_2D, self.texture)

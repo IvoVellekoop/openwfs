@@ -1,12 +1,12 @@
 from OpenGL.GL import *
 import numpy as np
 import glfw
-
+from patch import Patch
 
 class SLM:
     slm_count = 0
 
-    def __init__(self, monitor_id=0, width=-1, height=-1, refresh_rate=-1, title="SLM"):
+    def __init__(self, monitor_id=0, width=-1, height=-1, refresh_rate=-1, title="SLM", transform = None, numerical_aperture = 0.8):
         # initialize GLFW library and set global options for window creation
         if SLM.slm_count == 0:
             glfw.init()
@@ -64,7 +64,6 @@ class SLM:
         glfw.swap_interval(1) # tell opengl to wait for the vertical retrace when swapping buffers
         self.width = width
         self.height = height
-        self.patches = []
 
         # enable primitive restart, so that we can draw multiple triangle strips with a single draw call
         glEnable(GL_PRIMITIVE_RESTART)
@@ -79,13 +78,36 @@ class SLM:
         # set clear color to red for debugging
         glClearColor(1.0, 0.0, 0.0, 1.0)
 
-        # set up globals (transformation matrix). This is a buffer of data that is shared across all programs.
-        # note: we have to do the memory layout manually, so we add a padding entry (99) so that the vectors have length 4
-        transform = np.array([[0.5, 0.0, 0.0, 99.0], [0.0, 1.0, 0.0, 99.0]], dtype=np.float32)
+        # set up the global transformation matrix
+        # for an SLM in a pupil-conjugate configuration, we use the following canonical mapping:
+        # - x and y axes are aligned with x and y axes of the imaging system
+        #       (note: this compensates for a rotation along the z axis of the SLM, and any transpose or sign flips)
+        # - x=0, y=0 corresponds to the center of the pupil
+        # - sqrt(x^2 + y^2) = sin(theta), with theta the angle between the optical axis and the ray in the image plane.
+        # - the NA of the objective is specified separately. A default (square) patch is created that spans the NA
+        #        exactly. If not needed, this patch can be deleted.
+        #
+        # Note: the transformation matrix is stored in a global buffer that is used by all shaders.
+        # Unfortunately, we have to do the memory layout manually, so we add so that the vectors
+        # have length 4
+        if transform is None:
+            transform = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]
+        transform = np.array(transform, dtype=np.float32)
+        if transform.shape != (2, 3):
+            raise ValueError("Transform matrix should be a 2 x 3 array")
+        transform = np.append(transform, np.float32([[np.nan], [np.nan]]), 1) # apply padding
+
         self.globals = glGenBuffers(1)
         glBindBuffer(GL_UNIFORM_BUFFER, self.globals)
         glBufferData(GL_UNIFORM_BUFFER, transform.size * 4, transform, GL_STATIC_DRAW)
         glBindBuffer(GL_UNIFORM_BUFFER, 0)
+
+        # set default patch
+        rectangle = [
+            [[-numerical_aperture, -numerical_aperture, 0.0, 0.0], [numerical_aperture, -numerical_aperture, 1.0, 0.0]],
+            [[-numerical_aperture, numerical_aperture, 0.0, 1.0], [numerical_aperture, numerical_aperture, 1.0, 1.0]]]
+
+        self.patches = [Patch(rectangle)]
 
         self.update()
         # Even with GLFW_FOCUSED = false, a full screen window will steal the focus when created. This behavior is not desired, so we
@@ -116,7 +138,7 @@ class SLM:
     def update(self):
         glViewport(0, 0, self.width, self.height)
         glClear(GL_COLOR_BUFFER_BIT)
-        glBindBufferBase(GL_UNIFORM_BUFFER, 1, self.globals)  # connect buffer holding the data to binding point 1
+        glBindBufferBase(GL_UNIFORM_BUFFER, 1, self.globals)  # connect buffer holding the globals data to binding point 1
 
         for patch in self.patches:
             patch.draw()
