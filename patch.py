@@ -25,6 +25,10 @@ class Patch:
 
         self.indices = arrays.vbo.VBO(indices, target=GL_ELEMENT_ARRAY_BUFFER)
 
+        # tell opengl how to interpret the data in the buffer (see vertex array object in SLM)
+        # 0 = binding index for the vertex array object. 0 = offset into buffer. 16 = stride
+        glBindVertexBuffer(0, self.vertices, 0, 16)
+
         # construct vertex shader, fragment shader and program
         vertex_shader_code = """
             #version 440 core
@@ -72,11 +76,6 @@ class Patch:
         self.vertices.bind()
         self.indices.bind()
         glUseProgram(self.program)
-
-        glEnableVertexAttribArray(0)
-        glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 16, self.vertices)  # first two float32 are screen coordinates
-        glEnableVertexAttribArray(1)
-        glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 16, self.vertices + 8)  # second two are texture coordinates
 
         glUniform1i(glGetUniformLocation(self.program, "texSampler"), 0)  # use texture unit 0 for the texture
         glActiveTexture(GL_TEXTURE0 + 0)
