@@ -83,7 +83,7 @@ class SLM:
         # window. All patches are first rendered to this texture. The texture
         # is then processed as a whole (applying the software lookup table) and displayed on the screen.
         glActiveTexture(GL_TEXTURE0)
-        self.frame_patch = Patch(self, geometry.square(1.0))#, shaders.post_process_fragment_shader)
+        self.frame_patch = Patch(self, geometry.square(1.0), fragment_shader=shaders.post_process_fragment_shader)
         self.frame_patch.phases = np.zeros([self.width, self.height], dtype=np.float32)
         self.frame_buffer = glGenFramebuffers(1)
         glBindFramebuffer(GL_FRAMEBUFFER, self.frame_buffer)

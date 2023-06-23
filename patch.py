@@ -8,7 +8,7 @@ from shaders import default_vertex_shader, default_fragment_shader
 class Patch:
     def __init__(self, slm, geometry, vertex_shader=default_vertex_shader, fragment_shader=default_fragment_shader):
         slm.patches.append(self)
-
+        (self._vertices, self._indices) = glGenBuffers(2)
         self.geometry = geometry
 
         # construct vertex shader, fragment shader and program
@@ -19,8 +19,9 @@ class Patch:
         self._phases = None
 
     def draw(self):
-        self._vertices.bind()
-        self._indices.bind()
+        glBindBuffer(GL_ARRAY_BUFFER, self._vertices)
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self._indices)
+        glBindVertexBuffer(0, self._vertices, 0, 16)
         glUseProgram(self.program)
 
         glUniform1i(glGetUniformLocation(self.program, "texSampler"), 0)  # use texture unit 0 for the texture
@@ -31,7 +32,7 @@ class Patch:
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
 
-        glDrawElements(GL_TRIANGLE_STRIP, self._indices.data.size, GL_UNSIGNED_SHORT, self._indices)
+        glDrawElements(GL_TRIANGLE_STRIP, self._index_count, GL_UNSIGNED_SHORT, None)
 
     @property
     def phases(self):
@@ -75,15 +76,16 @@ class Patch:
         # tell opengl how to interpret the data in the buffer (see vertex array object in SLM)
         # 0 = binding index for the vertex array object. 0 = offset into buffer. 16 = stride
         self._geometry = np.array(value, dtype=np.float32, copy=False)
-        self._vertices = arrays.vbo.VBO(self._geometry)
-        glBindVertexBuffer(0, self._vertices, 0, 16)
+        glBindBuffer(GL_ARRAY_BUFFER, self._vertices)
+        glBufferData(GL_ARRAY_BUFFER, self._geometry.size * 4, self._geometry, GL_DYNAMIC_DRAW)
 
         # construct the indices that convert the vertices to a set of triangle strips (see triangle strip in OpenGL
         # specification)
         i = 0
         nr = self._geometry.shape[0]
         nc = self._geometry.shape[1]
-        indices = np.zeros((nr - 1) * (2 * nc + 1), np.uint16)
+        self._index_count = (nr - 1) * (2 * nc + 1)
+        indices = np.zeros(self._index_count, np.uint16)
         for r in range(nr - 1):
             # emit triangle strip (single row)
             row_start = r * nc
@@ -93,4 +95,5 @@ class Patch:
                 i += 2
             indices[i] = 0xFFFF
             i += 1
-        self._indices = arrays.vbo.VBO(indices, target=GL_ELEMENT_ARRAY_BUFFER)
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self._indices)
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, self._index_count * 2, indices, GL_DYNAMIC_DRAW)
