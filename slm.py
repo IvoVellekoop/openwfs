@@ -1,29 +1,100 @@
 from OpenGL.GL import *
 import numpy as np
 import glfw
+import geometry
+import shaders
 from patch import Patch
+
+glfw_active_count = 0
+
+
+def _activate_glfw():
+    """Initializes the GLFW library if it is not initialized yet.
+    Internally keeps a counter of active users of glfw. This counter is increased on _activate_glfw and decreased
+    in _deactivate_glfw. Each call to _init_glfw should be matched by a call to _deinit_glfw.
+    This function also sets global options for window and opengl context creation. If GLFW is already
+    initialized, this function does nothing. """
+    global glfw_active_count
+    if glfw_active_count == 0:
+        glfw.init()
+        glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)  # Required on Mac. Doesn't hurt on Windows
+        glfw.window_hint(glfw.OPENGL_FORWARD_COMPAT, glfw.TRUE)  # Required on Mac. Useless on Windows
+        glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 4)  # request at least opengl 4.2
+        glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 2)
+        glfw.window_hint(glfw.FLOATING, glfw.TRUE)  # Keep window on top
+        glfw.window_hint(glfw.DECORATED, glfw.FALSE)  # Disable window border
+        glfw.window_hint(glfw.AUTO_ICONIFY, glfw.FALSE)  # Prevent window minimization during task switch
+        glfw.window_hint(glfw.FOCUSED, glfw.FALSE)
+        glfw.window_hint(glfw.DOUBLEBUFFER, glfw.TRUE)
+    glfw_active_count += 1
+
+
+def _deactivate_glfw():
+    """Decreases the count of active users of GLFW. De-initializes the GLFW library if there are no more active
+    users. This releases all resources and closes all windows."""
+    global glfw_active_count
+    glfw_active_count -= 1
+    if glfw_active_count == 0:
+        glfw.terminate()
 
 
 class SLM:
-    slm_count = 0
-
-    def __init__(self, monitor_id=0, width=-1, height=-1, refresh_rate=-1, title="SLM", transform=None,
-                 numerical_aperture=0.8):
+    def __init__(self, monitor_id=0, width=-1, height=-1, refresh_rate=-1, title="SLM", transform=((1.0, 0.0, 0.0), (0.0, 1.0, 0.0))):
         # initialize GLFW library and set global options for window creation
-        if SLM.slm_count == 0:
-            glfw.init()
-            glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)  # Required on Mac. Doesn't hurt on Windows
-            glfw.window_hint(glfw.OPENGL_FORWARD_COMPAT, glfw.TRUE)  # Required on Mac. Useless on Windows
-            glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 4)  # request at least opengl 4.2
-            glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 2)
-            glfw.window_hint(glfw.FLOATING, glfw.TRUE)  # Keep window on top
-            glfw.window_hint(glfw.DECORATED, glfw.FALSE)  # Disable window border
-            glfw.window_hint(glfw.AUTO_ICONIFY, glfw.FALSE)  # Prevent window minimization during task switch
-            glfw.window_hint(glfw.FOCUSED, glfw.FALSE)
-            glfw.window_hint(glfw.DOUBLEBUFFER, glfw.TRUE)
-        SLM.slm_count += 1
+        _activate_glfw()
 
         # construct window for displaying the SLM pattern
+        self.__create_window(width, height, monitor_id, refresh_rate, title)
+
+        # Inform OpenGL about the format of the vertex data we will use.
+        # Each vertex contains four float32 components:
+        # x, y coordinate for vertex position. Will be transformed by the transform matrix.
+        # tx, ty texture coordinates, range from 0.0, 0.0 to 1.0, 1.0 to cover the full texture
+        #
+        # To inform OpenGL about this format, we create vertex an array object and store format properties.
+        # The elements of the vertex are available to a vertex shader as vec2 position (location 0)
+        # and vec2 texture_coordinates (location 1), see vertex shader in Patch for an example.
+        # All this information is bound to a binding index before use by calling glBindVertexBuffer,
+        # which is done when a vertex buffer is created (see Patch).
+        #
+        self.vertex_array = glGenVertexArrays(1)
+        glBindVertexArray(self.vertex_array)
+        glEnableVertexAttribArray(0)
+        glEnableVertexAttribArray(1)
+        glVertexAttribFormat(0, 2, GL_FLOAT, GL_FALSE, 0)  # first two float32 are screen coordinates
+        glVertexAttribFormat(1, 2, GL_FLOAT, GL_FALSE, 8)  # second two are texture coordinates
+        glVertexAttribBinding(0, 0)  # use binding index 0 for both attributes
+        glVertexAttribBinding(1, 0)  # the attribute format can now be used with glBindVertexBuffer
+        # glBindVertexArray(0)   # keep bound, we only have one
+
+        # enable primitive restart, so that we can draw multiple triangle strips with a single draw call
+        glEnable(GL_PRIMITIVE_RESTART)
+        glPrimitiveRestartIndex(0xFFFF)  # this is the index we use to separate individual triangle strips
+
+        # set clear color to red for debugging
+        glClearColor(1.0, 0.0, 0.0, 1.0)
+
+        # create buffer for storing globals, and update the global transform matrix
+        self.globals = glGenBuffers(1)
+        self.transform = transform
+        self.patches = []
+
+        # create a frame buffer object to render to. The frame buffer holds a texture that is the same size as the
+        # window. All patches are first rendered to this texture. The texture
+        # is then processed as a whole (applying the software lookup table) and displayed on the screen.
+        glActiveTexture(GL_TEXTURE0)
+        self.frame_patch = Patch(self, geometry.square(1.0))#, shaders.post_process_fragment_shader)
+        self.frame_patch.phases = np.zeros([self.width, self.height], dtype=np.float32)
+        self.frame_buffer = glGenFramebuffers(1)
+        glBindFramebuffer(GL_FRAMEBUFFER, self.frame_buffer)
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, self.frame_patch.texture, 0)
+        if glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE:
+            raise Exception("Could not construct frame buffer")
+        glBindFramebuffer(GL_FRAMEBUFFER, 0)
+        self.patches = [] # remove frame patch from list of patches
+        self.update()
+
+    def __create_window(self, width, height, monitor_id, refresh_rate, title):
         if monitor_id > 0:  # full screen mode
             monitor = glfw.get_monitors()[monitor_id - 1]
 
@@ -47,10 +118,10 @@ class SLM:
             current_mode = glfw.get_video_mode(monitor)
             (fb_width, fb_height) = glfw.get_framebuffer_size(self.window)
             if current_mode.size.width != width or current_mode.size.height != height \
-                    or current_mode.refresh_rate != refresh_rate or current_mode.bits.red != 8\
-                    or current_mode.bits.green != 8 or current_mode.bits.blue != 8\
+                    or current_mode.refresh_rate != refresh_rate or current_mode.bits.red != 8 \
+                    or current_mode.bits.green != 8 or current_mode.bits.blue != 8 \
                     or fb_width != width or fb_height != height:
-                raise Exception(f"Could not initialize {width}x{height} fullscreen mode with "
+                raise Exception(f"Could not initialize {width}x{height} full screen mode with "
                                 f"bit depth of 8 and refresh rate of {refresh_rate}. Instead, got "
                                 f"{current_mode.size.width}x{current_mode.size.height} @ {current_mode.refresh_rate} "
                                 f"with bit depth of {current_mode.bits.red} "
@@ -62,104 +133,80 @@ class SLM:
             if height == -1:
                 height = 300
             self.window = glfw.create_window(width, height, title, None, None)
-
         glfw.set_input_mode(self.window, glfw.CURSOR, glfw.CURSOR_HIDDEN)  # disable cursor
         glfw.make_context_current(self.window)  # activate current opengl context (we have only one)
         glfw.swap_interval(1)  # tell opengl to wait for the vertical retrace when swapping buffers
         self.width = width
         self.height = height
-
-        # enable primitive restart, so that we can draw multiple triangle strips with a single draw call
-        glEnable(GL_PRIMITIVE_RESTART)
-        glPrimitiveRestartIndex(0xFFFF)  # this is the index we use to separate individual triangle strips
-
-        # create vertex array object. This object links positions in a vertex buffer to input
-        # variables in the vertex shader. We don't do anything with it, but it is needed by opengl
-        self.vertex_array = glGenVertexArrays(1)
-        glBindVertexArray(self.vertex_array)
-        glEnableVertexAttribArray(0)
-        glEnableVertexAttribArray(1)
-        glVertexAttribFormat(0, 2, GL_FLOAT, GL_FALSE, 0)  # first two float32 are screen coordinates
-        glVertexAttribFormat(1, 2, GL_FLOAT, GL_FALSE, 8)  # second two are texture coordinates
-        glVertexAttribBinding(0, 0) # use binding index 0 for both attributes
-        glVertexAttribBinding(1, 0) # the attribute format can now be used with glBindVertexBuffer
-        # glBindVertexArray(0)   # keep bound, we only have one
-
-        # we need a 'vertex attribute array' to describe format of vertex data (same for all patches).
-        # Always a float holding x,y screen coordinates and tx,ty texture coordinates (16 bytes)
-
-        # set clear color to red for debugging
-        glClearColor(1.0, 0.0, 0.0, 1.0)
-
-        # set up the global transformation matrix
-        # for an SLM in a pupil-conjugate configuration, we use the following canonical mapping:
-        # - x and y axes are aligned with x and y axes of the imaging system
-        #       (note: this compensates for a rotation along the z axis of the SLM, and any transpose or sign flips)
-        # - x=0, y=0 corresponds to the center of the pupil
-        # - sqrt(x^2 + y^2) = sin(theta), with theta the angle between the optical axis and the ray in the image plane.
-        # - the NA of the objective is specified separately. A default (square) patch is created that spans the NA
-        #        exactly. If not needed, this patch can be deleted.
-        #
-        # Note: the transformation matrix is stored in a global buffer that is used by all shaders.
-        # Unfortunately, we have to do the memory layout manually, so we add so that the vectors
-        # have length 4
-        if transform is None:
-            transform = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]
-        transform = np.array(transform, dtype=np.float32)
-        if transform.shape != (2, 3):
-            raise ValueError("Transform matrix should be a 2 x 3 array")
-        transform = np.append(transform, np.float32([[np.nan], [np.nan]]), 1)  # apply padding
-
-        self.globals = glGenBuffers(1)
-        glBindBuffer(GL_UNIFORM_BUFFER, self.globals)
-        glBufferData(GL_UNIFORM_BUFFER, transform.size * 4, transform, GL_STATIC_DRAW)
-        glBindBuffer(GL_UNIFORM_BUFFER, 0)
-
-        # set default patch
-        rectangle = [
-            [[-numerical_aperture, -numerical_aperture, 0.0, 0.0], [numerical_aperture, -numerical_aperture, 1.0, 0.0]],
-            [[-numerical_aperture, numerical_aperture, 0.0, 1.0], [numerical_aperture, numerical_aperture, 1.0, 1.0]]]
-
-        self.patches = [Patch(rectangle)]
-
-        self.update()
-        # Even with GLFW_FOCUSED = false, a full screen window will steal the focus when created. This behavior is not desired, so we
-        # manually return the focus once the window is createed.
-        #	    active_window = GetForegroundWindow();
-        #	window.create(options["Width"], options["Height"], options["RefreshRate"], "SLM", monitor); //wrap in a smart pointer so that the window will always be destroyed when this glSLM object is destroyed
-        #	SetForegroundWindow(activeWindow);
-        # refreshRate = monitor.getRefreshRate();
-        # These two lines are a bit silly: switch to windowed mode and back to full screen mode again. But it is a workaround for a problem occuring when setting the SLM on a secondary monitor in Matlab
-        # (only in Matlab and only secondary screen)
-        # glfwSetWindowMonitor(window, NULL, 0, 0, width, height, refreshRate);
-        # if (monitor.isFullScreen())
-        #	glfwSetWindowMonitor(window, monitor, 0, 0, width, height, refreshRate);
+        # Even with GLFW_FOCUSED = false, a full screen window will steal the focus when created. This behavior is
+        # not desired, so we manually return the focus once the window is created. active_window =
+        # GetForegroundWindow(); window.create(options["Width"], options["Height"], options["RefreshRate"], "SLM",
+        # monitor); //wrap in a smart pointer so that the window will always be destroyed when this glSLM object is
+        # destroyed SetForegroundWindow(activeWindow); refreshRate = monitor.getRefreshRate(); These two lines are a
+        # bit silly: switch to windowed mode and back to full screen mode again. But it is a workaround for a problem
+        # occurring when setting the SLM on a secondary monitor in Matlab (only in Matlab and only secondary screen)
+        # glfwSetWindowMonitor(window, NULL, 0, 0, width, height, refreshRate); if (monitor.isFullScreen())
+        # glfwSetWindowMonitor(window, monitor, 0, 0, width, height, refreshRate);
 
     def __del__(self):
         if self.window is not None:
             glfw.destroy_window(self.window)
-
-        SLM.slm_count -= 1
-        if SLM.slm_count == 0:
-            glfw.terminate()
-
-    def enumerate_monitors(self):
-        monitors = glfw.get_monitors()
-        for monitor in monitors:
-            print(glfw.get_monitor_name(monitor))
+        _deactivate_glfw()
 
     def update(self):
         glViewport(0, 0, self.width, self.height)
         glClear(GL_COLOR_BUFFER_BIT)
-        glBindBufferBase(GL_UNIFORM_BUFFER, 1,
-                         self.globals)  # connect buffer holding the globals data to binding point 1
-        glBindVertexArray(self.vertex_array)
 
+        # first draw all patches into the frame buffer
+        glBindFramebuffer(GL_FRAMEBUFFER, self.frame_buffer)
         for patch in self.patches:
             patch.draw()
 
-        glfw.poll_events()  # todo: only call when on the main thread
+        # then draw the frame buffer to the screen
+        glBindFramebuffer(GL_FRAMEBUFFER, 0)
+        self.frame_patch.draw()
+
+        glfw.poll_events()  # process window messages
         glfw.swap_buffers(self.window)
-        glBindVertexArray(0)
-        glFinish()  # wait for buffer swap to complete (this should be directly after a vsync, so returning from this function _should_ be synced with the vsync)
-        pass
+
+        # wait for buffer swap to complete (this should be directly after a vsync, so returning from this
+        # function _should_ be synced with the vsync)
+        glFinish()
+
+    @property
+    def transform(self):
+        """Global transformation matrix
+        for an SLM in a pupil-conjugate configuration, we use the following canonical mapping:
+         - x and y axes are aligned with x and y axes of the imaging system
+               (note: this compensates for a rotation along the z axis of the SLM, and any transpose or sign flips)
+         - x=0, y=0 corresponds to the center of the pupil
+         - sqrt(x^2 + y^2) = sin(theta), with theta the angle between the optical axis and the ray in the image plane.
+         - the NA of the objective is specified separately. A default (square) patch is created that spans the NA
+                exactly. If not needed, this patch can be deleted.
+        """
+        return self._transform
+
+    @transform.setter
+    def transform(self, value):
+        # store the transform matrix in the global data
+        # Note: the transformation matrix is stored in a global buffer that is used by all shaders.
+        # Unfortunately, we have to do the memory layout manually, so we add so that the vectors
+        # have length 4.
+        value = np.array(value, dtype=np.float32)
+        if value.shape != (2, 3):
+            raise ValueError("Transform matrix should be a 2 x 3 array")
+        self._transform = value
+
+        padded = np.append(value, np.float32([[np.nan], [np.nan]]), 1)  # apply padding
+        glBindBuffer(GL_UNIFORM_BUFFER, self.globals)
+        glBufferData(GL_UNIFORM_BUFFER, padded.size * 4, padded, GL_STATIC_DRAW)
+        glBindBufferBase(GL_UNIFORM_BUFFER, 1, self.globals)  # connect buffer to binding point 1
+        glBindBuffer(GL_UNIFORM_BUFFER, 0)
+
+
+def enumerate_monitors():
+    _activate_glfw()
+    monitors = glfw.get_monitors()
+    for monitor in monitors:
+        print(glfw.get_monitor_name(monitor))
+    _deactivate_glfw()
