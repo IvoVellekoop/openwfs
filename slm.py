@@ -63,7 +63,7 @@ class SLM:
         # All this information is bound to a binding index before use by calling glBindVertexBuffer,
         # which is done when a vertex buffer is created (see Patch).
         #
-        self._vertex_array = glGenVertexArrays(1)
+        self._vertex_array = glGenVertexArrays(1) # no need to destroy explicitly, destroyed when window is destroyed
         glBindVertexArray(self._vertex_array)
         glEnableVertexAttribArray(0)
         glEnableVertexAttribArray(1)
@@ -80,7 +80,7 @@ class SLM:
         glClearColor(1.0, 0.0, 0.0, 1.0)
 
         # create buffer for storing globals, and update the global transform matrix
-        self._globals = glGenBuffers(1)
+        self._globals = glGenBuffers(1) # no need to destroy explicitly, destroyed when window is destroyed
         self.transform = transform
         self.patches = []
         self.frame_patch = FrameBufferPatch(self)
@@ -144,6 +144,8 @@ class SLM:
 
     def __del__(self):
         if self.window is not None:
+            self.activate()
+            self.patches.clear()
             glfw.destroy_window(self.window)
         _deactivate_glfw()
 

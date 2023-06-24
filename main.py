@@ -21,4 +21,6 @@ for n in range(20):
     s1.update()
     s2.update()
 
+p1 = None # test deletion
+s1.patches.clear()
 enumerate_monitors()

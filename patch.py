@@ -20,6 +20,11 @@ class Patch:
         self._program = shaders.compileProgram(vs, fs)
         self._phases = Texture(slm, np.float32)
 
+    def __del__(self):
+        if self.context() is not None:
+            self.context().activate()
+            glDeleteBuffers(2, [self._vertices, self._indices])
+
     def draw(self):
         """Never call directly, this is called from slm.update()"""
         glBindBuffer(GL_ARRAY_BUFFER, self._vertices)
@@ -92,6 +97,11 @@ class Texture:
         self.handle = glGenTextures(1)
         self.data = None
 
+    def __del__(self):
+        if self.context() is not None:
+            self.context().activate()
+            glDeleteTextures(1, [self.handle])
+
     def set(self, data):
         """ Note that textures holds a reference to the array that was last stored in it. A copy is only
             made when the array is not a numpy float32 array yet. If the data in the referenced array is modified,
@@ -135,6 +145,11 @@ class FrameBufferPatch(Patch):
 
         self._lookup_table = Texture(slm, np.uint8)
         self.lookup_table = range(256)
+
+    def __del__(self):
+        if self.context() is not None:
+            self.context().activate()
+            glDeleteFramebuffers(1, self.frame_buffer)
 
     @property
     def lookup_table(self):
