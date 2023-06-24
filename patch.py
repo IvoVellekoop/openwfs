@@ -1,9 +1,8 @@
 import numpy as np
+import geometry
 from OpenGL.GL import *
 from OpenGL.GL import shaders
-from OpenGL.GL import arrays
-from shaders import default_vertex_shader, default_fragment_shader
-
+from shaders import default_vertex_shader, default_fragment_shader, post_process_fragment_shader
 
 class Patch:
     def __init__(self, slm, geometry, vertex_shader=default_vertex_shader, fragment_shader=default_fragment_shader):
@@ -15,19 +14,19 @@ class Patch:
         # construct vertex shader, fragment shader and program
         vs = shaders.compileShader(vertex_shader, GL_VERTEX_SHADER)
         fs = shaders.compileShader(fragment_shader, GL_FRAGMENT_SHADER)
-        self.program = shaders.compileProgram(vs, fs)
-        self.texture = glGenTextures(1)
+        self._program = shaders.compileProgram(vs, fs)
+        self._phases_texture = glGenTextures(1)
         self._phases = None
 
     def draw(self):
         glBindBuffer(GL_ARRAY_BUFFER, self._vertices)
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self._indices)
         glBindVertexBuffer(0, self._vertices, 0, 16)
-        glUseProgram(self.program)
+        glUseProgram(self._program)
 
-        glUniform1i(glGetUniformLocation(self.program, "texSampler"), 0)  # use texture unit 0 for the texture
+        glUniform1i(glGetUniformLocation(self._program, "texSampler"), 0)  # use texture unit 0 for the texture
         glActiveTexture(GL_TEXTURE0 + 0)
-        glBindTexture(GL_TEXTURE_2D, self.texture)
+        glBindTexture(GL_TEXTURE_2D, self._phases_texture)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
@@ -45,7 +44,7 @@ class Patch:
 
     @phases.setter
     def phases(self, value):
-        self._phases = set_texture(self._phases, value, np.float32, self.texture)
+        self._phases = set_texture(self._phases, value, np.float32, self._phases_texture)
 
     @property
     def geometry(self):
@@ -92,7 +91,7 @@ def set_texture(original, data, dtype, texture_id):
     data = np.array(data, dtype=dtype, copy=False)
     reuse = original is not None and original.shape == data.shape  # reuse same texture memory if possible
     width = data.shape[0]
-    height = data.shape[1]
+    height = 1 if data.ndim==1 else data.shape[1]
 
     (internal_format, format) = (GL_R32F, GL_FLOAT) if dtype == np.float32 else (GL_R8, GL_BYTE)
     glBindTexture(GL_TEXTURE_2D, texture_id)
@@ -103,3 +102,36 @@ def set_texture(original, data, dtype, texture_id):
         glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, GL_RED, format, data)
     glBindTexture(GL_TEXTURE_2D, 0)  # unbind texture
     return data
+
+
+class FrameBufferPatch(Patch):
+    """Special patch that represents the frame buffer. All patches are first rendered to the frame buffer,
+    and this buffer is rendered to the screen through a  final post-processing step that does the phase wrapping and
+    implements the software lookup table."""
+    def __init__(self, slm):
+        super().__init__(slm, geometry.square(1.0), fragment_shader=post_process_fragment_shader)
+        # Create a frame buffer object to render to. The frame buffer holds a texture that is the same size as the
+        # window. All patches are first rendered to this texture. The texture
+        # is then processed as a whole (applying the software lookup table) and displayed on the screen.
+        glActiveTexture(GL_TEXTURE0)
+        self.phases = np.zeros([slm.width, slm.height], dtype=np.float32)
+        self._frame_buffer = glGenFramebuffers(1)
+        glBindFramebuffer(GL_FRAMEBUFFER, self._frame_buffer)
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, self._phases_texture, 0)
+        if glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE:
+            raise Exception("Could not construct frame buffer")
+        glBindFramebuffer(GL_FRAMEBUFFER, 0)
+
+        self._lookup_table_texture = glGenTextures(1)
+        self._lookup_table = None
+        self.lookup_table = range(256)
+
+    @property
+    def lookup_table(self):
+        """1-D array """
+        return self._lookup_table
+
+    @lookup_table.setter
+    def lookup_table(self, value):
+        self._lookup_table = set_texture(self._lookup_table, value, np.uint8, self._lookup_table_texture)
+

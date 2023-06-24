@@ -3,7 +3,7 @@ import numpy as np
 import glfw
 import geometry
 import shaders
-from patch import Patch
+from patch import Patch, FrameBufferPatch
 
 glfw_active_count = 0
 
@@ -78,21 +78,8 @@ class SLM:
         # create buffer for storing globals, and update the global transform matrix
         self.globals = glGenBuffers(1)
         self.transform = transform
-        self.LUT = range(256)
         self.patches = []
-
-        # Create a frame buffer object to render to. The frame buffer holds a texture that is the same size as the
-        # window. All patches are first rendered to this texture. The texture
-        # is then processed as a whole (applying the software lookup table) and displayed on the screen.
-        glActiveTexture(GL_TEXTURE0)
-        self.frame_patch = Patch(self, geometry.square(1.0), fragment_shader=shaders.post_process_fragment_shader)
-        self.frame_patch.phases = np.zeros([self.width, self.height], dtype=np.float32)
-        self.frame_buffer = glGenFramebuffers(1)
-        glBindFramebuffer(GL_FRAMEBUFFER, self.frame_buffer)
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, self.frame_patch.texture, 0)
-        if glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE:
-            raise Exception("Could not construct frame buffer")
-        glBindFramebuffer(GL_FRAMEBUFFER, 0)
+        self.frame_patch = FrameBufferPatch(self)
         self.patches = []  # remove frame patch from list of patches
         self.update()
 
@@ -164,7 +151,7 @@ class SLM:
         glClear(GL_COLOR_BUFFER_BIT)
 
         # first draw all patches into the frame buffer
-        glBindFramebuffer(GL_FRAMEBUFFER, self.frame_buffer)
+        glBindFramebuffer(GL_FRAMEBUFFER, self.frame_patch._frame_buffer)
         for patch in self.patches:
             patch.draw()
 
