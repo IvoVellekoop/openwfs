@@ -6,16 +6,19 @@ import geometry
 
 # construct a new SLM object and add a patch to it
 numerical_aperture = 0.8
-s = SLM(0)
+s1 = SLM(0, x=0)
+s2 = SLM(0, x=500)
 g = geometry.square(numerical_aperture)
-g[1,1,1]=0
-p = Patch(s, g)
-#p = Patch(s, geometry.rectangle(0.1, 0.1, 0.2, 0.2))
+g[1, 1, 1] = 0
+p1 = Patch(s1, g)
+p2 = Patch(s2, geometry.square(1.0))
 
 rng = np.random.default_rng()
-for n in range(10):
+for n in range(20):
     data = rng.random([10, 10], np.float32) * 2.0 * pi
-    p.phases = data
-    s.update()
+    p1.phases = data
+    p2.phases = [[n]]
+    s1.update()
+    s2.update()
 
 enumerate_monitors()

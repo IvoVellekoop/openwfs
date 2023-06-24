@@ -37,13 +37,20 @@ def _deactivate_glfw():
 
 
 class SLM:
-    def __init__(self, monitor_id=0, width=-1, height=-1, refresh_rate=-1, title="SLM",
+    def __init__(self, monitor_id=0, width=-1, height=-1, x=0, y=0, refresh_rate=-1, title="SLM",
                  transform=((1.0, 0.0, 0.0), (0.0, 1.0, 0.0))):
         # initialize GLFW library and set global options for window creation
         _activate_glfw()
 
         # construct window for displaying the SLM pattern
-        self.__create_window(width, height, monitor_id, refresh_rate, title)
+        self.width = width
+        self.height = height
+        self.x = x
+        self.y = y
+        self.monitor_id = monitor_id
+        self.refresh_rate = refresh_rate
+        self.title = title
+        self.__create_window(monitor_id)
 
         # Inform OpenGL about the format of the vertex data we will use.
         # Each vertex contains four float32 components:
@@ -56,15 +63,14 @@ class SLM:
         # All this information is bound to a binding index before use by calling glBindVertexBuffer,
         # which is done when a vertex buffer is created (see Patch).
         #
-        self.vertex_array = glGenVertexArrays(1)
-        glBindVertexArray(self.vertex_array)
+        self._vertex_array = glGenVertexArrays(1)
+        glBindVertexArray(self._vertex_array)
         glEnableVertexAttribArray(0)
         glEnableVertexAttribArray(1)
         glVertexAttribFormat(0, 2, GL_FLOAT, GL_FALSE, 0)  # first two float32 are screen coordinates
         glVertexAttribFormat(1, 2, GL_FLOAT, GL_FALSE, 8)  # second two are texture coordinates
         glVertexAttribBinding(0, 0)  # use binding index 0 for both attributes
         glVertexAttribBinding(1, 0)  # the attribute format can now be used with glBindVertexBuffer
-        # glBindVertexArray(0)   # keep bound, we only have one
 
         # enable primitive restart, so that we can draw multiple triangle strips with a single draw call
         glEnable(GL_PRIMITIVE_RESTART)
@@ -74,57 +80,58 @@ class SLM:
         glClearColor(1.0, 0.0, 0.0, 1.0)
 
         # create buffer for storing globals, and update the global transform matrix
-        self.globals = glGenBuffers(1)
+        self._globals = glGenBuffers(1)
         self.transform = transform
         self.patches = []
         self.frame_patch = FrameBufferPatch(self)
         self.patches = []  # remove frame patch from list of patches
         self.update()
 
-    def __create_window(self, width, height, monitor_id, refresh_rate, title):
-        if monitor_id > 0:  # full screen mode
-            monitor = glfw.get_monitors()[monitor_id - 1]
+    def __create_window(self, title):
+        if self.monitor_id > 0:  # full screen mode
+            monitor = glfw.get_monitors()[self.monitor_id - 1]
 
             # set defaults for size and refresh rate (use current monitor setting)
             current_mode = glfw.get_video_mode(monitor)
-            if width == -1:
-                width = current_mode.size.width
-            if height == -1:
-                height = current_mode.size.height
-            if refresh_rate == -1:
-                refresh_rate = current_mode.refresh_rate
+            if self.width == -1:
+                self.width = current_mode.size.width
+            if self.height == -1:
+                self.height = current_mode.size.height
+            if self.refresh_rate == -1:
+                self.refresh_rate = current_mode.refresh_rate
 
             # Ask glfw to create a full screen window with specified resolution and refresh rate,
             # and at least 8 bit per pixel depth.
             glfw.window_hint(glfw.RED_BITS, 8)
             glfw.window_hint(glfw.GREEN_BITS, 8)
             glfw.window_hint(glfw.BLUE_BITS, 8)
-            glfw.window_hint(glfw.REFRESH_RATE, refresh_rate)
+            glfw.window_hint(glfw.REFRESH_RATE, self.refresh_rate)
             glfw.set_gamma(monitor, 1.0)
-            self.window = glfw.create_window(width, height, title, monitor, None)
+            self.window = glfw.create_window(self.width, self.height, title, monitor, None)
             current_mode = glfw.get_video_mode(monitor)
             (fb_width, fb_height) = glfw.get_framebuffer_size(self.window)
-            if current_mode.size.width != width or current_mode.size.height != height \
-                    or current_mode.refresh_rate != refresh_rate or current_mode.bits.red != 8 \
+            if current_mode.size.width != self.width or current_mode.size.height != self.height \
+                    or current_mode.refresh_rate != self.refresh_rate or current_mode.bits.red != 8 \
                     or current_mode.bits.green != 8 or current_mode.bits.blue != 8 \
-                    or fb_width != width or fb_height != height:
-                raise Exception(f"Could not initialize {width}x{height} full screen mode with "
-                                f"bit depth of 8 and refresh rate of {refresh_rate}. Instead, got "
+                    or fb_width != self.width or fb_height != self.height:
+                raise Exception(f"Could not initialize {self.width}x{self.height} full screen mode with "
+                                f"bit depth of 8 and refresh rate of {self.refresh_rate}. Instead, got "
                                 f"{current_mode.size.width}x{current_mode.size.height} @ {current_mode.refresh_rate} "
                                 f"with bit depth of {current_mode.bits.red} "
                                 f"and screen buffer size {fb_width}x{fb_height}.")
 
         else:  # windowed mode
-            if width == -1:
-                width = 300
-            if height == -1:
-                height = 300
-            self.window = glfw.create_window(width, height, title, None, None)
+            if self.width == -1:
+                self.width = 300
+            if self.height == -1:
+                self.height = 300
+            self.window = glfw.create_window(self.width, self.height, self.title, None, None)
+            glfw.set_window_pos(self.window, self.x, self.y)
+
         self.activate()
         glfw.set_input_mode(self.window, glfw.CURSOR, glfw.CURSOR_HIDDEN)  # disable cursor
         glfw.swap_interval(1)  # tell opengl to wait for the vertical retrace when swapping buffers
-        self.width = width
-        self.height = height
+        glViewport(0, 0, self.width, self.height)
         # Even with GLFW_FOCUSED = false, a full screen window will steal the focus when created. This behavior is
         # not desired, so we manually return the focus once the window is created. active_window =
         # GetForegroundWindow(); window.create(options["Width"], options["Height"], options["RefreshRate"], "SLM",
@@ -145,11 +152,11 @@ class SLM:
         glfw.make_context_current(self.window)
 
     def update(self):
-        glViewport(0, 0, self.width, self.height)
+        self.activate()
         glClear(GL_COLOR_BUFFER_BIT)
 
         # first draw all patches into the frame buffer
-        glBindFramebuffer(GL_FRAMEBUFFER, self.frame_patch._frame_buffer)
+        glBindFramebuffer(GL_FRAMEBUFFER, self.frame_patch.frame_buffer)
         for patch in self.patches:
             patch.draw()
 
@@ -189,10 +196,9 @@ class SLM:
         self._transform = value
 
         padded = np.append(value, np.float32([[np.nan], [np.nan]]), 1)  # apply padding
-        glBindBuffer(GL_UNIFORM_BUFFER, self.globals)
+        glBindBuffer(GL_UNIFORM_BUFFER, self._globals)
         glBufferData(GL_UNIFORM_BUFFER, padded.size * 4, padded, GL_STATIC_DRAW)
-        glBindBufferBase(GL_UNIFORM_BUFFER, 1, self.globals)  # connect buffer to binding point 1
-        glBindBuffer(GL_UNIFORM_BUFFER, 0)
+        glBindBufferBase(GL_UNIFORM_BUFFER, 1, self._globals)  # connect buffer to binding point 1
 
     @property
     def lookup_table(self):

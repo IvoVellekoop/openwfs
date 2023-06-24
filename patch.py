@@ -1,5 +1,6 @@
 import numpy as np
 import geometry
+import weakref
 from OpenGL.GL import *
 from OpenGL.GL import shaders
 from shaders import default_vertex_shader, default_fragment_shader, post_process_fragment_shader
@@ -9,6 +10,7 @@ class Patch:
     def __init__(self, slm, geometry, vertex_shader=default_vertex_shader, fragment_shader=default_fragment_shader):
         slm.patches.append(self)
         slm.activate()  # make sure the opengl operations occur in the context of the specified slm window
+        self.context = weakref.ref(slm)  # keep weak reference to parent, to avoid cyclic references
         (self._vertices, self._indices) = glGenBuffers(2)
         self.geometry = geometry
 
@@ -16,9 +18,10 @@ class Patch:
         vs = shaders.compileShader(vertex_shader, GL_VERTEX_SHADER)
         fs = shaders.compileShader(fragment_shader, GL_FRAGMENT_SHADER)
         self._program = shaders.compileProgram(vs, fs)
-        self._phases = Texture(np.float32)
+        self._phases = Texture(slm, np.float32)
 
     def draw(self):
+        """Never call directly, this is called from slm.update()"""
         glBindBuffer(GL_ARRAY_BUFFER, self._vertices)
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self._indices)
         glBindVertexBuffer(0, self._vertices, 0, 16)
@@ -44,6 +47,7 @@ class Patch:
 
     @phases.setter
     def phases(self, value):
+        self.context().activate()  # activate OpenGL context for this SLM (needed in case we have multiple SLMs)
         self._phases.set(value)
 
     @property
@@ -56,9 +60,7 @@ class Patch:
 
     @geometry.setter
     def geometry(self, value):
-        # construct vertex buffer and index buffer
-        # tell opengl how to interpret the data in the buffer (see vertex array object in SLM)
-        # 0 = binding index for the vertex array object. 0 = offset into buffer. 16 = stride
+        self.context().activate()
         self._geometry = np.array(value, dtype=np.float32, copy=False)
         glBindBuffer(GL_ARRAY_BUFFER, self._vertices)
         glBufferData(GL_ARRAY_BUFFER, self._geometry.size * 4, self._geometry, GL_DYNAMIC_DRAW)
@@ -84,7 +86,8 @@ class Patch:
 
 
 class Texture:
-    def __init__(self, dtype):
+    def __init__(self, context, dtype):
+        self.context = weakref.ref(context)
         self.dtype = dtype
         self.handle = glGenTextures(1)
         self.data = None
@@ -94,6 +97,7 @@ class Texture:
             made when the array is not a numpy float32 array yet. If the data in the referenced array is modified,
             the data on the GPU and the data in 'phases' are out of sync. To synchronize them again, use
             patch.phases = data, or even patch.phases = patch.phases."""
+        self.context().activate()
         data = np.array(data, dtype=self.dtype, copy=False)
         reuse = self.data is not None and self.data.shape == data.shape  # reuse same texture memory if possible
         width = data.shape[0]
@@ -121,15 +125,15 @@ class FrameBufferPatch(Patch):
         # is then processed as a whole (applying the software lookup table) and displayed on the screen.
         glActiveTexture(GL_TEXTURE0)
         self._phases.set(np.zeros([slm.width, slm.height], dtype=np.float32))
-        self._frame_buffer = glGenFramebuffers(1)
+        self.frame_buffer = glGenFramebuffers(1)
 
-        glBindFramebuffer(GL_FRAMEBUFFER, self._frame_buffer)
+        glBindFramebuffer(GL_FRAMEBUFFER, self.frame_buffer)
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, self._phases.handle, 0)
         if glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE:
             raise Exception("Could not construct frame buffer")
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
-        self._lookup_table = Texture(np.uint8)
+        self._lookup_table = Texture(slm, np.uint8)
         self.lookup_table = range(256)
 
     @property
@@ -139,4 +143,5 @@ class FrameBufferPatch(Patch):
 
     @lookup_table.setter
     def lookup_table(self, value):
+        self.context().activate()
         self._lookup_table.set(value)
