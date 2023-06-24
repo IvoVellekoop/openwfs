@@ -31,6 +31,7 @@ post_process_fragment_shader = """
         in vec2 texCoord;
         out vec4 colorOut;
         uniform sampler2D texSampler;
+        uniform sampler1D LUT;
         const float scale = 0.1591549431f; // = 1 / 2pi
 
         void main() {

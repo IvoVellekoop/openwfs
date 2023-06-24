@@ -39,7 +39,8 @@ def _deactivate_glfw():
 
 
 class SLM:
-    def __init__(self, monitor_id=0, width=-1, height=-1, refresh_rate=-1, title="SLM", transform=((1.0, 0.0, 0.0), (0.0, 1.0, 0.0))):
+    def __init__(self, monitor_id=0, width=-1, height=-1, refresh_rate=-1, title="SLM",
+                 transform=((1.0, 0.0, 0.0), (0.0, 1.0, 0.0))):
         # initialize GLFW library and set global options for window creation
         _activate_glfw()
 
@@ -77,9 +78,10 @@ class SLM:
         # create buffer for storing globals, and update the global transform matrix
         self.globals = glGenBuffers(1)
         self.transform = transform
+        self.LUT = range(256)
         self.patches = []
 
-        # create a frame buffer object to render to. The frame buffer holds a texture that is the same size as the
+        # Create a frame buffer object to render to. The frame buffer holds a texture that is the same size as the
         # window. All patches are first rendered to this texture. The texture
         # is then processed as a whole (applying the software lookup table) and displayed on the screen.
         glActiveTexture(GL_TEXTURE0)
@@ -91,7 +93,7 @@ class SLM:
         if glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE:
             raise Exception("Could not construct frame buffer")
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
-        self.patches = [] # remove frame patch from list of patches
+        self.patches = []  # remove frame patch from list of patches
         self.update()
 
     def __create_window(self, width, height, monitor_id, refresh_rate, title):
@@ -133,8 +135,8 @@ class SLM:
             if height == -1:
                 height = 300
             self.window = glfw.create_window(width, height, title, None, None)
+        self.activate()
         glfw.set_input_mode(self.window, glfw.CURSOR, glfw.CURSOR_HIDDEN)  # disable cursor
-        glfw.make_context_current(self.window)  # activate current opengl context (we have only one)
         glfw.swap_interval(1)  # tell opengl to wait for the vertical retrace when swapping buffers
         self.width = width
         self.height = height
@@ -152,6 +154,10 @@ class SLM:
         if self.window is not None:
             glfw.destroy_window(self.window)
         _deactivate_glfw()
+
+    def activate(self):
+        """Activates the OpenGL context for this slm window. All OpenGL commands now apply to this slm"""
+        glfw.make_context_current(self.window)
 
     def update(self):
         glViewport(0, 0, self.width, self.height)
@@ -202,6 +208,16 @@ class SLM:
         glBufferData(GL_UNIFORM_BUFFER, padded.size * 4, padded, GL_STATIC_DRAW)
         glBindBufferBase(GL_UNIFORM_BUFFER, 1, self.globals)  # connect buffer to binding point 1
         glBindBuffer(GL_UNIFORM_BUFFER, 0)
+
+    @property
+    def lookup_table(self):
+        """Lookup table that is used to map the wrapped phase range 0-2pi to 8-bit color output. By default,
+        this is just range(256)"""
+        return self._lookup_table
+
+    @lookup_table.setter
+    def lookup_table(self, value):
+        ...
 
 
 def enumerate_monitors():

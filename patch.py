@@ -8,6 +8,7 @@ from shaders import default_vertex_shader, default_fragment_shader
 class Patch:
     def __init__(self, slm, geometry, vertex_shader=default_vertex_shader, fragment_shader=default_fragment_shader):
         slm.patches.append(self)
+        slm.activate() # make sure the opengl operations occur in the context of the specified slm window
         (self._vertices, self._indices) = glGenBuffers(2)
         self.geometry = geometry
 
@@ -39,28 +40,12 @@ class Patch:
         """1-D or 2-D array holding phase values to display on the SLM.
         Phases are in radians, and stored as float32. There is no need to wrap the phase to a 0-2pi range.
         The values are only uploaded to the GPU when the setter is invoked (i.e. patch.phases = data).
-
-        Note that 'phases' holds a reference to the array that was last stored in it. A copy is only
-        made when the array is not a numpy float32 array yet. If the data in the referenced array is modified,
-        the data on the GPU and the data in 'phases' are out of sync. To synchronize them again, use
-        patch.phases = data, or even patch.phases = patch.phases.
         """
         return self._phases
 
     @phases.setter
     def phases(self, value):
-        reuse = self._phases is not None and self._phases.shape == value.shape  # reuse same texture memory if possible
-        self._phases = np.array(value, dtype=np.float32, copy=False)
-        width = self.phases.shape[0]
-        height = self.phases.shape[1]
-
-        glBindTexture(GL_TEXTURE_2D, self.texture)
-        glPixelStorei(GL_UNPACK_ALIGNMENT, 4)  # alignment is at least 4 bytes since we are using float32 for everything
-        if reuse:
-            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RED, GL_FLOAT, self._phases)
-        else:
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, width, height, 0, GL_RED, GL_FLOAT, self._phases)
-        glBindTexture(GL_TEXTURE_2D, 0)  # unbind texture
+        self._phases = set_texture(self._phases, value, np.float32, self.texture)
 
     @property
     def geometry(self):
@@ -97,3 +82,24 @@ class Patch:
             i += 1
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self._indices)
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, self._index_count * 2, indices, GL_DYNAMIC_DRAW)
+
+
+def set_texture(original, data, dtype, texture_id):
+    """ Note that textures holds a reference to the array that was last stored in it. A copy is only
+        made when the array is not a numpy float32 array yet. If the data in the referenced array is modified,
+        the data on the GPU and the data in 'phases' are out of sync. To synchronize them again, use
+        patch.phases = data, or even patch.phases = patch.phases."""
+    data = np.array(data, dtype=dtype, copy=False)
+    reuse = original is not None and original.shape == data.shape  # reuse same texture memory if possible
+    width = data.shape[0]
+    height = data.shape[1]
+
+    (internal_format, format) = (GL_R32F, GL_FLOAT) if dtype == np.float32 else (GL_R8, GL_BYTE)
+    glBindTexture(GL_TEXTURE_2D, texture_id)
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 4)  # alignment is at least 4 bytes since we are using float32 for everything
+    if reuse:
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RED, format, data)
+    else:
+        glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, GL_RED, format, data)
+    glBindTexture(GL_TEXTURE_2D, 0)  # unbind texture
+    return data
