@@ -1,9 +1,7 @@
 from OpenGL.GL import *
 import numpy as np
 import glfw
-import geometry
-import shaders
-from patch import Patch, FrameBufferPatch
+from patch import FrameBufferPatch
 
 glfw_active_count = 0
 
@@ -200,11 +198,11 @@ class SLM:
     def lookup_table(self):
         """Lookup table that is used to map the wrapped phase range 0-2pi to 8-bit color output. By default,
         this is just range(256)"""
-        return self._lookup_table
+        return self.frame_patch.lookup_table
 
     @lookup_table.setter
     def lookup_table(self, value):
-        ...
+        self.frame_patch.lookup_table = value
 
 
 def enumerate_monitors():
