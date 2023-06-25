@@ -40,3 +40,15 @@ post_process_fragment_shader = """
             colorOut = vec4(val, val, val, 1.0);
         }
     """
+
+post_process_vertex_shader = """
+        #version 440 core
+        layout(location = 0) in vec2 slm_coordinate;
+        layout(location = 1) in vec2 texture_coordinate;
+        out vec2 texCoord;
+
+        void main() {
+            gl_Position = vec4(slm_coordinate, 0.0, 1.0);
+            texCoord = texture_coordinate;
+        }
+    """

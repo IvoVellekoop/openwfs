@@ -3,7 +3,8 @@ import geometry
 import weakref
 from OpenGL.GL import *
 from OpenGL.GL import shaders
-from shaders import default_vertex_shader, default_fragment_shader, post_process_fragment_shader
+from shaders import default_vertex_shader, default_fragment_shader, \
+    post_process_fragment_shader, post_process_vertex_shader
 
 
 class Patch:
@@ -29,7 +30,7 @@ class Patch:
 
     def draw(self):
         """Never call directly, this is called from slm.update()"""
-        # glBindBuffer(GL_ARRAY_BUFFER, self._vertices) # not needed because we are binding the vertexbuffer already?
+        # glBindBuffer(GL_ARRAY_BUFFER, self._vertices) # not needed because we are binding the vertex buffer already?
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self._indices)
         glBindVertexBuffer(0, self._vertices, 0, 16)
         glUseProgram(self._program)
@@ -94,9 +95,9 @@ class Texture:
         self.handle = glGenTextures(1)
         self.type = texture_type
         glBindTexture(self.type, self.handle)
-        glTexParameteri(self.type, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
-        glTexParameteri(self.type, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
-        # glTexParameteri(self.type, GL_TEXTURE_WRAP_R, GL_REPEAT)
+        glTexParameteri(self.type, GL_TEXTURE_WRAP_S, GL_REPEAT)
+        glTexParameteri(self.type, GL_TEXTURE_WRAP_T, GL_REPEAT)
+        glTexParameteri(self.type, GL_TEXTURE_WRAP_R, GL_REPEAT)
         glTexParameteri(self.type, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
         glTexParameteri(self.type, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
         self.data = None
@@ -122,7 +123,7 @@ class Texture:
 
         if self.type == GL_TEXTURE_1D:
             if data.ndim == 0:
-                data.shape = (1)
+                data.shape = 1
             elif data.ndim != 1:
                 raise ValueError("Data should be 1-d array")
             if reuse:
@@ -144,9 +145,6 @@ class Texture:
         else:
             raise ValueError("Texture type not supported")
 
-        width = data.shape[0]
-        height = 1 if data.ndim == 1 else data.shape[1]
-
 
 class FrameBufferPatch(Patch):
     """Special patch that represents the frame buffer. All patches are first rendered to the frame buffer,
@@ -156,7 +154,8 @@ class FrameBufferPatch(Patch):
     LUT_TEXTURE = 1
 
     def __init__(self, slm):
-        super().__init__(slm, geometry.square(1.0), fragment_shader=post_process_fragment_shader)
+        super().__init__(slm, geometry.square(1.0), fragment_shader=post_process_fragment_shader,
+                         vertex_shader=post_process_vertex_shader)
         # Create a frame buffer object to render to. The frame buffer holds a texture that is the same size as the
         # window. All patches are first rendered to this texture. The texture
         # is then processed as a whole (applying the software lookup table) and displayed on the screen.
