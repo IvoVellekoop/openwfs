@@ -153,6 +153,8 @@ class Texture:
         else:
             raise ValueError("Texture type not supported")
 
+        self.data = data    # store data so that it can be read back by users
+
 
 class FrameBufferPatch(Patch):
     """Special patch that represents the frame buffer. All patches are first rendered to the frame buffer,
