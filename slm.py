@@ -155,10 +155,10 @@ class SLM:
 
     def update(self):
         self.activate()
-        glClear(GL_COLOR_BUFFER_BIT)
 
         # first draw all patches into the frame buffer
         glBindFramebuffer(GL_FRAMEBUFFER, self.frame_patch.frame_buffer)
+        glClear(GL_COLOR_BUFFER_BIT)
         for patch in self.patches:
             patch.draw()
 
