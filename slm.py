@@ -38,7 +38,7 @@ def _deactivate_glfw():
 
 class SLM:
     def __init__(self, monitor_id=0, width=-1, height=-1, left=0, top=0, refresh_rate=-1, title="SLM",
-                 transform=((1.0, 0.0, 0.0), (0.0, 1.0, 0.0))):
+                 transform=None):
         # initialize GLFW library and set global options for window creation
         _activate_glfw()
 
@@ -81,6 +81,12 @@ class SLM:
 
         # create buffer for storing globals, and update the global transform matrix
         self._globals = glGenBuffers(1)  # no need to destroy explicitly, destroyed when window is destroyed
+        if transform is None: # default scaling: square of 'radius' 1.0 covers shortest side of SLM
+            if self.width > self.height:
+                transform = [[self.height/self.width, 0.0, 0.0], [0.0, 1.0, 0.0]]
+            else:
+                transform = [[1.0, 0.0, 0.0], [0.0, self.width/self.height, 0.0]]
+
         self.transform = transform
         self.patches = []
         self.frame_patch = FrameBufferPatch(self)
