@@ -37,7 +37,7 @@ def _deactivate_glfw():
 
 
 class SLM:
-    def __init__(self, monitor_id=0, width=-1, height=-1, x=0, y=0, refresh_rate=-1, title="SLM",
+    def __init__(self, monitor_id=0, width=-1, height=-1, left=0, top=0, refresh_rate=-1, title="SLM",
                  transform=((1.0, 0.0, 0.0), (0.0, 1.0, 0.0))):
         # initialize GLFW library and set global options for window creation
         _activate_glfw()
@@ -45,8 +45,8 @@ class SLM:
         # construct window for displaying the SLM pattern
         self.width = width
         self.height = height
-        self.x = x
-        self.y = y
+        self.left = left
+        self.top = top
         self.monitor_id = monitor_id
         self.refresh_rate = refresh_rate
         self.title = title
@@ -63,7 +63,7 @@ class SLM:
         # All this information is bound to a binding index before use by calling glBindVertexBuffer,
         # which is done when a vertex buffer is created (see Patch).
         #
-        self._vertex_array = glGenVertexArrays(1) # no need to destroy explicitly, destroyed when window is destroyed
+        self._vertex_array = glGenVertexArrays(1)  # no need to destroy explicitly, destroyed when window is destroyed
         glBindVertexArray(self._vertex_array)
         glEnableVertexAttribArray(0)
         glEnableVertexAttribArray(1)
@@ -80,7 +80,7 @@ class SLM:
         glClearColor(1.0, 0.0, 0.0, 1.0)
 
         # create buffer for storing globals, and update the global transform matrix
-        self._globals = glGenBuffers(1) # no need to destroy explicitly, destroyed when window is destroyed
+        self._globals = glGenBuffers(1)  # no need to destroy explicitly, destroyed when window is destroyed
         self.transform = transform
         self.patches = []
         self.frame_patch = FrameBufferPatch(self)
@@ -126,7 +126,7 @@ class SLM:
             if self.height == -1:
                 self.height = 300
             self.window = glfw.create_window(self.width, self.height, self.title, None, None)
-            glfw.set_window_pos(self.window, self.x, self.y)
+            glfw.set_window_pos(self.window, self.left, self.top)
 
         self.activate()
         glfw.set_input_mode(self.window, glfw.CURSOR, glfw.CURSOR_HIDDEN)  # disable cursor

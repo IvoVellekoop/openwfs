@@ -1,5 +1,5 @@
 import numpy as np
-import geometry
+from geometry import square
 import weakref
 from OpenGL.GL import *
 from OpenGL.GL import shaders
@@ -154,7 +154,7 @@ class FrameBufferPatch(Patch):
     LUT_TEXTURE = 1
 
     def __init__(self, slm):
-        super().__init__(slm, geometry.square(1.0), fragment_shader=post_process_fragment_shader,
+        super().__init__(slm, square(1.0), fragment_shader=post_process_fragment_shader,
                          vertex_shader=post_process_vertex_shader)
         # Create a frame buffer object to render to. The frame buffer holds a texture that is the same size as the
         # window. All patches are first rendered to this texture. The texture

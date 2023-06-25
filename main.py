@@ -6,8 +6,8 @@ import geometry
 
 # construct a new SLM object and add a patch to it
 numerical_aperture = 0.8
-s1 = SLM(0, x=0, width=200, height=300)
-s2 = SLM(0, x=500)
+s1 = SLM(0, left=0, width=200, height=300)
+s2 = SLM(0, left=500)
 g = geometry.square(numerical_aperture)
 g[1, 1, 1] = 0
 p1 = Patch(s1, g)
@@ -22,6 +22,6 @@ for n in range(20):
     s1.update()
     s2.update()
 
-p1 = None # test deletion
+p1 = None  # test deletion
 s1.patches.clear()
 enumerate_monitors()
