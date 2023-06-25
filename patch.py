@@ -7,6 +7,8 @@ from shaders import default_vertex_shader, default_fragment_shader, post_process
 
 
 class Patch:
+    PHASES_TEXTURE = 0  # indices of the phases texture in the _texture array
+
     def __init__(self, slm, geometry, vertex_shader=default_vertex_shader, fragment_shader=default_fragment_shader):
         slm.patches.append(self)
         slm.activate()  # make sure the opengl operations occur in the context of the specified slm window
@@ -18,7 +20,7 @@ class Patch:
         vs = shaders.compileShader(vertex_shader, GL_VERTEX_SHADER)
         fs = shaders.compileShader(fragment_shader, GL_FRAGMENT_SHADER)
         self._program = shaders.compileProgram(vs, fs)
-        self._phases = Texture(slm, np.float32)
+        self._textures = [Texture(slm)]
 
     def __del__(self):
         if self.context() is not None:
@@ -27,18 +29,14 @@ class Patch:
 
     def draw(self):
         """Never call directly, this is called from slm.update()"""
-        glBindBuffer(GL_ARRAY_BUFFER, self._vertices)
+        # glBindBuffer(GL_ARRAY_BUFFER, self._vertices) # not needed because we are binding the vertexbuffer already?
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self._indices)
         glBindVertexBuffer(0, self._vertices, 0, 16)
         glUseProgram(self._program)
 
-        glUniform1i(glGetUniformLocation(self._program, "texSampler"), 0)  # use texture unit 0 for the texture
-        glActiveTexture(GL_TEXTURE0 + 0)
-        glBindTexture(GL_TEXTURE_2D, self._phases.handle)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+        for idx, texture in enumerate(self._textures):
+            glActiveTexture(GL_TEXTURE0 + idx)
+            glBindTexture(texture.type, texture.handle)
 
         glDrawElements(GL_TRIANGLE_STRIP, self._index_count, GL_UNSIGNED_SHORT, None)
 
@@ -48,12 +46,12 @@ class Patch:
         Phases are in radians, and stored as float32. There is no need to wrap the phase to a 0-2pi range.
         The values are only uploaded to the GPU when the setter is invoked (i.e. patch.phases = data).
         """
-        return self._phases.data
+        return self._textures[Patch.PHASES_TEXTURE].data
 
     @phases.setter
     def phases(self, value):
         self.context().activate()  # activate OpenGL context for this SLM (needed in case we have multiple SLMs)
-        self._phases.set(value)
+        self._textures[Patch.PHASES_TEXTURE].set(value)
 
     @property
     def geometry(self):
@@ -91,10 +89,16 @@ class Patch:
 
 
 class Texture:
-    def __init__(self, context, dtype):
+    def __init__(self, context, texture_type=GL_TEXTURE_2D):
         self.context = weakref.ref(context)
-        self.dtype = dtype
         self.handle = glGenTextures(1)
+        self.type = texture_type
+        glBindTexture(self.type, self.handle)
+        glTexParameteri(self.type, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+        glTexParameteri(self.type, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+        # glTexParameteri(self.type, GL_TEXTURE_WRAP_R, GL_REPEAT)
+        glTexParameteri(self.type, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+        glTexParameteri(self.type, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
         self.data = None
 
     def __del__(self):
@@ -103,24 +107,45 @@ class Texture:
             glDeleteTextures(1, [self.handle])
 
     def set(self, data):
-        """ Note that textures holds a reference to the array that was last stored in it. A copy is only
+        """ Set texture data. The dimensionality of the data should match that of the texture.
+            As an exception, all texture types can be set to a scalar value.
+            Note that textures holds a reference to the array that was last stored in it. A copy is only
             made when the array is not a numpy float32 array yet. If the data in the referenced array is modified,
             the data on the GPU and the data in 'phases' are out of sync. To synchronize them again, use
             patch.phases = data, or even patch.phases = patch.phases."""
         self.context().activate()
-        data = np.array(data, dtype=self.dtype, copy=False)
+        data = np.array(data, dtype=np.float32, copy=False)
         reuse = self.data is not None and self.data.shape == data.shape  # reuse same texture memory if possible
+        (internal_format, data_format, data_type) = (GL_R32F, GL_RED, GL_FLOAT)
+        glBindTexture(self.type, self.handle)
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 4)  # alignment is at least 4 bytes since we are using float32 for everything
+
+        if self.type == GL_TEXTURE_1D:
+            if data.ndim == 0:
+                data.shape = (1)
+            elif data.ndim != 1:
+                raise ValueError("Data should be 1-d array")
+            if reuse:
+                glTexSubImage1D(GL_TEXTURE_1D, 0, 0, 0, data.shape[0], data_format, data_type, data)
+            else:
+                glTexImage1D(GL_TEXTURE_1D, 0, internal_format, data.shape[0], 0, data_format, data_type, data)
+
+        elif self.type == GL_TEXTURE_2D:
+            if data.ndim == 0:
+                data.shape = (1, 1)
+            elif data.ndim != 2:
+                raise ValueError("Data should be 2-d array")
+            if reuse:
+                glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, data.shape[0], data.shape[1], data_format, data_type, data)
+            else:
+                glTexImage2D(GL_TEXTURE_2D, 0, internal_format, data.shape[0], data.shape[1], 0, data_format, data_type,
+                             data)
+
+        else:
+            raise ValueError("Texture type not supported")
+
         width = data.shape[0]
         height = 1 if data.ndim == 1 else data.shape[1]
-
-        (internal_format, data_format) = (GL_R32F, GL_FLOAT) if self.dtype == np.float32 else (GL_R8, GL_BYTE)
-        glBindTexture(GL_TEXTURE_2D, self.handle)
-        glPixelStorei(GL_UNPACK_ALIGNMENT, 4)  # alignment is at least 4 bytes since we are using float32 for everything
-        if reuse:
-            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RED, data_format, data)
-        else:
-            glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, GL_RED, data_format, data)
-        glBindTexture(GL_TEXTURE_2D, 0)  # unbind texture
 
 
 class FrameBufferPatch(Patch):
@@ -128,23 +153,25 @@ class FrameBufferPatch(Patch):
     and this buffer is rendered to the screen through a  final post-processing step that does the phase wrapping and
     implements the software lookup table."""
 
+    LUT_TEXTURE = 1
+
     def __init__(self, slm):
         super().__init__(slm, geometry.square(1.0), fragment_shader=post_process_fragment_shader)
         # Create a frame buffer object to render to. The frame buffer holds a texture that is the same size as the
         # window. All patches are first rendered to this texture. The texture
         # is then processed as a whole (applying the software lookup table) and displayed on the screen.
-        glActiveTexture(GL_TEXTURE0)
-        self._phases.set(np.zeros([slm.width, slm.height], dtype=np.float32))
+        self.phases = np.zeros([slm.width, slm.height], dtype=np.float32)
         self.frame_buffer = glGenFramebuffers(1)
 
         glBindFramebuffer(GL_FRAMEBUFFER, self.frame_buffer)
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, self._phases.handle, 0)
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                               self._textures[Patch.PHASES_TEXTURE].handle, 0)
         if glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE:
             raise Exception("Could not construct frame buffer")
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
-        self._lookup_table = Texture(slm, np.uint8)
-        self.lookup_table = range(256)
+        self._textures.append(Texture(slm, GL_TEXTURE_1D))  # create texture for lookup table
+        self.lookup_table = [1.0]  # np.arange(0.0, 1.0, 1/255.0)
 
     def __del__(self):
         if self.context() is not None:
@@ -154,9 +181,9 @@ class FrameBufferPatch(Patch):
     @property
     def lookup_table(self):
         """1-D array """
-        return self._lookup_table.data
+        return self._textures[FrameBufferPatch.LUT_TEXTURE].data
 
     @lookup_table.setter
     def lookup_table(self, value):
         self.context().activate()
-        self._lookup_table.set(value)
+        self._textures[FrameBufferPatch.LUT_TEXTURE].set(value)

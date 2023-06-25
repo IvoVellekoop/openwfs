@@ -18,7 +18,7 @@ default_fragment_shader = """
         #version 440 core
         in vec2 texCoord;
         out vec4 colorOut;
-        uniform sampler2D texSampler;
+        layout(binding = 0) uniform sampler2D texSampler;
         
         void main() {
             float val = texture(texSampler, texCoord).r;
@@ -30,12 +30,13 @@ post_process_fragment_shader = """
         #version 440 core
         in vec2 texCoord;
         out vec4 colorOut;
-        uniform sampler2D texSampler;
-        uniform sampler1D LUT;
+        layout(binding = 0) uniform sampler2D texSampler;
+        layout(binding = 1) uniform sampler1D LUT;
         const float scale = 0.1591549431f; // = 1 / 2pi
 
         void main() {
-            float val = texture(texSampler, texCoord).r * scale;
+            float raw = texture(texSampler, texCoord).r * scale;
+            float val = raw;//texture(LUT, raw).r;
             colorOut = vec4(val, val, val, 1.0);
         }
     """
