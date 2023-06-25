@@ -22,6 +22,7 @@ class Patch:
         fs = shaders.compileShader(fragment_shader, GL_FRAGMENT_SHADER)
         self._program = shaders.compileProgram(vs, fs)
         self._textures = [Texture(slm)]
+        self.additive_blend = True
 
     def __del__(self):
         if self.context() is not None:
@@ -34,6 +35,13 @@ class Patch:
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self._indices)
         glBindVertexBuffer(0, self._vertices, 0, 16)
         glUseProgram(self._program)
+
+        if self.additive_blend:
+            glEnable(GL_BLEND)
+            glBlendFunc(GL_ONE, GL_ONE) # (1 * rgb, 1 * alpha)
+            glBlendEquation(GL_FUNC_ADD)
+        else:
+            glDisable(GL_BLEND)
 
         for idx, texture in enumerate(self._textures):
             glActiveTexture(GL_TEXTURE0 + idx)
@@ -171,6 +179,7 @@ class FrameBufferPatch(Patch):
 
         self._textures.append(Texture(slm, GL_TEXTURE_1D))  # create texture for lookup table
         self.lookup_table = np.arange(0.0, 1.0, 1/255.0)
+        self.additive_blend = False
 
     def __del__(self):
         if self.context() is not None:

@@ -13,12 +13,17 @@ g[1, 1, 1] = 0
 p1 = Patch(s1, g)
 p2 = Patch(s2, geometry.square(1.0))
 p3 = Patch(s2, geometry.square(0.2))
+p4 = Patch(s2, geometry.square(0.1))
+p3.phases = 0.25
+p4.phases = 1
+p4.additive_blend = False
 
 rng = np.random.default_rng()
-for n in range(20):
+for n in range(50):
     data = rng.random([10, 10], np.float32) * 2.0 * pi
     p1.phases = data
-    p2.phases = n
+    p2.phases = n/4.0
+    print(n/4.0)
     s1.update()
     s2.update()
 
