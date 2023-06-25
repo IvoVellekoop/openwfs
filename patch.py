@@ -23,6 +23,7 @@ class Patch:
         self._program = shaders.compileProgram(vs, fs)
         self._textures = [Texture(slm)]
         self.additive_blend = True
+        self.enabled = True
 
     def __del__(self):
         if self.context() is not None:
@@ -32,6 +33,9 @@ class Patch:
     def draw(self):
         """Never call directly, this is called from slm.update()"""
         # glBindBuffer(GL_ARRAY_BUFFER, self._vertices) # not needed because we are binding the vertex buffer already?
+        if not self.enabled:
+            return
+
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self._indices)
         glBindVertexBuffer(0, self._vertices, 0, 16)
         glUseProgram(self._program)
