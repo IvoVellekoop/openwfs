@@ -36,7 +36,7 @@ post_process_fragment_shader = """
 
         void main() {
             float raw = texture(texSampler, texCoord).r * scale;
-            float val = raw;//texture(LUT, raw).r;
+            float val = texture(LUT, raw).r;
             colorOut = vec4(val, val, val, 1.0);
         }
     """
