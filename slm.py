@@ -81,11 +81,11 @@ class SLM:
 
         # create buffer for storing globals, and update the global transform matrix
         self._globals = glGenBuffers(1)  # no need to destroy explicitly, destroyed when window is destroyed
-        if transform is None: # default scaling: square of 'radius' 1.0 covers shortest side of SLM
+        if transform is None:  # default scaling: square of 'radius' 1.0 covers shortest side of SLM
             if self.width > self.height:
-                transform = [[self.height/self.width, 0.0, 0.0], [0.0, 1.0, 0.0]]
+                transform = [[self.height / self.width, 0.0, 0.0], [0.0, 1.0, 0.0]]
             else:
-                transform = [[1.0, 0.0, 0.0], [0.0, self.width/self.height, 0.0]]
+                transform = [[1.0, 0.0, 0.0], [0.0, self.width / self.height, 0.0]]
 
         self.transform = transform
         self.patches = []

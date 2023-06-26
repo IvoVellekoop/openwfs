@@ -12,8 +12,8 @@ s2 = SLM(0, left=500)
 g = geometry.square(numerical_aperture)
 g[1, 1, 1] = 0
 p1 = Patch(s1, g)
-pf = Patch(s1, geometry.square(1.0))
-p2 = Patch(s2, geometry.square(1.0))
+pf = Patch(s1)
+p2 = Patch(s2)
 p3 = Patch(s2, geometry.square(0.2))
 p4 = Patch(s2, geometry.square(0.1))
 p3.phases = 0.25

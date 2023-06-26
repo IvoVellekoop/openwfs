@@ -37,7 +37,6 @@ class Patch:
         self.additive_blend = True
         self.enabled = True
 
-
     def draw(self):
         """Never call directly, this is called from slm.update()"""
         # glBindBuffer(GL_ARRAY_BUFFER, self._vertices) # not needed because we are binding the vertex buffer already?
@@ -48,7 +47,7 @@ class Patch:
 
         if self.additive_blend:
             glEnable(GL_BLEND)
-            glBlendFunc(GL_ONE, GL_ONE) # (1 * rgb, 1 * alpha)
+            glBlendFunc(GL_ONE, GL_ONE)  # (1 * rgb, 1 * alpha)
             glBlendEquation(GL_FUNC_ADD)
         else:
             glDisable(GL_BLEND)
@@ -86,20 +85,24 @@ class Patch:
             value = Geometry(self.context(), value)
         self._geometry = value
 
+
 class Geometry:
     def __init__(self, context, vertices):
         self.context = weakref.ref(context)  # keep weak reference to parent, to avoid cyclic references
 
         if vertices is None:
-            vertices = square(1.0)
-        if not isinstance(vertices, tuple):
-            vertices = (vertices, Geometry.compute_indices_for_grid(vertices.shape))
+            self.vertices = square(1.0)
+            self.indices = Geometry.compute_indices_for_grid(self.vertices.shape)
+        elif isinstance(vertices, tuple):
+            self.vertices = np.array(vertices[0], dtype=np.float32, copy=False)
+            self.indices = np.array(vertices[1], dtype=np.uint16, copy=False)
+        else:
+            self.vertices = np.array(vertices, dtype=np.float32, copy=False)
+            self.indices = Geometry.compute_indices_for_grid(self.vertices.shape)
 
         # store the data on the GPU
         self.context().activate()
         (self._vertices, self._indices) = glGenBuffers(2)
-        self.vertices = np.array(vertices[0], dtype=np.float32, copy=False)
-        self.indices = np.array(vertices[1], dtype=np.uint16, copy=False)
         glBindBuffer(GL_ARRAY_BUFFER, self._vertices)
         glBufferData(GL_ARRAY_BUFFER, self.vertices.size * 4, self.vertices, GL_DYNAMIC_DRAW)
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self._indices)
@@ -115,7 +118,7 @@ class Geometry:
         # construct the indices that convert the vertices to a set of triangle strips (see triangle strip in OpenGL
         # specification)
         assert len(shape) == 3  # expect 2-D array of vertices
-        assert shape[2] == 4    # where each vertex holds 4 floats
+        assert shape[2] == 4  # where each vertex holds 4 floats
         i = 0
         nr = shape[0]
         nc = shape[1]
@@ -194,7 +197,7 @@ class Texture:
         else:
             raise ValueError("Texture type not supported")
 
-        self.data = data    # store data so that it can be read back by users
+        self.data = data  # store data so that it can be read back by users
 
 
 class FrameBufferPatch(Patch):
@@ -221,7 +224,7 @@ class FrameBufferPatch(Patch):
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
         self._textures.append(Texture(slm, GL_TEXTURE_1D))  # create texture for lookup table
-        self.lookup_table = np.arange(0.0, 1.0, 1/255.0)
+        self.lookup_table = np.arange(0.0, 1.0, 1 / 255.0)
         self.additive_blend = False
 
     def __del__(self):
