@@ -10,11 +10,23 @@ from shaders import default_vertex_shader, default_fragment_shader, \
 class Patch:
     PHASES_TEXTURE = 0  # indices of the phases texture in the _texture array
 
-    def __init__(self, slm, geometry, vertex_shader=default_vertex_shader, fragment_shader=default_fragment_shader):
+    def __init__(self, slm, geometry=None, vertex_shader=default_vertex_shader,
+                 fragment_shader=default_fragment_shader):
+        """
+        Constructs a new patch (a shape) that can be drawn on the screen.
+        By default, the patch is a square with 'radius' 1.0 (width and height 2.0) centered at 0.0, 0.0
+        To specify a different geometry, provide either:
+          - a 2-D array of vertices, such as produced by the 'geometry' module. The vertices are interpreted as points
+            on a (possibly deformed) grid.
+          - a tuple containing a 1-D array of vertices and a 1-D array of indices. The indices indicate how the
+            vertices are connected into triangles (see Geometry object for details).
+          - an existing Geometry object. It is possible to attach the same Geometry object to multiple patches.
+            Note, however, that Geometry objects cannot be shared between different SLMs.
+        """
+
         slm.patches.append(self)
         slm.activate()  # make sure the opengl operations occur in the context of the specified slm window
         self.context = weakref.ref(slm)  # keep weak reference to parent, to avoid cyclic references
-        (self._vertices, self._indices) = glGenBuffers(2)
         self.geometry = geometry
 
         # construct vertex shader, fragment shader and program
@@ -25,10 +37,6 @@ class Patch:
         self.additive_blend = True
         self.enabled = True
 
-    def __del__(self):
-        if self.context() is not None:
-            self.context().activate()
-            glDeleteBuffers(2, [self._vertices, self._indices])
 
     def draw(self):
         """Never call directly, this is called from slm.update()"""
@@ -36,8 +44,6 @@ class Patch:
         if not self.enabled:
             return
 
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self._indices)
-        glBindVertexBuffer(0, self._vertices, 0, 16)
         glUseProgram(self._program)
 
         if self.additive_blend:
@@ -51,7 +57,7 @@ class Patch:
             glActiveTexture(GL_TEXTURE0 + idx)
             glBindTexture(texture.type, texture.handle)
 
-        glDrawElements(GL_TRIANGLE_STRIP, self._index_count, GL_UNSIGNED_SHORT, None)
+        self._geometry.draw()
 
     @property
     def phases(self):
@@ -76,18 +82,45 @@ class Patch:
 
     @geometry.setter
     def geometry(self, value):
-        self.context().activate()
-        self._geometry = np.array(value, dtype=np.float32, copy=False)
-        glBindBuffer(GL_ARRAY_BUFFER, self._vertices)
-        glBufferData(GL_ARRAY_BUFFER, self._geometry.size * 4, self._geometry, GL_DYNAMIC_DRAW)
+        if not isinstance(value, Geometry):
+            value = Geometry(self.context(), value)
+        self._geometry = value
 
+class Geometry:
+    def __init__(self, context, vertices):
+        self.context = weakref.ref(context)  # keep weak reference to parent, to avoid cyclic references
+
+        if vertices is None:
+            vertices = square(1.0)
+        if not isinstance(vertices, tuple):
+            vertices = (vertices, Geometry.compute_indices_for_grid(vertices.shape))
+
+        # store the data on the GPU
+        self.context().activate()
+        (self._vertices, self._indices) = glGenBuffers(2)
+        self.vertices = np.array(vertices[0], dtype=np.float32, copy=False)
+        self.indices = np.array(vertices[1], dtype=np.uint16, copy=False)
+        glBindBuffer(GL_ARRAY_BUFFER, self._vertices)
+        glBufferData(GL_ARRAY_BUFFER, self.vertices.size * 4, self.vertices, GL_DYNAMIC_DRAW)
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self._indices)
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, self.indices.size * 2, self.indices, GL_DYNAMIC_DRAW)
+
+    def __del__(self):
+        if self.context() is not None:
+            self.context().activate()
+            glDeleteBuffers(2, [self._vertices, self._indices])
+
+    @staticmethod
+    def compute_indices_for_grid(shape):
         # construct the indices that convert the vertices to a set of triangle strips (see triangle strip in OpenGL
         # specification)
+        assert len(shape) == 3  # expect 2-D array of vertices
+        assert shape[2] == 4    # where each vertex holds 4 floats
         i = 0
-        nr = self._geometry.shape[0]
-        nc = self._geometry.shape[1]
-        self._index_count = (nr - 1) * (2 * nc + 1)
-        indices = np.zeros(self._index_count, np.uint16)
+        nr = shape[0]
+        nc = shape[1]
+        index_count = (nr - 1) * (2 * nc + 1)
+        indices = np.zeros(index_count, np.uint16)
         for r in range(nr - 1):
             # emit triangle strip (single row)
             row_start = r * nc
@@ -97,8 +130,12 @@ class Patch:
                 i += 2
             indices[i] = 0xFFFF
             i += 1
+        return indices
+
+    def draw(self):
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self._indices)
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, self._index_count * 2, indices, GL_DYNAMIC_DRAW)
+        glBindVertexBuffer(0, self._vertices, 0, 16)
+        glDrawElements(GL_TRIANGLE_STRIP, self.indices.size, GL_UNSIGNED_SHORT, None)
 
 
 class Texture:
