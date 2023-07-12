@@ -8,7 +8,8 @@ from skimage import data
 from PIL import Image
 
 
-Sim = SimulatedWFS([500,500],active_plotting=True)
+Sim = SimulatedWFS()
+Sim.E_input_slm = np.ones([500,500])
 
 def get_center(Simulation):
     Simulation.get_image()
@@ -22,26 +23,17 @@ def get_center(Simulation):
     return get_center_closure
 
 feedback = get_center(Sim)
-#correct_wf = np.round(np.random.rand(4,5)*256)
-#correct_wf = np.array([[0, 0],[128,128]])
 
 # Load a sample image from scikit-image
 test_image = data.camera()
-
-
-
-#test_image = np.ceil((np.array(Image.open('bmpi2.png').convert('L')).astype(np.uint8))/64)*64+64
-
-
-
 
 # Convert the image to a NumPy array
 correct_wf = np.array(test_image)
 # correct_wf = np.ones([10,10])*50
 Sim.set_ideal_wf(correct_wf)
+alg = FourierDualRef()
 
-
-[feedback_set, ideal_wavefront, t_set] = WFS(Sim,feedback,FourierDualRef(3,np.zeros([1000,1000]),np.arange(-10,10,1),np.arange(-10,10,1),0.1,0))
+[feedback_set, ideal_wavefront, t_set] = wavefront_shaping(Sim,feedback,alg)
 
 plt.figure(3)
 plt.imshow(correct_wf)
