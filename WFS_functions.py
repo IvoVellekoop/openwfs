@@ -3,16 +3,12 @@ import cv2
 import time
 import sys
 
-sys.path.append('C:\\Users\\Jeroen Doornbos\\Documents\\wfs_current\\micro-manager\\mmCoreAndDevices\\DeviceAdapters\\MM_pydevice')
-sys.path.append('C:\\Users\\Jeroen Doornbos\\Documents\\wfs_current\\hardware\\generic_binding')
-from WFS import WFS
-from SLMwrapper import SLM, set_circular_geometry, test
-from SSA import SSA
-from WFS import WFS
-from Fourier import FourierDualRef
+from wfs import WFS
+from ssa import SSA
+from wfs import WFS
+from fourier import FourierDualRef
 import matplotlib.pyplot as plt
 
-sys.path.append('C:\\Program Files\\Micro-Manager-2.0')
 from base_device_properties import float_property, int_property, string_property, object_property, base_property, bool_property, parse_options
 
 def manual_slm_setup(monitor_id=2, wavelength_nm = 804):
@@ -223,7 +219,7 @@ class WfsExperiment:
 
 
 if __name__ == "__main__":
-    from Simulation.Simulation import SimulatedWFS
+    from simulation.simulation import SimulatedWFS
     wfs = WfsExperiment()
 
     wfs.algorithm = FourierDualRef()
@@ -240,7 +236,7 @@ if __name__ == "__main__":
     wfs.algorithm.set_kspace([-4,2],[7,9])
     print(wfs.algorithm.kx_set)
     print(wfs.algorithm.ky_set)
-    wfs.slm_object = SLM()
+    wfs.slm_object = SimulatedWFS()
     wfs.camera_object = SimulatedWFS()
 
     wfs.execute = 1

@@ -1,4 +1,4 @@
-from Algorithm import Algorithm
+from algorithm import Algorithm
 import numpy as np
 from base_device_properties import float_property, int_property, string_property, object_property, base_property, bool_property, parse_options
 
