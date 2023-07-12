@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
-from Simulation import make_gaussian
+from simulation import make_gaussian
 import time
 
 # the plane wave that is the input:

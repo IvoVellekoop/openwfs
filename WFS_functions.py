@@ -1,9 +1,6 @@
 import numpy as np
 import cv2
-import time
-import sys
-
-from wfs import WFS
+from slm import SLM
 from ssa import SSA
 from wfs import WFS
 from fourier import FourierDualRef

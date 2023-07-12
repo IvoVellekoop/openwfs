@@ -1,9 +1,9 @@
 import numpy as np
-from geometry import square
 import weakref
 from OpenGL.GL import *
-from OpenGL.GL import shaders
-from shaders import default_vertex_shader, default_fragment_shader, \
+#from OpenGL.GL import shaders
+from .geometry import square
+from .shaders import default_vertex_shader, default_fragment_shader, \
     post_process_fragment_shader, post_process_vertex_shader
 
 

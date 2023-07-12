@@ -1,7 +1,7 @@
 from OpenGL.GL import *
 import numpy as np
 import glfw
-from patch import FrameBufferPatch
+from .patch import FrameBufferPatch
 
 
 class SLM:

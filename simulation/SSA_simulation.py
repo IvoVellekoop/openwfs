@@ -1,12 +1,9 @@
-from SSA import SSA
-from WFS import WFS
-from Fourier import FourierDualRef
-from Simulation import SimulatedWFS
+from ssa import SSA
+from wfs import WFS
+from simulation import SimulatedWFS
 import numpy as np
 import matplotlib.pyplot as plt
-from skimage import data
-from PIL import Image
-
+from decimal import Decimal
 
 Sim = SimulatedWFS([500,500],active_plotting=True)
 
@@ -22,26 +19,13 @@ def get_center(Simulation):
     return get_center_closure
 
 feedback = get_center(Sim)
-#correct_wf = np.round(np.random.rand(4,5)*256)
-#correct_wf = np.array([[0, 0],[128,128]])
-
-# Load a sample image from scikit-image
-test_image = data.camera()
-
-
-
-#test_image = np.ceil((np.array(Image.open('bmpi2.png').convert('L')).astype(np.uint8))/64)*64+64
-
-
-
-
-# Convert the image to a NumPy array
-correct_wf = np.array(test_image)
+correct_wf = np.round(np.random.rand(8,8)*256)
+#correct_wf = np.array([[0, 192],[25,22]])
 # correct_wf = np.ones([10,10])*50
 Sim.set_ideal_wf(correct_wf)
 
 
-[feedback_set, ideal_wavefront, t_set] = WFS(Sim,feedback,FourierDualRef(3,np.zeros([1000,1000]),np.arange(-10,10,1),np.arange(-10,10,1),0.1,0))
+[feedback_set, ideal_wavefront, t_set] = WFS(Sim,feedback,SSA(16,np.zeros(np.shape(correct_wf))))
 
 plt.figure(3)
 plt.imshow(correct_wf)
@@ -52,40 +36,48 @@ plt.figure(4)
 Sim.set_data(correct_wf)
 plt.title('Image for correct WF, feedback = '+"{:.2e}".format(feedback()[0]))
 
-
 Sim.get_image()
 plt.imshow(Sim.get_image())
-plt.colorbar()
-plt.clim(0, 2**16)
+
 
 plt.figure(5)
 plt.imshow(ideal_wavefront)
 plt.colorbar()
 plt.clim(0, 256)
-plt.title('Wavefront determined by Fourier')
+plt.title('Wavefront determined by SSA')
 
 plt.figure(6)
 Sim.set_data(ideal_wavefront)
 Sim.get_image()
 plt.title('Image for calculated wavefront, feedback = '"{:.2e}".format(feedback()[0]))
-
 plt.imshow(Sim.get_image())
-plt.colorbar()
-plt.clim(0, 2**16)
 
-plt.figure(7)
+plt.figure(9)
 Sim.set_data(0)
 Sim.get_image()
 plt.title('Image for flat wavefront, feedback = '"{:.2e}".format(feedback()[0]))
-
 plt.imshow(Sim.get_image())
-plt.colorbar()
-plt.clim(0, 2**16)
 
+plt.figure(7)
+diff = ideal_wavefront[:,:,0]-correct_wf
+diff = np.where(diff < 0, 256 + diff, diff) % 256
+plt.imshow(diff)
+plt.colorbar()
+plt.clim(0, 256)
+# Sim.set_data(0)
+# Sim.get_image()
+plt.title('Difference between correct and ideal WF')
+# plt.title('Image for flat wavefront, feedback = '"{:.2e}".format(feedback()[0]))
+# plt.imshow(Sim.get_image())
 
 plt.figure(8)
 
-plt.plot(feedback_set[:,:,0])
+plt.plot(feedback_set)
 plt.legend([str(x) for x in correct_wf.flatten().tolist()])
 plt.title('Feedback signals of the phase modulation of the SLM fields')
+
+plt.figure(9)
+plt.imshow(np.log(np.reshape(np.std(feedback_set,axis=0),np.shape(correct_wf))))
+plt.title('log of standard deviation of the phase modulation of the SLM fields')
+
 plt.show(block=True)
