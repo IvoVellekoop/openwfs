@@ -3,17 +3,51 @@ import numpy as np
 import glfw
 from patch import FrameBufferPatch
 
-glfw_active_count = 0
 
+class SLM:
+    _active_monitors = np.zeros(256, 'uint32')  # keeps track of which monitors are occupied already
 
-def _activate_glfw():
-    """Initializes the GLFW library if it is not initialized yet.
-    Internally keeps a counter of active users of glfw. This counter is increased on _activate_glfw and decreased
-    in _deactivate_glfw. Each call to _init_glfw should be matched by a call to _deinit_glfw.
-    This function also sets global options for window and opengl context creation. If GLFW is already
-    initialized, this function does nothing. """
-    global glfw_active_count
-    if glfw_active_count == 0:
+    def __init__(self, monitor_id=0, width=-1, height=-1, left=0, top=0, refresh_rate=-1, title="SLM",
+                 transform=None):
+
+        # construct window for displaying the SLM pattern
+        self.full_screen = monitor_id != 0  # a monitor id of 0 indicates windowed mode
+        self.monitor_id = monitor_id
+        self.width = width
+        self.height = height
+        self.left = left
+        self.top = top
+        self.refresh_rate = refresh_rate
+        self.title = title
+        self.patches = []
+        self._window = None  # will be set by __create_window
+        self._globals = None  # will be filled by __create_window
+        self._vertex_array = None  # will be set by __create_window
+        self.__create_window()
+
+        # Set the transform matrix, use a default (where a square of 'radius' 1.0 covers shortest side of SLM)
+        # if no transform is specified.
+        if transform is None:  # default scaling: square
+            if self.width > self.height:
+                transform = [[self.height / self.width, 0.0, 0.0], [0.0, 1.0, 0.0]]
+            else:
+                transform = [[1.0, 0.0, 0.0], [0.0, self.width / self.height, 0.0]]
+        self.transform = transform
+
+        # Construct the frame buffer, this is the texture where all patches draw to. After all patches
+        # finish drawing, the frame buffer itself is drawn onto the screen.
+        self.frame_patch = FrameBufferPatch(self)
+        self.patches = []  # remove frame patch from list of patches
+        self.update()
+
+    def __create_window(self):
+        """Constructs a new window and associated OpenGL context. Called by SLM.__init__()"""
+
+        ###
+        # initialize the GLFW library and set global configuration. Note that we never de-initialize it. This
+        # should be fine because each slm window releases its resources when it is destroyed. If we were to
+        # de-initialize the GLFW library (using glfw.terminate()) we run into trouble if the user of our library also
+        # uses glfw for something else.
         glfw.init()
         glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)  # Required on Mac. Doesn't hurt on Windows
         glfw.window_hint(glfw.OPENGL_FORWARD_COMPAT, glfw.TRUE)  # Required on Mac. Useless on Windows
@@ -24,34 +58,65 @@ def _activate_glfw():
         glfw.window_hint(glfw.AUTO_ICONIFY, glfw.FALSE)  # Prevent window minimization during task switch
         glfw.window_hint(glfw.FOCUSED, glfw.FALSE)
         glfw.window_hint(glfw.DOUBLEBUFFER, glfw.TRUE)
-    glfw_active_count += 1
 
+        # Construct the OpenGL window. This window also acts as a 'context' which holds all resources for the window
+        # Before calling any OpenGL function on the window, the context must be activated.
+        if self.full_screen:  # full screen mode
+            # we cannot have multiple full screen windows on the same monitor. Also, we cannot have
+            # a full screen window on monitor 1 if there are already windowed SLMs.
+            if SLM._active_monitors[self.monitor_id] > 0 or (self.monitor_id == 1 and SLM._active_monitors[0] > 0):
+                raise Exception(f"Cannot create a full-screen SLM window on monitor {self.monitor_id} because a "
+                                f"window is already displayed on that monitor")
 
-def _deactivate_glfw():
-    """Decreases the count of active users of GLFW. De-initializes the GLFW library if there are no more active
-    users. This releases all resources and closes all windows."""
-    global glfw_active_count
-    glfw_active_count -= 1
-    if glfw_active_count == 0:
-        glfw.terminate()
+            # set defaults for size and refresh rate (use current monitor setting)
+            monitor = glfw.get_monitors()[self.monitor_id - 1]
+            current_mode = glfw.get_video_mode(monitor)
+            if self.width == -1:
+                self.width = current_mode.size.width
+            if self.height == -1:
+                self.height = current_mode.size.height
+            if self.refresh_rate == -1:
+                self.refresh_rate = current_mode.refresh_rate
 
+            # Ask glfw to create a full screen window with specified resolution and refresh rate,
+            # and at least 8 bit per pixel depth.
+            glfw.window_hint(glfw.RED_BITS, 8)
+            glfw.window_hint(glfw.GREEN_BITS, 8)
+            glfw.window_hint(glfw.BLUE_BITS, 8)
+            glfw.window_hint(glfw.REFRESH_RATE, self.refresh_rate)
+            glfw.set_gamma(monitor, 1.0)
+            self._window = glfw.create_window(self.width, self.height, self.title, monitor, None)
 
-class SLM:
-    def __init__(self, monitor_id=0, width=-1, height=-1, left=0, top=0, refresh_rate=-1, title="SLM",
-                 transform=None):
-        # initialize GLFW library and set global options for window creation
-        _activate_glfw()
+            current_mode = glfw.get_video_mode(monitor)
+            (fb_width, fb_height) = glfw.get_framebuffer_size(self._window)
+            if current_mode.size.width != self.width or current_mode.size.height != self.height \
+                    or current_mode.refresh_rate != self.refresh_rate or current_mode.bits.red != 8 \
+                    or current_mode.bits.green != 8 or current_mode.bits.blue != 8 \
+                    or fb_width != self.width or fb_height != self.height:
+                raise Exception(f"Could not initialize {self.width}x{self.height} full screen mode with "
+                                f"bit depth of 8 and refresh rate of {self.refresh_rate}. Instead, got "
+                                f"{current_mode.size.width}x{current_mode.size.height} @ {current_mode.refresh_rate} "
+                                f"with bit depth of {current_mode.bits.red} "
+                                f"and screen buffer size {fb_width}x{fb_height}.")
 
-        # construct window for displaying the SLM pattern
-        self.width = width
-        self.height = height
-        self.left = left
-        self.top = top
-        self.monitor_id = monitor_id
-        self.refresh_rate = refresh_rate
-        self.title = title
-        self.window = None  # will be filled when __create_window succeeds
-        self.__create_window()
+        else:  # windowed mode
+            if SLM._active_monitors[1] > 0:  # prevent multiple SLM windows from opening on the same monitor
+                raise Exception(f"Cannot create an SLM window because a full-screen SLM is already active on monitor 1")
+            if self.width == -1:  # set default size if not specified
+                self.width = 300
+            if self.height == -1:
+                self.height = 300
+            self._window = glfw.create_window(self.width, self.height, self.title, None, None)
+            glfw.set_window_pos(self._window, self.left, self.top)
+
+        # keep track of how many SLMs we have on which monitors
+        SLM._active_monitors[self.monitor_id] += 1
+
+        # we can now start using OpenGL on the window
+        self.activate()
+        glfw.set_input_mode(self._window, glfw.CURSOR, glfw.CURSOR_HIDDEN)  # disable cursor
+        glfw.swap_interval(1)  # tell opengl to wait for the vertical retrace when swapping buffers
+        glViewport(0, 0, self.width, self.height)
 
         # Inform OpenGL about the format of the vertex data we will use.
         # Each vertex contains four float32 components:
@@ -82,84 +147,17 @@ class SLM:
 
         # create buffer for storing globals, and update the global transform matrix
         self._globals = glGenBuffers(1)  # no need to destroy explicitly, destroyed when window is destroyed
-        if transform is None:  # default scaling: square of 'radius' 1.0 covers shortest side of SLM
-            if self.width > self.height:
-                transform = [[self.height / self.width, 0.0, 0.0], [0.0, 1.0, 0.0]]
-            else:
-                transform = [[1.0, 0.0, 0.0], [0.0, self.width / self.height, 0.0]]
-
-        self.transform = transform
-        self.patches = []
-        self.frame_patch = FrameBufferPatch(self)
-        self.patches = []  # remove frame patch from list of patches
-        self.update()
-
-    def __create_window(self):
-        if self.monitor_id > 0:  # full screen mode
-            monitor = glfw.get_monitors()[self.monitor_id - 1]
-
-            # set defaults for size and refresh rate (use current monitor setting)
-            current_mode = glfw.get_video_mode(monitor)
-            if self.width == -1:
-                self.width = current_mode.size.width
-            if self.height == -1:
-                self.height = current_mode.size.height
-            if self.refresh_rate == -1:
-                self.refresh_rate = current_mode.refresh_rate
-
-            # Ask glfw to create a full screen window with specified resolution and refresh rate,
-            # and at least 8 bit per pixel depth.
-            glfw.window_hint(glfw.RED_BITS, 8)
-            glfw.window_hint(glfw.GREEN_BITS, 8)
-            glfw.window_hint(glfw.BLUE_BITS, 8)
-            glfw.window_hint(glfw.REFRESH_RATE, self.refresh_rate)
-            glfw.set_gamma(monitor, 1.0)
-            self.window = glfw.create_window(self.width, self.height, self.title, monitor, None)
-
-            current_mode = glfw.get_video_mode(monitor)
-            (fb_width, fb_height) = glfw.get_framebuffer_size(self.window)
-            if current_mode.size.width != self.width or current_mode.size.height != self.height \
-                    or current_mode.refresh_rate != self.refresh_rate or current_mode.bits.red != 8 \
-                    or current_mode.bits.green != 8 or current_mode.bits.blue != 8 \
-                    or fb_width != self.width or fb_height != self.height:
-                raise Exception(f"Could not initialize {self.width}x{self.height} full screen mode with "
-                                f"bit depth of 8 and refresh rate of {self.refresh_rate}. Instead, got "
-                                f"{current_mode.size.width}x{current_mode.size.height} @ {current_mode.refresh_rate} "
-                                f"with bit depth of {current_mode.bits.red} "
-                                f"and screen buffer size {fb_width}x{fb_height}.")
-
-        else:  # windowed mode
-            if self.width == -1:
-                self.width = 300
-            if self.height == -1:
-                self.height = 300
-            self.window = glfw.create_window(self.width, self.height, self.title, None, None)
-            glfw.set_window_pos(self.window, self.left, self.top)
-
-        self.activate()
-        glfw.set_input_mode(self.window, glfw.CURSOR, glfw.CURSOR_HIDDEN)  # disable cursor
-        glfw.swap_interval(1)  # tell opengl to wait for the vertical retrace when swapping buffers
-        glViewport(0, 0, self.width, self.height)
-        # Even with GLFW_FOCUSED = false, a full screen window will steal the focus when created. This behavior is
-        # not desired, so we manually return the focus once the window is created. active_window =
-        # GetForegroundWindow(); window.create(options["Width"], options["Height"], options["RefreshRate"], "SLM",
-        # monitor); //wrap in a smart pointer so that the window will always be destroyed when this glSLM object is
-        # destroyed SetForegroundWindow(activeWindow); refreshRate = monitor.getRefreshRate(); These two lines are a
-        # bit silly: switch to windowed mode and back to full screen mode again. But it is a workaround for a problem
-        # occurring when setting the SLM on a secondary monitor in Matlab (only in Matlab and only secondary screen)
-        # glfwSetWindowMonitor(window, NULL, 0, 0, width, height, refreshRate); if (monitor.isFullScreen())
-        # glfwSetWindowMonitor(window, monitor, 0, 0, width, height, refreshRate);
 
     def __del__(self):
-        if self.window is not None:
+        if self._window is not None:
             self.activate()
             self.patches.clear()
-            glfw.destroy_window(self.window)
-        _deactivate_glfw()
+            glfw.destroy_window(self._window)
+            SLM._active_monitors[self.monitor_id] -= 1
 
     def activate(self):
         """Activates the OpenGL context for this slm window. All OpenGL commands now apply to this slm"""
-        glfw.make_context_current(self.window)
+        glfw.make_context_current(self._window)
 
     def update(self):
         self.activate()
@@ -175,7 +173,7 @@ class SLM:
         self.frame_patch.draw()
 
         glfw.poll_events()  # process window messages
-        glfw.swap_buffers(self.window)
+        glfw.swap_buffers(self._window)
 
         # wait for buffer swap to complete (this should be directly after a vsync, so returning from this
         # function _should_ be synced with the vsync)
@@ -221,11 +219,3 @@ class SLM:
     @lookup_table.setter
     def lookup_table(self, value):
         self.frame_patch.lookup_table = value
-
-
-def enumerate_monitors():
-    _activate_glfw()
-    monitors = glfw.get_monitors()
-    for monitor in monitors:
-        print(glfw.get_monitor_name(monitor))
-    _deactivate_glfw()
