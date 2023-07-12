@@ -1,7 +1,7 @@
-from SSA import SSA
-from WFS import WFS
-from Fourier import FourierDualRef
-from Simulation import SimulatedWFS
+from ssa import StepwiseSequential
+from wfs import wavefront_shaping
+from fourier import FourierDualRef
+from simulation import SimulatedWFS
 import numpy as np
 import matplotlib.pyplot as plt
 from skimage import data
@@ -41,7 +41,7 @@ correct_wf = np.array(test_image)
 Sim.set_ideal_wf(correct_wf)
 
 
-[feedback_set, ideal_wavefront, t_set] = WFS(Sim,feedback,FourierDualRef(3,np.zeros([1000,1000]),np.arange(-10,10,1),np.arange(-10,10,1),0.1,0))
+[feedback_set, ideal_wavefront, t_set] = wavefront_shaping(Sim,feedback,FourierDualRef(3,np.zeros([1000,1000]),np.arange(-10,10,1),np.arange(-10,10,1),0.1,0))
 
 plt.figure(3)
 plt.imshow(correct_wf)

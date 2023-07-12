@@ -3,10 +3,6 @@ import matplotlib.pyplot as plt
 import cv2
 import sys
 
-# Add the MM directory to sys.path so Python can find modules in it
-sys.path.append('C:\Program Files\Micro-Manager-2.0')
-
-
 from base_device_properties import float_property, int_property, string_property, object_property, base_property, bool_property, parse_options
 
 def make_gaussian(size, fwhm = 3, center=None):

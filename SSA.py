@@ -4,7 +4,7 @@ from base_device_properties import float_property, int_property, string_property
 
 
 
-class SSA(Algorithm):
+class StepwiseSequential(Algorithm):
     """
     Class definition for stepwise sequential algorithm.
 

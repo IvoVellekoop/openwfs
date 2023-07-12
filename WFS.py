@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def WFS(slm, get_feedback, algorithm, fast_mode=False, post_process=True):
+def wavefront_shaping(slm, get_feedback, algorithm, fast_mode=False, post_process=True):
     """
     This function is for performing wavefront shaping experiments.
     Depending on the algorithm, this function projects "meas_count" (= algorithm.get_count) number of different wavefronts
@@ -68,6 +68,7 @@ def WFS(slm, get_feedback, algorithm, fast_mode=False, post_process=True):
 
 
 def testRecordingTime(slm, get_feedback):
+    import time
     n_vsyncs = 20
     slm.update(1)
     tic = time.time()
