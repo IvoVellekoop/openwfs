@@ -5,7 +5,7 @@ from skimage import data
 
 from simulation.simulation import SimulatedWFS, make_gaussian
 from fourier import FourierDualRef
-from WFS_functions import WfsExperiment
+from wfs_functions import WfsExperiment
 sys.path.append('C:\\Users\\Jeroen Doornbos\\Documents\\wfs_current\\hardware\\generic_binding')
 from SLMwrapper import SLM, set_circular_geometry
 

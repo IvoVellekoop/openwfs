@@ -1,5 +1,5 @@
-from ssa import SSA
-from wfs import WFS
+from ssa import StepwiseSequential
+from wfs import wavefront_shaping
 from fourier import FourierDualRef
 from simulation import SimulatedWFS
 import numpy as np

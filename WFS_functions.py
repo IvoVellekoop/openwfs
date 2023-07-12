@@ -1,8 +1,11 @@
 import numpy as np
 import cv2
-from slm import SLM
-from ssa import SSA
-from wfs import WFS
+import time
+import sys
+
+from wfs import wavefront_shaping
+from ssa import StepwiseSequential
+
 from fourier import FourierDualRef
 import matplotlib.pyplot as plt
 
@@ -164,7 +167,7 @@ class WfsExperiment:
 
         feedback_func = make_point_mean(xrange, yrange, get_feedback)
 
-        [feedback_set, ideal_wavefronts, t_set] = WFS(slm, feedback_func, algorithm,post_process=self.post_process)
+        [feedback_set, ideal_wavefronts, t_set] = wavefront_shaping(slm, feedback_func, algorithm,post_process=self.post_process)
         if self.post_process:
             slm.set_data(ideal_wavefronts[:, :, 0])
             slm.update(30)
@@ -218,23 +221,28 @@ class WfsExperiment:
 if __name__ == "__main__":
     from simulation.simulation import SimulatedWFS
     wfs = WfsExperiment()
-
+    sim = SimulatedWFS()
+    sim.set_ideal_wf(np.zeros([500,500]))
+    sim.E_input_slm = np.ones([500, 500])
     wfs.algorithm = FourierDualRef()
-    print(wfs.algorithm.kx_set)
-    print(wfs.algorithm.ky_set)
+    wfs.ranges = [[250, 251], [250, 251]]
+    wfs.algorithm.ky_angles_max = 2
+    wfs.algorithm.ky_angles_min = -2
+    wfs.algorithm.kx_angles_max = 2
+    wfs.algorithm.kx_angles_min = -2
+    wfs.algorithm.kx_angles_stepsize=1
+    wfs.algorithm.ky_angles_stepsize=1
 
-    wfs.algorithm.kx_angles_stepsize=2
-    wfs.algorithm.ky_angles_stepsize=2
-    wfs.algorithm.ky_angles_max = 0
     wfs.algorithm.build_kspace()
     print(wfs.algorithm.kx_set)
     print(wfs.algorithm.ky_set)
 
-    wfs.algorithm.set_kspace([-4,2],[7,9])
-    print(wfs.algorithm.kx_set)
-    print(wfs.algorithm.ky_set)
-    wfs.slm_object = SimulatedWFS()
-    wfs.camera_object = SimulatedWFS()
+#    wfs.algorithm.set_kspace([-4,2],[7,9])
+
+    wfs.slm_object = sim
+    wfs.camera_object = sim
 
     wfs.execute = 1
+    plt.imshow(wfs.optimised_wf)
+    plt.show()
     # or you can use wfs.on_execute(), works either way
