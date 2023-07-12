@@ -68,6 +68,7 @@ def wavefront_shaping(slm, get_feedback, algorithm, fast_mode=False, post_proces
 
 
 def testRecordingTime(slm, get_feedback):
+    import time
     n_vsyncs = 20
     slm.update(1)
     tic = time.time()
