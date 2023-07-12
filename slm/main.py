@@ -4,11 +4,12 @@ import numpy as np
 from math import pi
 import geometry
 import textures
+import time
 
 # construct a new SLM object and add a patch to it
 numerical_aperture = 0.8
 s1 = SLM(0, left=0, width=200, height=300)
-s2 = SLM(0, left=500)
+s2 = SLM(1, left=500)
 g = geometry.square(numerical_aperture)
 g[1, 1, 1] = 0
 p1 = Patch(s1, g)
@@ -25,9 +26,10 @@ p1.enabled = False
 rng = np.random.default_rng()
 for n in range(50):
     data = rng.random([10, 10], np.float32) * 2.0 * pi
-    p1.phases = data
-    p2.phases = n/4.0
+    #p1.phases = data
+    #p2.phases = n/4.0
     s1.update()
+    time.sleep(0.1)
     s2.update()
 
 p1 = None  # test deletion
