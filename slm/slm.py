@@ -50,7 +50,8 @@ class SLM:
         self.monitor_id = monitor_id
         self.refresh_rate = refresh_rate
         self.title = title
-        self.__create_window(monitor_id)
+        self.window = None  # will be filled when __create_window succeeds
+        self.__create_window()
 
         # Inform OpenGL about the format of the vertex data we will use.
         # Each vertex contains four float32 components:
@@ -93,7 +94,7 @@ class SLM:
         self.patches = []  # remove frame patch from list of patches
         self.update()
 
-    def __create_window(self, title):
+    def __create_window(self):
         if self.monitor_id > 0:  # full screen mode
             monitor = glfw.get_monitors()[self.monitor_id - 1]
 
@@ -113,7 +114,8 @@ class SLM:
             glfw.window_hint(glfw.BLUE_BITS, 8)
             glfw.window_hint(glfw.REFRESH_RATE, self.refresh_rate)
             glfw.set_gamma(monitor, 1.0)
-            self.window = glfw.create_window(self.width, self.height, title, monitor, None)
+            self.window = glfw.create_window(self.width, self.height, self.title, monitor, None)
+
             current_mode = glfw.get_video_mode(monitor)
             (fb_width, fb_height) = glfw.get_framebuffer_size(self.window)
             if current_mode.size.width != self.width or current_mode.size.height != self.height \
@@ -204,6 +206,8 @@ class SLM:
         self._transform = value
 
         padded = np.append(value, np.float32([[np.nan], [np.nan]]), 1)  # apply padding
+
+        self.activate()  # activate OpenGL context of current SLM window
         glBindBuffer(GL_UNIFORM_BUFFER, self._globals)
         glBufferData(GL_UNIFORM_BUFFER, padded.size * 4, padded, GL_STATIC_DRAW)
         glBindBufferBase(GL_UNIFORM_BUFFER, 1, self._globals)  # connect buffer to binding point 1
