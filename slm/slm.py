@@ -1,7 +1,7 @@
 from OpenGL.GL import *
 import numpy as np
 import glfw
-from .patch import FrameBufferPatch
+from .patch import FrameBufferPatch, Patch
 
 
 class SLM:
@@ -37,7 +37,13 @@ class SLM:
         # Construct the frame buffer, this is the texture where all patches draw to. After all patches
         # finish drawing, the frame buffer itself is drawn onto the screen.
         self.frame_patch = FrameBufferPatch(self)
-        self.patches = []  # remove frame patch from list of patches
+
+        # Create a single patch for displaying phase.
+        # this default patch is square 1.0, and can be accessed through the 'primary_phase_patch' attribute
+        # In advanced scenarios, the geometry of this patch may be modified, or it may be replaced altogether.
+        self.primary_phase_patch = Patch(self)
+        self.patches = [self.primary_phase_patch]  # remove frame patch from list of patches
+
         self.update()
 
     def __create_window(self):
@@ -219,3 +225,11 @@ class SLM:
     @lookup_table.setter
     def lookup_table(self, value):
         self.frame_patch.lookup_table = value
+
+    @property
+    def phases(self):
+        return self.primary_phase_patch.phases
+
+    @phases.setter
+    def phases(self, value):
+        self.primary_phase_patch.phases = value

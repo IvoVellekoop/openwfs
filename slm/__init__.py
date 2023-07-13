@@ -4,3 +4,4 @@ from . import shaders
 from . import slm
 from . import textures
 from .slm import SLM
+from .patch import Patch

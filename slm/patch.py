@@ -1,7 +1,7 @@
 import numpy as np
 import weakref
 from OpenGL.GL import *
-#from OpenGL.GL import shaders
+from OpenGL.GL import shaders
 from .geometry import square
 from .shaders import default_vertex_shader, default_fragment_shader, \
     post_process_fragment_shader, post_process_vertex_shader
