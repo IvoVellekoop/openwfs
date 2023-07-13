@@ -109,7 +109,7 @@ class Geometry:
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, self.indices.size * 2, self.indices, GL_DYNAMIC_DRAW)
 
     def __del__(self):
-        if self.context() is not None:
+        if self.context() is not None and hasattr(self, '_vertices'):
             self.context().activate()
             glDeleteBuffers(2, [self._vertices, self._indices])
 
@@ -155,7 +155,7 @@ class Texture:
         self.data = None
 
     def __del__(self):
-        if self.context() is not None:
+        if self.context() is not None and hasattr(self, 'handle'):
             self.context().activate()
             glDeleteTextures(1, [self.handle])
 
@@ -228,7 +228,7 @@ class FrameBufferPatch(Patch):
         self.additive_blend = False
 
     def __del__(self):
-        if self.context() is not None:
+        if self.context() is not None and hasattr(self, 'frame_buffer'):
             self.context().activate()
             glDeleteFramebuffers(1, self.frame_buffer)
 
