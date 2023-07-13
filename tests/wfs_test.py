@@ -1,7 +1,7 @@
 from simulation.simulation import SimulatedWFS
 from wfs_functions import WfsExperiment
 from fourier import FourierDualRef
-from ssa import SSA
+from ssa import StepwiseSequential
 import numpy as np
 from skimage import data
 
@@ -10,12 +10,12 @@ def calculate_enhancement(simulation,wfs_experiment):
     simulation.set_data(0)
     simulation.trigger()
     simulation.wait()
-    feedback_before = float(simulation.get_image()[250:251,250:251])
+    feedback_before = sum(simulation.get_image()[250:251,250:251])
 
     simulation.set_data(wfs_experiment.optimised_wf)
     simulation.trigger()
     simulation.wait()
-    feedback_after = float(simulation.get_image()[250:251,250:251])
+    feedback_after = sum(simulation.get_image()[250:251,250:251])
 
     return feedback_after/feedback_before
 
@@ -53,7 +53,7 @@ def flat_wf_response_ssa():
     sim.set_ideal_wf(np.zeros([500, 500])) # correct wf = flat
     sim.E_input_slm = np.ones([500, 500]) # set image plane size, and gauss off
 
-    wfs.algorithm = SSA()
+    wfs.algorithm = StepwiseSequential()
     wfs.ranges = [[250, 251], [250, 251]] # get feedback from the center of the image plane
     wfs.algorithm.n_slm_fields = 3
 

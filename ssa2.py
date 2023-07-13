@@ -2,6 +2,7 @@ import math
 import numpy as np
 from base_device_properties import *
 
+
 class StepwiseSequential:
     """
     Class definition for stepwise sequential algorithm.
@@ -13,8 +14,8 @@ class StepwiseSequential:
 
     def execute(self):
         self.slm.phases = np.zeros(self.Nx, self.Ny, np.float32)
-        self.feedback.synchronize_with(self.slm)
-        self.feedback.reserve((self.Nx, self.Ny, self.phase_steps))
+        self.feedback.synchronize_with(self.slm)  # or do this when constructing the feedback object...
+        self.feedback.reserve((self.Nx, self.Ny, self.phase_steps))  # reserve space to hold the measurements
 
         phases = np.range(self.phase_steps) / self.phase_steps * 2 * math.pi
         for n in range(self.Nx * self.Ny):
@@ -22,7 +23,8 @@ class StepwiseSequential:
                 self.slm.phases[n] = p
                 self.feedback.measure()
 
-        t = np.tensordot(self.feedback.measurements, np.exp(-1j * phases), ([2], [0]))
+        t = np.tensordot(self.feedback.measurements, np.exp(-1j * phases),
+                         ([2], [0]))  # perhaps include in feedback object as helper function?
         return t
 
     phase_steps = int_property(min=2, default=4, doc="Number of steps for the phase-stepping measurement. Defaults to "
