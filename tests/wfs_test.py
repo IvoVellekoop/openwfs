@@ -4,6 +4,8 @@ from fourier import FourierDualRef
 from ssa import StepwiseSequential
 import numpy as np
 from skimage import data
+from algorithms import StepwiseSequential2
+from feedback import SimpleCameraFeedback
 
 """This """
 def calculate_enhancement(simulation,wfs_experiment):
@@ -66,6 +68,21 @@ def flat_wf_response_ssa():
     else:
         return True
 
+def flat_wf_response_ssa2():
+    sim = SimulatedWFS()
+    sim.set_ideal_wf(np.zeros([500, 500])) # correct wf = flat
+    sim.E_input_slm = np.ones([500, 500]) # set image plane size, and gauss off
+
+    f = SimpleCameraFeedback(camera=sim, slm=sim, roi_x=250, roi_y=250, roi_radius=1)
+    alg = StepwiseSequential2(Nx=8, Ny=4, feedback=f, slm=sim)
+
+    t = alg.execute()
+    optimised_wf = np.angle(t)
+
+    if np.std(optimised_wf) > 0:
+        raise Exception("Response flat wavefront not flat")
+    else:
+        return True
 
 def wf_response_fourier():
 
@@ -95,6 +112,7 @@ def wf_response_fourier():
         return True
 
 
+print(flat_wf_response_ssa2())
 print(flat_wf_response_fourier())
 print(flat_wf_response_ssa())
 print(wf_response_fourier())

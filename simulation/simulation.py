@@ -66,9 +66,14 @@ class SimulatedWFS:
     def trigger(self):
         pass
 
+    def reserve(self, time_ms):
+        pass
+
     def wait(self):
         "This is where the image gets created and put in the pre-existing buffer"
-        field_slm = self.E_input_slm * np.exp(1j * (self.phases - (self.ideal_wf / 256 * 2 * np.pi)))
+        pattern = cv2.resize(self.phases, dsize=np.shape(self.ideal_wf), interpolation=cv2.INTER_NEAREST)
+
+        field_slm = self.E_input_slm * np.exp(1j * (pattern - (self.ideal_wf / 256 * 2 * np.pi)))
         field_slm_f = np.fft.fft2(field_slm)
 
         image_plane = np.array(abs(np.fft.fftshift(field_slm_f) ** 2))
@@ -79,11 +84,25 @@ class SimulatedWFS:
 
         pass
 
-    def update(self, t=0):
+    def read(self):
+        self.wait()
+        return self.image
+
+    def update(self, wait=1.0):
         pass
 
+    def wait_stable(self):
+        pass
+
+    @property
+    def measurement_time(self):
+        return self.exposure_ms
+
+    @property
+    def data_shape(self):
+        return self.height, self.width
+
     def set_data(self, pattern):
-        pattern = cv2.resize(pattern, dsize=np.shape(self.phases), interpolation=cv2.INTER_NEAREST)
         self.phases = pattern / 256 * 2 * np.pi  # convert from legacy format to new format
         if self._active_plotting:
             self.slm_plot.set_data(self.phases)

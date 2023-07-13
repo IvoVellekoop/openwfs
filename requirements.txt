@@ -1,6 +1,7 @@
 numpy~=1.25.0
-PyOpenGL>=3.1.0
 glfw~=2.5.9
 matplotlib~=3.7.2
 opencv-python~=4.8.0.74
 Pillow~=10.0.0
+scikit-image~=0.21.0
+scipy~=1.11.1
