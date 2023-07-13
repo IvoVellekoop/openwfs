@@ -5,6 +5,13 @@ from .patch import FrameBufferPatch, Patch
 
 
 class SLM:
+    """
+    Object representing a phase-only spatial light modulator. This object has many fancy functions that are important
+    in setting up the SLM layers and geometry before starting the experiment. However, the algorithms only access the
+    'phases' property (a 2-d array of phase values in radians) and the 'update' function (to display the image, usually
+    not called directly but through the feedback object.
+    A mock SLM, therefore, only needs to implement 'phases' and 'update'
+    """
     _active_monitors = np.zeros(256, 'uint32')  # keeps track of which monitors are occupied already
 
     def __init__(self, monitor_id=0, width=-1, height=-1, left=0, top=0, refresh_rate=-1, title="SLM",
