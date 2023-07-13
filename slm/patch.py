@@ -5,7 +5,7 @@ from OpenGL.GL import shaders
 from .geometry import square
 from .shaders import default_vertex_shader, default_fragment_shader, \
     post_process_fragment_shader, post_process_vertex_shader
-
+from .texture import Texture
 
 class Patch:
     PHASES_TEXTURE = 0  # indices of the phases texture in the _texture array
@@ -53,6 +53,7 @@ class Patch:
             glDisable(GL_BLEND)
 
         for idx, texture in enumerate(self._textures):
+            texture.synchronize() # upload data again if it was modified
             glActiveTexture(GL_TEXTURE0 + idx)
             glBindTexture(texture.type, texture.handle)
 
@@ -62,14 +63,13 @@ class Patch:
     def phases(self):
         """1-D or 2-D array holding phase values to display on the SLM.
         Phases are in radians, and stored as float32. There is no need to wrap the phase to a 0-2pi range.
-        The values are only uploaded to the GPU when the setter is invoked (i.e. patch.phases = data).
+        The values are uploaded to the GPU automatically on slm.update.
         """
         return self._textures[Patch.PHASES_TEXTURE].data
 
     @phases.setter
     def phases(self, value):
-        self.context().activate()  # activate OpenGL context for this SLM (needed in case we have multiple SLMs)
-        self._textures[Patch.PHASES_TEXTURE].set(value)
+        self._textures[Patch.PHASES_TEXTURE].data = value
 
     @property
     def geometry(self):
@@ -141,63 +141,6 @@ class Geometry:
         glDrawElements(GL_TRIANGLE_STRIP, self.indices.size, GL_UNSIGNED_SHORT, None)
 
 
-class Texture:
-    def __init__(self, context, texture_type=GL_TEXTURE_2D):
-        self.context = weakref.ref(context)
-        self.handle = glGenTextures(1)
-        self.type = texture_type
-        glBindTexture(self.type, self.handle)
-        glTexParameteri(self.type, GL_TEXTURE_WRAP_S, GL_REPEAT)
-        glTexParameteri(self.type, GL_TEXTURE_WRAP_T, GL_REPEAT)
-        glTexParameteri(self.type, GL_TEXTURE_WRAP_R, GL_REPEAT)
-        glTexParameteri(self.type, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
-        glTexParameteri(self.type, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
-        self.data = None
-
-    def __del__(self):
-        if self.context() is not None and hasattr(self, 'handle'):
-            self.context().activate()
-            glDeleteTextures(1, [self.handle])
-
-    def set(self, data):
-        """ Set texture data. The dimensionality of the data should match that of the texture.
-            As an exception, all texture types can be set to a scalar value.
-            Note that textures holds a reference to the array that was last stored in it. A copy is only
-            made when the array is not a numpy float32 array yet. If the data in the referenced array is modified,
-            the data on the GPU and the data in 'phases' are out of sync. To synchronize them again, use
-            patch.phases = data, or even patch.phases = patch.phases."""
-        self.context().activate()
-        data = np.array(data, dtype=np.float32, copy=False)
-        reuse = self.data is not None and self.data.shape == data.shape  # reuse same texture memory if possible
-        (internal_format, data_format, data_type) = (GL_R32F, GL_RED, GL_FLOAT)
-        glBindTexture(self.type, self.handle)
-        glPixelStorei(GL_UNPACK_ALIGNMENT, 4)  # alignment is at least 4 bytes since we are using float32 for everything
-
-        if self.type == GL_TEXTURE_1D:
-            if data.ndim == 0:
-                data.shape = 1
-            elif data.ndim != 1:
-                raise ValueError("Data should be 1-d array")
-            if reuse:
-                glTexSubImage1D(GL_TEXTURE_1D, 0, 0, 0, data.shape[0], data_format, data_type, data)
-            else:
-                glTexImage1D(GL_TEXTURE_1D, 0, internal_format, data.shape[0], 0, data_format, data_type, data)
-
-        elif self.type == GL_TEXTURE_2D:
-            if data.ndim == 0:
-                data.shape = (1, 1)
-            elif data.ndim != 2:
-                raise ValueError("Data should be 2-d array")
-            if reuse:
-                glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, data.shape[0], data.shape[1], data_format, data_type, data)
-            else:
-                glTexImage2D(GL_TEXTURE_2D, 0, internal_format, data.shape[0], data.shape[1], 0, data_format, data_type,
-                             data)
-
-        else:
-            raise ValueError("Texture type not supported")
-
-        self.data = data  # store data so that it can be read back by users
 
 
 class FrameBufferPatch(Patch):
@@ -214,6 +157,8 @@ class FrameBufferPatch(Patch):
         # window. All patches are first rendered to this texture. The texture
         # is then processed as a whole (applying the software lookup table) and displayed on the screen.
         self.phases = np.zeros([slm.width, slm.height], dtype=np.float32)
+        self._textures[Patch.PHASES_TEXTURE].synchronize()
+
         self.frame_buffer = glGenFramebuffers(1)
 
         glBindFramebuffer(GL_FRAMEBUFFER, self.frame_buffer)
@@ -230,7 +175,7 @@ class FrameBufferPatch(Patch):
     def __del__(self):
         if self.context() is not None and hasattr(self, 'frame_buffer'):
             self.context().activate()
-            glDeleteFramebuffers(1, self.frame_buffer)
+            glDeleteFramebuffers(1, [self.frame_buffer])
 
     @property
     def lookup_table(self):
@@ -240,4 +185,4 @@ class FrameBufferPatch(Patch):
     @lookup_table.setter
     def lookup_table(self, value):
         self.context().activate()
-        self._textures[FrameBufferPatch.LUT_TEXTURE].set(value)
+        self._textures[FrameBufferPatch.LUT_TEXTURE].data = value

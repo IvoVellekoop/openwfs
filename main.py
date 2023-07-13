@@ -17,7 +17,6 @@ p4 = Patch(s2, geometry.square(0.1))
 p3.phases = 0.25
 p4.phases = 1
 p4.additive_blend = False
-s2.phases = [[1]] # creates a 1x1 texture
 
 pf.phases = textures.defocus(100) * 6
 rng = np.random.default_rng()
