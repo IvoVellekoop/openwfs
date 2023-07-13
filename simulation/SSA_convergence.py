@@ -1,5 +1,5 @@
-from ssa import SSA
-from wfs import WFS
+from ssa import StepwiseSequential
+from wfs import wavefront_shaping
 from simulation import SimulatedWFS
 import numpy as np
 import matplotlib.pyplot as plt
@@ -49,7 +49,7 @@ for i in range(2, max_SLM_elements):
     while time.time() - start_time < 10:  # Run for 20 seconds
         correct_wf = np.round(np.random.rand(1, i) * 256)
         Sim.set_ideal_wf(correct_wf)
-        [feedback_set, ideal_wavefront, t_set] = WFS(Sim, feedback, SSA(3, np.zeros([1, i])))
+        [feedback_set, ideal_wavefront, t_set] = wavefront_shaping(Sim, feedback, StepwiseSequential(3, np.zeros([1, i])))
         field_corr = field_correlation(np.exp(-1j * correct_wf / (256 / (2 * np.pi))),
                                        np.exp(-1j * ideal_wavefront[:, :, 0] / (256 / (2 * np.pi))))
 

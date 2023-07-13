@@ -32,12 +32,12 @@ class FourierDualRef(Algorithm):
         return value
 
     phase_steps = int_property(min = 1, default=8)
-    kx_angles_min = int_property(default=-6, on_update=build_kspace)
-    kx_angles_max = int_property(default=6, on_update=build_kspace)
-    kx_angles_stepsize = int_property(default=6, on_update=build_kspace)
-    ky_angles_min = int_property(default=-6, on_update=build_kspace)
-    ky_angles_max = int_property(default=6, on_update=build_kspace)
-    ky_angles_stepsize = int_property(default=6, on_update=build_kspace)
+    kx_angles_min = int_property(default=-3, on_update=build_kspace)
+    kx_angles_max = int_property(default=3, on_update=build_kspace)
+    kx_angles_stepsize = int_property(default=1, on_update=build_kspace)
+    ky_angles_min = int_property(default=-3, on_update=build_kspace)
+    ky_angles_max = int_property(default=3, on_update=build_kspace)
+    ky_angles_stepsize = int_property(default=1, on_update=build_kspace)
     overlap_coeficient = float_property(min=0, max=1, default=0.1)
 
 

@@ -11,7 +11,7 @@ class StepwiseSequential(Algorithm):
     Has not been tested extensively and shows some unexpected behaviour
     """
 
-    def __init__(self, p_steps =8 , initial_WF= 0,**kwargs):
+    def __init__(self, **kwargs):
 
         """
         Constructor.
@@ -24,11 +24,10 @@ class StepwiseSequential(Algorithm):
             Initial wavefront.
         """
         parse_options(self, kwargs)
-        self._phase_steps = p_steps
 
         self.phase_set = np.round(np.arange(self._phase_steps) * 256 / self._phase_steps).astype(int)
     def init_wf(self):
-        return np.zeros([self._n_slm_fields, self._n_slm_fields])
+        return np.zeros([self.n_slm_fields, self.n_slm_fields])
     def get_count(self):
         """
         Returns the total number of iterations.
