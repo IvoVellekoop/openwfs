@@ -1,6 +1,7 @@
 import numpy as np
 from base_device_properties import *
 
+
 class Feedback:
     def __init__(self, source, slm):
         self.measurements_pending = 0
@@ -30,7 +31,7 @@ class Feedback:
         # we can use this time to process a previous measurement (if any)
         self.process_data()
 
-        self.slm.wait_stable()  # wait for the image on the SLM to stabilize
+        self.slm.wait()  # wait for the image on the SLM to stabilize
         self.source.trigger()  # trigger the camera
         self.measurements_pending += 1
 
@@ -59,7 +60,6 @@ class SimpleCameraFeedback(Feedback):
     def __init__(self, camera, slm, roi_x, roi_y, roi_radius):
         roi_signal = SingleRoi(camera, x=roi_x, y=roi_y, radius=roi_radius)
         super().__init__(roi_signal, slm)
-
 
 
 class Processor:

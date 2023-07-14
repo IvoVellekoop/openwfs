@@ -2,20 +2,35 @@ from OpenGL.GL import *
 import numpy as np
 import glfw
 from .patch import FrameBufferPatch, Patch
+import time
+
+
+class MockSLM:
+    """Bare minimum interface that needs to be implemented for a SLM object"""
+
+    def __init__(self, width, height):
+        self.phases = np.zeros((width, height), dtype="float32")
+
+    def update(self, wait_factor=1.0, wait=True):
+        pass
+
+    def wait(self):
+        pass
+
+    def reserve(self):
+        pass
 
 
 class SLM:
     """
     Object representing a phase-only spatial light modulator. This object has many fancy functions that are important
-    in setting up the SLM layers and geometry before starting the experiment. However, the algorithms only access the
-    'phases' property (a 2-d array of phase values in radians) and the 'update' function (to display the image, usually
-    not called directly but through the feedback object.
-    A mock SLM, therefore, only needs to implement 'phases' and 'update'
+    in setting up the SLM layers and geometry before starting the experiment. However, the algorithms only access
+    a subset of functions and properties (see 'FakeSlm')
     """
     _active_monitors = np.zeros(256, 'uint32')  # keeps track of which monitors are occupied already
 
     def __init__(self, monitor_id=0, width=-1, height=-1, left=0, top=0, refresh_rate=-1, title="SLM",
-                 transform=None):
+                 transform=None, idle_time=-2, settle_time=-1):
 
         # construct window for displaying the SLM pattern
         self.full_screen = monitor_id != 0  # a monitor id of 0 indicates windowed mode
@@ -27,9 +42,12 @@ class SLM:
         self.refresh_rate = refresh_rate
         self.title = title
         self.patches = []
+        self.idle_time = idle_time if idle_time >= 0 else -idle_time / refresh_rate
+        self.settle_time = settle_time if settle_time >= 0 else -settle_time / refresh_rate
         self._window = None  # will be set by __create_window
         self._globals = None  # will be filled by __create_window
         self._vertex_array = None  # will be set by __create_window
+        self._reservation = Reservation()
         self.__create_window()
 
         # Set the transform matrix, use a default (where a square of 'radius' 1.0 covers shortest side of SLM)
@@ -172,7 +190,7 @@ class SLM:
         """Activates the OpenGL context for this slm window. All OpenGL commands now apply to this slm"""
         glfw.make_context_current(self._window)
 
-    def update(self):
+    def update(self, wait_factor=1.0, wait=True):
         self.activate()
 
         # first draw all patches into the frame buffer
@@ -186,11 +204,29 @@ class SLM:
         self.frame_patch.draw()
 
         glfw.poll_events()  # process window messages
+
+        # wait until the SLM becomes available (it may be reserved because a measurement is still pending)
+        # then display the newly rendered image
+        self.wait()
         glfw.swap_buffers(self._window)
 
         # wait for buffer swap to complete (this should be directly after a vsync, so returning from this
         # function _should_ be synced with the vsync)
         glFinish()
+
+        # before returning, also wait until the image of the slm has stabilized
+        self._reservation.reserve(self.idle_time + self.settle_time * wait_factor)
+
+        # if wait == False, return directly. The caller can do something else and call 'wait' later to wait
+        # until the image on the SLM is stable
+        if wait:
+            self.wait()
+
+    def wait(self):
+        self._reservation.wait()
+
+    def reserve(self, time_seconds):
+        self._reservation.reserve(time_seconds - self.idle_time)
 
     @property
     def transform(self):
@@ -240,3 +276,19 @@ class SLM:
     @phases.setter
     def phases(self, value):
         self.primary_phase_patch.phases = value
+
+
+class Reservation:
+    def __init__(self):
+        self.reserved_until = None
+
+    def reserve(self, time_seconds):
+        self.wait()
+        self.reserved_until = time.time() + time_seconds
+
+    def wait(self):
+        if self.reserved_until is not None:
+            difference = self.reserved_until - time.time()
+            if difference > 0.0:
+                time.sleep(difference)
+            self.reserved_until = None

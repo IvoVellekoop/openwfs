@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2
+import warnings
 
 from base_device_properties import *
 
@@ -38,7 +39,8 @@ class SimulatedWFS:
 
         self._active_plotting = active_plotting
         self.resized = True
-        self.phases = np.zeros(shape)
+        self.shape = shape
+        self.phases = np.zeros(shape, dtype="float32")
         parse_options(self, kwargs)
 
         if self.active_plotting:
@@ -57,7 +59,7 @@ class SimulatedWFS:
             plt.ion()  # Turn on interactive mode
 
         self.E_input_slm = make_gaussian(shape[0], fwhm=self.beam_profile_fwhm)
-        self.ideal_wf = np.zeros(shape)
+        self.ideal_wf = np.zeros(shape, dtype="float32")
 
         self.max_intensity = 1
         self.t_idle = 0
@@ -66,32 +68,30 @@ class SimulatedWFS:
     def trigger(self):
         pass
 
-    def reserve(self, time_ms):
-        pass
+    def read(self):
+        return self.image
 
-    def wait(self):
+    def update(self, wait_factor=1.0, wait=False):
         "This is where the image gets created and put in the pre-existing buffer"
-        pattern = cv2.resize(self.phases, dsize=np.shape(self.ideal_wf), interpolation=cv2.INTER_NEAREST)
+        if np.any(np.array(self.phases.shape) > np.array(self.shape)):
+            warnings.warn("Displayed wavefront is larger than simulation input and will be downscaled")
+        pattern = cv2.resize(self.phases, dsize=self.shape, interpolation=cv2.INTER_NEAREST)
 
         field_slm = self.E_input_slm * np.exp(1j * (pattern - (self.ideal_wf / 256 * 2 * np.pi)))
         field_slm_f = np.fft.fft2(field_slm)
 
-        image_plane = np.array(abs(np.fft.fftshift(field_slm_f) ** 2))
+        # scale image so that maximum intensity is 2 ** 16 - 1 for an input field of all 1
+        scale_factor = np.sqrt(2**16 - 1) / np.prod(self.shape)
+        image_plane = np.array((scale_factor * abs(np.fft.fftshift(field_slm_f))) ** 2)
 
         # the max intensity must be the highest found intensity, and at least 1.
         self.max_intensity = np.max([np.max(image_plane), self.max_intensity, 1])
         self.image[:, :] = np.array((image_plane / self.max_intensity) * (2 ** 16 - 1), dtype=np.uint16)
 
+    def wait(self):
         pass
 
-    def read(self):
-        self.wait()
-        return self.image
-
-    def update(self, wait=1.0):
-        pass
-
-    def wait_stable(self):
+    def reserve(self, time_ms):
         pass
 
     @property
@@ -103,6 +103,7 @@ class SimulatedWFS:
         return self.height, self.width
 
     def set_data(self, pattern):
+        pattern = np.array(pattern, dtype="float32", ndmin=2)
         self.phases = pattern / 256 * 2 * np.pi  # convert from legacy format to new format
         if self._active_plotting:
             self.slm_plot.set_data(self.phases)
@@ -119,8 +120,7 @@ class SimulatedWFS:
         pass
 
     def set_ideal_wf(self, ideal_wf):
-        ideal_wf = cv2.resize(ideal_wf, dsize=np.shape(self.ideal_wf), interpolation=cv2.INTER_NEAREST)
-        self.ideal_wf = ideal_wf
+        self.ideal_wf = cv2.resize(ideal_wf, dsize=self.shape, interpolation=cv2.INTER_NEAREST)
 
     # def get_image(self):
     #     return np.zeros((self._width, self._height), dtype=np.uint16)
