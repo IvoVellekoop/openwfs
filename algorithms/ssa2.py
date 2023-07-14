@@ -21,6 +21,7 @@ class StepwiseSequential2:
             for p in phases:
                 self.slm.phases.flat[n] = p
                 self.feedback.measure()
+            self.slm.phases.flat[n] = 0
 
         t = np.tensordot(self.feedback.measurements, np.exp(-1j * phases),
                          ([2], [0]))  # perhaps include in feedback object as helper function?

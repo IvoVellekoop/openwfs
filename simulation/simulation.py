@@ -41,7 +41,9 @@ class SimulatedWFS:
         self.resized = True
         self.shape = shape
         self.phases = np.zeros(shape, dtype="float32")
+        self.displayed_phases = None
         parse_options(self, kwargs)
+        self.update()
 
         if self.active_plotting:
             plt.figure(1)
@@ -66,18 +68,8 @@ class SimulatedWFS:
         self.t_settle = 0
 
     def trigger(self):
-        pass
-
-    def read(self):
-        return self.image
-
-    def update(self, wait_factor=1.0, wait=False):
-        "This is where the image gets created and put in the pre-existing buffer"
-        if np.any(np.array(self.phases.shape) > np.array(self.shape)):
-            warnings.warn("Displayed wavefront is larger than simulation input and will be downscaled")
-        pattern = cv2.resize(self.phases, dsize=self.shape, interpolation=cv2.INTER_NEAREST)
-
-        field_slm = self.E_input_slm * np.exp(1j * (pattern - (self.ideal_wf / 256 * 2 * np.pi)))
+        """Triggers the virtual camera. This is where the intensity pattern on the camera is computed."""
+        field_slm = self.E_input_slm * np.exp(1j * (self.displayed_phases - (self.ideal_wf / 256 * 2 * np.pi)))
         field_slm_f = np.fft.fft2(field_slm)
 
         # scale image so that maximum intensity is 2 ** 16 - 1 for an input field of all 1
@@ -87,6 +79,15 @@ class SimulatedWFS:
         # the max intensity must be the highest found intensity, and at least 1.
         self.max_intensity = np.max([np.max(image_plane), self.max_intensity, 1])
         self.image[:, :] = np.array((image_plane / self.max_intensity) * (2 ** 16 - 1), dtype=np.uint16)
+
+    def read(self):
+        return self.image
+
+    def update(self, wait_factor=1.0, wait=False):
+        """Update the phase on the virtual SLM. Note that the output only changes after triggering the 'camera'."""
+        if np.any(np.array(self.phases.shape) > np.array(self.shape)):
+            warnings.warn("Displayed wavefront is larger than simulation input and will be downscaled")
+        self.displayed_phases = cv2.resize(self.phases, dsize=self.shape, interpolation=cv2.INTER_NEAREST)
 
     def wait(self):
         pass

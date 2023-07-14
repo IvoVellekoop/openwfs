@@ -78,7 +78,7 @@ def flat_wf_response_ssa2():
     sim.E_input_slm = np.ones([500, 500])  # set image plane size, and gauss off
 
     f = SimpleCameraFeedback(camera=sim, slm=sim, roi_x=250, roi_y=250, roi_radius=1)
-    alg = StepwiseSequential2(Nx=8, Ny=4, feedback=f, slm=sim)
+    alg = StepwiseSequential2(N_x=8, N_y=4, phase_steps=10, feedback=f, slm=sim)
 
     t = alg.execute()
     optimised_wf = np.angle(t)
