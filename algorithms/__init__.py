@@ -1,2 +1,2 @@
-from . import ssa2
-from .ssa2 import StepwiseSequential2
+from . import ssa
+from .ssa import StepwiseSequential

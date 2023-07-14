@@ -1,4 +1,4 @@
-from slm import SLM, Patch, geometry, textures
+from slm import SLM, Patch, geometry, patterns
 import numpy as np
 from math import pi
 

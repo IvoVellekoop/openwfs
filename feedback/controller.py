@@ -24,8 +24,8 @@ class MockDetector:
         return self._buffer.pop(0)
 
 
-class Feedback:
-    def __init__(self, source, slm):
+class Controller:
+    def __init__(self, detector, slm):
         self.M = None
         """ Number of elements in each measurement. Read only. Equal to np.prod(source.data_shape).
             Updated when 'reserve' is called"""
@@ -33,14 +33,17 @@ class Feedback:
         self.N = None
         """ Total number of measurements in the buffer. Read only. Set by 'reserve' function. """
 
-        self.data_shape = source.data_shape
+        self.data_shape = detector.data_shape
         """ Shape of the original data, before flattening into column of length M."""
+
+        self.slm = slm
+        """Spatial light modulator object. An algorithm sets or changes slm.phases, and then calls measure() to 
+        schedule a measurement. Note that there is no need to call slm.update manually."""
 
         self._measurements_pending = 0  # number of measurements that were triggered but not yet read
         self._measurements = None  # array storing all measurements. shape e.g. (Nx, Ny, M)
         self._measurements_flat = None  # reshaped N x M view of the same array
-        self._source = source  # detector to take the feedback from.
-        self._slm = slm  # slm to synchronize measurements with
+        self._source = detector  # detector to take the feedback from.
         self._n = None  # current measurement number, must be < N
 
     def __del__(self):
@@ -65,19 +68,19 @@ class Feedback:
 
         # Update the SLM. If the SLM was reserved, first wait until the measurement_time - idle_time has passed before
         # flipping the buffers. Don't wait for the SLM to stabilize
-        self._slm.update(wait=False)
+        self.slm.update(wait=False)
 
         # we can use this time to process a previous measurement (if any)
         self._await_data()
 
-        self._slm.wait()  # wait for the image on the SLM to stabilize
+        self.slm.wait()  # wait for the image on the SLM to stabilize
         self._source.trigger()  # trigger the camera
         self._measurements_pending += 1
 
         measurement_time = self._source.measurement_time
         if measurement_time is not None:
             # default fast wavefront shaping, continue processing (and even start next frame) during measurement
-            self._slm.reserve(measurement_time)
+            self.slm.reserve(measurement_time)
         else:
             # measurement time not known, wait till end of measurement
             self._await_data()
@@ -104,39 +107,3 @@ class Feedback:
                             f"measurements.")
         return self._measurements
 
-
-class SimpleCameraFeedback(Feedback):
-    def __init__(self, camera, slm, roi_x, roi_y, roi_radius):
-        roi_signal = SingleRoi(camera, x=roi_x, y=roi_y, radius=roi_radius)
-        super().__init__(roi_signal, slm)
-
-
-class Processor:
-    def __init__(self, source, **kwargs):
-        parse_options(self, kwargs)
-        self.source = source
-
-    def trigger(self):
-        self.source.trigger()
-
-    @property
-    def data_shape(self):
-        return self.source.data_shape
-
-    @property
-    def measurement_time(self):
-        return self.source.measurement_time
-
-
-class SingleRoi(Processor):
-    def read(self):
-        image = self.source.read()
-        return image[self.x, self.y]
-
-    @property
-    def data_shape(self):
-        return (1,)
-
-    x = int_property(doc="x-coordinate of center of the ROI")
-    y = int_property(doc="y-coordinate of center of the ROI")
-    radius = float_property(doc="radius of the ROI")

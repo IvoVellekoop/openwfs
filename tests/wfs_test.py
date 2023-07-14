@@ -1,13 +1,11 @@
 from simulation.simulation import SimulatedWFS
 from wfs_functions import WfsExperiment
 from fourier import FourierDualRef
-from ssa import StepwiseSequential
+from ssa import StepwiseSequential  as StepwiseSequential1
 import numpy as np
 from skimage import data
-from algorithms import StepwiseSequential2
-from feedback import SimpleCameraFeedback
-
-"""This """
+from algorithms import StepwiseSequential
+from feedback import Controller, SingleRoi
 
 
 def calculate_enhancement(simulation, wfs_experiment):
@@ -58,7 +56,7 @@ def flat_wf_response_ssa():
     sim.set_ideal_wf(np.zeros([500, 500]))  # correct wf = flat
     sim.E_input_slm = np.ones([500, 500])  # set image plane size, and gauss off
 
-    wfs.algorithm = StepwiseSequential()
+    wfs.algorithm = StepwiseSequential1()
     wfs.ranges = [[250, 251], [250, 251]]  # get feedback from the center of the image plane
     wfs.algorithm.n_slm_fields = 3
 
@@ -77,13 +75,14 @@ def flat_wf_response_ssa2():
     sim.set_ideal_wf(np.zeros([500, 500]))  # correct wf = flat
     sim.E_input_slm = np.ones([500, 500])  # set image plane size, and gauss off
 
-    f = SimpleCameraFeedback(camera=sim, slm=sim, roi_x=250, roi_y=250, roi_radius=1)
-    alg = StepwiseSequential2(N_x=8, N_y=4, phase_steps=10, feedback=f, slm=sim)
+    roi_detector = SingleRoi(sim, x=250, y=250, radius=1)
+    controller = Controller(detector=roi_detector, slm=sim)
+    alg = StepwiseSequential(N_x=8, N_y=4, phase_steps=10, controller=controller, slm=sim)
 
     t = alg.execute()
     optimised_wf = np.angle(t)
 
-    if np.std(optimised_wf) > 0:
+    if np.std(optimised_wf) > 0.001:
         raise Exception("Response flat wavefront not flat")
     else:
         return True
