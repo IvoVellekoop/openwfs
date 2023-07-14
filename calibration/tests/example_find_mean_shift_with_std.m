@@ -10,8 +10,7 @@ clear all
 close all
 
 %%
-addpath('C:\Git\tpm\calibration\functions')
-
+addpath('C:\git\openwfs\calibration\functions');
 %%  Gaussian
 x = -0.5:0.01:0.51;
 y = -0.5:0.01:0.51;

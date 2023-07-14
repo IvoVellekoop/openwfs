@@ -15,8 +15,7 @@ arguments
 end
 
 %% add relevant paths
-addpath('C:\git\tpm\calibration\functions\');
-
+addpath('C:\git\openwfs\calibration\functions');
 
 %% Construct SLM gradient pattern
 bg_patch_id = 1;                            % Gradient Patch ID

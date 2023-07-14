@@ -15,8 +15,8 @@
 clc;
 
 %%
-addpath('C:\Git\tpm\calibration');
-addpath('C:\Git\tpm\calibration\functions');
+addpath('C:\git\openwfs\calibration');
+addpath('C:\git\openwfs\calibration\functions');
 
 %% Loading existing data
 % calibration_values.mat

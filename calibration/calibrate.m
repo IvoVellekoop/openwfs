@@ -7,9 +7,8 @@
 %%% Step 5: save calibration values
 
 %% === Step 1 ===
-addpath('C:\git\hardware\matlab');
-addpath('C:\git\tpm\setup');
-addpath('C:\git\tpm\calibration\functions');
+addpath('C:\git\openwfs\calibration');
+addpath('C:\git\openwfs\calibration\functions');
 slm_acquisitioni.amplitude = 1e-2;
 
 
