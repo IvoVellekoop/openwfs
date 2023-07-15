@@ -1,9 +1,31 @@
 import numpy as np
-from base_device_properties import *
+from typing import Protocol
 
 
-class MockDetector:
+class Detector(Protocol):
     """Minimal implementation of a detector object. Any detector must implement these members and attributes"""
+
+    data_shape: tuple[int]
+    """shape of the data returned by this detector (from numpy.shape). Read only."""
+
+    measurement_time: float
+    """In seconds. Read only. Used for synchronization, and should include the measurement time of any child 
+    detectors (see Processor)."""
+
+    def trigger(self) -> None:
+        """Triggers the detector to take a new measurement. Typically, does not wait until the measurement is
+        finished. A detector may have a hardware trigger, in which case calls to trigger() may be ignored."""
+        pass
+
+    def read(self) -> np.ndarray:
+        """Returns the measured data, in the order that the triggers were given. This function blocks until the data
+        is available and raises a TimeoutError if it takes too long to obtain the data (typically because the detector
+        was not triggered)."""
+        pass
+
+
+class MockDetector:  # implements Detector
+    """Fake detector that returns random values between 0.0 and 1.0."""
 
     def __init__(self, data_shape):
         self.data_shape = data_shape  # shape of the data returned by this detector (from numpy.shape). Read only.
@@ -25,7 +47,7 @@ class MockDetector:
 
 
 class Controller:
-    def __init__(self, detector, slm):
+    def __init__(self, detector: Detector, slm):
         self.M = None
         """ Number of elements in each measurement. Read only. Equal to np.prod(source.data_shape).
             Updated when 'reserve' is called"""
@@ -106,4 +128,3 @@ class Controller:
             raise Exception(f"Measurement sequence not completed yet, only performed {self._n} out of {self.N} "
                             f"measurements.")
         return self._measurements
-
