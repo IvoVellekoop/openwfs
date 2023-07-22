@@ -11,13 +11,6 @@ addpath('C:\git\openwfs\calibration');
 addpath('C:\git\openwfs\calibration\functions');
 slm_acquisitioni.amplitude = 1e-2;
 
-
-%% === Step 2 ===
-import zaber.motion.Units;      % toolbox: https://www.zaber.com/software/docs/motion-library/ascii/tutorials/install/matlab/
-if ~exist('stage', 'var')
-    setup_sample_stage
-end
-
 if ~exist('slm', 'var')
     [slm, sopt] = SLMsetup();
 end
