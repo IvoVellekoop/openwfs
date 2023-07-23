@@ -6,7 +6,7 @@ from base_device_properties import float_property, int_property, string_property
 
 class FourierDualRef(Algorithm):
     """
-    The 2 step optimization algorithm for the wavefront in Fourier-space.
+    The 2-step optimization algorithm for the wavefront in Fourier-space.
     Half of the SLM are modulated at the same time, the other half is kept as a reference
 
     Has methods build_kspace and set_kspace. Build kspace makes an evenly spaced kspace from the parameters of the class

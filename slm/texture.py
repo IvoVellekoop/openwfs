@@ -26,8 +26,8 @@ class Texture:
     @property
     def data(self):
         """ Returns the data array currently associated with the texture. If synchronized _was_ True, this is also the
-            data that is currently on the GPU. Note: calling this function resets the 'syncrhonized' flag and causes the
-            texture data to be uploaded to the GPU during the next slm.updata. This is to enable a common use case where
+            data that is currently on the GPU. Note: calling this function resets the 'synchronized' flag and causes the
+            texture data to be uploaded to the GPU during the next slm.update. This is to enable a common use case where
             the array is modified in place, e.g. 'texture.data[1,1]=0'."""
         self.synchronized = False
         return self._data

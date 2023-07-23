@@ -67,7 +67,7 @@ class FrequencyCharacterisation():
         # Flatten the signal strength grid
         flattened_grid = signal_strength_grid.flatten()
 
-        # Find the indices of the top n highest values
+        # Find the indices of the top-n highest values
         indices = np.argpartition(flattened_grid, -n)[-n:]
 
         # Get the associated k_xset values
