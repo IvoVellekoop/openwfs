@@ -5,4 +5,4 @@ opencv-python~=4.8.0.74
 Pillow~=10.0.0
 scikit-image~=0.21.0
 scipy~=1.11.1
-Pint~=0.22
+astropy~=5.3.1

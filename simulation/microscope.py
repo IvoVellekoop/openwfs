@@ -1,47 +1,9 @@
 import numpy as np
-import pint
+import astropy.units as u
+from astropy.units import Quantity
 from slm import patterns
 from scipy.ndimage import affine_transform
-
-ureg = pint.UnitRegistry()
-
-
-class MockImageSource:
-    """'Camera' that dynamically generates images using an 'on_trigger' callback.
-    Note that this object does not implement the full camera interface. Does not support resizing yet"""
-
-    @staticmethod
-    @ureg.check(None, ureg.um)
-    def from_image(image, pixel_size):
-        """Create a MockImageSource that displays the given numpy array as image.
-        :param image : 2-d numpy array to return on 'read'
-        :param pixel_size : size of a single pixel, must have a pint unit of type length
-        """
-        return MockImageSource(lambda i: image, image.shape, pixel_size)
-
-    @ureg.check(None, None, None, ureg.um)
-    def __init__(self, on_trigger, data_shape, pixel_size):
-        self._on_trigger = on_trigger
-        self._image = np.empty(data_shape, dtype="float32")
-        self._measurement_time = 0  # property may be set to something else to mimic acquisition time
-        self._triggered = 0  # currently only support a buffer with a single frame
-        self.pixel_size = pixel_size
-        self.data_shape = data_shape
-        self.measurement_time = 0.0
-
-    def trigger(self):
-        if self._triggered != 0:
-            raise RuntimeError('Buffer overflow: this camera can only store 1 frame, and the previous frame was not '
-                               'read yet')
-        self._image = self._on_trigger(self._image)
-        self._triggered += 1
-
-    def read(self):
-        if self._triggered == 0:
-            raise RuntimeError('Buffer underflow: trying to read an image without triggering the camera')
-
-        return self._image
-
+from mockdevices import MockImageSource, MockXYStage
 
 class Microscope:
     """A simulated microscope.
@@ -56,8 +18,8 @@ class Microscope:
     All aberrations are considered to occur in the plane of that pupil.
     """
 
-    @ureg.check(None, None, None, None, ureg.nm, ureg.um, None, None, None)
-    def __init__(self, source, m, na, wavelength, pixel_size, stage=None, slm=None, aberrations=None):
+    def __init__(self, source, m, na, wavelength: Quantity[u.nm], pixel_size: Quantity[u.um], stage=None,
+                 slm=None, aberrations=None):
         """
         :param source: detector object producing 2-dimensional images of the object to be imaged.
 
@@ -87,7 +49,7 @@ class Microscope:
         self.NA = na
         self.wavelength = wavelength
         self.slm = slm
-        self.stage = stage
+        self.stage = stage if stage is not None else MockXYStage(0.1 * u.um, 0.1 * u.um)
         self.aberrations = aberrations
 
         # construct pupil mask
@@ -110,9 +72,16 @@ class Microscope:
         # convolve with point spread function
         self.source.trigger()
         s = self.source.read()
-        m = self.M * (self.source.pixel_size / self.camera.pixel_size).to_base_units().magnitude
+        m = self.M * (self.source.pixel_size / self.camera.pixel_size).to_value(u.dimensionless_unscaled)
         if np.isscalar(m):
-            m = np.ones(2) * m
+            m = np.eye(3) * m
+            m[2, 2] = 1
+
+        offset = np.eye(3)
+        offset[0, 2] += self.stage.position_x / self.source.pixel_size
+        offset[1, 2] += self.stage.position_y / self.source.pixel_size
+        m = m @ offset  # apply offset first, then magnification
+
         affine_transform(s, m, output=image, order=1)
         return image
 
@@ -121,14 +90,20 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
 
     img = np.maximum(np.random.randint(-10000, 100, (500, 500), dtype=np.int16), 0)
-    src = MockImageSource.from_image(img, 100 * ureg.nm)
-    mic = Microscope(src, m=10, na=0.85, wavelength=532.8 * ureg.nm, pixel_size=6.45 * ureg.um)
+    src = MockImageSource.from_image(img, 100 * u.nm)
+    mic = Microscope(src, m=10, na=0.85, wavelength=532.8 * u.nm, pixel_size=6.45 * u.um)
 
     c = mic.camera
-    c.trigger()
-    cim = c.read()
+    plt.ion() # turn on interactive mode
     plt.subplot(1,2,1)
     plt.imshow(img)
     plt.subplot(1,2,2)
-    plt.imshow(cim)
     plt.show()
+    for p in range(100):
+        mic.stage.position_x = p * 1 * u.um
+        c.trigger()
+        cim = c.read()
+        plt.imshow(cim)
+        plt.draw()
+        plt.pause(0.2)
+
