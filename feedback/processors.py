@@ -1,9 +1,8 @@
-import numpy as np
 from base_device_properties import *
 
+
 class Processor:
-    def __init__(self, source, **kwargs):
-        parse_options(self, kwargs)
+    def __init__(self, source):
         self.source = source
 
     def trigger(self):
@@ -17,10 +16,17 @@ class Processor:
     def measurement_time(self):
         return self.source.measurement_time
 
+    @property
+    def pixel_size(self):
+        return self.source.pixel_size
+
+    def read(self):
+        return self.source.read()
+
 
 class SingleRoi(Processor):
     def read(self):
-        image = self.source.read()
+        image = super().read()
         return image[self.x, self.y]
 
     @property
