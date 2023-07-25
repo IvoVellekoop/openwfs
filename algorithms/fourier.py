@@ -55,13 +55,6 @@ class FourierDualRef:
                     self.controller.slm.phases = self.get_phase_pattern(self.k_x[n_angle], self.k_y[n_angle], phase,
                                                                         side)
                     self.controller.measure()
-                    # import matplotlib.pyplot as plt
-                    # plt.imshow(self.controller._source.source.read())
-                    # plt.xlim([245,255])
-                    # plt.ylim([245,255])
-                    # plt.colorbar()
-                    # plt.clim(0,10**5)
-                    # plt.show()
 
     def get_phase_pattern(self, kx, ky, p, side):
         height = self.controller.slm.width
@@ -148,3 +141,4 @@ class FourierDualRef:
     @controller.setter
     def controller(self, value):
         self._controller = value
+

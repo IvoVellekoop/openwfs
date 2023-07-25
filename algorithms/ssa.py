@@ -27,8 +27,8 @@ class StepwiseSequential:
 
             self.controller.slm.phases.flat[n] = 0
 
-        t = self.controller.compute_transmission(self.phase_steps)
-        return t
+        t = np.conj(self.controller.compute_transmission(self.phase_steps))
+        return t[:,:,0]
 
     @property
     def n_x(self) -> int:
