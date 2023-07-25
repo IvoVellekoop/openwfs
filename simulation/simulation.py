@@ -2,28 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import cv2
 import warnings
-
-from base_device_properties import *
-
-
-def make_gaussian(size, fwhm=3, center=None):
-    """ Make a square gaussian kernel.
-
-    size is the length of a side of the square
-    fwhm is full-width-half-maximum, which
-    can be thought of as an effective radius.
-    """
-
-    x = np.arange(0, size, 1, float)
-    y = x[:, np.newaxis]
-
-    if center is None:
-        x0 = y0 = size // 2
-    else:
-        x0 = center[0]
-        y0 = center[1]
-
-    return np.exp(-4 * np.log(2) * ((x - x0) ** 2 + (y - y0) ** 2) / fwhm ** 2)
+from typing import Annotated
+from .slm_patterns import make_gaussian
 
 
 class SimulatedWFS:
@@ -35,41 +15,41 @@ class SimulatedWFS:
     Todo: the axis of the SLM & image plane are bogus, they should represent real values
     """
 
-    def __init__(self, shape=(500, 500), active_plotting=False, **kwargs):
-
-        self._active_plotting = active_plotting
+    def __init__(self, width=500, height=500, beam_profile_fwhm = None):
+        """
+        Initializer. Sets a flat illumination
+        """
+        self._beam_profile_fwhm = beam_profile_fwhm
         self.resized = True
-        self.shape = shape
-        self.phases = np.zeros(shape, dtype="float32")
-        self.displayed_phases = None
-        parse_options(self, kwargs)
-        self.update()
+        self.shape = (width, height)
+        self.phases = np.zeros((width, height), dtype="float32")
+        self.displayed_phases = 0
+        self.exposure_ms = 1
+        self._left = 0
+        self._top = 0
+        self._width = width
+        self._height = height
 
-        if self.active_plotting:
-            plt.figure(1)
-            plt.get_current_fig_manager().window.setGeometry(50, 100, 640, 545)
-            self.slm_plot = plt.imshow(self.phases)
-            plt.colorbar()
-            plt.clim(0, 256)
-            plt.figure(2)
-            plt.get_current_fig_manager().window.setGeometry(750, 100, 640, 545)
-            self._image_plot = plt.imshow(self.image)
-            self._image = self.get_image()
-            self._image_plot = plt.imshow(self.get_image())
-            plt.xlim([245, 255])
-            plt.ylim([245, 255])
-            plt.ion()  # Turn on interactive mode
+        if beam_profile_fwhm is None:
+            self.E_input_slm = np.ones((width, height), dtype="float32")
+        else:
+            self.E_input_slm = make_gaussian(width, fwhm=self.beam_profile_fwhm)
 
-        self.E_input_slm = make_gaussian(shape[0], fwhm=self.beam_profile_fwhm)
-        self.ideal_wf = np.zeros(shape, dtype="float32")
-
+        self.ideal_wf = np.zeros((width, height), dtype="float32")
+        self._image = None
         self.max_intensity = 1
-        self.t_idle = 0
-        self.t_settle = 0
+        self.trigger()
+
+
 
     def trigger(self):
         """Triggers the virtual camera. This is where the intensity pattern on the camera is computed."""
-        field_slm = self.E_input_slm * np.exp(1j * (self.displayed_phases - (self.ideal_wf / 256 * 2 * np.pi)))
+        if self.resized:
+            self._image = np.zeros((self.width, self.height), dtype=np.uint16)
+            self.resized = False
+
+
+        field_slm = self.E_input_slm * np.exp(1j * (self.displayed_phases - (self.ideal_wf)))
         field_slm_f = np.fft.fft2(field_slm)
 
         # scale image so that maximum intensity is 2 ** 16 - 1 for an input field of all 1
@@ -77,11 +57,11 @@ class SimulatedWFS:
         image_plane = np.array((scale_factor * abs(np.fft.fftshift(field_slm_f))) ** 2)
 
         # the max intensity must be the highest found intensity, and at least 1.
-        self.max_intensity = np.max([np.max(image_plane), self.max_intensity, 1])
-        self.image[:, :] = np.array((image_plane / self.max_intensity) * (2 ** 16 - 1), dtype=np.uint16)
+        self.max_intensity = np.max([np.max(image_plane), self.max_intensity, 1]) # this is bad. It needs to have the same maximum
+        self._image[:, :] = np.array((image_plane / self.max_intensity) * (2 ** 16 - 1), dtype=np.uint16)
 
     def read(self):
-        return self.image
+        return self._image
 
     def update(self, wait_factor=1.0, wait=False):
         """Update the phase on the virtual SLM. Note that the output only changes after triggering the 'camera'."""
@@ -95,21 +75,10 @@ class SimulatedWFS:
     def reserve(self, time_ms):
         pass
 
-    @property
-    def measurement_time(self):
-        return self.exposure_ms
-
-    @property
-    def data_shape(self):
-        return self.height, self.width
-
     def set_data(self, pattern):
+        """Now in radians"""
         pattern = np.array(pattern, dtype="float32", ndmin=2)
-        self.phases = pattern / 256 * 2 * np.pi  # convert from legacy format to new format
-        if self._active_plotting:
-            self.slm_plot.set_data(self.phases)
-            plt.pause(0.001)
-            plt.draw()
+        self.phases = pattern
 
     def set_activepatch(self, id):
         pass
@@ -123,73 +92,72 @@ class SimulatedWFS:
     def set_ideal_wf(self, ideal_wf):
         self.ideal_wf = cv2.resize(ideal_wf, dsize=self.shape, interpolation=cv2.INTER_NEAREST)
 
-    # def get_image(self):
-    #     return np.zeros((self._width, self._height), dtype=np.uint16)
+    @property
+    def measurement_time(self):
+        return self.exposure_ms
 
-    def get_image(self):
-        "Where the buffer is made and passed. Not the place where the imaging should occur"
-        if self.resized:
-            self._image = np.zeros((self.width, self.height), dtype=np.uint16)
-            self.resized = False
+    @property
+    def data_shape(self):
+        return self.height, self.width
 
-        if self._active_plotting:
-            self._image_plot.set_data(self._image)
-            plt.pause(0.001)
-            plt.draw()
+    @property
+    def left(self) -> int:
+        return self._top
 
-        return self._image
+    @left.setter
+    def left(self, value: int):
+        self._top = value
 
-    # required for camera implementation
-    exposure_ms = float_property(min=0.0, default=100)
-    top = int_property(min=-1000, max=5000, default=0)
-    left = int_property(min=-1000, max=5000, default=0)
-    width = int_property(min=500, max=500, default=500)
-    height = int_property(min=500, max=500, default=500)
-    Binning = int_property(min=1, default=1)
-    image = property(fget=get_image)
-    wavelength_nm = float_property(min=400, default=804, max=1600)
-    beam_profile_fwhm = float_property(min=1, default=100)
-    # useful
-    active_plotting = bool_property(default=0)
+    @property
+    def top(self) -> int:
+        return self._top
 
+    @top.setter
+    def top(self, value: int):
+        self._top = value
 
-def generate_double_pattern(shape, phases_half1, phases_half2, phase_offset):
-    width, height = shape
-    half_width = width // 2
+    @property
+    def width(self) -> Annotated[int, {'min': 1, 'max': 1200}]:
+        return self._width
 
-    # Generate halves the image with phase offset
-    if phases_half1 == 0:
-        half1 = [[0 for _ in range(half_width)] for _ in range(height)]
-    else:
-        half1 = [[int(((i + phase_offset) / (width / phases_half1)) * 256) % 256 for _ in range(half_width)] for i in
-                 range(height)]
+    @width.setter
+    def width(self, value: int):
+        self._width = value
+        self._resized = True
 
-    if phases_half2 == 0:
-        half2 = [[0 for _ in range(half_width)] for _ in range(height)]
-    else:
-        half2 = [[int((i / (width / phases_half2)) * 256) % 256 for _ in range(half_width)] for i in range(height)]
+    @property
+    def height(self) -> Annotated[int, {'min': 1, 'max': 960}]:
+        return self._height
 
-    # Combine both halves
-    image_array = [row1 + row2 for row1, row2 in zip(half1, half2)]
+    @height.setter
+    def height(self, value: int):
+        self._height = value
+        self._resized = True
+    @property
+    def Binning(self) -> int:
+        return 1
 
-    # Resize the image to the specified shape
-    image_array = [row[:width] for row in image_array[:height]]
+    @property
+    def beam_profile_fwhm(self) -> float:
+        return self._beam_profile_fwhm
 
-    return np.array(image_array)
+    @beam_profile_fwhm.setter
+    def beam_profile_fwhm(self, value: float):
+        self._beam_profile_fwhm = value
+
 
 
 # experiment
 if __name__ == "__main__":
-    shape = [500, 500]
-    exp = SimulatedWFS(shape=shape, active_plotting=False)
+    from slm_patterns import make_gaussian, generate_double_pattern
+    exp = SimulatedWFS()
 
     exp.set_data(generate_double_pattern([500, 500], 20, 0, 0))
+    exp.update()
 
-    # plotting results
     plt.figure()
     plt.imshow(exp.phases)
     plt.figure()
-    exp.wait()
-    plt.imshow(exp.image)
-    print(exp.get_image()[250, 250])
+    exp.trigger()
+    plt.imshow(exp.read())
     plt.show()

@@ -1,6 +1,6 @@
 import math
 import numpy as np
-from base_device_properties import *
+from typing import Any, Annotated
 
 
 class StepwiseSequential:
@@ -9,27 +9,55 @@ class StepwiseSequential:
     (New approach)
     """
 
-    def __init__(self, **kwargs):
-        parse_options(self, kwargs)
+    def __init__(self, phase_steps=4, n_x=4, n_y=4, controller=None, **kwargs):
+        self._n_x = n_x
+        self._n_y = n_y
+        self._controller = controller
+        self._phase_steps = phase_steps
 
     def execute(self):
-        self.controller.slm.phases = np.zeros((self.N_x, self.N_y), dtype="float32")
-        self.controller.reserve((self.N_x, self.N_y, self.phase_steps))  # reserve space to hold the measurements
+        self.controller.slm.phases = np.zeros((self.n_x, self.n_y), dtype="float32")
+        self.controller.reserve((self.n_x, self.n_y, self.phase_steps))  # reserve space to hold the measurements
 
         phases = np.arange(self.phase_steps) / self.phase_steps * 2 * math.pi
-        for n in range(self.N_x * self.N_y):
+        for n in range(self.n_x * self.n_y):
             for p in phases:
                 self.controller.slm.phases.flat[n] = p
                 self.controller.measure()
+
             self.controller.slm.phases.flat[n] = 0
 
-        t = np.tensordot(self.controller.measurements, np.exp(-1j * phases),
-                         ([2], [0]))  # perhaps include in feedback object as helper function?
-        return t
+        t = np.conj(self.controller.compute_transmission(self.phase_steps))
+        return t[:,:,0]
 
-    phase_steps = int_property(min=2, default=4, doc="Number of steps for the phase-stepping measurement. Defaults to "
-                                                     "4 steps: 0, π/2, π, 3π/2")
-    N_x = int_property(min=1, default=4, doc="Width of the wavefront texture, in segments")
-    N_y = int_property(min=1, default=4, doc="Height of the wavefront texture, in segments")
-    controller = object_property()
-    slm = object_property()
+    @property
+    def n_x(self) -> int:
+        return self._n_x
+
+    @n_x.setter
+    def n_x(self, value):
+        self._n_x = value
+
+    @property
+    def n_y(self) -> int:
+        return self._n_y
+
+    @n_y.setter
+    def n_y(self, value):
+        self._n_y = value
+
+    @property
+    def phase_steps(self) -> int:
+        return self._phase_steps
+
+    @phase_steps.setter
+    def phase_steps(self, value):
+        self._phase_steps = value
+
+    @property
+    def controller(self) -> Any:
+        return self._controller
+
+    @controller.setter
+    def controller(self, value):
+        self._controller = value

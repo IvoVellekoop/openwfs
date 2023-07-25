@@ -282,9 +282,9 @@ class Reservation:
     def __init__(self):
         self.reserved_until = None
 
-    def reserve(self, time_seconds):
+    def reserve(self, time_ms):
         self.wait()
-        self.reserved_until = time.time() + time_seconds
+        self.reserved_until = time.time() + time_ms/1000.0
 
     def wait(self):
         if self.reserved_until is not None:
