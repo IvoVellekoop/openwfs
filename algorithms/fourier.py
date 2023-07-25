@@ -55,6 +55,13 @@ class FourierDualRef:
                     self.controller.slm.phases = self.get_phase_pattern(self.k_x[n_angle], self.k_y[n_angle], phase,
                                                                         side)
                     self.controller.measure()
+                    # import matplotlib.pyplot as plt
+                    # plt.imshow(self.controller._source.source.read())
+                    # plt.xlim([245,255])
+                    # plt.ylim([245,255])
+                    # plt.colorbar()
+                    # plt.clim(0,10**5)
+                    # plt.show()
 
     def get_phase_pattern(self, kx, ky, p, side):
         height = self.controller.slm.width
@@ -80,13 +87,6 @@ class FourierDualRef:
         Computes the transmission matrix of the measurements,
         for the left and right side of the SLM separately and then combines them with the overlap.
         """
-        import matplotlib.pyplot as plt
-        kspace_n = int(np.sqrt(len(t_fourier)/2))
-        plt.figure()
-        plt.imshow(np.reshape(abs(t_fourier)[:(kspace_n**2)],(kspace_n,kspace_n)))
-        plt.figure()
-        plt.imshow(np.reshape(abs(t_fourier)[(kspace_n**2):],(kspace_n,kspace_n)))
-        plt.show()
         # bepaal ruis: bahareh. Find peak & dc ofset
         t1 = np.zeros((self.controller.slm.height, self.controller.slm.width), dtype='complex128')
         t2 = np.zeros((self.controller.slm.height, self.controller.slm.width), dtype='complex128')
