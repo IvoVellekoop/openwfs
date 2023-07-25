@@ -1,9 +1,11 @@
 import numpy as np
 import astropy.units as u
 from astropy.units import Quantity
-from slm import patterns
 from scipy.ndimage import affine_transform
-from mockdevices import MockImageSource, MockXYStage
+from scipy.signal import fftconvolve
+from .mockdevices import MockImageSource, MockXYStage, MockCamera
+from ..slm import patterns
+
 
 class Microscope:
     """A simulated microscope.
@@ -47,7 +49,7 @@ class Microscope:
         self.source = source
         self.M = m
         self.NA = na
-        self.wavelength = wavelength
+        self.wavelength = wavelength.to(u.nm)
         self.slm = slm
         self.stage = stage if stage is not None else MockXYStage(0.1 * u.um, 0.1 * u.um)
         self.aberrations = aberrations
@@ -62,13 +64,13 @@ class Microscope:
 
         # create mock camera object that will appear to capture the aberrated and translated image.
         # post-processors may be added to simulated physical effects like noise, bias, and saturation.
-        self.camera = MockImageSource(data_shape=self.source.data_shape,
-                                      pixel_size=pixel_size,
-                                      on_trigger=lambda i: self._update(i))
+        self.camera = MockCamera(MockImageSource(data_shape=self.source.data_shape,
+                                                 pixel_size=pixel_size,
+                                                 on_trigger=lambda i: self._update(i)))
 
     def _update(self, image):
-        # compute point spread function
         # transform image size and orientation to camera
+        # compute point spread function
         # convolve with point spread function
         self.source.trigger()
         s = self.source.read()
@@ -83,27 +85,7 @@ class Microscope:
         m = m @ offset  # apply offset first, then magnification
 
         affine_transform(s, m, output=image, order=1)
-        return image
 
-
-if __name__ == '__main__':
-    import matplotlib.pyplot as plt
-
-    img = np.maximum(np.random.randint(-10000, 100, (500, 500), dtype=np.int16), 0)
-    src = MockImageSource.from_image(img, 100 * u.nm)
-    mic = Microscope(src, m=10, na=0.85, wavelength=532.8 * u.nm, pixel_size=6.45 * u.um)
-
-    c = mic.camera
-    plt.ion() # turn on interactive mode
-    plt.subplot(1,2,1)
-    plt.imshow(img)
-    plt.subplot(1,2,2)
-    plt.show()
-    for p in range(100):
-        mic.stage.position_x = p * 1 * u.um
-        c.trigger()
-        cim = c.read()
-        plt.imshow(cim)
-        plt.draw()
-        plt.pause(0.2)
-
+        psf = np.zeros(image.shape)
+        psf[0, 0] = 1
+        return fftconvolve(image, psf, 'same')

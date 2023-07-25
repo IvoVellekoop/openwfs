@@ -1,9 +1,12 @@
+import numpy as np
+from skimage import data
+
+import set_path
+from openwfs import simulation, wfs_functions, fourier, ssa, algorithm, feedback
 from simulation.simulation import SimulatedWFS
 from wfs_functions import WfsExperiment
 from fourier import FourierDualRef
 from ssa import StepwiseSequential  as StepwiseSequential1
-import numpy as np
-from skimage import data
 from algorithms import StepwiseSequential
 from feedback import Controller, SingleRoi
 
