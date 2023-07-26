@@ -1,7 +1,7 @@
 from simulation.simulation import SimulatedWFS
 import numpy as np
 from skimage import data
-from algorithms import StepwiseSequential, BasicFDR
+from algorithms import StepwiseSequential, BasicFDR, CharacterisingFDR
 from feedback import Controller, SingleRoi
 from test_functions import calculate_enhancement,make_angled_wavefront
 from slm import SLM
@@ -90,7 +90,32 @@ def enhancement_ssa():
     else:
         return True
 
-print(flat_wf_response_ssa())
-print(flat_wf_response_fourier())
+def enhancement_characterising_fourier():
+    sim = SimulatedWFS()
+    roi_detector = SingleRoi(sim, x=250, y=250, radius=1)
+    roi_detector.trigger()
+    sim.set_ideal_wf((data.camera()/255)*2*np.pi)
+#    sim.set_ideal_wf(np.ones((500,500)))
+#    s1 = SLM(0, left=0, width=300, height=300) # input in controller for checking pattern generation
+
+    controller = Controller(detector=roi_detector, slm=sim)
+    alg = CharacterisingFDR(phase_steps=5, max_modes=30, controller=controller)
+    t = alg.execute()
+
+    optimised_wf = np.angle(t)
+
+    enhancement = calculate_enhancement(sim, optimised_wf)
+    enhancement_perfect = calculate_enhancement(sim, (data.camera()/255)*2*np.pi)
+    print(f'Enhancement is {(enhancement / enhancement_perfect) * 100} % of possible enhancement')
+
+    if enhancement < 3:
+        raise Exception(
+            f"Fourier algorithm does not enhance focus as much as expected. Expected at least 3, got {enhancement}")
+    else:
+        return True
+
+# print(flat_wf_response_ssa())
+# print(flat_wf_response_fourier())
 print(enhancement_fourier())
-print(enhancement_ssa())
+# print(enhancement_ssa())
+print(enhancement_characterising_fourier())

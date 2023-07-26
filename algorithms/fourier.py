@@ -16,7 +16,8 @@ class FourierDualRef:
 
     def __init__(self, k_set=None, phase_steps=4, overlap=0.1, controller=None):
         """
-        k_set: the [kx,ky] matrix 2 x n.
+        k_set: the [kx,ky] matrix 2 x n. #Maybe this should be split into an kx_set and ky_set such that the left & right
+        SLM sides can be split
         """
         self._controller = controller
         self._phase_steps = phase_steps
@@ -153,3 +154,137 @@ class BasicFDR(FourierDualRef):
     def k_angles_max(self, value):
         self._k_angles_max = value
 
+
+def get_neighbors(n, m):
+    """Get the neighbors of a point in a 2D grid."""
+    directions = [
+        (-1, -1), (-1, 0), (-1, 1),
+        (0, -1),            (0, 1),
+        (1, -1),   (1, 0),  (1, 1)
+    ]
+
+    neighbors = [(n + dx, m + dy) for dx, dy in directions]
+    return np.array(neighbors)
+
+
+class CharacterisingFDR(FourierDualRef):
+    """
+     implementation of the FourierDualRef algorithm.
+    """
+    def __init__(self, phase_steps=4, overlap=0.1,max_modes = 20, controller=None):
+        super().__init__(None, phase_steps, overlap, controller)
+        self.max_modes = max_modes
+
+    def execute(self):
+        kx_total = []
+        ky_total = []
+
+
+
+
+
+        for side in range(2):
+            n = 0
+            # we begin in K[0,0]
+            self.k_x = np.zeros((1, 1), dtype=int)
+            self.k_y = np.zeros((1, 1), dtype=int)
+            t_fourier = np.array([])
+            kx_total = np.array([])
+            ky_total = np.array([])
+            centers = np.array([[],[]], dtype=int)
+            while n < self.max_modes: # the True needs to be changed into a 'are we getting any SnR' bool
+
+                self.single_side_experiment(side)
+                t_fourier = np.append(t_fourier,self.controller.compute_transmission(self.phase_steps))
+                kx_total = np.append(kx_total, self.k_x)
+                ky_total = np.append(ky_total, self.k_y)
+
+                found_next_center = False
+                ind = 1
+                while found_next_center is False:
+                    nth_highest_index = np.argsort(abs(t_fourier))[-ind]
+                    in_x = np.isin(centers[0,:], kx_total[nth_highest_index])
+                    in_y = np.isin(centers[1, :], ky_total[nth_highest_index])
+                    print(ind)
+                    if not any(in_x & in_y) is True:
+                        found_next_center = True
+
+                        center = np.array([[kx_total[nth_highest_index]],[ky_total[nth_highest_index]]])
+
+                        centers = np.concatenate((centers,center),axis=1)
+                        print(center)
+                    ind += 1
+
+                next_points = get_neighbors(center[0],center[1])
+                # cull all the previously measured points
+                unique_next_points = np.array([point for point in next_points[:,:,0] if not any((np.array(np.vstack((kx_total,ky_total))).T == point).all(1))])
+
+                self.k_x = unique_next_points[:, 0]
+                self.k_y = unique_next_points[:, 1]
+                print(unique_next_points)
+                n += len(self.k_x)
+
+
+            t_abs = abs(t_fourier)
+            import matplotlib.pyplot as plt
+            plt.scatter(kx_total, ky_total, c=t_abs, marker='s', cmap='viridis', s=900, edgecolors='k')
+            plt.colorbar(label='t_abs')
+            plt.show()
+
+            if side == 0:
+                t_left = t_fourier
+                k_left = np.vstack((kx_total,ky_total))
+
+            else:
+                t_right = t_fourier
+                k_right = np.vstack((kx_total,ky_total))
+        print(k_left)
+        print(t_left)
+        t_slm = self.compute_t(t_left,t_right,k_left,k_right)
+        return t_slm
+    def single_side_experiment(self, side):
+        """Overriding the experiment class such that we can have a seperate k_x_left and k_x_right SLM side"""
+        self.controller.reserve((len(self.k_x), self.phase_steps))
+
+        phases = np.arange(self.phase_steps) / self.phase_steps * 2 * np.pi
+
+        for n_angle in range(len(self.k_x)):
+            for phase in phases:
+                self.controller.slm.phases = self.get_phase_pattern(self.k_x[n_angle],
+                                                                    self.k_y[n_angle],
+                                                                    phase, side)
+                self.controller.measure()
+
+
+    def compute_t(self, t_fourier_left, t_fourier_right ,k_left, k_right):
+        """
+        We also need to override compute_t if we want a different kspace for left and right slm
+        """
+        # bepaal ruis: bahareh. Find peak & dc ofset
+        t1 = np.zeros((self.controller.slm.height, self.controller.slm.width), dtype='complex128')
+        t2 = np.zeros((self.controller.slm.height, self.controller.slm.width), dtype='complex128')
+
+        for n, t in enumerate(t_fourier_left):
+            phi = self.get_phase_pattern(k_left[0,n], k_left[1,n], 0, 0)
+            t1 += np.exp(1j * phi) * np.conj(t)
+
+        for n, t in enumerate(t_fourier_right):
+            phi = self.get_phase_pattern(k_right[0,n], k_right[1,n], 0, 1)
+            t2 += np.exp(1j * phi) * np.conj(t)
+
+        overlap_len = int(self._overlap * self.controller.slm.width)
+        overlap_begin = self.controller.slm.width // 2 - int(overlap_len / 2)
+        overlap_end = self.controller.slm.width // 2 + int(overlap_len / 2)
+
+        if self._overlap != 0:
+            c = np.vdot(t2[:, :overlap_len], t1[:, -overlap_len:])
+            factor = c / abs(c) * np.linalg.norm(t2[:, :overlap_len]) / np.linalg.norm(t1[:, -overlap_len:])
+            t2 = t2 / factor
+
+            overlap = (t1[:, overlap_begin:overlap_end] + t2[:, overlap_begin:overlap_end]) / 2
+            t_full = np.concatenate([t1[:, 0:overlap_begin], overlap, t2[:, overlap_end:]], axis=1)
+        else:
+            t_full = np.concatenate([t1[:, 0:overlap_begin], t2[:, overlap_end:]], axis=1)
+
+
+        return t_full
