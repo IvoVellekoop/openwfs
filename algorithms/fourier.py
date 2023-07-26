@@ -5,36 +5,26 @@ from typing import Any, Annotated
 
 class FourierDualRef:
     """
-    Class definition for fourier algorithm.
-    (New approach)
+    Base class definition for fourier algorithm. As described by Mastiani et al. [1]
+
+    Can run natively, provided you input a k_set.
+    the k-set currently should have the shape of [2,n] with [0,:] = k_x and [1,:] = k_y.
+
+    [1]: Bahareh Mastiani, Gerwin Osnabrugge, and Ivo M. Vellekoop,
+    "Wavefront shaping for forward scattering," Opt. Express 30, 37436-37445 (2022)
     """
 
-    def __init__(self, k_set=None, phase_steps=4, k_angles_min=-3, k_angles_max=3, overlap=0.1, controller=None):
+    def __init__(self, k_set=None, phase_steps=4, overlap=0.1, controller=None):
         """
         k_set: the [kx,ky] matrix 2 x n.
         """
-        # may need common base class
-        self._k_angles_min = k_angles_min
-        self._k_angles_max = k_angles_max
         self._controller = controller
         self._phase_steps = phase_steps
         self._overlap = overlap
 
-        if k_set is None:
-            self.build_kspace()
-        else:
+        if k_set is not None:
             self.k_x = k_set[0, :]
             self.k_y = k_set[1, :]
-
-    def build_kspace(self, value=1):
-        kx_angles = np.arange(self.k_angles_min, self.k_angles_max + 1, 1)
-        ky_angles = np.arange(self.k_angles_min, self.k_angles_max + 1, 1)
-        # Make  the carthesian product of kx_angles and ky_angles to make a square kspace
-
-        self.k_x = np.repeat(np.array(kx_angles)[np.newaxis, :], len(ky_angles), axis=0).flatten()
-        self.k_y = np.repeat(np.array(kx_angles)[:, np.newaxis], len(ky_angles), axis=1).flatten()
-
-        return value
 
     def execute(self):
         self.experiment()
@@ -111,22 +101,6 @@ class FourierDualRef:
         return t_full
 
     @property
-    def k_angles_min(self) -> int:
-        return self._k_angles_min
-
-    @k_angles_min.setter
-    def n_kx(self, value):
-        self._k_angles_min = value
-
-    @property
-    def k_angles_max(self) -> int:
-        return self._k_angles_max
-
-    @k_angles_max.setter
-    def n_ky(self, value):
-        self._k_angles_max = value
-
-    @property
     def phase_steps(self) -> int:
         return self._phase_steps
 
@@ -141,4 +115,41 @@ class FourierDualRef:
     @controller.setter
     def controller(self, value):
         self._controller = value
+
+
+class BasicFDR(FourierDualRef):
+    """
+    The most simple implementation of the FourierDualRef algorithm. It constructs a symmetric k-space for the algorithm.
+    The k-space initializer is set to None, because for custom k-spaces you should use FourierDualRef directly.
+    """
+    def __init__(self, phase_steps=4, k_angles_min=-3, k_angles_max=3, overlap=0.1, controller=None):
+        super().__init__(None, phase_steps, overlap, controller)
+        self._k_angles_min = k_angles_min
+        self._k_angles_max = k_angles_max
+
+        self.build_kspace()
+
+    def build_kspace(self):
+        kx_angles = np.arange(self._k_angles_min, self._k_angles_max + 1, 1)
+        ky_angles = np.arange(self._k_angles_min, self._k_angles_max + 1, 1)
+        # Make  the carthesian product of kx_angles and ky_angles to make a square kspace
+
+        self.k_x = np.repeat(np.array(kx_angles)[np.newaxis, :], len(ky_angles), axis=0).flatten()
+        self.k_y = np.repeat(np.array(kx_angles)[:, np.newaxis], len(ky_angles), axis=1).flatten()
+
+    @property
+    def k_angles_min(self) -> int:
+        return self._k_angles_min
+
+    @k_angles_min.setter
+    def k_angles_min(self, value):
+        self._k_angles_min = value
+
+    @property
+    def k_angles_max(self) -> int:
+        return self._k_angles_max
+
+    @k_angles_max.setter
+    def k_angles_max(self, value):
+        self._k_angles_max = value
 
