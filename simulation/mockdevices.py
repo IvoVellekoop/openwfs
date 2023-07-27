@@ -1,6 +1,7 @@
 import numpy as np
 import astropy.units as u
 from astropy.units import Quantity
+from ..feedback import CropProcessor
 
 
 # todo: put somewhere else (in processors.py?)
@@ -61,50 +62,6 @@ class MockImageSource:
         :param pixel_size : size of a single pixel, must have a pint unit of type length
         """
         return MockImageSource(lambda i: image, image.shape, pixel_size.to(u.um))
-
-
-class CropProcessor(Processor):
-    def __init__(self, source, width=None, height=None, left=0, top=0):
-        self.source = source
-        self.left = left
-        self.top = top
-        if width is None:
-            width = source.data_shape[1]
-        if height is None:
-            height = source.data_shape[0]
-        self._data_shape = None
-        self._set_shape(width, height)
-
-    def _set_shape(self, width, height):
-        ss = self.source.data_shape
-        self._data_shape = (np.minimum(ss[0] - self.top, height), np.minimum(ss[1] - self.left, width))
-
-    @property
-    def data_shape(self):
-        return self._data_shape
-
-    @property
-    def width(self) -> int:
-        return self.data_shape[1]
-
-    @width.setter
-    def width(self, value):
-        self._set_shape(value, self.height)
-
-    @property
-    def height(self) -> int:
-        return self.data_shape[0]
-
-    @height.setter
-    def height(self, value):
-        self._set_shape(self.width, value)
-
-    def read(self):
-        image = super().read()
-        bottom = self.top + self.height
-        right = self.left + self.width
-        return image[self.top:bottom, self.left:right]
-
 
 class MockCamera(CropProcessor):
     """Wraps any 2-d image source as a camera. The Camera object simply crops the image from the source and converts
