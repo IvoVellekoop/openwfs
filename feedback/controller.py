@@ -129,7 +129,6 @@ class Controller:
                             f"measurements.")
         return self._measurements
 
-
     def compute_transmission(self, phase_steps):
         """To do: calculate SnR"""
         t = np.tensordot(self.measurements, np.exp(-1j * np.arange(phase_steps) / phase_steps * 2 * np.pi),
