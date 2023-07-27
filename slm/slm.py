@@ -2,6 +2,7 @@ from OpenGL.GL import *
 import numpy as np
 import glfw
 from .patch import FrameBufferPatch, Patch
+from .geometry import fill_transform
 import time
 import astropy.units as u
 from astropy.units import Quantity
@@ -31,21 +32,13 @@ class SLM:
         self._window = None  # will be set by __create_window
         self._globals = None  # will be filled by __create_window
         self._vertex_array = None  # will be set by __create_window
-        self._idle_time = None # set by idle_time setter
-        self._settle_time = None # set by settle_time setter
+        self._idle_time = None  # set by idle_time setter
+        self._settle_time = None  # set by settle_time setter
         self._reservation = Reservation()
         self.__create_window()
         self.idle_time = idle_time
         self.settle_time = settle_time
-
-        # Set the transform matrix, use a default (where a square of 'radius' 1.0 covers shortest side of SLM)
-        # if no transform is specified.
-        if transform is None:  # default scaling: square
-            if self.width > self.height:
-                transform = [[self.height / self.width, 0.0, 0.0], [0.0, 1.0, 0.0]]
-            else:
-                transform = [[1.0, 0.0, 0.0], [0.0, self.width / self.height, 0.0]]
-        self.transform = transform
+        self.transform = transform if transform is not None else fill_transform(self, 'short')
 
         # Construct the frame buffer, this is the texture where all patches draw to. After all patches
         # finish drawing, the frame buffer itself is drawn onto the screen.
@@ -220,7 +213,6 @@ class SLM:
     def idle_time(self) -> Quantity[u.ms]:
         return self._idle_time
 
-
     @idle_time.setter
     def idle_time(self, value):
         self._idle_time = self._frames_to_ms(value)
@@ -249,6 +241,7 @@ class SLM:
          - sqrt(x^2 + y^2) = sin(theta), with theta the angle between the optical axis and the ray in the image plane.
          - the NA of the objective is specified separately. A default (square) patch is created that spans the NA
                 exactly. If not needed, this patch can be deleted.
+        The matrix is a 3x3 transform matrix using homogeneous coordinates. The bottom-right element must equal 1.
         """
         return self._transform
 
@@ -258,12 +251,13 @@ class SLM:
         # Note: the transformation matrix is stored in a global buffer that is used by all shaders.
         # Unfortunately, we have to do the memory layout manually, so we add so that the vectors
         # have length 4.
-        value = np.array(value, dtype=np.float32)
-        if value.shape != (2, 3):
-            raise ValueError("Transform matrix should be a 2 x 3 array")
+        value = np.array(value, dtype=np.float32, order='C')
+        if value.shape != (3, 3) or value[2,2] != 1.0:
+            raise ValueError("Transform matrix should be a 3 x 3 array, and the bottom-right element should equal 1")
         self._transform = value
 
-        padded = np.append(value, np.float32([[np.nan], [np.nan]]), 1)  # apply padding
+        # apply padding to get 3x4 matrix, because OpenGL expects matrix to be stored with a stride of 4x4 bytes
+        padded = np.append(value, np.float32([[np.nan], [np.nan], [np.nan]]), 1)
 
         self.activate()  # activate OpenGL context of current SLM window
         glBindBuffer(GL_UNIFORM_BUFFER, self._globals)

@@ -7,6 +7,7 @@ from .shaders import default_vertex_shader, default_fragment_shader, \
     post_process_fragment_shader, post_process_vertex_shader
 from .texture import Texture
 
+
 class Patch:
     PHASES_TEXTURE = 0  # indices of the phases texture in the _texture array
 
@@ -53,7 +54,7 @@ class Patch:
             glDisable(GL_BLEND)
 
         for idx, texture in enumerate(self._textures):
-            texture.synchronize() # upload data again if it was modified
+            texture.synchronize()  # upload data again if it was modified
             glActiveTexture(GL_TEXTURE0 + idx)
             glBindTexture(texture.type, texture.handle)
 
@@ -139,8 +140,6 @@ class Geometry:
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self._indices)
         glBindVertexBuffer(0, self._vertices, 0, 16)
         glDrawElements(GL_TRIANGLE_STRIP, self.indices.size, GL_UNSIGNED_SHORT, None)
-
-
 
 
 class FrameBufferPatch(Patch):

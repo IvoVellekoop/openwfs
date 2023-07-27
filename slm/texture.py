@@ -2,15 +2,16 @@ import numpy as np
 import weakref
 from OpenGL.GL import *
 
+
 class Texture:
     def __init__(self, context, texture_type=GL_TEXTURE_2D):
         self.context = weakref.ref(context)
         self.handle = glGenTextures(1)
         self.type = texture_type
-        self.synchronized = False # self.data is not yet synchronized with texture in GPU memory
+        self.synchronized = False  # self.data is not yet synchronized with texture in GPU memory
         self._data = None
-        self._data_size_changed = True # when True, synchronize will create a new texture instead of overwriting the old
-        self.data = 0 # create a single pixel texture as default
+        self._data_size_changed = True  # when True, synchronize() creates a new texture instead of overwriting the old
+        self.data = 0  # create a single pixel texture as default
         glBindTexture(self.type, self.handle)
         glTexParameteri(self.type, GL_TEXTURE_WRAP_S, GL_REPEAT)
         glTexParameteri(self.type, GL_TEXTURE_WRAP_T, GL_REPEAT)
@@ -75,14 +76,17 @@ class Texture:
 
         if self.type == GL_TEXTURE_1D:
             if self._data_size_changed:
-                glTexImage1D(GL_TEXTURE_1D, 0, internal_format, self.data.shape[0], 0, data_format, data_type, self.data)
+                glTexImage1D(GL_TEXTURE_1D, 0, internal_format, self.data.shape[0], 0, data_format, data_type,
+                             self.data)
             else:
                 glTexSubImage1D(GL_TEXTURE_1D, 0, 0, 0, self.data.shape[0], data_format, data_type, self.data)
 
         elif self.type == GL_TEXTURE_2D:
             if self._data_size_changed:
-                glTexImage2D(GL_TEXTURE_2D, 0, internal_format, self.data.shape[0], self.data.shape[1], 0, data_format, data_type, self.data)
+                glTexImage2D(GL_TEXTURE_2D, 0, internal_format, self.data.shape[0], self.data.shape[1], 0, data_format,
+                             data_type, self.data)
             else:
-                glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, self.data.shape[0], self.data.shape[1], data_format, data_type, self.data)
+                glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, self.data.shape[0], self.data.shape[1], data_format, data_type,
+                                self.data)
 
         self.synchronized = True
