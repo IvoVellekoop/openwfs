@@ -3,34 +3,20 @@ import numpy as np
 import glfw
 from .patch import FrameBufferPatch, Patch
 import time
-
-
-class MockSLM:
-    """Bare minimum interface that needs to be implemented for a SLM object"""
-
-    def __init__(self, width, height):
-        self.phases = np.zeros((width, height), dtype="float32")
-
-    def update(self, wait_factor=1.0, wait=True):
-        pass
-
-    def wait(self):
-        pass
-
-    def reserve(self):
-        pass
+import astropy.units as u
+from astropy.units import Quantity
 
 
 class SLM:
     """
     Object representing a phase-only spatial light modulator. This object has many fancy functions that are important
     in setting up the SLM layers and geometry before starting the experiment. However, the algorithms only access
-    a subset of functions and properties (see 'FakeSlm')
+    a subset of functions and properties (see `SLM` protocol)
     """
     _active_monitors = np.zeros(256, 'uint32')  # keeps track of which monitors are occupied already
 
     def __init__(self, monitor_id=0, width=-1, height=-1, left=0, top=0, refresh_rate=-1, title="SLM",
-                 transform=None, idle_time=-2, settle_time=-1):
+                 transform=None, idle_time=2, settle_time=1):
 
         # construct window for displaying the SLM pattern
         self.full_screen = monitor_id != 0  # a monitor id of 0 indicates windowed mode
@@ -42,13 +28,15 @@ class SLM:
         self.refresh_rate = refresh_rate
         self.title = title
         self.patches = []
-        self.idle_time = idle_time if idle_time >= 0 else -idle_time / refresh_rate
-        self.settle_time = settle_time if settle_time >= 0 else -settle_time / refresh_rate
         self._window = None  # will be set by __create_window
         self._globals = None  # will be filled by __create_window
         self._vertex_array = None  # will be set by __create_window
+        self._idle_time = None # set by idle_time setter
+        self._settle_time = None # set by settle_time setter
         self._reservation = Reservation()
         self.__create_window()
+        self.idle_time = idle_time
+        self.settle_time = settle_time
 
         # Set the transform matrix, use a default (where a square of 'radius' 1.0 covers shortest side of SLM)
         # if no transform is specified.
@@ -68,7 +56,6 @@ class SLM:
         # In advanced scenarios, the geometry of this patch may be modified, or it may be replaced altogether.
         self.primary_phase_patch = Patch(self)
         self.patches = [self.primary_phase_patch]  # remove frame patch from list of patches
-
         self.update()
 
     def __create_window(self):
@@ -107,21 +94,21 @@ class SLM:
             if self.height == -1:
                 self.height = current_mode.size.height
             if self.refresh_rate == -1:
-                self.refresh_rate = current_mode.refresh_rate
+                self.refresh_rate = current_mode.refresh_rate * u.Hz
 
             # Ask glfw to create a full screen window with specified resolution and refresh rate,
             # and at least 8 bit per pixel depth.
             glfw.window_hint(glfw.RED_BITS, 8)
             glfw.window_hint(glfw.GREEN_BITS, 8)
             glfw.window_hint(glfw.BLUE_BITS, 8)
-            glfw.window_hint(glfw.REFRESH_RATE, self.refresh_rate)
+            glfw.window_hint(glfw.REFRESH_RATE, int(self.refresh_rate / u.Hz))
             glfw.set_gamma(monitor, 1.0)
             self._window = glfw.create_window(self.width, self.height, self.title, monitor, None)
 
             current_mode = glfw.get_video_mode(monitor)
             (fb_width, fb_height) = glfw.get_framebuffer_size(self._window)
             if current_mode.size.width != self.width or current_mode.size.height != self.height \
-                    or current_mode.refresh_rate != self.refresh_rate or current_mode.bits.red != 8 \
+                    or current_mode.refresh_rate != int(self.refresh_rate / u.Hz) or current_mode.bits.red != 8 \
                     or current_mode.bits.green != 8 or current_mode.bits.blue != 8 \
                     or fb_width != self.width or fb_height != self.height:
                 raise Exception(f"Could not initialize {self.width}x{self.height} full screen mode with "
@@ -137,6 +124,10 @@ class SLM:
                 self.width = 300
             if self.height == -1:
                 self.height = 300
+            monitor = glfw.get_primary_monitor()
+            current_mode = glfw.get_video_mode(monitor)
+            self.refresh_rate = current_mode.refresh_rate / u.s
+
             self._window = glfw.create_window(self.width, self.height, self.title, None, None)
             glfw.set_window_pos(self._window, self.left, self.top)
 
@@ -222,10 +213,30 @@ class SLM:
         if wait:
             self.wait()
 
+    def _frames_to_ms(self, value):
+        return value if isinstance(value, Quantity) else value / self.refresh_rate
+
+    @property
+    def idle_time(self) -> Quantity[u.ms]:
+        return self._idle_time
+
+
+    @idle_time.setter
+    def idle_time(self, value):
+        self._idle_time = self._frames_to_ms(value)
+
+    @property
+    def settle_time(self) -> Quantity[u.ms]:
+        return self._settle_time
+
+    @settle_time.setter
+    def settle_time(self, value):
+        self._settle_time = self._frames_to_ms(value)
+
     def wait(self):
         self._reservation.wait()
 
-    def reserve(self, time_seconds):
+    def reserve(self, time_seconds: Quantity[u.us]):
         self._reservation.reserve(time_seconds - self.idle_time)
 
     @property
@@ -282,13 +293,13 @@ class Reservation:
     def __init__(self):
         self.reserved_until = None
 
-    def reserve(self, time_ms):
+    def reserve(self, duration: Quantity[u.ms]):
         self.wait()
-        self.reserved_until = time.time() + time_ms/1000.0
+        self.reserved_until = duration + time.time() * u.s
 
     def wait(self):
         if self.reserved_until is not None:
-            difference = self.reserved_until - time.time()
-            if difference > 0.0:
-                time.sleep(difference)
+            difference = self.reserved_until - time.time() * u.s
+            if difference > 0.0 * u.s:
+                time.sleep(float(difference / u.s))
             self.reserved_until = None
