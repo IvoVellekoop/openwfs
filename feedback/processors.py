@@ -25,6 +25,12 @@ class Processor:
 
 
 class SingleRoi(Processor):
+    def __init__(self, source, x, y, radius = 0.0):
+        super().__init__(source)
+        self._x = x
+        self._y = y
+        self._radius = radius
+
     def read(self):
         image = super().read()
         return image[self.x, self.y]
@@ -33,6 +39,29 @@ class SingleRoi(Processor):
     def data_shape(self):
         return (1,)
 
-    x = int_property(doc="x-coordinate of center of the ROI")
-    y = int_property(doc="y-coordinate of center of the ROI")
-    radius = float_property(doc="radius of the ROI")
+    @property
+    def x(self) -> int:
+        """x-coordinate of center of the ROI"""
+        return self._x
+
+    @x.setter
+    def x(self, value):
+        self._x = value
+
+    @property
+    def y(self) -> int:
+        """y-coordinate of center of the ROI"""
+        return self._y
+
+    @y.setter
+    def y(self, value):
+        self._y = value
+
+    @property
+    def radius(self) -> float:
+        """radius of the ROI in pixels"""
+        return self._radius
+
+    @radius.setter
+    def radius(self, value):
+        self._radius = value

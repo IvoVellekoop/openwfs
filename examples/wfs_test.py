@@ -3,12 +3,12 @@ from skimage import data
 
 import set_path
 from openwfs import simulation, wfs_functions, fourier, ssa, algorithm, feedback
-from simulation.simulation import SimulatedWFS
-from wfs_functions import WfsExperiment
-from fourier import FourierDualRef
-from ssa import StepwiseSequential  as StepwiseSequential1
-from algorithms import StepwiseSequential
-from feedback import Controller, SingleRoi
+from openwfs.simulation import SimulatedWFS
+from openwfs.wfs_functions import WfsExperiment
+from openwfs.fourier import FourierDualRef
+from openwfs.ssa import StepwiseSequential  as StepwiseSequential1
+from openwfs.algorithms import StepwiseSequential
+from openwfs.feedback import Controller, SingleRoi
 
 
 def calculate_enhancement(simulation, wfs_experiment):

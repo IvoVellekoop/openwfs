@@ -1,6 +1,7 @@
-from slm import SLM, Patch, geometry, patterns
 import numpy as np
 from math import pi
+import set_path
+from openwfs.slm import SLM, Patch, geometry, patterns
 
 # construct a new SLM object and add a patch to it
 numerical_aperture = 0.8

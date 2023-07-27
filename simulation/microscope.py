@@ -80,12 +80,15 @@ class Microscope:
             m[2, 2] = 1
 
         offset = np.eye(3)
-        offset[0, 2] += self.stage.position_x / self.source.pixel_size
-        offset[1, 2] += self.stage.position_y / self.source.pixel_size
+        offset[0, 2] += self.stage.x / self.source.pixel_size
+        offset[1, 2] += self.stage.y / self.source.pixel_size
         m = m @ offset  # apply offset first, then magnification
 
         affine_transform(s, m, output=image, order=1)
 
+        #compute the PSF (todo)
         psf = np.zeros(image.shape)
         psf[0, 0] = 1
+        psf = np.fft.ifftshift(psf)
+
         return fftconvolve(image, psf, 'same')

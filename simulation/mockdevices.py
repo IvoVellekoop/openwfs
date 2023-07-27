@@ -107,13 +107,14 @@ class CropProcessor(Processor):
 
 
 class MockCamera(CropProcessor):
-    """Wraps any 2-d image source as a camera. The Camera object simply crops the image from the source"""
+    """Wraps any 2-d image source as a camera. The Camera object simply crops the image from the source and converts
+    the image to 16 bits."""
     def __init__(self, source, saturation=1000, width=None, height=None, left=0, top=0):
         super().__init__(source, width, height, left, top)
         self._saturation = saturation
 
     def read(self):
-        im = super().read() * (0xFFFF / self.saturation)
+        im = np.clip(super().read() * (0xFFFF / self.saturation), 0, 0xFFFF)
         return np.array(im, dtype='uint16')
 
     @property
@@ -128,21 +129,28 @@ class MockXYStage:
     def __init__(self, step_size_x: Quantity[u.um], step_size_y: Quantity[u.um]):
         self.step_size_x = step_size_x.to(u.um)
         self.step_size_y = step_size_y.to(u.um)
-        self._position_x = 0.0 * u.um
-        self._position_y = 0.0 * u.um
+        self._y = 0.0 * u.um
+        self._x = 0.0 * u.um
 
     @property
-    def position_x(self) -> Quantity[u.um]:
-        return self._position_x
+    def x(self) -> Quantity[u.um]:
+        return self._x
 
-    @position_x.setter
-    def position_x(self, value: Quantity[u.um]):
-        self._position_x = value.to(u.um)
+    @x.setter
+    def x(self, value: Quantity[u.um]):
+        self._x = value.to(u.um)
 
     @property
-    def position_y(self) -> Quantity[u.um]:
-        return self._position_y
+    def y(self) -> Quantity[u.um]:
+        return self._y
 
-    @position_y.setter
-    def position_y(self, value: Quantity[u.um]):
-        self._position_y = value.to(u.um)
+    @y.setter
+    def y(self, value: Quantity[u.um]):
+        self._y = value.to(u.um)
+
+    def home(self):
+        self._x = 0.0 * u.um
+        self._y = 0.0 * u.um
+
+    def wait(self):
+        pass
