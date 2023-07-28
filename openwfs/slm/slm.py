@@ -264,8 +264,8 @@ class SLM:
         else:  # windowed mode
             glfw.set_window_pos(self._window, self.left, self.top)
 
-        # set clear color to red for debugging
-        glClearColor(1.0, 0.0, 0.0, 1.0)
+        # set clear color to black
+        glClearColor(0.0, 0.0, 0.0, 1.0)
 
         # create buffer for storing globals, and update the global transform matrix
         self._globals = glGenBuffers(1)  # no need to destroy explicitly, destroyed when window is destroyed
@@ -384,3 +384,11 @@ class SLM:
     @phases.setter
     def phases(self, value):
         self.primary_phase_patch.phases = value
+
+    def get_pixels(self):
+        """Read back the pixels currently displayed on the SLM."""
+        self.activate()
+        glReadBuffer(GL_FRONT)
+        data = np.empty((self.height, self.width), dtype='uint8')
+        glReadPixels(0, 0, self.width, self.height, GL_RED, GL_UNSIGNED_BYTE, data)
+        return data

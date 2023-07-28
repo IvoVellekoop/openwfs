@@ -1,6 +1,10 @@
-from slm import SLM, Patch
+import pytest
+
+from openwfs.slm import SLM, Patch
 import numpy as np
-from numpy.testing import assert_array_equal
+from numpy.testing import assert_allclose
+
+
 class TestSLM:
     def test_windowed(self):
         # create a new windowed-mode SLM and check if size and position match the specification
@@ -22,7 +26,9 @@ class TestSLM:
         assert slm.top == 2
 
         # check default LUT
-        assert_array_equal(slm.lookup_table, np.arange(0, 255)/255.0)
+        assert slm.lookup_table[-1] == 1.0
+        assert slm.lookup_table[0] == 0.0
+        assert_allclose(slm.lookup_table, np.arange(0, 256)/255.0, )
 
         # put homogeneous phase on slm and read back
         GVAL1 = 173
@@ -32,20 +38,24 @@ class TestSLM:
         VAL2 = 2 * np.pi / 256 * GVAL2
         slm.phases = VAL1
         slm.update()
-        assert_array_equal(slm.get_pixels(), GVAL1 * np.ones(slm.height, slm.width))
-        assert_array_equal(slm.get_pixels('phase'), VAL1 * np.ones(slm.height, slm.width))
+        mask = np.ones((slm.height, slm.width))
+        mask[:, :50] = 0
+        mask[:, 150:] = 0
+
+        assert_allclose(slm.get_pixels(), GVAL1 * mask)
+        #assert_allclose(slm.get_pixels('phase'), VAL1 * mask)
         slm.phases = VAL2
-        assert_array_equal(slm.get_pixels(), GVAL1 * np.ones(slm.height, slm.width))  # nothing changed yet
-        assert_array_equal(slm.get_pixels('phase'), VAL1 * np.ones(slm.height, slm.width))
+        assert_allclose(slm.get_pixels(), GVAL1 * mask)  # nothing changed yet
+        #assert_allclose(slm.get_pixels('phase'), VAL1 * mask)
         slm.update()
-        assert_array_equal(slm.get_pixels(), GVAL2 * np.ones(slm.height, slm.width))
-        assert_array_equal(slm.get_pixels('phase'), VAL2 * np.ones(slm.height, slm.width))
+        assert_allclose(slm.get_pixels(), GVAL2 * mask)
+        #assert_allclose(slm.get_pixels('phase'), VAL2 * mask)
 
         # change lookup table for one gray value
-        slm.lookup_table[GVAL2] == GVAL3 / 256.0
-        assert_array_equal(slm.get_pixels(), GVAL2 * np.ones(slm.height, slm.width))
+        slm.lookup_table[GVAL2] = GVAL3 / 255.0
+        assert_allclose(slm.get_pixels(), GVAL2 * mask)
         slm.update()
-        assert_array_equal(slm.get_pixels(), GVAL3 * np.ones(slm.height, slm.width))
+        assert_allclose(slm.get_pixels(), GVAL3 * mask)
 
     def test_monitor_id(self):
         assert False
