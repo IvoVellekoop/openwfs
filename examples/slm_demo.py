@@ -1,5 +1,5 @@
 import numpy as np
-from math import pi
+import time
 import set_path
 from openwfs.slm import SLM, Patch, geometry, patterns
 
@@ -22,7 +22,7 @@ p4.additive_blend = False
 pf.phases = patterns.defocus(100) * 6
 rng = np.random.default_rng()
 for n in range(50):
-    data = rng.random([10, 10], np.float32) * 2.0 * pi
+    data = rng.random([10, 10], np.float32) * 2.0 * np.pi
     s1.phases = data
     s2.phases[0] = n / 4.0
     s2.phases = s2.phases  # manual synchronization still needed
@@ -33,4 +33,7 @@ p1 = None  # test deletion. After deleting the two windowed SLMs, we can create 
 s1.patches.clear()
 s1 = 0
 s2 = 0
-s3 = SLM(1)
+s3 = SLM(1) # full screen window
+s3.update()
+s3.monitor_id = 0
+time.sleep(0.5)

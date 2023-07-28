@@ -7,6 +7,7 @@ from astropy.units import Quantity
 from .patch import FrameBufferPatch, Patch, VertexArray
 from .geometry import fill_transform
 from ..feedback import Reservation
+from weakref import WeakSet
 
 
 class SLM:
@@ -15,7 +16,11 @@ class SLM:
     in setting up the SLM layers and geometry before starting the experiment. However, the algorithms only access
     a subset of functions and properties (see `SLM` protocol)
     """
-    _active_monitors = np.zeros(256, 'uint32')  # keeps track of which monitors are occupied already
+
+    _active_slms = WeakSet()
+    """"Keep track of all active SLMs. This is done for two reasons. First, to check if we are not putting two
+    full-screen SLMs on the same monitor. Second, to allow sharing the OpenGL context between all SLM windows,
+    so that we can use the same Patch and Texture objects on multiple SLMs simultaneously."""
 
     MONITOR_ID_WINDOWED = 0
 
@@ -59,6 +64,7 @@ class SLM:
         self._idle_time = None  # set by idle_time setter
         self._settle_time = None  # set by settle_time setter
         self._create_window()
+        SLM._active_slms.add(self)
 
         self.idle_time = idle_time
         self.settle_time = settle_time
@@ -101,10 +107,10 @@ class SLM:
         self._height = None
         self._refresh_rate = None
         monitor = self._set_default_video_mode()
-        glfw.set_window_monitor(self._window, monitor, self._left, self._top, self._window, self._height,
-                                self._refresh_rate)
+        glfw.set_window_monitor(self._window, monitor, self._left, self._top, self._width, self._height,
+                                int(self._refresh_rate / u.Hz))
         self._set_actual_video_mode()
-        glfw.set_viewport(0, 0, self._width, self._height)
+        glViewport(0, 0, self._width, self._height)
         self.update()
 
     @property
@@ -165,8 +171,10 @@ class SLM:
         This function also checks if the target monitor is available, and throws an error if an SLM window is already
         present on that monitor."""
         if self._monitor_id == SLM.MONITOR_ID_WINDOWED:
-            if SLM._active_monitors[1] > 0:  # prevent multiple SLM windows from opening on the same monitor
-                raise Exception(f"Cannot create an SLM window because a full-screen SLM is already active on monitor 1")
+            for slm in SLM._active_slms:
+                if slm is not self and slm.monitor_id == 1:
+                    raise Exception(f"Cannot create an SLM window because a full-screen SLM is already active on "
+                                    f"monitor 1")
             monitor = None
             self._width = self._width or 300
             self._height = self._height or 300
@@ -174,9 +182,11 @@ class SLM:
         else:
             # we cannot have multiple full screen windows on the same monitor. Also, we cannot have
             # a full screen window on monitor 1 if there are already windowed SLMs.
-            if SLM._active_monitors[self.monitor_id] > 0 or (self.monitor_id == 1 and SLM._active_monitors[0] > 0):
-                raise Exception(f"Cannot create a full-screen SLM window on monitor {self.monitor_id} because a "
-                                f"window is already displayed on that monitor")
+            for slm in SLM._active_slms:
+                if slm is not self and slm.monitor_id == self._monitor_id or \
+                        (self._monitor_id == 1 and slm.monitor_id == SLM.MONITOR_ID_WINDOWED):
+                    raise Exception(f"Cannot create a full-screen SLM window on monitor {self.monitor_id} because a "
+                                    f"window is already displayed on that monitor")
             monitor = glfw.get_monitors()[self.monitor_id - 1]
             current_mode = glfw.get_video_mode(monitor)
             self._width = self._width or current_mode.size.width
@@ -209,7 +219,6 @@ class SLM:
                 warnings.warn(f"Actual refresh rate of {current_mode.refresh_rate} Hz does not match set rate "
                               f"of {self.refresh_rate}")
                 self._refresh_rate = current_mode.refresh_rate * u.Hz
-
 
     def _create_window(self):
         """Constructs a new window and associated OpenGL context. Called by SLM.__init__()"""
@@ -250,9 +259,6 @@ class SLM:
         else:  # windowed mode
             glfw.set_window_pos(self._window, self.left, self.top)
 
-        # keep track of how many SLMs we have on which monitors
-        SLM._active_monitors[self.monitor_id] += 1
-
         # set clear color to red for debugging
         glClearColor(1.0, 0.0, 0.0, 1.0)
 
@@ -264,7 +270,6 @@ class SLM:
             self.activate()
             self.patches.clear()
             glfw.destroy_window(self._window)
-            SLM._active_monitors[self.monitor_id] -= 1
 
     def activate(self):
         """Activates the OpenGL context for this slm window. All OpenGL commands now apply to this slm"""
@@ -374,5 +379,3 @@ class SLM:
     @phases.setter
     def phases(self, value):
         self.primary_phase_patch.phases = value
-
-
