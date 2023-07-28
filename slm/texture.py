@@ -19,6 +19,20 @@ class Texture:
         glTexParameteri(self.type, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
         glTexParameteri(self.type, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
 
+    @property
+    def width(self):
+        """ :return: Width of texture. For debugging and unit testing."""
+        self.context().activate()
+        glBindTexture(GL_TEXTURE_2D, self.handle)
+        return glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH)
+
+    @property
+    def height(self):
+        """ :return: Height of frame buffer texture. For debugging and unit testing."""
+        self.context().activate()
+        glBindTexture(GL_TEXTURE_2D, self.handle)
+        return glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT)
+
     def __del__(self):
         if self.context() is not None and hasattr(self, 'handle'):
             self.context().activate()

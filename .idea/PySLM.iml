@@ -10,4 +10,7 @@
   <component name="PackageRequirementsSettings">
     <option name="removeUnused" value="true" />
   </component>
+  <component name="TestRunnerService">
+    <option name="PROJECT_TEST_RUNNER" value="py.test" />
+  </component>
 </module>

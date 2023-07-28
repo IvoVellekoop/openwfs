@@ -170,11 +170,6 @@ class FrameBufferPatch(Patch):
         self.lookup_table = np.arange(0.0, 1.0, 1 / 255.0)
         self.additive_blend = False
 
-    def info(self):
-        # debugging:
-        glBindTexture(GL_TEXTURE_2D, self._textures[Patch.PHASES_TEXTURE].handle)
-        print(glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH))
-
     def __del__(self):
         if self.context() is not None and hasattr(self, 'frame_buffer'):
             self.context().activate()
