@@ -111,6 +111,10 @@ class SLM:
                                 int(self._refresh_rate / u.Hz))
         self._set_actual_video_mode()
         glViewport(0, 0, self._width, self._height)
+        # construct new frame buffer object, re-use LUT
+        lut = self.lookup_table
+        self._frame_patch = FrameBufferPatch(self)
+        self.lookup_table = lut
         self.update()
 
     @property

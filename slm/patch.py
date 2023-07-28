@@ -155,11 +155,10 @@ class FrameBufferPatch(Patch):
         # Create a frame buffer object to render to. The frame buffer holds a texture that is the same size as the
         # window. All patches are first rendered to this texture. The texture
         # is then processed as a whole (applying the software lookup table) and displayed on the screen.
-        self.phases = np.zeros([slm.width, slm.height], dtype=np.float32)
-        self._textures[Patch.PHASES_TEXTURE].synchronize()
-
         self.frame_buffer = glGenFramebuffers(1)
 
+        self.phases = np.zeros([slm.width, slm.height], dtype=np.float32)
+        self._textures[Patch.PHASES_TEXTURE].synchronize()
         glBindFramebuffer(GL_FRAMEBUFFER, self.frame_buffer)
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
                                self._textures[Patch.PHASES_TEXTURE].handle, 0)
@@ -170,6 +169,11 @@ class FrameBufferPatch(Patch):
         self._textures.append(Texture(slm, GL_TEXTURE_1D))  # create texture for lookup table
         self.lookup_table = np.arange(0.0, 1.0, 1 / 255.0)
         self.additive_blend = False
+
+    def info(self):
+        # debugging:
+        glBindTexture(GL_TEXTURE_2D, self._textures[Patch.PHASES_TEXTURE].handle)
+        print(glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH))
 
     def __del__(self):
         if self.context() is not None and hasattr(self, 'frame_buffer'):
