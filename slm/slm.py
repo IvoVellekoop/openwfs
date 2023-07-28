@@ -4,7 +4,7 @@ import glfw
 import warnings
 import astropy.units as u
 from astropy.units import Quantity
-from .patch import FrameBufferPatch, Patch
+from .patch import FrameBufferPatch, Patch, VertexArray
 from .geometry import fill_transform
 from ..feedback import Reservation
 
@@ -56,7 +56,6 @@ class SLM:
         self._reservation = Reservation()
         self._window = None
         self._globals = None  # will be filled by __create_window
-        self._vertex_array = None  # will be set by __create_window
         self._idle_time = None  # set by idle_time setter
         self._settle_time = None  # set by settle_time setter
         self._create_window()
@@ -67,7 +66,8 @@ class SLM:
 
         # Construct the frame buffer, this is the texture where all patches draw to. After all patches
         # finish drawing, the frame buffer itself is drawn onto the screen.
-        self.frame_patch = FrameBufferPatch(self)
+        self._frame_patch = FrameBufferPatch(self)
+        self._vertex_array = VertexArray()
 
         # Create a single patch for displaying phase.
         # this default patch is square 1.0, and can be accessed through the 'primary_phase_patch' attribute
@@ -253,30 +253,6 @@ class SLM:
         # keep track of how many SLMs we have on which monitors
         SLM._active_monitors[self.monitor_id] += 1
 
-        # Inform OpenGL about the format of the vertex data we will use.
-        # Each vertex contains four float32 components:
-        # x, y coordinate for vertex position. Will be transformed by the transform matrix.
-        # tx, ty texture coordinates, range from 0.0, 0.0 to 1.0, 1.0 to cover the full texture
-        #
-        # To inform OpenGL about this format, we create vertex an array object and store format properties.
-        # The elements of the vertex are available to a vertex shader as vec2 position (location 0)
-        # and vec2 texture_coordinates (location 1), see vertex shader in Patch for an example.
-        # All this information is bound to a binding index before use by calling glBindVertexBuffer,
-        # which is done when a vertex buffer is created (see Patch).
-        #
-        self._vertex_array = glGenVertexArrays(1)  # no need to destroy explicitly, destroyed when window is destroyed
-        glBindVertexArray(self._vertex_array)
-        glEnableVertexAttribArray(0)
-        glEnableVertexAttribArray(1)
-        glVertexAttribFormat(0, 2, GL_FLOAT, GL_FALSE, 0)  # first two float32 are screen coordinates
-        glVertexAttribFormat(1, 2, GL_FLOAT, GL_FALSE, 8)  # second two are texture coordinates
-        glVertexAttribBinding(0, 0)  # use binding index 0 for both attributes
-        glVertexAttribBinding(1, 0)  # the attribute format can now be used with glBindVertexBuffer
-
-        # enable primitive restart, so that we can draw multiple triangle strips with a single draw call
-        glEnable(GL_PRIMITIVE_RESTART)
-        glPrimitiveRestartIndex(0xFFFF)  # this is the index we use to separate individual triangle strips
-
         # set clear color to red for debugging
         glClearColor(1.0, 0.0, 0.0, 1.0)
 
@@ -298,14 +274,14 @@ class SLM:
         self.activate()
 
         # first draw all patches into the frame buffer
-        glBindFramebuffer(GL_FRAMEBUFFER, self.frame_patch.frame_buffer)
+        glBindFramebuffer(GL_FRAMEBUFFER, self._frame_patch.frame_buffer)
         glClear(GL_COLOR_BUFFER_BIT)
         for patch in self.patches:
             patch.draw()
 
         # then draw the frame buffer to the screen
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
-        self.frame_patch.draw()
+        self._frame_patch.draw()
 
         glfw.poll_events()  # process window messages
 
@@ -326,16 +302,13 @@ class SLM:
         if wait:
             self.wait()
 
-    def _frames_to_ms(self, value):
-        return value if isinstance(value, Quantity) else value / self.refresh_rate
-
     @property
     def idle_time(self) -> Quantity[u.ms]:
         return self._idle_time
 
     @idle_time.setter
     def idle_time(self, value):
-        self._idle_time = self._frames_to_ms(value)
+        self._idle_time = value if isinstance(value, Quantity) else value / self.refresh_rate
 
     @property
     def settle_time(self) -> Quantity[u.ms]:
@@ -343,7 +316,7 @@ class SLM:
 
     @settle_time.setter
     def settle_time(self, value):
-        self._settle_time = self._frames_to_ms(value)
+        self._settle_time = value if isinstance(value, Quantity) else value / self.refresh_rate
 
     def wait(self):
         self._reservation.wait()
@@ -388,11 +361,11 @@ class SLM:
     def lookup_table(self):
         """Lookup table that is used to map the wrapped phase range 0-2pi to 8-bit color output. By default,
         this is just range(256)"""
-        return self.frame_patch.lookup_table
+        return self._frame_patch.lookup_table
 
     @lookup_table.setter
     def lookup_table(self, value):
-        self.frame_patch.lookup_table = value
+        self._frame_patch.lookup_table = value
 
     @property
     def phases(self):
@@ -403,5 +376,3 @@ class SLM:
         self.primary_phase_patch.phases = value
 
 
-class WindowManager:
-    pass

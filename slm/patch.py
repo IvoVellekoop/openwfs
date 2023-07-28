@@ -185,3 +185,32 @@ class FrameBufferPatch(Patch):
     def lookup_table(self, value):
         self.context().activate()
         self._textures[FrameBufferPatch.LUT_TEXTURE].data = value
+
+
+class VertexArray:
+    # A VertexArray informs OpenGL about the format of the vertex data we will use.
+    # Each vertex contains four float32 components:
+    # x, y coordinate for vertex position. Will be transformed by the transform matrix.
+    # tx, ty texture coordinates, range from 0.0, 0.0 to 1.0, 1.0 to cover the full texture
+    #
+    # To inform OpenGL about this format, we create vertex an array object and store format properties.
+    # The elements of the vertex are available to a vertex shader as vec2 position (location 0)
+    # and vec2 texture_coordinates (location 1), see vertex shader in Patch for an example.
+    # All this information is bound to a binding index before use by calling glBindVertexBuffer,
+    # which is done when a vertex buffer is created (see Patch).
+    #
+    # Since we have a fixed vertex format, we only need to bind the VertexArray once, and not bother with
+    # updating, binding, or even deleting it
+    def __init__(self):
+        self._vertex_array = glGenVertexArrays(1)  # no need to destroy explicitly, destroyed when window is destroyed
+        glBindVertexArray(self._vertex_array)
+        glEnableVertexAttribArray(0)
+        glEnableVertexAttribArray(1)
+        glVertexAttribFormat(0, 2, GL_FLOAT, GL_FALSE, 0)  # first two float32 are screen coordinates
+        glVertexAttribFormat(1, 2, GL_FLOAT, GL_FALSE, 8)  # second two are texture coordinates
+        glVertexAttribBinding(0, 0)  # use binding index 0 for both attributes
+        glVertexAttribBinding(1, 0)  # the attribute format can now be used with glBindVertexBuffer
+
+        # enable primitive restart, so that we can draw multiple triangle strips with a single draw call
+        glEnable(GL_PRIMITIVE_RESTART)
+        glPrimitiveRestartIndex(0xFFFF)  # this is the index we use to separate individual triangle strips

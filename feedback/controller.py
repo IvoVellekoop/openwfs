@@ -1,5 +1,8 @@
 import numpy as np
 from typing import Protocol
+import time
+import astropy.units as u
+from astropy.units import Quantity
 
 
 class Detector(Protocol):
@@ -132,5 +135,22 @@ class Controller:
     def compute_transmission(self, phase_steps):
         """To do: calculate SnR"""
         t = np.tensordot(self.measurements, np.exp(-1j * np.arange(phase_steps) / phase_steps * 2 * np.pi),
-                         (len(np.shape(self.measurements))-2, [0]))  # phase steps should be in second to last dimension
+                         (len(np.shape(self.measurements)) - 2,
+                          [0]))  # phase steps should be in second to last dimension
         return t
+
+
+class Reservation:
+    def __init__(self):
+        self.reserved_until = None
+
+    def reserve(self, duration: Quantity[u.ms]):
+        self.wait()
+        self.reserved_until = duration + time.time() * u.s
+
+    def wait(self):
+        if self.reserved_until is not None:
+            difference = self.reserved_until - time.time() * u.s
+            if difference > 0.0 * u.s:
+                time.sleep(float(difference / u.s))
+            self.reserved_until = None
