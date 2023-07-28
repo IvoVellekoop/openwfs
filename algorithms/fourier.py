@@ -89,9 +89,9 @@ class FourierDualRef:
         overlap_end = self.controller.slm.width // 2 + int(overlap_len / 2)
 
         if self._overlap != 0:
-            c = np.vdot(t2[:, :overlap_len], t1[:, -overlap_len:])
-            factor = c / abs(c) * np.linalg.norm(t2[:, :overlap_len]) / np.linalg.norm(t1[:, -overlap_len:])
-            t2 = t2 / factor
+            c = np.vdot(t2[:, overlap_begin:overlap_end], t1[:, overlap_begin:overlap_end])
+            factor = c / abs(c) * np.linalg.norm(t1[:, overlap_begin:overlap_end]) / np.linalg.norm(t2[:, overlap_begin:overlap_end])
+            t2 = t2 * factor
 
             overlap = (t1[:, overlap_begin:overlap_end] + t2[:, overlap_begin:overlap_end]) / 2
             t_full = np.concatenate([t1[:, 0:overlap_begin], overlap, t2[:, overlap_end:]], axis=1)
@@ -179,10 +179,6 @@ class CharacterisingFDR(FourierDualRef):
         kx_total = []
         ky_total = []
 
-
-
-
-
         for side in range(2):
             n = 0
             # we begin in K[0,0]
@@ -205,29 +201,29 @@ class CharacterisingFDR(FourierDualRef):
                     nth_highest_index = np.argsort(abs(t_fourier))[-ind]
                     in_x = np.isin(centers[0,:], kx_total[nth_highest_index])
                     in_y = np.isin(centers[1, :], ky_total[nth_highest_index])
-                    print(ind)
+
                     if not any(in_x & in_y) is True:
-                        found_next_center = True
-
                         center = np.array([[kx_total[nth_highest_index]],[ky_total[nth_highest_index]]])
+                        next_points = get_neighbors(center[0], center[1])
 
-                        centers = np.concatenate((centers,center),axis=1)
-                        print(center)
+                        # cull all the previously measured points
+                        unique_next_points = np.array([point for point in next_points[:, :, 0] if not any(
+                            (np.array(np.vstack((kx_total, ky_total))).T == point).all(1))])
+                        centers = np.concatenate((centers, center), axis=1)
+
+                        if len(unique_next_points) > 0:
+                            found_next_center = True
+
                     ind += 1
-
-                next_points = get_neighbors(center[0],center[1])
-                # cull all the previously measured points
-                unique_next_points = np.array([point for point in next_points[:,:,0] if not any((np.array(np.vstack((kx_total,ky_total))).T == point).all(1))])
 
                 self.k_x = unique_next_points[:, 0]
                 self.k_y = unique_next_points[:, 1]
-                print(unique_next_points)
-                n += len(self.k_x)
 
+                n += len(self.k_x)
 
             t_abs = abs(t_fourier)
             import matplotlib.pyplot as plt
-            plt.scatter(kx_total, ky_total, c=t_abs, marker='s', cmap='viridis', s=900, edgecolors='k')
+            plt.scatter(kx_total, ky_total, c=t_abs, marker='s', cmap='viridis', s=400, edgecolors='k')
             plt.colorbar(label='t_abs')
             plt.show()
 
@@ -238,8 +234,7 @@ class CharacterisingFDR(FourierDualRef):
             else:
                 t_right = t_fourier
                 k_right = np.vstack((kx_total,ky_total))
-        print(k_left)
-        print(t_left)
+
         t_slm = self.compute_t(t_left,t_right,k_left,k_right)
         return t_slm
     def single_side_experiment(self, side):
@@ -276,10 +271,12 @@ class CharacterisingFDR(FourierDualRef):
         overlap_begin = self.controller.slm.width // 2 - int(overlap_len / 2)
         overlap_end = self.controller.slm.width // 2 + int(overlap_len / 2)
 
+
+
         if self._overlap != 0:
-            c = np.vdot(t2[:, :overlap_len], t1[:, -overlap_len:])
-            factor = c / abs(c) * np.linalg.norm(t2[:, :overlap_len]) / np.linalg.norm(t1[:, -overlap_len:])
-            t2 = t2 / factor
+            c = np.vdot(t2[:, overlap_begin:overlap_end], t1[:, overlap_begin:overlap_end])
+            factor = c / abs(c) * np.linalg.norm(t1[:, overlap_begin:overlap_end]) / np.linalg.norm(t2[:, overlap_begin:overlap_end])
+            t2 = t2 * factor
 
             overlap = (t1[:, overlap_begin:overlap_end] + t2[:, overlap_begin:overlap_end]) / 2
             t_full = np.concatenate([t1[:, 0:overlap_begin], overlap, t2[:, overlap_end:]], axis=1)
