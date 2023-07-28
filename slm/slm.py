@@ -251,7 +251,8 @@ class SLM:
         # Construct the OpenGL window. This window also acts as a 'context' which holds all resources for the window
         monitor = self._set_default_video_mode()
         glfw.window_hint(glfw.REFRESH_RATE, int(self._refresh_rate / u.Hz))
-        self._window = glfw.create_window(self._width, self._height, "OpenWFS SLM", monitor, None)
+        shared = next(iter(SLM._active_slms), self)._window
+        self._window = glfw.create_window(self._width, self._height, "OpenWFS SLM", monitor, shared)
         self.activate()  # Before calling any OpenGL function on the window, the context must be activated.
         glfw.set_input_mode(self._window, glfw.CURSOR, glfw.CURSOR_HIDDEN)  # disable cursor
         glfw.swap_interval(1)  # tell opengl to wait for the vertical retrace when swapping buffers
