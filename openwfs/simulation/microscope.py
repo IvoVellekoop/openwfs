@@ -4,7 +4,7 @@ from astropy.units import Quantity
 from scipy.ndimage import affine_transform
 from scipy.signal import fftconvolve
 from .mockdevices import MockImageSource, MockXYStage, MockCamera
-from ..slm import patterns
+from openwfs.slm import patterns
 
 
 class Microscope:

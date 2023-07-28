@@ -167,7 +167,7 @@ class FrameBufferPatch(Patch):
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
         self._textures.append(Texture(slm, GL_TEXTURE_1D))  # create texture for lookup table
-        self.lookup_table = np.arange(0.0, 1.0, 1 / 255.0)
+        self.lookup_table = np.arange(0, 256) / 255.0 # 256 entries from 0.0 to 1.0
         self.additive_blend = False
 
     def __del__(self):

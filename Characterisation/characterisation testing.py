@@ -3,11 +3,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from skimage import data
 
-from simulation.simulation import SimulatedWFS, make_gaussian
+from openwfs.simulation import SimulatedWFS, make_gaussian
 from fourier import FourierDualRef
 from wfs_functions import WfsExperiment
 sys.path.append('C:\\Users\\Jeroen Doornbos\\Documents\\wfs_current\\hardware\\generic_binding')
-from SLMwrapper import SLM, set_circular_geometry
 
 # initialisation
 sim = SimulatedWFS()

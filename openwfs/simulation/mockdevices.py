@@ -1,7 +1,7 @@
 import numpy as np
 import astropy.units as u
 from astropy.units import Quantity
-from ..feedback import CropProcessor
+from openwfs.feedback import CropProcessor
 
 
 # todo: put somewhere else (in processors.py?)

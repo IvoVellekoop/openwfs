@@ -1,15 +1,12 @@
 import numpy as np
 import cv2
-import time
-import sys
 
 from wfs import wavefront_shaping
-from ssa import StepwiseSequential
 
 from fourier import FourierDualRef
 import matplotlib.pyplot as plt
 
-from base_device_properties import float_property, int_property, string_property, object_property, base_property, bool_property, parse_options
+from base_device_properties import object_property, bool_property, parse_options
 
 def manual_slm_setup(monitor_id=2, wavelength_nm = 804):
     s = SLM(monitor_id)
@@ -219,7 +216,7 @@ class WfsExperiment:
 
 
 if __name__ == "__main__":
-    from simulation.simulation import SimulatedWFS
+    from openwfs.simulation import SimulatedWFS
     wfs = WfsExperiment()
     sim = SimulatedWFS()
     sim.set_ideal_wf(np.zeros([500,500]))

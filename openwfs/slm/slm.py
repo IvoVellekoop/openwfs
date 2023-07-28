@@ -6,7 +6,7 @@ import astropy.units as u
 from astropy.units import Quantity
 from .patch import FrameBufferPatch, Patch, VertexArray
 from .geometry import fill_transform
-from ..feedback import Reservation
+from openwfs.feedback import Reservation
 from weakref import WeakSet
 
 

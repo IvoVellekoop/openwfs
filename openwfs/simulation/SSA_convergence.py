@@ -1,6 +1,6 @@
 from ssa import StepwiseSequential
 from wfs import wavefront_shaping
-from simulation import SimulatedWFS
+from openwfs.simulation import SimulatedWFS
 import numpy as np
 import matplotlib.pyplot as plt
 from decimal import Decimal

@@ -35,7 +35,5 @@ s1 = 0
 s2 = 0
 s3 = SLM(1) # full screen window
 s3.update()
-s3._frame_patch.info()
 s3.monitor_id = 0
-s3._frame_patch.info()
 time.sleep(0.5)

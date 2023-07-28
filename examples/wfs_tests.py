@@ -1,10 +1,8 @@
-from simulation.simulation import SimulatedWFS
+from openwfs.simulation import SimulatedWFS
 import numpy as np
-from skimage import data
-from algorithms import StepwiseSequential, BasicFDR, CharacterisingFDR
-from feedback import Controller, SingleRoi
+from openwfs.algorithms import StepwiseSequential, BasicFDR, CharacterisingFDR
+from openwfs.feedback import Controller, SingleRoi
 from test_functions import calculate_enhancement,make_angled_wavefront, angular_difference
-from slm import SLM
 import matplotlib.pyplot as plt
 
 def flat_wf_response_fourier():
