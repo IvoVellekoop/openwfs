@@ -55,7 +55,7 @@ class Texture:
             made when the array is not a numpy float32 array yet. If the data in the referenced array is modified,
             the data on the GPU and the data in 'phases' are out of sync. They will be synchronized automatically when
             the slm is updated (drawn)."""
-        value = np.array(value, dtype=np.float32, copy=False)
+        value = np.array(value, dtype=np.float32, order='C', copy=False)
 
         # check if data has correct dimension, convert scalars to arrays of correct dimension
         if self.type == GL_TEXTURE_1D:
@@ -90,17 +90,17 @@ class Texture:
 
         if self.type == GL_TEXTURE_1D:
             if self._data_size_changed:
-                glTexImage1D(GL_TEXTURE_1D, 0, internal_format, self.data.shape[0], 0, data_format, data_type,
-                             self.data)
+                glTexImage1D(GL_TEXTURE_1D, 0, internal_format, self._data.shape[0], 0, data_format, data_type,
+                             self._data)
             else:
-                glTexSubImage1D(GL_TEXTURE_1D, 0, 0, 0, self.data.shape[0], data_format, data_type, self.data)
+                glTexSubImage1D(GL_TEXTURE_1D, 0, 0, 0, self._data.shape[0], data_format, data_type, self._data)
 
         elif self.type == GL_TEXTURE_2D:
             if self._data_size_changed:
-                glTexImage2D(GL_TEXTURE_2D, 0, internal_format, self.data.shape[0], self.data.shape[1], 0, data_format,
-                             data_type, self.data)
+                glTexImage2D(GL_TEXTURE_2D, 0, internal_format, self._data.shape[1], self._data.shape[0], 0, data_format,
+                             data_type, self._data)
             else:
-                glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, self.data.shape[0], self.data.shape[1], data_format, data_type,
-                                self.data)
+                glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, self._data.shape[1], self._data.shape[0], data_format, data_type,
+                                self._data)
 
         self.synchronized = True

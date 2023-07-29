@@ -22,9 +22,9 @@ class SLM:
     full-screen SLMs on the same monitor. Second, to allow sharing the OpenGL context between all SLM windows,
     so that we can use the same Patch and Texture objects on multiple SLMs simultaneously."""
 
-    MONITOR_ID_WINDOWED = 0
+    WINDOWED = 0
 
-    def __init__(self, monitor_id=MONITOR_ID_WINDOWED, width=None, height=None, left=0, top=0, refresh_rate=None,
+    def __init__(self, monitor_id=WINDOWED, width=None, height=None, left=0, top=0, refresh_rate=None,
                  transform=None, idle_time=2, settle_time=1):
         """
         Constructs a new SLM window.
@@ -141,7 +141,7 @@ class SLM:
 
     @left.setter
     def left(self, value):
-        if self.monitor_id == SLM.MONITOR_ID_WINDOWED and self._left != value:
+        if self.monitor_id == SLM.WINDOWED and self._left != value:
             self.activate()
             glfw.set_window_pos(self._window, value, self._top)
         self._left = value
@@ -152,7 +152,7 @@ class SLM:
 
     @top.setter
     def top(self, value):
-        if self.monitor_id == SLM.MONITOR_ID_WINDOWED and self._top != value:
+        if self.monitor_id == SLM.WINDOWED and self._top != value:
             self.activate()
             glfw.set_window_pos(self._window, self._left, value)
         self._top = value
@@ -174,7 +174,7 @@ class SLM:
         Returns the selected monitor (full screen SLMs) or None (windowed SLMs) for convenience.
         This function also checks if the target monitor is available, and throws an error if an SLM window is already
         present on that monitor."""
-        if self._monitor_id == SLM.MONITOR_ID_WINDOWED:
+        if self._monitor_id == SLM.WINDOWED:
             for slm in SLM._active_slms:
                 if slm is not self and slm.monitor_id == 1:
                     raise Exception(f"Cannot create an SLM window because a full-screen SLM is already active on "
@@ -188,7 +188,7 @@ class SLM:
             # a full screen window on monitor 1 if there are already windowed SLMs.
             for slm in SLM._active_slms:
                 if slm is not self and slm.monitor_id == self._monitor_id or \
-                        (self._monitor_id == 1 and slm.monitor_id == SLM.MONITOR_ID_WINDOWED):
+                        (self._monitor_id == 1 and slm.monitor_id == SLM.WINDOWED):
                     raise Exception(f"Cannot create a full-screen SLM window on monitor {self.monitor_id} because a "
                                     f"window is already displayed on that monitor")
             monitor = glfw.get_monitors()[self.monitor_id - 1]

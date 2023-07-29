@@ -157,7 +157,7 @@ class FrameBufferPatch(Patch):
         # is then processed as a whole (applying the software lookup table) and displayed on the screen.
         self.frame_buffer = glGenFramebuffers(1)
 
-        self.phases = np.zeros([slm.width, slm.height], dtype=np.float32)
+        self.phases = np.zeros((slm.height, slm.width), dtype=np.float32)
         self._textures[Patch.PHASES_TEXTURE].synchronize()
         glBindFramebuffer(GL_FRAMEBUFFER, self.frame_buffer)
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
