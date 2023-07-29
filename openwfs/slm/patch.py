@@ -185,6 +185,12 @@ class FrameBufferPatch(Patch):
         self.context().activate()
         self._textures[FrameBufferPatch.LUT_TEXTURE].data = value
 
+    def get_pixels(self):
+        self.context().activate()
+        tex = self._textures[FrameBufferPatch.PHASES_TEXTURE]
+        data = np.empty((tex.height, tex.width), dtype='float32')
+        glGetTextureImage(tex.handle, 0, GL_RED, GL_FLOAT, data.size * 4, data)
+        return data
 
 class VertexArray:
     # A VertexArray informs OpenGL about the format of the vertex data we will use.

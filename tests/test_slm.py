@@ -55,20 +55,14 @@ class TestSLM:
         slm.phases = TestSLM.VAL1
         slm.update()
 
-        assert_allclose(slm.get_pixels(), TestSLM.GVAL1 * mask)
-        #assert_allclose(slm.get_pixels('phase'), VAL1 * mask)
+        assert_allclose(slm.get_pixels('gray_value'), TestSLM.GVAL1 * mask)
+        assert_allclose(slm.get_pixels('phase'), TestSLM.VAL1 * mask)
         slm.phases = TestSLM.VAL2
-        assert_allclose(slm.get_pixels(), TestSLM.GVAL1 * mask)  # nothing changed yet
-        #assert_allclose(slm.get_pixels('phase'), VAL1 * mask)
+        assert_allclose(slm.get_pixels('gray_value'), TestSLM.GVAL1 * mask)  # nothing changed yet
+        assert_allclose(slm.get_pixels('phase'), TestSLM.VAL1 * mask)
         slm.update()
-        assert_allclose(slm.get_pixels(), TestSLM.GVAL2 * mask)
-        #assert_allclose(slm.get_pixels('phase'), VAL2 * mask)
-
-        # change lookup table for one gray value
-        slm.lookup_table[TestSLM.GVAL2] = TestSLM.GVAL3 / 255.0
-        assert_allclose(slm.get_pixels(), TestSLM.GVAL2 * mask)
-        slm.update()
-        assert_allclose(slm.get_pixels(), TestSLM.GVAL3 * mask)
+        assert_allclose(slm.get_pixels('gray_value'), TestSLM.GVAL2 * mask)
+        assert_allclose(slm.get_pixels(), TestSLM.VAL2 * mask)
 
     def test_monitor_id(self):
         assert False
@@ -98,8 +92,10 @@ class TestSLM:
         pattern[-10:,-10:] = TestSLM.VAL1
         slm.phases = np.array(pattern, dtype='float32')
         slm.update()
-        read_back = slm.get_pixels()
+        read_back = slm.get_pixels('gray_value')
         assert_allclose(pattern, read_back / 256 * 2 * np.pi)
+        read_back = slm.get_pixels('phase')
+        assert_allclose(pattern, read_back)
 
     def test_idle_time(self):
         assert False
@@ -122,13 +118,13 @@ class TestSLM:
         # put homogeneous phase on slm and read back
         slm.phases = TestSLM.VAL2
         slm.update()
-        assert_allclose(slm.get_pixels(), TestSLM.GVAL2 * mask)
+        assert_allclose(slm.get_pixels('gray_value'), TestSLM.GVAL2 * mask)
 
         # change lookup table for one gray value
         slm.lookup_table[TestSLM.GVAL2] = TestSLM.GVAL3 / 255.0
-        assert_allclose(slm.get_pixels(), TestSLM.GVAL2 * mask)
+        assert_allclose(slm.get_pixels('gray_value'), TestSLM.GVAL2 * mask)
         slm.update()
-        assert_allclose(slm.get_pixels(), TestSLM.GVAL3 * mask)
+        assert_allclose(slm.get_pixels('gray_value'), TestSLM.GVAL3 * mask)
 
     def test_phases(self):
         assert False

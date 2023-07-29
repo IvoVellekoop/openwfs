@@ -385,10 +385,16 @@ class SLM:
     def phases(self, value):
         self.primary_phase_patch.phases = value
 
-    def get_pixels(self):
+    def get_pixels(self, type = 'phase'):
         """Read back the pixels currently displayed on the SLM."""
-        self.activate()
-        glReadBuffer(GL_FRONT)
-        data = np.empty((self.height, self.width), dtype='uint8')
-        glReadPixels(0, 0, self.width, self.height, GL_RED, GL_UNSIGNED_BYTE, data)
-        return data
+        if type == 'gray_value':
+            self.activate()
+            glReadBuffer(GL_FRONT)
+            data = np.empty((self.height, self.width), dtype='uint8')
+            glReadPixels(0, 0, self.width, self.height, GL_RED, GL_UNSIGNED_BYTE, data)
+            return data
+        if type == 'phase':
+            return self._frame_patch.get_pixels()
+
+        raise ValueError(f"Unsupported pixel type {type}")
+

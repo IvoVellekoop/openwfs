@@ -23,15 +23,15 @@ class Texture:
     def width(self):
         """ :return: Width of texture. For debugging and unit testing."""
         self.context().activate()
-        glBindTexture(GL_TEXTURE_2D, self.handle)
-        return glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH)
+        glBindTexture(self.type, self.handle)
+        return glGetTexLevelParameteriv(self.type, 0, GL_TEXTURE_WIDTH)
 
     @property
     def height(self):
-        """ :return: Height of frame buffer texture. For debugging and unit testing."""
+        """ :return: Height of texture. For debugging and unit testing."""
         self.context().activate()
-        glBindTexture(GL_TEXTURE_2D, self.handle)
-        return glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT)
+        glBindTexture(self.type, self.handle)
+        return glGetTexLevelParameteriv(self.type, 0, GL_TEXTURE_HEIGHT)
 
     def __del__(self):
         if self.context() is not None and hasattr(self, 'handle'):
