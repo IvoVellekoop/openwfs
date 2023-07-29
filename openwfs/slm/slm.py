@@ -25,7 +25,7 @@ class SLM:
     WINDOWED = 0
 
     def __init__(self, monitor_id=WINDOWED, width=None, height=None, left=0, top=0, refresh_rate=None,
-                 transform=None, idle_time=2, settle_time=1):
+                 transform=None, idle_time=2, settle_time=1, wavelength=None, lut_generator=None):
         """
         Constructs a new SLM window.
         :param monitor_id:  Monitor id, see :py:attr:`~monitor_id`
@@ -48,10 +48,15 @@ class SLM:
                           where the SLM has stabilized.
                           Specified in milliseconds (u.ms) or multiples of the frame period (unitless).
                           see :py:attr:`~settle_time`
+        :param wavelength: wavelength in nanometers (u.ns). Use in combination with lut_generator
+        :param lut_generator: function taking a wavelength in nanometers and returning a lookup table. This function
+                          is called every time the wavelength of the slm object is set, so that the lookup table is
+                          be adapted to the wavelength of the light source.
         """
 
         # construct window for displaying the SLM pattern
         self.patches = []
+        self.lut_generator = lambda λ: np.arange(0, 256)  # always use range 0:255, independent of wavelength
         self._monitor_id = monitor_id
         self._width = width
         self._height = height
@@ -63,6 +68,7 @@ class SLM:
         self._globals = None  # will be filled by __create_window
         self._idle_time = None  # set by idle_time setter
         self._settle_time = None  # set by settle_time setter
+        self._wavelength = wavelength
         self._create_window()
         SLM._active_slms.add(self)
 
@@ -398,3 +404,11 @@ class SLM:
 
         raise ValueError(f"Unsupported pixel type {type}")
 
+    @property
+    def wavelength(self) -> Quantity[u.nm]:
+        return self._wavelength
+
+    @wavelength.setter
+    def wavelength(self, value):
+        self._wavelength = value
+        self.lookup_table = self.lut_generator(value)

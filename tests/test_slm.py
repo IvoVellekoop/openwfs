@@ -6,8 +6,6 @@ from openwfs.slm import SLM, Patch, geometry
 import numpy as np
 from numpy.testing import assert_allclose
 import astropy.units as u
-from astropy.units import Quantity
-
 
 
 class TestSLM:
@@ -20,11 +18,11 @@ class TestSLM:
 
     @pytest.fixture
     def windowed_slm(self):
-        slm = SLM(width=200,height=100,left=20,top=10)
+        slm = SLM(width=200, height=100, left=20, top=10)
         mask = np.ones((slm.height, slm.width))
         mask[:, :50] = 0
         mask[:, 150:] = 0
-        return (slm, mask)
+        return slm, mask
 
     def test_windowed(self, windowed_slm):
         (slm, mask) = windowed_slm
@@ -49,7 +47,7 @@ class TestSLM:
         # check default LUT
         assert slm.lookup_table[-1] == 1.0
         assert slm.lookup_table[0] == 0.0
-        assert_allclose(slm.lookup_table, np.arange(0, 256)/255.0, )
+        assert_allclose(slm.lookup_table, np.arange(0, 256) / 255.0, )
 
         # put homogeneous phase on slm and read back
         slm.phases = TestSLM.VAL1
@@ -80,22 +78,34 @@ class TestSLM:
             slm.update()
         stop = time.time_ns() * u.ns
         del slm
-        actual_refresh_rate = frame_count/(stop - start)
+        actual_refresh_rate = frame_count / (stop - start)
         assert_allclose(refresh_rate.to_value(u.Hz), actual_refresh_rate.to_value(u.Hz), rtol=1e-2)
 
     def test_get_pixels(self):
         width = 73
         height = 99
         slm = SLM(SLM.WINDOWED, width, height)
-        slm.transform = geometry.fill_transform(slm, 'full') # fill full screen exactly (anisotropic coordinates
+        slm.transform = geometry.fill_transform(slm, 'full')  # fill full screen exactly (anisotropic coordinates
         pattern = numpy.eye(height, width) * TestSLM.VAL1
-        pattern[-10:,-10:] = TestSLM.VAL1
+        pattern[-10:, -10:] = TestSLM.VAL1
         slm.phases = np.array(pattern, dtype='float32')
         slm.update()
         read_back = slm.get_pixels('gray_value')
         assert_allclose(pattern, read_back / 256 * 2 * np.pi)
         read_back = slm.get_pixels('phase')
         assert_allclose(pattern, read_back)
+
+    def test_wavelength(self, windowed_slm):
+        slm = windowed_slm[0]
+        slm.lut_generator = lambda λ: np.arange(0, np.minimum(np.round(λ.to_value(u.nm) / 4), 256))
+        slm.wavelength = 800 * u.nm
+        assert slm.lookup_table.size == 200
+        slm.wavelength = 1000 * u.nm
+        assert slm.lookup_table.size == 250
+        assert slm.lookup_table[-1] == 249
+        slm.wavelength = 1300 * u.nm
+        assert slm.lookup_table.size == 256
+        assert slm.lookup_table[-1] == 255
 
     def test_idle_time(self):
         assert False
@@ -125,6 +135,3 @@ class TestSLM:
         assert_allclose(slm.get_pixels('gray_value'), TestSLM.GVAL2 * mask)
         slm.update()
         assert_allclose(slm.get_pixels('gray_value'), TestSLM.GVAL3 * mask)
-
-    def test_phases(self):
-        assert False
