@@ -56,7 +56,7 @@ class SLM:
 
         # construct window for displaying the SLM pattern
         self.patches = []
-        self.lut_generator = lambda λ: np.arange(0, 256)  # always use range 0:255, independent of wavelength
+        self.lut_generator = lut_generator or (lambda λ: np.arange(0, 256))
         self._monitor_id = monitor_id
         self._width = width
         self._height = height
@@ -228,7 +228,9 @@ class SLM:
             if current_mode.refresh_rate != int(self._refresh_rate / u.Hz):
                 warnings.warn(f"Actual refresh rate of {current_mode.refresh_rate} Hz does not match set rate "
                               f"of {self.refresh_rate}")
-                self._refresh_rate = current_mode.refresh_rate * u.Hz
+        else:
+            current_mode = glfw.get_video_mode(glfw.get_primary_monitor())
+        self._refresh_rate = current_mode.refresh_rate * u.Hz
 
     def _create_window(self):
         """Constructs a new window and associated OpenGL context. Called by SLM.__init__()"""
@@ -391,7 +393,7 @@ class SLM:
     def phases(self, value):
         self.primary_phase_patch.phases = value
 
-    def get_pixels(self, type = 'phase'):
+    def get_pixels(self, type='phase'):
         """Read back the pixels currently displayed on the SLM."""
         if type == 'gray_value':
             self.activate()

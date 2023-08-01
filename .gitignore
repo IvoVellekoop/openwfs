@@ -1,4 +1,5 @@
 ﻿.idea
 __pycache__
 *.gif
+*.cfg
 Characterisation/.ipynb_checkpoints
