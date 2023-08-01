@@ -1,6 +1,6 @@
 def calibrate_slm_alignment():
     """This function is used for calibrating the alignment of a pupil-conjugate SLM.
-    It performs a calibration procedure to find the mapping between SLM pixels, and points on the SLM.
+    It performs a misc procedure to find the mapping between SLM pixels, and points on the SLM.
 
 ### step 1: construct SLM object with a patch covering the full screen
 

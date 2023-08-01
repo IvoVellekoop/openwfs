@@ -12,7 +12,7 @@ class Microscope:
     The microscope simulates physical effects such as aberrations and noise, as well as devices typically found in a
     wavefront shaping microscope: a spatial light modulator, translation stages, and a camera.
 
-    This simulation is designed to test algorithms for wavefront shaping, alignment calibration,
+    This simulation is designed to test algorithms for wavefront shaping, alignment misc,
     and calibrating the lookup table of the SLM. It can be used with an actual OpenGL-based SLM object,
     so it also can be used to test the advanced functionality provided by that object.
 
@@ -86,7 +86,7 @@ class Microscope:
 
         affine_transform(s, m, output=image, order=1)
 
-        #compute the PSF (todo)
+        # compute the PSF (todo)
         psf = np.zeros(image.shape)
         psf[0, 0] = 1
         psf = np.fft.ifftshift(psf)
