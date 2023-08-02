@@ -54,7 +54,7 @@ class FourierDualRef:
         start = 0 if side == 0 else 0.5 - self._overlap / 2
         end = 0.5 + self._overlap / 2 if side == 0 else 1
 
-        x = np.arange(start, end, 1 / ((width - overlap) + overlap))[np.newaxis, :]
+        x = np.arange(start, end, 1 / ((height - overlap) + overlap))[np.newaxis, :]
         y = np.arange(0, 1, 1 / width)[:, np.newaxis]
 
         final_pattern = np.zeros((width, height))
