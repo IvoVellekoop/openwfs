@@ -103,8 +103,62 @@ class CropProcessor(Processor):
     def height(self, value):
         self._set_shape(self.width, value)
 
-    def read(self):
+    def read_square(self):
         image = super().read()
         bottom = self.top + self.height
         right = self.left + self.width
         return image[self.top:bottom, self.left:right]
+
+    def read(self):
+        
+        return int(np.mean(self.read_square()))
+
+class SingleRoiSquare(Processor):
+    def __init__(self, source, width=None, height=None, left=0, top=0):
+        super().__init__(source)
+        self.left = left
+        self.top = top
+        if width is None:
+            width = source.data_shape[1]
+        if height is None:
+            height = source.data_shape[0]
+        self._data_shape = None
+        self._set_shape(width, height)
+
+    def _set_shape(self, width, height):
+        ss = self.source.data_shape
+        self._shape = (np.minimum(ss[0] - self.top, height), np.minimum(ss[1] - self.left, width))
+
+    @property
+    def data_shape(self):
+        return (1,)
+
+    @property
+    def shape(self):
+        return self._shape
+
+    @property
+    def width(self) -> int:
+        return self._shape[1]
+
+    @width.setter
+    def width(self, value):
+        self._set_shape(value, self.height)
+
+    @property
+    def height(self) -> int:
+        return self._shape[0]
+
+    @height.setter
+    def height(self, value):
+        self._set_shape(self.width, value)
+
+    def read_square(self):
+        image = super().read()
+        bottom = self.top + self.height
+        right = self.left + self.width
+        return image[self.top:bottom, self.left:right]
+
+    def read(self):
+        
+        return int(np.mean(self.read_square()))

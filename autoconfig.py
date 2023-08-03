@@ -51,6 +51,6 @@ python_path = path.split(sys.executable)[0]
 numpy_path = numpy.__path__[0]
 
 # rewrite sln template
-rewrite(path.join(project_path, 'AutoConfig.props'))
-rewrite(path.join(project_path, 'PyDevice.sln'))
+rewrite(path.join(project_path, 'pydevice/AutoConfig.props'))
+rewrite(path.join(project_path, 'pydevice/PyDevice.sln'))
 

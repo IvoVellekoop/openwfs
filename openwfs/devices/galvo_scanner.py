@@ -191,13 +191,5 @@ class LaserScanning:
 
 g = GalvoScanner()
 devices = {
-    'cam': LaserScanning(x_mirror_mapping='Dev2/ao0', y_mirror_mapping='Dev2/ao1', input_mapping='Dev2/ai0', galvo_scanner=g),
+    'cam': LaserScanning(x_mirror_mapping='Dev4/ao2', y_mirror_mapping='Dev4/ao3', input_mapping='Dev4/ai24', galvo_scanner=g),
     'g': g}
-
-if __name__ == '__main__':
-    import matplotlib.pyplot as plt
-
-    devices['cam'].dwelltime = 5 * u.us
-    devices['cam'].trigger()
-    plt.imshow(devices['cam'].read())
-    plt.show()
