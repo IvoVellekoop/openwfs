@@ -4,7 +4,7 @@ import astropy.units as u
 import numpy as np
 from astropy.units import Quantity
 
-from Pyscanner import single_capture
+from .Pyscanner import single_capture
 
 
 class GalvoScanner:
@@ -17,7 +17,7 @@ class GalvoScanner:
         buffer[:, :] = np.reshape(im, resolution)
 
 
-class Camera:
+class LaserScanning:
     """
     Camera implementation that performs laser scanning,
     It is very much under construction, and requires testing
@@ -191,7 +191,7 @@ class Camera:
 
 g = GalvoScanner()
 devices = {
-    'cam': Camera(x_mirror_mapping='Dev2/ao0', y_mirror_mapping='Dev2/ao1', input_mapping='Dev2/ai0', galvo_scanner=g),
+    'cam': LaserScanning(x_mirror_mapping='Dev2/ao0', y_mirror_mapping='Dev2/ao1', input_mapping='Dev2/ai0', galvo_scanner=g),
     'g': g}
 
 if __name__ == '__main__':
