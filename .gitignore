@@ -1,5 +1,10 @@
-﻿.idea
+AutoConfig.props
+CoreLogs
+*.log
+*.idea
 __pycache__
-*.gif
-*.cfg
-Characterisation/.ipynb_checkpoints
+build
+.vs
+PyDevice.sln
+AutoConfig.props
+x64
