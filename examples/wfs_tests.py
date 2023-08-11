@@ -33,7 +33,7 @@ def flat_wf_response_ssa():
     roi_detector = SingleRoi(sim, x=250, y=250, radius=1)
 
     controller = Controller(detector=roi_detector, slm=sim)
-    alg = StepwiseSequential(N_x=3, N_y=3, phase_steps=3, controller=controller)
+    alg = StepwiseSequential(n_x=3, n_y=3, phase_steps=3, controller=controller)
 
     t = alg.execute()
     optimised_wf = np.angle(t)
@@ -102,13 +102,12 @@ def enhancement_characterising_fourier():
 #    correct_wf = (np.load("..//..//WFS_experiments//16_06_2023 Headless wfs experiment//fourier4//optimised_wf.npy")/255)*2*np.pi - np.pi
     correct_wf = make_angled_wavefront(1056, -2, 1)
 #    correct_wf = np.zeros((1056,1056))
+    sim.set_ideal_wf(correct_wf)
 
-    s1 = SLM(0, left=0, width=300, height=300)
+#    s1 = SLM(left=0, width=300, height=300)
 
-
-
-    controller = Controller(detector=roi_detector, slm=s1)
-    alg = CharacterisingFDR(phase_steps=3, overlap=0.2, max_modes=10, controller=controller)
+    controller = Controller(detector=roi_detector, slm=sim)
+    alg = CharacterisingFDR(phase_steps=3, overlap=0.2, max_modes=20, controller=controller)
     t = alg.execute()
 
     optimised_wf = np.angle(t)
@@ -132,8 +131,8 @@ def enhancement_characterising_fourier():
     else:
         return True
 
-# print(flat_wf_response_ssa())
-# print(flat_wf_response_fourier())
-# print(enhancement_fourier())
-# print(enhancement_ssa())
+print(flat_wf_response_ssa())
+print(flat_wf_response_fourier())
+print(enhancement_fourier())
+print(enhancement_ssa())
 print(enhancement_characterising_fourier())
