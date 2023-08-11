@@ -1,12 +1,10 @@
 import time
-
 import numpy.random
 import pytest
-from openwfs.slm import SLM, Patch, geometry
+from openwfs.openwfs.slm import SLM, Patch, geometry
 import numpy as np
 from numpy.testing import assert_allclose
 import astropy.units as u
-
 
 class TestSLM:
     # just some values for testing different gray value levels
