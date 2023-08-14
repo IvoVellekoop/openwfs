@@ -1,5 +1,5 @@
 import numpy as np
-
+import cv2
 
 class Processor:
     def __init__(self, source):
@@ -161,4 +161,74 @@ class SingleRoiSquare(Processor):
 
     def read(self):
         
-        return int(np.mean(self.read_square()))
+        return np.mean(self.read_square())
+
+class SelectRoiSquare(SingleRoiSquare):
+    # Inherits from square selection
+    def __init__(self, source, width=None, height=None, left=None, top=None):
+        if width is height is left is top is None:
+            source.trigger()
+
+            tl, br = self.draw_square(source.read())
+            width = br[0]-tl[0]
+            height = br[1]-tl[1]
+            left = tl[1]
+            top = tl[0]
+
+        super().__init__(source,width,height,left,top)
+        self._data_shape = None
+        self._set_shape(width, height)
+
+    def draw_square(self,image):
+        """
+        Select a rectangular region of interest (ROI) using the mouse.
+        Returns the ROI coordinates (top-left and bottom-right corners).
+        """
+        roi_pts = []
+        win_name = "Select ROI and press c"
+        cv2.namedWindow(win_name)
+
+        # Autoscale the image
+        image_norm = cv2.normalize(image, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+
+        def mouse_callback(event, x, y, flags, param):
+            nonlocal roi_pts
+
+            if event == cv2.EVENT_LBUTTONDOWN:
+                roi_pts = [(x, y)]
+
+            elif event == cv2.EVENT_LBUTTONUP:
+                roi_pts.append((x, y))
+                cv2.rectangle(image_norm, roi_pts[0], roi_pts[1], (0, 0, 255), 2)
+                cv2.imshow(win_name, image_norm)
+
+        cv2.imshow(win_name, image_norm)
+        cv2.setMouseCallback(win_name, mouse_callback)
+
+        while True:
+            key = cv2.waitKey(1) & 0xFF
+
+            if key == ord("r"):
+                roi_pts = []
+                image_copy = image_norm.copy()
+                cv2.imshow(win_name, image_copy)
+
+            elif key == ord("c"):
+                if len(roi_pts) == 2:
+                    cv2.destroyWindow(win_name)
+                    break
+
+            elif key == 27:
+                roi_pts = []
+                cv2.destroyWindow(win_name)
+                break
+
+        if len(roi_pts) == 2:
+            x1, y1 = roi_pts[0]
+            x2, y2 = roi_pts[1]
+            tl = (min(x1, x2), min(y1, y2))
+            br = (max(x1, x2), max(y1, y2))
+            return tl, br
+
+        return None, None
+
