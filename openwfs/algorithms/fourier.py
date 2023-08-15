@@ -200,10 +200,7 @@ class CharacterisingFDR(FourierDualRef):
             t_fourier = np.array([])
             kx_total = np.array([])
             ky_total = np.array([])
-            centers = np.array([[],[]], dtype=int)
-
-
-
+            centers = np.array([[], []], dtype=int)
 
             while n < self.max_modes:
 
@@ -244,25 +241,7 @@ class CharacterisingFDR(FourierDualRef):
 
 
             # Measuring highest modes
-            # Get indices of the n highest modes
-            high_mode_indices = np.argsort(np.abs(t_fourier))[-self.high_modes:]
-
-            # Store the original phase_steps
-            original_phase_steps = self.phase_steps
-
-            # Update phase_steps for high mode measurements
-            self.phase_steps = self.high_phase_steps
-
-            # Remeasure the highest modes
-            for idx in high_mode_indices:
-                self.k_x = np.array([kx_total[idx]])
-                self.k_y = np.array([ky_total[idx]])
-                print(t_fourier)
-                self.single_side_experiment(side)
-                t_fourier[idx] = self.controller.compute_transmission(self.phase_steps)/(self.phase_steps/original_phase_steps)
-
-            # Restore the original phase_steps for subsequent measurements
-            self.phase_steps = original_phase_steps
+            self.measure_high_modes(t_fourier, kx_total, ky_total, side)
 
             self.record_intermediate_enhancement(t_fourier, kx_total, ky_total, side)
 
@@ -318,8 +297,6 @@ class CharacterisingFDR(FourierDualRef):
         overlap_begin = self.controller.slm.width // 2 - int(overlap_len / 2)
         overlap_end = self.controller.slm.width // 2 + int(overlap_len / 2)
 
-
-
         if self._overlap != 0:
             c = np.vdot(t2[:, overlap_begin:overlap_end], t1[:, overlap_begin:overlap_end])
             factor = c / abs(c) * np.linalg.norm(t1[:, overlap_begin:overlap_end]) / np.linalg.norm(t2[:, overlap_begin:overlap_end])
@@ -332,6 +309,27 @@ class CharacterisingFDR(FourierDualRef):
 
 
         return t_full
+
+    def measure_high_modes(self, t_fourier, kx_total, ky_total, side):
+        # Get indices of the n highest modes
+        high_mode_indices = np.argsort(np.abs(t_fourier))[-self.high_modes:]
+
+        # Store the original phase_steps
+        original_phase_steps = self.phase_steps
+
+        # Update phase_steps for high mode measurements
+        self.phase_steps = self.high_phase_steps
+
+        # Remeasure the highest modes
+        for idx in high_mode_indices:
+            self.k_x = np.array([kx_total[idx]])
+            self.k_y = np.array([ky_total[idx]])
+            self.single_side_experiment(side)
+            t_fourier[idx] = self.controller.compute_transmission(self.phase_steps) / (
+                        self.phase_steps / original_phase_steps)
+
+        # Restore the original phase_steps for subsequent measurements
+        self.phase_steps = original_phase_steps
 
     def record_intermediate_enhancement(self, t_fourier, kx_total, ky_total, side):
         k = np.vstack((kx_total, ky_total))
