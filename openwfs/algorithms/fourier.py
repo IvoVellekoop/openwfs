@@ -1,6 +1,8 @@
 import math
 import numpy as np
 from typing import Any, Annotated
+import matplotlib.pyplot as plt
+import os
 
 
 class FourierDualRef:
@@ -171,13 +173,24 @@ class CharacterisingFDR(FourierDualRef):
     """
      implementation of the FourierDualRef algorithm.
     """
-    def __init__(self, phase_steps=4, overlap=0.1,max_modes = 20, controller=None):
+    def __init__(self, phase_steps=4, overlap=0.1, max_modes=20, high_modes=0, high_phase_steps=16, controller=None):
         super().__init__(None, phase_steps, overlap, controller)
         self.max_modes = max_modes
+        self.high_modes = high_modes
+        self.high_phase_steps = high_phase_steps
+        self.t_left = None
+        self.t_right = None
+        self.k_left = None
+        self.k_right = None
+        self.t_slm = None
+        self.intermediate_enhancements = []
 
     def execute(self):
         kx_total = []
         ky_total = []
+
+        # measure the flat_wf value
+        self.record_intermediate_enhancement([0], [0], [0], 0)
 
         for side in range(2):
             n = 0
@@ -188,7 +201,11 @@ class CharacterisingFDR(FourierDualRef):
             kx_total = np.array([])
             ky_total = np.array([])
             centers = np.array([[],[]], dtype=int)
-            while n < self.max_modes: # the True needs to be changed into a 'are we getting any SnR' bool
+
+
+
+
+            while n < self.max_modes:
 
                 self.single_side_experiment(side)
                 t_fourier = np.append(t_fourier,self.controller.compute_transmission(self.phase_steps))
@@ -219,24 +236,53 @@ class CharacterisingFDR(FourierDualRef):
                 self.k_x = unique_next_points[:, 0]
                 self.k_y = unique_next_points[:, 1]
 
+                if n>0:
+                    self.record_intermediate_enhancement(t_fourier, kx_total, ky_total, side)
+
                 n += len(self.k_x)
 
+
+
+            # Measuring highest modes
+            # Get indices of the n highest modes
+            high_mode_indices = np.argsort(np.abs(t_fourier))[-self.high_modes:]
+
+            # Store the original phase_steps
+            original_phase_steps = self.phase_steps
+
+            # Update phase_steps for high mode measurements
+            self.phase_steps = self.high_phase_steps
+
+            # Remeasure the highest modes
+            for idx in high_mode_indices:
+                self.k_x = np.array([kx_total[idx]])
+                self.k_y = np.array([ky_total[idx]])
+                print(t_fourier)
+                self.single_side_experiment(side)
+                t_fourier[idx] = self.controller.compute_transmission(self.phase_steps)/(self.phase_steps/original_phase_steps)
+
+            # Restore the original phase_steps for subsequent measurements
+            self.phase_steps = original_phase_steps
+
+            self.record_intermediate_enhancement(t_fourier, kx_total, ky_total, side)
+
             t_abs = abs(t_fourier)
-            import matplotlib.pyplot as plt
+
             plt.scatter(kx_total, ky_total, c=t_abs, marker='s', cmap='viridis', s=400, edgecolors='k')
             plt.colorbar(label='t_abs')
             plt.show()
 
             if side == 0:
-                t_left = t_fourier
-                k_left = np.vstack((kx_total,ky_total))
+                self.t_left = t_fourier
+                self.k_left = np.vstack((kx_total,ky_total))
 
             else:
-                t_right = t_fourier
-                k_right = np.vstack((kx_total,ky_total))
+                self.t_right = t_fourier
+                self.k_right = np.vstack((kx_total,ky_total))
 
-        t_slm = self.compute_t(t_left,t_right,k_left,k_right)
-        return t_slm
+        self.t_slm = self.compute_t(self.t_left,self.t_right,self.k_left,self.k_right)
+        return self.t_slm
+
     def single_side_experiment(self, side):
         """Overriding the experiment class such that we can have a seperate k_x_left and k_x_right SLM side"""
         self.controller.reserve((len(self.k_x), self.phase_steps))
@@ -245,6 +291,7 @@ class CharacterisingFDR(FourierDualRef):
 
         for n_angle in range(len(self.k_x)):
             for phase in phases:
+
                 self.controller.slm.phases = self.get_phase_pattern(self.k_x[n_angle],
                                                                     self.k_y[n_angle],
                                                                     phase, side)
@@ -285,3 +332,43 @@ class CharacterisingFDR(FourierDualRef):
 
 
         return t_full
+
+    def record_intermediate_enhancement(self, t_fourier, kx_total, ky_total, side):
+        k = np.vstack((kx_total, ky_total))
+
+        if side == 0:
+            t_left = t_fourier
+            k_left = k
+
+            # Use the class-level attributes for the right side, if they're set; otherwise, initialize to zeros
+            t_right = t_fourier
+            k_right = np.zeros_like(k)
+            overlap = self._overlap
+            self._overlap = 0
+        else:
+            t_right = t_fourier
+            k_right = k
+
+            t_left = self.t_left  # Since side == 0 is always processed first, self.t_left should always be set by this point
+            k_left = self.k_left
+            overlap = self._overlap
+
+        t_slm = self.compute_t(t_left, t_right, k_left, k_right)
+        self._overlap = overlap
+        self.controller.slm.phases = np.angle(t_slm)
+        self.controller.slm.update()
+        self.controller._source.trigger()
+
+
+        self.intermediate_enhancements.append(self.controller._source.read())
+    def save_experiment(self, filename="experimental_data", directory=None):
+        if directory is None:
+            directory = os.getcwd()  # Get current directory
+
+        np.savez(os.path.join(directory, f'{filename}.npz'),
+                 t_left=self.t_left,
+                 t_right=self.t_right,
+                 k_left=self.k_left,
+                 k_right=self.k_right,
+                 t_slm=self.t_slm)
+

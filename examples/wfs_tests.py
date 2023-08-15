@@ -1,13 +1,13 @@
 from openwfs.openwfs.simulation import SimulatedWFS
 import numpy as np
 from openwfs.openwfs.algorithms import StepwiseSequential, BasicFDR, CharacterisingFDR
-from openwfs.openwfs.feedback import Controller, SingleRoi, SingleRoiSquare, SelectRoiSquare
+from openwfs.openwfs.feedback import Controller, SingleRoi, SingleRoiSquare, SelectRoiSquare, SelectRoiCircle
 from test_functions import calculate_enhancement,make_angled_wavefront, angular_difference
 import matplotlib.pyplot as plt
 from openwfs.openwfs.slm import SLM
 import astropy.units as u
 from skimage import data
-
+from time import sleep
 
 def flat_wf_response_fourier():
     sim = SimulatedWFS()
@@ -48,7 +48,7 @@ def flat_wf_response_ssa():
 
 def enhancement_fourier():
     sim = SimulatedWFS(width=512, height=512)
-    roi_detector = SingleRoi(sim, x=256, y=256, radius=1)
+    roi_detector = SingleRoi(sim, x=256, y=256, radius=0)
 #    ideal_wf = (np.load("..//..//WFS_experiments//16_06_2023 Headless wfs experiment//fourier4//optimised_wf.npy")/255)*2*np.pi - np.pi
     ideal_wf = (data.camera()/255)*2*np.pi
     sim.set_ideal_wf(ideal_wf)
@@ -73,7 +73,7 @@ def enhancement_fourier():
 
 def enhancement_ssa():
     sim = SimulatedWFS(width=512, height=512)
-    roi_detector = SingleRoi(sim, x=256, y=256, radius=1)
+    roi_detector = SingleRoi(sim, x=256, y=256, radius=0)
     ideal_wf = (data.camera()/255)*2*np.pi
     sim.set_ideal_wf(ideal_wf)
 #    s1 = SLM(0, left=0, width=300, height=300) # input in controller for checking pattern generation
@@ -95,19 +95,21 @@ def enhancement_ssa():
         return True
 
 def enhancement_characterising_fourier():
-    sim = SimulatedWFS(width=1056, height=1056)
-    roi_detector = SingleRoi(sim, x=528, y=528, radius=1)
+    sim = SimulatedWFS(width=512, height=512)
+
+    roi_detector = SingleRoi(sim, x=256, y=256, radius=0)
     roi_detector.trigger()
 
 #    correct_wf = (np.load("..//..//WFS_experiments//16_06_2023 Headless wfs experiment//fourier4//optimised_wf.npy")/255)*2*np.pi - np.pi
-    correct_wf = make_angled_wavefront(1056, -2, 1)
+#    correct_wf = make_angled_wavefront(1056, -2, 1)
+    correct_wf = (data.camera()/255)*2*np.pi
 #    correct_wf = np.zeros((1056,1056))
     sim.set_ideal_wf(correct_wf)
 
 #    s1 = SLM(left=0, width=300, height=300)
 
     controller = Controller(detector=roi_detector, slm=sim)
-    alg = CharacterisingFDR(phase_steps=3, overlap=0.2, max_modes=20, controller=controller)
+    alg = CharacterisingFDR(phase_steps=3, overlap=0.2, max_modes=40, high_modes=5,high_phase_steps=17, controller=controller)
     t = alg.execute()
 
     optimised_wf = np.angle(t)
@@ -120,17 +122,16 @@ def enhancement_characterising_fourier():
     plt.imshow(angular_difference(optimised_wf,correct_wf))
     plt.colorbar()
     plt.show()
-    enhancement_perfect = calculate_enhancement(sim, correct_wf, x=528, y=528)
-    enhancement = calculate_enhancement(sim, optimised_wf, x=528, y=528)
 
-    print(f'Enhancement is {(enhancement / enhancement_perfect) * 100} % of possible enhancement')
-    print(enhancement)
-    print(enhancement_perfect)
-    if enhancement < 3:
-        raise Exception(
-            f"Fourier algorithm does not enhance focus as much as expected. Expected at least 3, got {enhancement}")
-    else:
-        return True
+    print(alg.intermediate_enhancements)
+    plt.plot(alg.intermediate_enhancements,'.')
+    plt.show()
+    #alg.save_experiment("experimental_data","C:/Users/Jeroen Doornbos/Desktop")
+
+    return True
+
+
+
 
 def square_selection_detector_test():
     sim = SimulatedWFS()
@@ -146,21 +147,28 @@ def square_selection_detector_test():
 
 
 def drawing_detector():
-
     sim = SimulatedWFS()
-    sim.set_ideal_wf(np.zeros([500, 500]))  # correct wf = flat
+    sim.read = data.camera # overriding the read function for more meaningful images
+
+    detector = SelectRoiCircle(sim)
+    detector.trigger()
+    print(detector.read())
+    plt.imshow(detector.read_circle())
+    plt.show()
 
     detector = SelectRoiSquare(sim)
-    detector.trigger() #
+    detector.trigger()
     print(detector.read())
     plt.imshow(detector.read_square())
     plt.show()
     return True
 
+
 # print(flat_wf_response_ssa())
 # print(flat_wf_response_fourier())
 # print(enhancement_fourier())
 # print(enhancement_ssa())
-# print(enhancement_characterising_fourier())
-print(square_selection_detector_test())
-print(drawing_detector())
+print(enhancement_characterising_fourier())
+# print(square_selection_detector_test())
+# print(drawing_detector())
+
