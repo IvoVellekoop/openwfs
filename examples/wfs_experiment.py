@@ -18,6 +18,12 @@ transform_matrix = np.array(fill_transform(slm,type='short'))
 transform_matrix = transform_matrix*0.8 #scaling according to last
 transform_matrix[2,:] = [-0.0147/(0.4+0.5), 0.0036/0.5, 1] # from the old hardcoded offset, visually adjusted to be right
 
+
+slm.lut_generator = lambda λ: np.arange(0, 0.2623 * λ.to(u.nm).value - 23.33) # again copied from earlier hardcodes
+slm.wavelength = 0.804 * u.um
+
+
+
 slm.transform = transform_matrix
 
 controller = Controller(detector=roi_detector, slm=slm)

@@ -56,7 +56,7 @@ class SLM:
 
         # construct window for displaying the SLM pattern
         self.patches = []
-        self.lut_generator = lut_generator or (lambda λ: np.arange(0, 256))
+        self.lut_generator = lut_generator or (lambda λ: np.arange(0, 256)/255)
         self._monitor_id = monitor_id
         self._width = width
         self._height = height
