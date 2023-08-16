@@ -112,21 +112,30 @@ def enhancement_characterising_fourier():
     alg = CharacterisingFDR(phase_steps=3, overlap=0.2, max_modes=40, high_modes=5,high_phase_steps=17, controller=controller)
     t = alg.execute()
 
+    plt.figure()
+    plt.scatter(alg.k_left[0, :], alg.k_left[1, :], c=abs(alg.t_left), marker='s', cmap='viridis', s=400, edgecolors='k')
+    plt.colorbar(label='t_abs')
+
+
+    plt.figure()
+    plt.scatter(alg.k_right[0, :], alg.k_right[1, :], c=abs(alg.t_right), marker='s', cmap='viridis', s=400, edgecolors='k')
+    plt.colorbar(label='t_abs')
+
+
     optimised_wf = np.angle(t)
     plt.figure()
     plt.imshow(optimised_wf)
     plt.colorbar()
-    plt.show()
 
     plt.figure()
     plt.imshow(angular_difference(optimised_wf,correct_wf))
     plt.colorbar()
     plt.show()
-
+    print(alg.added_modes)
     print(alg.intermediate_enhancements)
     plt.plot(alg.intermediate_enhancements,'.')
     plt.show()
-    #alg.save_experiment("experimental_data","C:/Users/Jeroen Doornbos/Desktop")
+    alg.save_experiment("experimental_data","C:/Users/Jeroen Doornbos/Desktop")
 
     return True
 

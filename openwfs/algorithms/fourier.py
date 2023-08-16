@@ -3,6 +3,7 @@ import numpy as np
 from typing import Any, Annotated
 import matplotlib.pyplot as plt
 import os
+import pickle
 
 
 class FourierDualRef:
@@ -184,6 +185,7 @@ class CharacterisingFDR(FourierDualRef):
         self.k_right = None
         self.t_slm = None
         self.intermediate_enhancements = []
+        self.added_modes = [['Uncorrected enhancement']]
 
     def execute(self):
         kx_total = []
@@ -233,6 +235,9 @@ class CharacterisingFDR(FourierDualRef):
                 self.k_x = unique_next_points[:, 0]
                 self.k_y = unique_next_points[:, 1]
 
+                if (n + len(self.k_x)) < self.max_modes:
+                    self.added_modes.append(unique_next_points.tolist())
+
                 if n>0:
                     self.record_intermediate_enhancement(t_fourier, kx_total, ky_total, side)
 
@@ -244,12 +249,6 @@ class CharacterisingFDR(FourierDualRef):
             self.measure_high_modes(t_fourier, kx_total, ky_total, side)
 
             self.record_intermediate_enhancement(t_fourier, kx_total, ky_total, side)
-
-            t_abs = abs(t_fourier)
-
-            plt.scatter(kx_total, ky_total, c=t_abs, marker='s', cmap='viridis', s=400, edgecolors='k')
-            plt.colorbar(label='t_abs')
-            plt.show()
 
             if side == 0:
                 self.t_left = t_fourier
@@ -330,6 +329,7 @@ class CharacterisingFDR(FourierDualRef):
 
         # Restore the original phase_steps for subsequent measurements
         self.phase_steps = original_phase_steps
+        self.added_modes.append([f'Remeasuring {self.high_modes} highest modes'])
 
     def record_intermediate_enhancement(self, t_fourier, kx_total, ky_total, side):
         k = np.vstack((kx_total, ky_total))
@@ -359,14 +359,22 @@ class CharacterisingFDR(FourierDualRef):
 
 
         self.intermediate_enhancements.append(self.controller._source.read())
+
     def save_experiment(self, filename="experimental_data", directory=None):
         if directory is None:
             directory = os.getcwd()  # Get current directory
 
-        np.savez(os.path.join(directory, f'{filename}.npz'),
-                 t_left=self.t_left,
-                 t_right=self.t_right,
-                 k_left=self.k_left,
-                 k_right=self.k_right,
-                 t_slm=self.t_slm)
+        data_to_save = {
+            "t_left": self.t_left,
+            "t_right": self.t_right,
+            "k_left": self.k_left,
+            "k_right": self.k_right,
+            "t_slm": self.t_slm,
+            "intermediate_enhancement": self.intermediate_enhancements,
+            "added_modes": self.added_modes
+        }
+
+        with open(os.path.join(directory, f'{filename}.pkl'), 'wb') as f:
+            pickle.dump(data_to_save, f)
+
 
