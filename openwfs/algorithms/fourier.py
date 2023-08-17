@@ -311,6 +311,9 @@ class CharacterisingFDR(FourierDualRef):
 
     def measure_high_modes(self, t_fourier, kx_total, ky_total, side):
         # Get indices of the n highest modes
+        if self.high_modes == 0:
+            return
+
         high_mode_indices = np.argsort(np.abs(t_fourier))[-self.high_modes:]
 
         # Store the original phase_steps
