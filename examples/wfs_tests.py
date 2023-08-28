@@ -101,15 +101,15 @@ def enhancement_characterising_fourier():
     roi_detector.trigger()
 
 #    correct_wf = (np.load("..//..//WFS_experiments//16_06_2023 Headless wfs experiment//fourier4//optimised_wf.npy")/255)*2*np.pi - np.pi
-#    correct_wf = make_angled_wavefront(1056, -2, 1)
-    correct_wf = (data.camera()/255)*2*np.pi
+#    correct_wf = make_angled_wavefront(512, -2, 1)
+    correct_wf = (data.camera()/255)*2*np.pi-np.pi
 #    correct_wf = np.zeros((1056,1056))
     sim.set_ideal_wf(correct_wf)
 
 #    s1 = SLM(left=0, width=300, height=300)
 
     controller = Controller(detector=roi_detector, slm=sim)
-    alg = CharacterisingFDR(phase_steps=3, overlap=0.2, max_modes=40, high_modes=5,high_phase_steps=17, controller=controller)
+    alg = CharacterisingFDR(phase_steps=3, overlap=0.2, max_modes=20, high_modes=0,high_phase_steps=17, controller=controller)
     t = alg.execute()
 
     plt.figure()
@@ -123,6 +123,11 @@ def enhancement_characterising_fourier():
 
 
     optimised_wf = np.angle(t)
+
+    plt.figure()
+    plt.imshow(correct_wf)
+    plt.colorbar()
+
     plt.figure()
     plt.imshow(optimised_wf)
     plt.colorbar()
@@ -130,13 +135,63 @@ def enhancement_characterising_fourier():
     plt.figure()
     plt.imshow(angular_difference(optimised_wf,correct_wf))
     plt.colorbar()
-    plt.show()
-    print(alg.added_modes)
-    print(alg.intermediate_enhancements)
-    plt.plot(alg.intermediate_enhancements,'.')
-    plt.show()
-    alg.save_experiment("experimental_data","C:/Users/Jeroen Doornbos/Desktop")
 
+
+
+
+    predicted_enhancement = [0]
+    previous= 0
+    decrease_ind = []
+    ncount = 0
+
+    combined_t = np.append(alg.t_left,alg.t_right)
+    measured_modes = alg.added_modes[1:]
+
+    for n,modes in enumerate(alg.added_modes[1:]):
+        nmodes = len(modes)
+        if nmodes == 8:
+            nmodes = 9
+        predicted_enhancement.append(
+            predicted_enhancement[-1] + np.sum(abs(combined_t[ncount:(ncount + nmodes)])))
+        ncount += nmodes
+        print(modes)
+
+    print(ncount)
+    print(len(combined_t))
+
+    # Create the first plot and axis
+    fig, ax1 = plt.subplots()
+
+    # Plot the first dataset
+    line1, = ax1.plot(alg.intermediate_enhancements/alg.intermediate_enhancements[0], 'b.', label='intermediate enhancement')
+    ax1.set_xlabel('X-axis')
+    ax1.set_ylabel('intermediate enhancement', color='b')
+    for tl in ax1.get_yticklabels():
+        tl.set_color('b')
+
+    # Create a second y-axis for the same x-axis
+    ax2 = ax1.twinx()
+
+    # Plot the second dataset
+    line2, = ax2.plot(np.sqrt(predicted_enhancement), 'r.', label='Cumulative signal strength sqrt(abs(t))')
+    ax2.set_ylabel('Cumulative signal strength sqrt(abs(t))', color='r')
+    for tl in ax2.get_yticklabels():
+        tl.set_color('r')
+    ax2.set_ylim([0,450])
+
+    # Combine legends from both axes
+    lines = [line1, line2]
+    labels = [l.get_label() for l in lines]
+    ax1.legend(lines, labels, loc=0)
+
+    plt.title('Two datasets with different y-axes')
+    plt.show()
+
+    # making the added-modes-by-added-modes plots
+
+
+
+    plt.show()
     return True
 
 

@@ -91,6 +91,7 @@ class FourierDualRef:
         overlap_begin = self.controller.slm.width // 2 - int(overlap_len / 2)
         overlap_end = self.controller.slm.width // 2 + int(overlap_len / 2)
 
+
         if self._overlap != 0:
             c = np.vdot(t2[:, overlap_begin:overlap_end], t1[:, overlap_begin:overlap_end])
             factor = c / abs(c) * np.linalg.norm(t1[:, overlap_begin:overlap_end]) / np.linalg.norm(t2[:, overlap_begin:overlap_end])
@@ -185,6 +186,7 @@ class CharacterisingFDR(FourierDualRef):
         self.k_right = None
         self.t_slm = None
         self.intermediate_enhancements = []
+        self.intermediate_t = []
         self.added_modes = [['Uncorrected enhancement']]
 
     def execute(self):
@@ -248,7 +250,8 @@ class CharacterisingFDR(FourierDualRef):
             # Measuring highest modes
             self.measure_high_modes(t_fourier, kx_total, ky_total, side)
 
-            self.record_intermediate_enhancement(t_fourier, kx_total, ky_total, side)
+            if self.high_modes != 0:
+                self.record_intermediate_enhancement(t_fourier, kx_total, ky_total, side)
 
             if side == 0:
                 self.t_left = t_fourier
@@ -299,6 +302,8 @@ class CharacterisingFDR(FourierDualRef):
         if self._overlap != 0:
             c = np.vdot(t2[:, overlap_begin:overlap_end], t1[:, overlap_begin:overlap_end])
             factor = c / abs(c) * np.linalg.norm(t1[:, overlap_begin:overlap_end]) / np.linalg.norm(t2[:, overlap_begin:overlap_end])
+            if np.linalg.norm(t2[:, overlap_begin:overlap_end]) == 0:
+                factor = 1
             t2 = t2 * factor
 
             overlap = (t1[:, overlap_begin:overlap_end] + t2[:, overlap_begin:overlap_end]) / 2
@@ -340,22 +345,22 @@ class CharacterisingFDR(FourierDualRef):
         if side == 0:
             t_left = t_fourier
             k_left = k
-
             # Use the class-level attributes for the right side, if they're set; otherwise, initialize to zeros
-            t_right = t_fourier
-            k_right = np.zeros_like(k)
-            overlap = self._overlap
-            self._overlap = 0
+            t_right = np.zeros_like(t_fourier)
+            k_right = k
+
         else:
             t_right = t_fourier
             k_right = k
 
             t_left = self.t_left  # Since side == 0 is always processed first, self.t_left should always be set by this point
             k_left = self.k_left
-            overlap = self._overlap
+
 
         t_slm = self.compute_t(t_left, t_right, k_left, k_right)
-        self._overlap = overlap
+
+        self.intermediate_t.append(t_slm)
+
         self.controller.slm.phases = np.angle(t_slm)
         self.controller.slm.update()
         self.controller._source.trigger()
