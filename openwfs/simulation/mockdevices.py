@@ -63,9 +63,11 @@ class MockImageSource:
         """
         return MockImageSource(lambda i: image, image.shape, pixel_size.to(u.um))
 
+
 class MockCamera(CropProcessor):
     """Wraps any 2-d image source as a camera. The Camera object simply crops the image from the source and converts
     the image to 16 bits."""
+
     def __init__(self, source, saturation=1000, width=None, height=None, left=0, top=0):
         super().__init__(source, width, height, left, top)
         self._saturation = saturation
@@ -81,6 +83,7 @@ class MockCamera(CropProcessor):
     @saturation.setter
     def saturation(self, value):
         self._saturation = value
+
 
 class MockXYStage:
     def __init__(self, step_size_x: Quantity[u.um], step_size_y: Quantity[u.um]):
@@ -111,3 +114,23 @@ class MockXYStage:
 
     def wait(self):
         pass
+
+
+class NoiseCamera:
+    """Fake Camera object that just produces noise."""
+
+    def __init__(self, source, saturation=1000, width=None, height=None, left=0, top=0):
+        super().__init__(source, width, height, left, top)
+        self._saturation = saturation
+
+    def read(self):
+        im = np.clip(super().read() * (0xFFFF / self.saturation), 0, 0xFFFF)
+        return np.array(im, dtype='uint16')
+
+    @property
+    def saturation(self) -> float:
+        return self._saturation
+
+    @saturation.setter
+    def saturation(self, value):
+        self._saturation = value
