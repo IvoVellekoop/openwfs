@@ -1,4 +1,4 @@
-CoreLogs
+﻿CoreLogs
 *.log
 *.idea
 __pycache__
@@ -7,3 +7,4 @@ build
 PyDevice.sln
 AutoConfig.props
 x64
+*.gif
