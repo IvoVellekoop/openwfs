@@ -6,7 +6,7 @@ import astropy.units as u
 from astropy.units import Quantity
 from .patch import FrameBufferPatch, Patch, VertexArray
 from .geometry import fill_transform
-from openwfs.feedback import Reservation
+from openwfs.openwfs.feedback import Reservation
 from weakref import WeakSet
 
 
@@ -56,7 +56,7 @@ class SLM:
 
         # construct window for displaying the SLM pattern
         self.patches = []
-        self.lut_generator = lut_generator or (lambda λ: np.arange(0, 256))
+        self.lut_generator = lut_generator or (lambda λ: np.arange(0, 256)/255)
         self._monitor_id = monitor_id
         self._width = width
         self._height = height

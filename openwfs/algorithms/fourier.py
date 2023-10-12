@@ -1,13 +1,17 @@
 import math
 import numpy as np
 from typing import Any, Annotated
+import matplotlib.pyplot as plt
+import os
+import pickle
 
 
 class FourierDualRef:
     """
     Base class definition for fourier algorithm. As described by Mastiani et al. [1]
 
-    Can run natively, provided you input a k_set.
+    Can run natively, provided you input a k_set. It will assume you have the same k_set for left and right.
+    If you want to set them separately, use the k_left and k_right properties.
     the k-set currently should have the shape of [2,n] with [0,:] = k_x and [1,:] = k_y.
 
     [1]: Bahareh Mastiani, Gerwin Osnabrugge, and Ivo M. Vellekoop,
@@ -27,62 +31,83 @@ class FourierDualRef:
             self.k_x = k_set[0, :]
             self.k_y = k_set[1, :]
 
+            self.k_left = np.vstack((self.k_x,self.k_y))
+            self.k_right = np.vstack((self.k_x,self.k_y))
+
     def execute(self):
-        self.experiment()
+        # left side experiment
+        self.single_side_experiment(0)
+        self.t_left = self.controller.compute_transmission(self.phase_steps)
 
-        t_fourier = self.controller.compute_transmission(self.phase_steps)
+        # right side experiment
+        self.single_side_experiment(1)
+        self.t_right = self.controller.compute_transmission(self.phase_steps)
 
-        t_slm = self.compute_t(t_fourier)
+        # calculate transmission matrix of the SLM plane from the Fourier transmission matrices:
+        self.t_slm = self.compute_t(self.t_left,self.t_right,self.k_left,self.k_right)
 
-        return t_slm
+        return self.t_slm
 
-    def experiment(self):
-        self.controller.reserve((len(self.k_x) * 2, self.phase_steps))
+    def get_phase_pattern(self, k_x, k_y, phase_offset, side):
+        """
+        Builds the phase pattern that is projected on the SLM during the experiment. k_x and k_y are spatial frequencies,
+        a k_x of 1 means that over the entire SLM width the values go from -pi to pi once. A k_x of 2 means that it goes
+        -pi to pi twice, etc.
 
-        phases = np.arange(self.phase_steps) / self.phase_steps * 2 * np.pi
-        for side in range(2):
-            for n_angle in range(len(self.k_x)):
-                for phase in phases:
-                    self.controller.slm.phases = self.get_phase_pattern(self.k_x[n_angle], self.k_y[n_angle], phase,
-                                                                        side)
-                    self.controller.measure()
-
-    def get_phase_pattern(self, kx, ky, p, side):
+        side 0 is left, side 1 is the right side.
+        """
         height = self.controller.slm.width
         width = self.controller.slm.height
         overlap = int(self._overlap * width // 2)
         start = 0 if side == 0 else 0.5 - self._overlap / 2
         end = 0.5 + self._overlap / 2 if side == 0 else 1
 
-        x = np.arange(start, end, 1 / ((width - overlap) + overlap))[np.newaxis, :]
+        x = np.arange(start, end, 1 / ((height - overlap) + overlap))[np.newaxis, :]
         y = np.arange(0, 1, 1 / width)[:, np.newaxis]
 
         final_pattern = np.zeros((width, height))
 
         if side == 0:
-            final_pattern[:, :x.shape[1]] = (2 * np.pi * kx) * x + ((2 * np.pi * ky) * y + p)
+            final_pattern[:, :x.shape[1]] = (2 * np.pi * k_x) * x + ((2 * np.pi * k_y) * y + phase_offset)
         else:
-            final_pattern[:, -x.shape[1]:] = (2 * np.pi * kx) * x + ((2 * np.pi * ky) * y + p)
+            final_pattern[:, -x.shape[1]:] = (2 * np.pi * k_x) * x + ((2 * np.pi * k_y) * y + phase_offset)
 
         return final_pattern
 
-    def compute_t(self, t_fourier):
+    def single_side_experiment(self, side):
         """
-        Computes the transmission matrix of the measurements,
-        for the left and right side of the SLM separately and then combines them with the overlap.
+
+        :param side:
+        :return:
+        """
+        self.controller.reserve((len(self.k_x), self.phase_steps))
+
+        phases = np.arange(self.phase_steps) / self.phase_steps * 2 * np.pi
+
+        for n_angle in range(len(self.k_x)):
+            for phase in phases:
+
+                self.controller.slm.phases = self.get_phase_pattern(self.k_x[n_angle],
+                                                                    self.k_y[n_angle],
+                                                                    phase, side)
+                self.controller.measure()
+
+
+    def compute_t(self, t_fourier_left, t_fourier_right ,k_left, k_right):
+        """
+        Computes the SLM transmission matrix from the Fourier transmission matrices.
         """
         # bepaal ruis: bahareh. Find peak & dc ofset
         t1 = np.zeros((self.controller.slm.height, self.controller.slm.width), dtype='complex128')
         t2 = np.zeros((self.controller.slm.height, self.controller.slm.width), dtype='complex128')
 
-        n_experiments = int(np.floor(len(t_fourier) / 2))
-        for n, t in enumerate(t_fourier):
-            if n < n_experiments:
-                phi = self.get_phase_pattern(self.k_x[n], self.k_y[n], 0, 0)
-                t1 += np.exp(1j * phi) * np.conj(t)
-            else:
-                phi = self.get_phase_pattern(self.k_x[n - n_experiments], self.k_y[n - n_experiments], 0, 1)
-                t2 += np.exp(1j * phi) * np.conj(t)
+        for n, t in enumerate(t_fourier_left):
+            phi = self.get_phase_pattern(k_left[0,n], k_left[1,n], 0, 0)
+            t1 += np.exp(1j * phi) * np.conj(t)
+
+        for n, t in enumerate(t_fourier_right):
+            phi = self.get_phase_pattern(k_right[0,n], k_right[1,n], 0, 1)
+            t2 += np.exp(1j * phi) * np.conj(t)
 
         overlap_len = int(self._overlap * self.controller.slm.width)
         overlap_begin = self.controller.slm.width // 2 - int(overlap_len / 2)
@@ -91,6 +116,8 @@ class FourierDualRef:
         if self._overlap != 0:
             c = np.vdot(t2[:, overlap_begin:overlap_end], t1[:, overlap_begin:overlap_end])
             factor = c / abs(c) * np.linalg.norm(t1[:, overlap_begin:overlap_end]) / np.linalg.norm(t2[:, overlap_begin:overlap_end])
+            if np.linalg.norm(t2[:, overlap_begin:overlap_end]) == 0:
+                factor = 1
             t2 = t2 * factor
 
             overlap = (t1[:, overlap_begin:overlap_end] + t2[:, overlap_begin:overlap_end]) / 2
@@ -137,7 +164,8 @@ class BasicFDR(FourierDualRef):
 
         self.k_x = np.repeat(np.array(kx_angles)[np.newaxis, :], len(ky_angles), axis=0).flatten()
         self.k_y = np.repeat(np.array(kx_angles)[:, np.newaxis], len(ky_angles), axis=1).flatten()
-
+        self.k_left = np.vstack((self.k_x,self.k_y))
+        self.k_right = np.vstack((self.k_x,self.k_y))
     @property
     def k_angles_min(self) -> int:
         return self._k_angles_min
@@ -171,13 +199,29 @@ class CharacterisingFDR(FourierDualRef):
     """
      implementation of the FourierDualRef algorithm.
     """
-    def __init__(self, phase_steps=4, overlap=0.1,max_modes = 20, controller=None):
+    def __init__(self, phase_steps=4, overlap=0.1, max_modes=20, high_modes=0, high_phase_steps=16, intermediates = True, controller=None):
         super().__init__(None, phase_steps, overlap, controller)
         self.max_modes = max_modes
+        self.high_modes = high_modes
+        self.high_phase_steps = high_phase_steps
+        self.t_left = None
+        self.t_right = None
+        self.k_left = None
+        self.k_right = None
+        self.t_slm = None
+        self.intermediates = intermediates
+        if self.intermediates:
+            self.intermediate_enhancements = []
+            self.intermediate_t = []
+        self.added_modes = [['Uncorrected enhancement']]
 
     def execute(self):
         kx_total = []
         ky_total = []
+
+        # measure the flat_wf value
+        if self.intermediates:
+            self.record_intermediate_enhancement([0], [0], [0], 0)
 
         for side in range(2):
             n = 0
@@ -187,8 +231,9 @@ class CharacterisingFDR(FourierDualRef):
             t_fourier = np.array([])
             kx_total = np.array([])
             ky_total = np.array([])
-            centers = np.array([[],[]], dtype=int)
-            while n < self.max_modes: # the True needs to be changed into a 'are we getting any SnR' bool
+            centers = np.array([[], []], dtype=int)
+
+            while n < self.max_modes:
 
                 self.single_side_experiment(side)
                 t_fourier = np.append(t_fourier,self.controller.compute_transmission(self.phase_steps))
@@ -219,69 +264,102 @@ class CharacterisingFDR(FourierDualRef):
                 self.k_x = unique_next_points[:, 0]
                 self.k_y = unique_next_points[:, 1]
 
+                if (n + len(self.k_x)) < self.max_modes:
+                    self.added_modes.append(unique_next_points.tolist())
+
+                if n > 0 and self.intermediates:
+                    self.record_intermediate_enhancement(t_fourier, kx_total, ky_total, side)
+
                 n += len(self.k_x)
 
-            t_abs = abs(t_fourier)
-            import matplotlib.pyplot as plt
-            plt.scatter(kx_total, ky_total, c=t_abs, marker='s', cmap='viridis', s=400, edgecolors='k')
-            plt.colorbar(label='t_abs')
-            plt.show()
+
+
+            # Measuring highest modes
+            self.measure_high_modes(t_fourier, kx_total, ky_total, side)
+
+            if self.high_modes != 0 and self.intermediates:
+                self.record_intermediate_enhancement(t_fourier, kx_total, ky_total, side)
 
             if side == 0:
-                t_left = t_fourier
-                k_left = np.vstack((kx_total,ky_total))
+                self.t_left = t_fourier
+                self.k_left = np.vstack((kx_total,ky_total))
 
             else:
-                t_right = t_fourier
-                k_right = np.vstack((kx_total,ky_total))
+                self.t_right = t_fourier
+                self.k_right = np.vstack((kx_total,ky_total))
 
-        t_slm = self.compute_t(t_left,t_right,k_left,k_right)
-        return t_slm
-    def single_side_experiment(self, side):
-        """Overriding the experiment class such that we can have a seperate k_x_left and k_x_right SLM side"""
-        self.controller.reserve((len(self.k_x), self.phase_steps))
+        self.t_slm = self.compute_t(self.t_left,self.t_right,self.k_left,self.k_right)
+        return self.t_slm
 
-        phases = np.arange(self.phase_steps) / self.phase_steps * 2 * np.pi
+    def measure_high_modes(self, t_fourier, kx_total, ky_total, side):
+        # Get indices of the n highest modes
+        if self.high_modes == 0:
+            return
 
-        for n_angle in range(len(self.k_x)):
-            for phase in phases:
-                self.controller.slm.phases = self.get_phase_pattern(self.k_x[n_angle],
-                                                                    self.k_y[n_angle],
-                                                                    phase, side)
-                self.controller.measure()
+        high_mode_indices = np.argsort(np.abs(t_fourier))[-self.high_modes:]
 
+        # Store the original phase_steps
+        original_phase_steps = self.phase_steps
 
-    def compute_t(self, t_fourier_left, t_fourier_right ,k_left, k_right):
-        """
-        We also need to override compute_t if we want a different kspace for left and right slm
-        """
-        # bepaal ruis: bahareh. Find peak & dc ofset
-        t1 = np.zeros((self.controller.slm.height, self.controller.slm.width), dtype='complex128')
-        t2 = np.zeros((self.controller.slm.height, self.controller.slm.width), dtype='complex128')
+        # Update phase_steps for high mode measurements
+        self.phase_steps = self.high_phase_steps
 
-        for n, t in enumerate(t_fourier_left):
-            phi = self.get_phase_pattern(k_left[0,n], k_left[1,n], 0, 0)
-            t1 += np.exp(1j * phi) * np.conj(t)
+        # Remeasure the highest modes
+        for idx in high_mode_indices:
+            self.k_x = np.array([kx_total[idx]])
+            self.k_y = np.array([ky_total[idx]])
+            self.single_side_experiment(side)
+            t_fourier[idx] = self.controller.compute_transmission(self.phase_steps) / (
+                        self.phase_steps / original_phase_steps)
 
-        for n, t in enumerate(t_fourier_right):
-            phi = self.get_phase_pattern(k_right[0,n], k_right[1,n], 0, 1)
-            t2 += np.exp(1j * phi) * np.conj(t)
+        # Restore the original phase_steps for subsequent measurements
+        self.phase_steps = original_phase_steps
+        self.added_modes.append([f'Remeasuring {self.high_modes} highest modes'])
 
-        overlap_len = int(self._overlap * self.controller.slm.width)
-        overlap_begin = self.controller.slm.width // 2 - int(overlap_len / 2)
-        overlap_end = self.controller.slm.width // 2 + int(overlap_len / 2)
+    def record_intermediate_enhancement(self, t_fourier, kx_total, ky_total, side):
+        k = np.vstack((kx_total, ky_total))
 
+        if side == 0:
+            t_left = t_fourier
+            k_left = k
+            # Use the class-level attributes for the right side, if they're set; otherwise, initialize to zeros
+            t_right = np.zeros_like(t_fourier)
+            k_right = k
 
-
-        if self._overlap != 0:
-            c = np.vdot(t2[:, overlap_begin:overlap_end], t1[:, overlap_begin:overlap_end])
-            factor = c / abs(c) * np.linalg.norm(t1[:, overlap_begin:overlap_end]) / np.linalg.norm(t2[:, overlap_begin:overlap_end])
-            t2 = t2 * factor
-
-            overlap = (t1[:, overlap_begin:overlap_end] + t2[:, overlap_begin:overlap_end]) / 2
-            t_full = np.concatenate([t1[:, 0:overlap_begin], overlap, t2[:, overlap_end:]], axis=1)
         else:
-            t_full = np.concatenate([t1[:, 0:overlap_begin], t2[:, overlap_end:]], axis=1)
+            t_right = t_fourier
+            k_right = k
+
+            t_left = self.t_left  # Since side == 0 is always processed first, self.t_left should always be set by this point
+            k_left = self.k_left
 
 
-        return t_full
+        t_slm = self.compute_t(t_left, t_right, k_left, k_right)
+
+        self.intermediate_t.append(t_slm)
+
+        self.controller.slm.phases = np.angle(t_slm)
+        self.controller.slm.update()
+        self.controller._source.trigger()
+
+
+        self.intermediate_enhancements.append(self.controller._source.read())
+
+    def save_experiment(self, filename="experimental_data", directory=None):
+        if directory is None:
+            directory = os.getcwd()  # Get current directory
+
+        data_to_save = {
+            "t_left": self.t_left,
+            "t_right": self.t_right,
+            "k_left": self.k_left,
+            "k_right": self.k_right,
+            "t_slm": self.t_slm,
+            "intermediate_enhancement": self.intermediate_enhancements,
+            "added_modes": self.added_modes
+        }
+
+        with open(os.path.join(directory, f'{filename}.pkl'), 'wb') as f:
+            pickle.dump(data_to_save, f)
+
+

@@ -9,7 +9,7 @@ class StepwiseSequential:
     (New approach)
     """
 
-    def __init__(self, phase_steps=4, n_x=4, n_y=4, controller=None, **kwargs):
+    def __init__(self, phase_steps=4, n_x=4, n_y=4, controller=None):
         self._n_x = n_x
         self._n_y = n_y
         self._controller = controller
@@ -58,6 +58,3 @@ class StepwiseSequential:
     def controller(self) -> Any:
         return self._controller
 
-    @controller.setter
-    def controller(self, value):
-        self._controller = value

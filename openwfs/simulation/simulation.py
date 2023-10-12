@@ -4,7 +4,7 @@ import cv2
 import warnings
 from typing import Annotated
 from .slm_patterns import make_gaussian
-
+import astropy.units as u
 
 class SimulatedWFS:
     """A Simulated 2D wavefront shaping experiment. Has a settable ideal wavefront, and can calculate a feedback
@@ -24,7 +24,7 @@ class SimulatedWFS:
         self.shape = (width, height)
         self.phases = np.zeros((width, height), dtype="float32")
         self.displayed_phases = 0
-        self.exposure_ms = 1
+        self.exposure_ms = 1 * u.ms
         self._left = 0
         self._top = 0
         self._width = width
