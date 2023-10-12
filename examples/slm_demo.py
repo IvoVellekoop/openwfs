@@ -1,7 +1,7 @@
 import numpy as np
 import time
 import set_path
-from openwfs.openwfs.slm import SLM, Patch, geometry, patterns
+from openwfs.slm import SLM, Patch, geometry, patterns
 from skimage import data
 import astropy.units as u
 

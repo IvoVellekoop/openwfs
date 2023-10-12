@@ -1,10 +1,10 @@
-from openwfs.openwfs.simulation import SimulatedWFS
+from openwfs.simulation import SimulatedWFS
 import numpy as np
-from openwfs.openwfs.algorithms import StepwiseSequential, BasicFDR, CharacterisingFDR
-from openwfs.openwfs.feedback import Controller, SingleRoi, SingleRoiSquare, SelectRoiSquare, SelectRoiCircle
+from openwfs.algorithms import StepwiseSequential, BasicFDR, CharacterisingFDR
+from openwfs.feedback import Controller, SingleRoi, SingleRoiSquare, SelectRoiSquare, SelectRoiCircle
 from test_functions import calculate_enhancement,make_angled_wavefront, angular_difference, measure_feedback, plot_dense_grid, plot_dense_grid_no_empty_spaces
 import matplotlib.pyplot as plt
-from openwfs.openwfs.slm import SLM
+from openwfs.slm import SLM
 import matplotlib
 import astropy.units as u
 from skimage import data

@@ -1,6 +1,7 @@
 CoreLogs
 *.log
 *.idea
+venv
 __pycache__
 build
 .vs

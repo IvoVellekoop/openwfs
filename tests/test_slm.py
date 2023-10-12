@@ -1,7 +1,7 @@
 import time
 import numpy.random
 import pytest
-from openwfs.openwfs.slm import SLM, Patch, geometry
+from openwfs.slm import SLM, Patch, geometry
 import numpy as np
 from numpy.testing import assert_allclose
 import astropy.units as u
