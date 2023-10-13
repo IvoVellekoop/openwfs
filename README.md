@@ -18,7 +18,7 @@ for use just yet. The first release of the code is planned November 2023. Please
 
 
 ## Installation instructions
-1. Install [PyCharm](https://www.jetbrains.com/pycharm/), Python 3.9 or higher (for example, the [Anaconda distribution](https://www.anaconda.com/download)), and a git client, for example, [Git for Windows](https://gitforwindows.org/) or [GitHub Desktop](https://desktop.github.com/), or any Mac/Linux equivalent.
+1. Install [PyCharm](https://www.jetbrains.com/pycharm/), Python 3.9 or higher (for example, the [Anaconda distribution](https://www.anaconda.com/download)) (Note: currently, OpenWFS does not work with Python 3.12 because some of the packages it uses do not work with Python 3.12 yet), and a git client, for example, [Git for Windows](https://gitforwindows.org/) or [GitHub Desktop](https://desktop.github.com/), or any Mac/Linux equivalent.
 
 2. Install OpenWFS:
    1. Start Pycharm. 
