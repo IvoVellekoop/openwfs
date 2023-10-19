@@ -14,11 +14,9 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
 
     c = mic.camera
-    plt.ion()  # turn on interactive mode
     plt.subplot(1, 2, 1)
     plt.imshow(img)
     ax = plt.subplot(1, 2, 2)
-    plt.show()
     for p in range(100):
         mic.stage.x = p * 1 * u.um
         c.trigger()
