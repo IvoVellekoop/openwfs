@@ -1,4 +1,4 @@
-from ssa import StepwiseSequential
+from openwfs.algorithms import StepwiseSequential
 from wfs import wavefront_shaping
 from openwfs.simulation import SimulatedWFS
 import numpy as np
