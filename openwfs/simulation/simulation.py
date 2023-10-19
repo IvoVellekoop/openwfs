@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import cv2
 import warnings
 from typing import Annotated
-from .slm_patterns import make_gaussian
+from openwfs.simulation import make_gaussian
 import astropy.units as u
 
 class SimulatedWFS:

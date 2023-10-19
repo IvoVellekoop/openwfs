@@ -254,8 +254,8 @@ def fourier_basic_pathfinding_comparison():
     roi_detector = SingleRoi(sim, x=256, y=256, radius=0)
     roi_detector.trigger()
     #correct_wf = make_angled_wavefront(512, -5, 4)
-    # correct_wf = (data.camera()/255)*2*np.pi-np.pi
-    correct_wf = (np.load("..//..//WFS_experiments//16_06_2023 Headless wfs experiment//fourier2//optimised_wf.npy") / 255) * 2 * np.pi - np.pi
+    correct_wf = (data.camera()/255)*2*np.pi-np.pi
+    #correct_wf = (np.load("..//..//WFS_experiments//16_06_2023 Headless wfs experiment//fourier2//optimised_wf.npy") / 255) * 2 * np.pi - np.pi
     sim.set_ideal_wf(correct_wf)
 
 
