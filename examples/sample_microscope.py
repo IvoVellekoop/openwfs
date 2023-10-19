@@ -17,12 +17,12 @@ if __name__ == '__main__':
     plt.ion()  # turn on interactive mode
     plt.subplot(1, 2, 1)
     plt.imshow(img)
-    plt.subplot(1, 2, 2)
+    ax = plt.subplot(1, 2, 2)
     plt.show()
     for p in range(100):
         mic.stage.x = p * 1 * u.um
         c.trigger()
         cim = c.read()
-        plt.imshow(cim)
+        ax.imshow(cim)
         plt.draw()
         plt.pause(0.2)
