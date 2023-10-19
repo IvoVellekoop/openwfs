@@ -3,7 +3,7 @@ import astropy.units as u
 from astropy.units import Quantity
 from scipy.ndimage import affine_transform
 from scipy.signal import fftconvolve
-from .mockdevices import MockImageSource, MockXYStage, MockCamera
+from openwfs.simulation.mockdevices import MockImageSource, MockXYStage, MockCamera
 from openwfs.slm import patterns
 
 
