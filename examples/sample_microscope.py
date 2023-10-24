@@ -5,6 +5,12 @@ from openwfs.simulation import Microscope, MockImageSource
 
 ### Parameters that can be altered
 
+img_size_x = 500
+# Determines how wide the image is.
+
+img_size_y = 500
+# Determines how high the image is.
+
 magnification = 10
 # magnification from object plane to camera.
 
@@ -22,7 +28,7 @@ p_limit = 100
 
 ## Code
 
-img = np.maximum(np.random.randint(-10000, 100, (500, 500), dtype=np.int16), 0) + 20
+img = np.maximum(np.random.randint(-10000, 100, (img_size_y, img_size_x), dtype=np.int16), 0) + 20
 src = MockImageSource.from_image(img, 100 * u.nm)
 mic = Microscope(src, m=magnification, na=numerical_aperture, wavelength=wavelength, pixel_size=pixel_size)
 mic.camera.saturation = 70.0
@@ -35,7 +41,9 @@ if __name__ == '__main__':
     c = mic.camera
     plt.subplot(1, 2, 1)
     plt.imshow(img)
+    plt.title('Original image')
     ax = plt.subplot(1, 2, 2)
+    plt.title('Scanned image')
     for p in range(p_limit):
         mic.stage.x = p * 1 * u.um
         c.trigger()
