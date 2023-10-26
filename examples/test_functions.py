@@ -1,6 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
+
+
 def make_angled_wavefront(size, slope_x, slope_y):
     # Create a meshgrid of coordinates
     x, y = np.meshgrid(np.linspace(-np.pi, np.pi, size), np.linspace(-np.pi, np.pi, size))
@@ -8,13 +10,14 @@ def make_angled_wavefront(size, slope_x, slope_y):
     # Create the square array with specified slopes
     array = (slope_y * y + slope_x * x)
 
-
     return array
+
 
 def angular_difference(A, B):
     return np.arctan2(np.sin(A - B), np.cos(A - B))
 
-def calculate_enhancement(simulation,optimised_wf,x=256,y=256):
+
+def calculate_enhancement(simulation, optimised_wf, x=256, y=256):
 
     simulation.set_data(0)
     simulation.update()
@@ -30,7 +33,8 @@ def calculate_enhancement(simulation,optimised_wf,x=256,y=256):
 
     return feedback_after / feedback_before
 
-def measure_feedback(simulation,optimised_wf,x=256,y=256):
+
+def measure_feedback(simulation, optimised_wf, x=256, y=256):
     simulation.set_data(optimised_wf)
     simulation.update()
     simulation.trigger()
