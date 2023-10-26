@@ -9,18 +9,21 @@ from PIL import Image
 
 
 Sim = SimulatedWFS()
-Sim.E_input_slm = np.ones([500,500])
+Sim.E_input_slm = np.ones([500, 500])
+
 
 def get_center(Simulation):
     Simulation.get_image()
+
     def get_center_closure():
         Simulation.trigger()
         Simulation.wait()
         im = Simulation.image
         shape = np.shape(im)
-        return [im[int(np.ceil(shape[0]/2)),int(np.ceil(shape[1]/2))]]
+        return [im[int(np.ceil(shape[0]/2)), int(np.ceil(shape[1]/2))]]
 
     return get_center_closure
+
 
 feedback = get_center(Sim)
 
@@ -33,7 +36,7 @@ correct_wf = np.array(test_image)
 Sim.set_ideal_wf(correct_wf)
 alg = FourierDualRef()
 
-[feedback_set, ideal_wavefront, t_set] = wavefront_shaping(Sim,feedback,alg)
+[feedback_set, ideal_wavefront, t_set] = wavefront_shaping(Sim, feedback, alg)
 
 plt.figure(3)
 plt.imshow(correct_wf)
@@ -77,7 +80,7 @@ plt.clim(0, 2**16)
 
 plt.figure(8)
 
-plt.plot(feedback_set[:,:,0])
+plt.plot(feedback_set[:, :, 0])
 plt.legend([str(x) for x in correct_wf.flatten().tolist()])
 plt.title('Feedback signals of the phase modulation of the SLM fields')
 plt.show(block=True)
