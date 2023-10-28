@@ -5,13 +5,13 @@ from openwfs.simulation import Microscope, MockImageSource
 
 ### Parameters that can be altered
 
-img_size_x = 500
+img_size_x = 1024
 # Determines how wide the image is.
 
-img_size_y = 500
+img_size_y = 1024
 # Determines how high the image is.
 
-magnification = 10
+magnification = 40
 # magnification from object plane to camera.
 
 numerical_aperture = 0.85
@@ -31,7 +31,7 @@ p_limit = 100
 
 ## Code
 img = np.maximum(np.random.randint(-10000, 100, (img_size_y, img_size_x), dtype=np.int16), 0)
-src = MockImageSource.from_image(img, 100 * u.nm)
+src = MockImageSource.from_image(img, 50 * u.nm)
 mic = Microscope(src, magnification=magnification, numerical_aperture=numerical_aperture, wavelength=wavelength,
                  camera_pixel_size=pixel_size, camera_resolution=camera_resolution)
 mic.camera.saturation = 70.0
@@ -47,10 +47,13 @@ if __name__ == '__main__':
     ax = plt.subplot(1, 2, 2)
     plt.title('Scanned image')
     for p in range(p_limit):
-        mic.xy_stage.x = p * 1 * u.um
-        mic.numerical_aperture = 1.0  # * (p + 1) / p_limit  # NA increases to 1.0
+        # mic.xy_stage.x = p * 1 * u.um
+        mic.numerical_aperture = 1.0 * (p + 1) / p_limit  # NA increases to 1.0
         c.trigger()
         cim = c.read()
-        ax.imshow(cim)
+        plt.imshow(cim, extent=c.extent().to_value(u.um) / magnification, cmap='gray')
+        plt.xlabel('μm')
+        plt.ylabel('μm')
+        plt.title(f"NA: {mic.numerical_aperture}, δ: {mic.abbe_limit.to_value(u.um):2.2} μm")
         plt.draw()
         plt.pause(0.2)

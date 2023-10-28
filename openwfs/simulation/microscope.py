@@ -86,11 +86,12 @@ class Microscope:
         # post-processors may be added to simulated physical effects like noise, bias, and saturation.
         self.camera = MockImageSource(data_shape=camera_resolution,
                                       pixel_size=camera_pixel_size,
-                                      on_trigger=lambda i: self._update(i))
+                                      on_trigger=lambda: self._update())
+        self.abbe_limit = 0.0
         self._pupil_resolution = 0.0
         self.psf = None
 
-    def _update(self, image):
+    def _update(self):
         """Updates the image on the camera sensor
 
         To compute the image:
@@ -123,8 +124,9 @@ class Microscope:
         # a Nyquist limit of λ/(2.0·NA), which is the Abbe diffraction limit.
         # The total field of view holds 2.0 Δ NA / λ diffraction limited points,
         # which means that we need exactly that many points in the NA.
-        self._pupil_resolution = np.ceil(
-            (fov * self.numerical_aperture / self.wavelength).to_value(u.dimensionless_unscaled))
+        self.abbe_limit = 0.5 * self.wavelength / self.numerical_aperture
+        self._pupil_resolution = int(np.ceil(float(fov / self.abbe_limit)))
+        print(self._pupil_resolution)
         pupil_field = patterns.disk(self._pupil_resolution)
         if self.aberrations is not None and self.slm is not None:
             pupil_field *= np.exp(1.0j * (self._read_crop(self.aberrations) + self._read_crop(self.slm)))
@@ -135,11 +137,12 @@ class Microscope:
 
         # finally, pad the pupil field so that the diameter of the pupil field
         # corresponds to a focus with the size of a single pixel in the source image
-        # invert the diffraction limit: 'NA_pad' = λ / (2 δ)
-        # compute how much larger this is than the actual NA: λ / (2 δ) / NA
-        # compute total number of points after padding
-        pupil_resolution = round((0.5 * self.wavelength / self.source.pixel_size / self.numerical_aperture).to_value(
-            u.dimensionless_unscaled) * self._pupil_resolution)
+        # - first compute the ratio of Abbe limit (i.e. the resolution corresponding to the current pupil size)
+        #   to the pixel size of the source image (i.e. the resolution corresponding to the padded pupil size)
+        # - then pad the pupil field so that the size gets multiplied by that ratio
+        pupil_resolution = round(float(self.abbe_limit / self.source.pixel_size) * self._pupil_resolution)
+        if pupil_resolution < self._pupil_resolution:
+            raise Exception("Pixel size in the source image is larger than the Abbe diffraction limit")
 
         # compute the PSF
         psf = np.abs(np.fft.fft2(np.fft.ifftshift(pupil_field), (pupil_resolution, pupil_resolution))) ** 2
@@ -157,8 +160,7 @@ class Microscope:
         offset[1, 2] += self.xy_stage.y / self.source.pixel_size
         m = m @ offset  # apply offset first, then magnification
 
-        affine_transform(s, m, output=image, order=1)
-        return image
+        return affine_transform(s, np.linalg.inv(m), order=1, output_shape=self.camera.data_shape)
 
     def _read_crop(self, source):
         """crop/pad an image to the NA of the microscope objective and scale to the internal resolution"""
