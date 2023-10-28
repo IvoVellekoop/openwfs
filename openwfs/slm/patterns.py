@@ -1,10 +1,11 @@
 import numpy as np
 from math import pi
 
+
 def coordinate_range(resolution):
-    """returns a range of the center point coordinates of a texture with the specified resolution and endpoints -1, 1"""
+    """returns a column vector containting the center point coordinates of a texture with endpoints -1, 1"""
     dx = 2.0 / resolution
-    return np.arange(-1.0 + 0.5 * dx, 1.0, dx)
+    return np.arange(-1.0 + 0.5 * dx, 1.0, dx).reshape((-1, 1))
 
 
 def defocus(resolution):
@@ -32,4 +33,4 @@ def disk(resolution, radius=1.0):
     # The coordinates correspond to the centers of these pixels
     range_sqr = coordinate_range(resolution) ** 2
     r2 = radius ** 2
-    return np.sqrt(range_sqr < r2)
+    return 1.0 * ((range_sqr + range_sqr.T) < r2)

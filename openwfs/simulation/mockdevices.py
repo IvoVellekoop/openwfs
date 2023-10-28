@@ -4,31 +4,6 @@ from astropy.units import Quantity
 from openwfs.feedback import CropProcessor
 
 
-
-# todo: put somewhere else (in processors.py?)
-class Processor:
-    def __init__(self, source):
-        self.source = source
-
-    def trigger(self):
-        self.source.trigger()
-
-    @property
-    def data_shape(self):
-        return self.source.data_shape
-
-    @property
-    def measurement_time(self):
-        return self.source.measurement_time
-
-    @property
-    def pixel_size(self):
-        return self.source.pixel_size
-
-    def read(self):
-        return self.source.read()
-
-
 class MockImageSource:
     """'Camera' that dynamically generates images using an 'on_trigger' callback.
     Note that this object does not implement the full camera interface. Does not support resizing yet"""

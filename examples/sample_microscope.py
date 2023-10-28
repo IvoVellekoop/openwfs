@@ -21,19 +21,21 @@ wavelength = 532.8 * u.nm
 # wavelength of the light, different wavelengths are possible, units can be adjusted accordingly.
 
 pixel_size = 6.45 * u.um
-# Size of the pixels on the camera object that represents the microscope image. Influences the size of the moving dots.
+# Size of the pixels on the camera
+
+camera_resolution = (256, 256)
+# number of pixels on the camera
 
 p_limit = 100
 # Number of iterations. Influences how quick the 'animation' is complete.
 
 ## Code
-
-img = np.maximum(np.random.randint(-10000, 100, (img_size_y, img_size_x), dtype=np.int16), 0) + 20
+img = np.maximum(np.random.randint(-10000, 100, (img_size_y, img_size_x), dtype=np.int16), 0)
 src = MockImageSource.from_image(img, 100 * u.nm)
-mic = Microscope(src, m=magnification, na=numerical_aperture, wavelength=wavelength, pixel_size=pixel_size)
+mic = Microscope(src, magnification=magnification, numerical_aperture=numerical_aperture, wavelength=wavelength,
+                 camera_pixel_size=pixel_size, camera_resolution=camera_resolution)
 mic.camera.saturation = 70.0
-devices = {'camera': mic.camera, 'stage': mic.stage}
-
+devices = {'camera': mic.camera, 'stage': mic.xy_stage}
 
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
@@ -45,7 +47,8 @@ if __name__ == '__main__':
     ax = plt.subplot(1, 2, 2)
     plt.title('Scanned image')
     for p in range(p_limit):
-        mic.stage.x = p * 1 * u.um
+        mic.xy_stage.x = p * 1 * u.um
+        mic.numerical_aperture = 1.0  # * (p + 1) / p_limit  # NA increases to 1.0
         c.trigger()
         cim = c.read()
         ax.imshow(cim)
