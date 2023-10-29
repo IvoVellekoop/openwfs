@@ -2,9 +2,10 @@ import numpy as np
 import astropy.units as u
 from astropy.units import Quantity
 from openwfs.feedback import CropProcessor
+from ..core import DataSource
 
 
-class MockImageSource:
+class MockImageSource(DataSource):
     """'Camera' that dynamically generates images using an 'on_trigger' callback.
     Note that this object does not implement the full camera interface. Does not support resizing yet"""
 
@@ -13,9 +14,21 @@ class MockImageSource:
         self._image = None
         self._measurement_time = 0  # property may be set to something else to mimic acquisition time
         self._triggered = 0  # currently only support a buffer with a single frame
-        self.pixel_size = pixel_size.to(u.um)
-        self.data_shape = data_shape
-        self.measurement_time = 0.0 * u.ms
+        self._data_shape = data_shape
+        self._pixel_size = pixel_size.to(u.um)
+        self._measurement_time = 0.0 * u.ms
+
+    @property
+    def data_shape(self):
+        return self._data_shape
+
+    @property
+    def measurement_time(self) -> Quantity:
+        return 0.0 * u.s
+
+    @property
+    def pixel_size(self) -> Quantity:
+        return self._pixel_size
 
     def trigger(self):
         if self._triggered != 0:
@@ -37,21 +50,7 @@ class MockImageSource:
         :param image : 2-d numpy array to return on 'read'
         :param pixel_size : size of a single pixel, must have a pint unit of type length
         """
-        return MockImageSource(lambda: image, image.shape, pixel_size.to(u.um))
-
-    def coordinates(self, d):
-        """Coordinate values along the d-th axis.
-        The coordinates are computed such that position 0.0 corresponds to the pixel at the center,
-        or to the pixel directly after that if the number of pixels is even.
-        """
-        coords = np.array(range(self.data_shape[d]), ndmin=len(self.data_shape))
-        coords = np.moveaxis(coords, -1, d)
-        return (coords - np.floor(0.5 * self.data_shape[d])) * self.pixel_size
-
-    def extent(self):
-        low = -np.floor(0.5 * np.array(self.data_shape))
-        high = np.ceil(0.5 * np.array(self.data_shape))
-        return np.array((low[1], high[1], low[0], high[0])) * self.pixel_size
+        return MockImageSource(lambda: image, image.shape, pixel_size)
 
 
 class MockCamera(CropProcessor):

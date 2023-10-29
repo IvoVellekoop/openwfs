@@ -2,6 +2,7 @@ import numpy as np
 import astropy.units as u
 import set_path
 from openwfs.simulation import Microscope, MockImageSource
+from openwfs.utilities import grab_and_show
 
 ### Parameters that can be altered
 
@@ -49,11 +50,6 @@ if __name__ == '__main__':
     for p in range(p_limit):
         # mic.xy_stage.x = p * 1 * u.um
         mic.numerical_aperture = 1.0 * (p + 1) / p_limit  # NA increases to 1.0
-        c.trigger()
-        cim = c.read()
-        plt.imshow(cim, extent=c.extent().to_value(u.um) / magnification, cmap='gray')
-        plt.xlabel('μm')
-        plt.ylabel('μm')
+        grab_and_show(c)
         plt.title(f"NA: {mic.numerical_aperture}, δ: {mic.abbe_limit.to_value(u.um):2.2} μm")
-        plt.draw()
         plt.pause(0.2)
