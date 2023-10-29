@@ -50,7 +50,7 @@ def gaussian(resolution, waist, truncation_radius=None):
             All values outside the disk are set to 0.
     """
     range_sqr = coordinate_range(resolution) ** 2
-    w2inv = 1.0 / waist ** 2
+    w2inv = -1.0 / waist ** 2
     gauss = np.exp((range_sqr + range_sqr.T) * w2inv)
     if truncation_radius is not None:
         gauss = gauss * disk(truncation_radius)
