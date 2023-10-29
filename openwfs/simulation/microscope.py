@@ -63,6 +63,9 @@ class Microscope:
             Defaults to 10 μm.
         camera (ImageSource, output only): represents the camera in the magnified image plane of the microscope
             (i.e., where an actual camera would be located).
+        truncation_factor (float): is used to simulate a gaussian beam illumination of the SLM/back pupil.
+            Corresponds to w/r, with w the beam waist (1/e² intensity) and r the pupil radius.
+            Defaults to None for a flat intensity distribution.
 
         Note:
             The aberration map and slm phase map are cropped/padded to the NA of the microscope objective, and
@@ -72,7 +75,7 @@ class Microscope:
 
     def __init__(self, source, magnification, numerical_aperture, wavelength: Quantity[u.nm],
                  xy_stage=None, z_stage=None, slm=None, aberrations=None, camera_resolution=(1024, 1024),
-                 camera_pixel_size=10 * u.um):
+                 camera_pixel_size=10 * u.um, truncation_factor=0.0):
         self.source = source
         self.magnification = magnification
         self.numerical_aperture = numerical_aperture
@@ -81,6 +84,7 @@ class Microscope:
         self.z_stage = z_stage  # or MockStage()
         self.slm = slm
         self.aberrations = aberrations
+        self.truncation_factor = truncation_factor
 
         # create the mock camera object that will appear to capture the aberrated and translated image.
         # post-processors may be added to simulated physical effects like noise, bias, and saturation.
@@ -127,7 +131,8 @@ class Microscope:
         self.abbe_limit = 0.5 * self.wavelength / self.numerical_aperture
         self._pupil_resolution = int(np.ceil(float(fov / self.abbe_limit)))
         print(self._pupil_resolution)
-        pupil_field = patterns.disk(self._pupil_resolution)
+        pupil_field = patterns.disk(self._pupil_resolution) if self.truncation_factor is None else \
+            patterns.gaussian(self._pupil_resolution, 1.0 / self.truncation_factor)
         if self.aberrations is not None and self.slm is not None:
             pupil_field *= np.exp(1.0j * (self._read_crop(self.aberrations) + self._read_crop(self.slm)))
         elif self.slm is not None:

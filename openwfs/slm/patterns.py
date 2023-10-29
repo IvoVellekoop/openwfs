@@ -2,8 +2,12 @@ import numpy as np
 from math import pi
 
 
+# Each of the functions in this module computes a square pattern with a given resolution for x and y dimensions
+# The coordinate system that is used assumes that the pixels in the pattern fill a range from -1.0 to 1.0.
+# All computations are then done on the coordinates that represent the  _centers_ of these pixels.
+
 def coordinate_range(resolution):
-    """returns a column vector containting the center point coordinates of a texture with endpoints -1, 1"""
+    """returns a column vector containing the center point coordinates of a texture with endpoints -1, 1"""
     dx = 2.0 / resolution
     return np.arange(-1.0 + 0.5 * dx, 1.0, dx).reshape((-1, 1))
 
@@ -28,9 +32,26 @@ def defocus(resolution):
 
 def disk(resolution, radius=1.0):
     """Constructs an image of a centered disk. With radius=1.0, the disk touches the sides of the square"""
-
-    # construct coordinate range. The full texture spans the range -1 to 1, and it is divided into N_pixels pixels.
-    # The coordinates correspond to the centers of these pixels
     range_sqr = coordinate_range(resolution) ** 2
     r2 = radius ** 2
     return 1.0 * ((range_sqr + range_sqr.T) < r2)
+
+
+def gaussian(resolution, waist, truncation_radius=None):
+    """Constructs an image of a centered gaussian
+    Arguments:
+        resolution (int):
+            width and height (in pixels) of the returned pattern.
+        waist (float):
+            location of the beaem waist (1/e value)
+            relative to half of the width of the pattern (i.e. relative to the `radius` of the square)
+        truncation_radius (float or None):
+            when not None, specifies the radius of a disk that is used to truncate the Gaussian.
+            All values outside the disk are set to 0.
+    """
+    range_sqr = coordinate_range(resolution) ** 2
+    w2inv = 1.0 / waist ** 2
+    gauss = np.exp((range_sqr + range_sqr.T) * w2inv)
+    if truncation_radius is not None:
+        gauss = gauss * disk(truncation_radius)
+    return gauss
