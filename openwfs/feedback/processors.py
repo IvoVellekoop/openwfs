@@ -105,16 +105,16 @@ class CropProcessor(Processor):
         image = super().read()
 
         # top left corner after padding (becomes 0,0 if it was negative)
-        left = np.maximum(0, self.left)
-        top = np.maximum(0, self.top)
+        left = np.maximum(0, self._left)
+        top = np.maximum(0, self._top)
 
         # bottom right corner after padding
-        bottom = top + self.height
-        right = left + self.width
+        bottom = top + self._height
+        right = left + self._width
 
         # compute amount of padding on all sides bottom-right side
-        tpad = top - self.top
-        lpad = left - self.left
+        tpad = top - self._top
+        lpad = left - self._left
         bpad = np.minimum(0, bottom - (image.shape[0] + tpad))
         rpad = np.minimum(0, right - (image.shape[1] + lpad))
         if tpad != 0 or lpad != 0 or bpad != 0 or rpad != 0:

@@ -65,20 +65,29 @@ class ADCProcessor(Processor):
             `digital_max`
         digital_max(int): maximum value that the ADC can output.
             defaults to 0xFFFF (16 bits)
+        shot_nose(bool): when True, apply Poisson noise to the data instead of rounding
     """
 
-    def __init__(self, analog_max=0.0, digital_max=0xFFFF):
+    def __init__(self, source: DataSource, analog_max: float = 0.0, digital_max: int = 0xFFFF,
+                 shot_noise: bool = False):
         self._analog_max = analog_max
         self._digital_max = digital_max
+        self._shot_noise = shot_noise
         self.analog_max = analog_max  # check value
         self.digital_max = digital_max  # check value
+        super().__init__(source)
 
     def read(self):
         data = super().read()
         if self.analog_max == 0.0:
-            data = np.round(data * (self.digital_max / np.max(data)))
+            data = data * (self.digital_max / np.max(data))
         else:
             data = np.clip(data * (self.digital_max / self.analog_max), 0, self.digital_max)
+
+        if self._shot_noise:
+            data = np.random.poisson(data)
+        else:
+            data = np.round(data)
         return np.array(data, dtype='uint16')
 
     @property
@@ -92,7 +101,7 @@ class ADCProcessor(Processor):
         self._analog_max = value
 
     @property
-    def digital_max(self):
+    def digital_max(self) -> int:
         return self._digital_max
 
     @digital_max.setter
@@ -100,6 +109,14 @@ class ADCProcessor(Processor):
         if value < 0 or value > 0xFFFF:
             raise ValueError('digital_max must be between 0 and 0xFFFF')
         self._digital_max = int(value)
+
+    @property
+    def shot_noise(self) -> bool:
+        return self._shot_noise
+
+    @shot_noise.setter
+    def shot_noise(self, value):
+        self._shot_noise = value
 
 
 class MockCamera(ADCProcessor):
@@ -121,7 +138,7 @@ class MockCamera(ADCProcessor):
     def __init__(self, source: DataSource, width: int = None, height: int = None, left: int = 0, top: int = 0,
                  analog_max: float = 0.0, digital_max: int = 0xFFF):
         self._cropped = CropProcessor(source, width, height, left, top)
-        super().__init__(digital_max=digital_max, analog_max=analog_max)
+        super().__init__(source=self._cropped, digital_max=digital_max, analog_max=analog_max)
 
     @property
     def left(self):

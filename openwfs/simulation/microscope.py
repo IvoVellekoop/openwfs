@@ -88,9 +88,10 @@ class Microscope:
 
         # create the mock camera object that will appear to capture the aberrated and translated image.
         # post-processors may be added to simulated physical effects like noise, bias, and saturation.
-        self.camera = MockImageSource(data_shape=camera_resolution,
-                                      pixel_size=camera_pixel_size,
-                                      on_trigger=lambda: self._update())
+        self.magnified_image = MockImageSource(data_shape=camera_resolution,
+                                               pixel_size=camera_pixel_size,
+                                               on_trigger=lambda: self._update())
+        self.camera = MockCamera(self.magnified_image)
         self.abbe_limit = 0.0
         self._pupil_resolution = 0.0
         self.psf = None
