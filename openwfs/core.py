@@ -104,3 +104,40 @@ class DataSource(ABC):
             The value is returned as a numpy array with astropy unit rather than as a tuple to allow easy manipulation.
         """
         return np.array(self.data_shape) * self.pixel_size
+
+
+class Processor(DataSource):
+    """Helper base class for chaining DataSources.
+
+    Processors can be used to build data processing graphs, where each Processor takes input from one or
+    more input DataSources and processes that data (e.g. cropping an image, averaging over an roi, etc.).
+    A processor, itself, is a DataSource to allow chaining multiple processors together to combine functionality.
+
+    To implement a processor, override read and/or __init__
+    """
+
+    def __init__(self, source):
+        self.source = source
+
+    def trigger(self):
+        self.source.trigger()
+
+    @property
+    def data_shape(self):
+        return self.source.data_shape
+
+    @property
+    def measurement_time(self):
+        return self.source.measurement_time
+
+    @property
+    def pixel_size(self):
+        return self.source.pixel_size
+
+    def read(self):
+        """The default implementation just returns the source data without modification.
+
+        This supports the usage pattern where the __init__ function of a class chains together multiple processors
+        (see MockCamera for an example)
+        """
+        return self.source.read()

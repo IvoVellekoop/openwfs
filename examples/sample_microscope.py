@@ -35,7 +35,6 @@ img = np.maximum(np.random.randint(-10000, 100, (img_size_y, img_size_x), dtype=
 src = MockImageSource.from_image(img, 50 * u.nm)
 mic = Microscope(src, magnification=magnification, numerical_aperture=numerical_aperture, wavelength=wavelength,
                  camera_pixel_size=pixel_size, camera_resolution=camera_resolution, truncation_factor=0.5)
-mic.camera.saturation = 70.0
 devices = {'camera': mic.camera, 'stage': mic.xy_stage}
 
 if __name__ == '__main__':

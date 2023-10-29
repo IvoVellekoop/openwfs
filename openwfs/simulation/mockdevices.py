@@ -2,7 +2,7 @@ import numpy as np
 import astropy.units as u
 from astropy.units import Quantity
 from openwfs.feedback import CropProcessor
-from ..core import DataSource
+from ..core import DataSource, Processor
 
 
 class MockImageSource(DataSource):
@@ -53,25 +53,107 @@ class MockImageSource(DataSource):
         return MockImageSource(lambda: image, image.shape, pixel_size)
 
 
-class MockCamera(CropProcessor):
-    """Wraps any 2-d image source as a camera. The Camera object simply crops the image from the source and converts
-    the image to 16 bits."""
+class ADCProcessor(Processor):
+    """Mimics an analog-digital converter.
 
-    def __init__(self, source, saturation=1000, width=None, height=None, left=0, top=0):
-        super().__init__(source, width, height, left, top)
-        self._saturation = saturation
+    At the moment, only positive input and output values are supported.
+
+    Attributes:
+        analog_max(float or None): maximum value that the ADC can handle as input,
+            this value and all higher values are converted to `digital_max`.
+            When set to 0.0, the input signal is scaled automatically so that the maximum corresponds to
+            `digital_max`
+        digital_max(int): maximum value that the ADC can output.
+            defaults to 0xFFFF (16 bits)
+    """
+
+    def __init__(self, analog_max=0.0, digital_max=0xFFFF):
+        self._analog_max = analog_max
+        self._digital_max = digital_max
+        self.analog_max = analog_max  # check value
+        self.digital_max = digital_max  # check value
 
     def read(self):
-        im = np.clip(super().read() * (0xFFFF / self.saturation), 0, 0xFFFF)
-        return np.array(im, dtype='uint16')
+        data = super().read()
+        if self.analog_max == 0.0:
+            data = np.round(data * (self.digital_max / np.max(data)))
+        else:
+            data = np.clip(data * (self.digital_max / self.analog_max), 0, self.digital_max)
+        return np.array(data, dtype='uint16')
 
     @property
-    def saturation(self) -> float:
-        return self._saturation
+    def analog_max(self) -> float:
+        return self._analog_max
 
-    @saturation.setter
-    def saturation(self, value):
-        self._saturation = value
+    @analog_max.setter
+    def analog_max(self, value):
+        if value < 0.0:
+            raise ValueError('analog_max cannot be negative')
+        self._analog_max = value
+
+    @property
+    def digital_max(self):
+        return self._digital_max
+
+    @digital_max.setter
+    def digital_max(self, value):
+        if value < 0 or value > 0xFFFF:
+            raise ValueError('digital_max must be between 0 and 0xFFFF')
+        self._digital_max = int(value)
+
+
+class MockCamera(ADCProcessor):
+    """Wraps any 2-d image source as a camera.
+
+    To implement the camera interface (see bootstrap.py), in addition to the DataSource interface
+    we must implement the following functions:
+        top: int
+        left: int
+        height: int
+        width: int
+
+    These properties are forwarded to a CropProcessor held internally.
+
+    In addition, the data should be returned as uint16.
+    Conversion to uint16 is implemented in the ADCProcessor base class.
+    """
+
+    def __init__(self, source: DataSource, width: int = None, height: int = None, left: int = 0, top: int = 0,
+                 analog_max: float = 0.0, digital_max: int = 0xFFF):
+        self._cropped = CropProcessor(source, width, height, left, top)
+        super().__init__(digital_max=digital_max, analog_max=analog_max)
+
+    @property
+    def left(self):
+        return self._cropped.left
+
+    @left.setter
+    def left(self, value):
+        self._cropped.left = value
+
+    @property
+    def right(self):
+        return self._cropped.right
+
+    @right.setter
+    def right(self, value):
+        self._cropped.right = value
+
+    @property
+    def top(self):
+        return self._cropped.top
+
+    @top.setter
+    def top(self, value):
+        self._cropped.top = value
+
+    @property
+    def bottom(self):
+        return self._cropped.bottom
+
+    @top.setter
+    def bottom(self, value):
+        self._cropped.bottom = value
 
 
 class MockXYStage:

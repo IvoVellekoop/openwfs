@@ -1,27 +1,6 @@
 import numpy as np
 import cv2
-
-class Processor:
-    def __init__(self, source):
-        self.source = source
-
-    def trigger(self):
-        self.source.trigger()
-
-    @property
-    def data_shape(self):
-        return self.source.data_shape
-
-    @property
-    def measurement_time(self):
-        return self.source.measurement_time
-
-    @property
-    def pixel_size(self):
-        return self.source.pixel_size
-
-    def read(self):
-        return self.source.read()
+from ..core import Processor
 
 
 class SingleRoi(Processor):
@@ -29,6 +8,7 @@ class SingleRoi(Processor):
     Processor that returns the average of a circle specified by a certain x,y location & radius. Will return
     the value of the x,y location if radius is 0.
     """
+
     def __init__(self, source, x, y, radius=0.0):
         super().__init__(source)
         self._x = x
@@ -45,7 +25,7 @@ class SingleRoi(Processor):
         image = super().read()
         mask = np.zeros_like(image, dtype=np.uint8)
         cv2.circle(mask, (self._x, self._y), int(self._radius), 1, thickness=-1)
-        return image*mask
+        return image * mask
 
     @property
     def data_shape(self):
@@ -80,46 +60,67 @@ class SingleRoi(Processor):
 
 
 class CropProcessor(Processor):
+    """Crops 2-d data from the source to some region of interest.
+
+    Attributes:
+        left(int): start of the roi.
+        right(int): start of the roi.
+        width(int): width of the roi.
+        height(int): height of the roi.
+
+    Note:
+        * if the specified roi extends below 0 or above source.data_shape, the data is zero-padded.
+          This way, the returned data always has size width x height
+        * the data_shape corresponds to (height, width)
+    """
+
     def __init__(self, source, width=None, height=None, left=0, top=0):
         super().__init__(source)
-        self.left = left
-        self.top = top
-        if width is None:
-            width = source.data_shape[1]
-        if height is None:
-            height = source.data_shape[0]
-        self._data_shape = None
-        self._set_shape(width, height)
-
-    def _set_shape(self, width, height):
-        ss = self.source.data_shape
-        self._data_shape = (np.minimum(ss[0] - self.top, height), np.minimum(ss[1] - self.left, width))
+        self._left = left
+        self._top = top
+        self._width = width or source.data_shape[1]
+        self._height = height or source.data_shape[0]
 
     @property
     def data_shape(self):
-        return self._data_shape
+        return (self._height, self._width)
 
     @property
     def width(self) -> int:
-        return self.data_shape[1]
+        return self._width
 
     @width.setter
     def width(self, value):
-        self._set_shape(value, self.height)
+        self._width = int(value)
 
     @property
     def height(self) -> int:
-        return self.data_shape[0]
+        return self._height
 
     @height.setter
     def height(self, value):
-        self._set_shape(self.width, value)
+        self._height = int(value)
 
     def read(self):
         image = super().read()
-        bottom = self.top + self.height
-        right = self.left + self.width
-        return image[self.top:bottom, self.left:right]
+
+        # top left corner after padding (becomes 0,0 if it was negative)
+        left = np.maximum(0, self.left)
+        top = np.maximum(0, self.top)
+
+        # bottom right corner after padding
+        bottom = top + self.height
+        right = left + self.width
+
+        # compute amount of padding on all sides bottom-right side
+        tpad = top - self.top
+        lpad = left - self.left
+        bpad = np.minimum(0, bottom - (image.shape[0] + tpad))
+        rpad = np.minimum(0, right - (image.shape[1] + lpad))
+        if tpad != 0 or lpad != 0 or bpad != 0 or rpad != 0:
+            image = np.pad(image, pad_width=((tpad, bpad), (lpad, rpad)))
+
+        return image[top:bottom, left:right]
 
 
 class SingleRoiSquare(Processor):
@@ -142,6 +143,7 @@ class SelectRoiSquare(SingleRoiSquare):
     """
     A detector that allows the user to draw a square using the mouse. Inherits from SingleRoiSquare implementation
     """
+
     def __init__(self, source):
 
         super().__init__(source)
