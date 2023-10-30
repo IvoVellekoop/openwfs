@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 import sys
 sys.path.append('..//')
-from test_functions import calculate_enhancement,make_angled_wavefront, angular_difference, measure_feedback, plot_dense_grid, plot_dense_grid_no_empty_spaces
+from functions import calculate_enhancement,make_angled_wavefront, angular_difference, measure_feedback, plot_dense_grid, plot_dense_grid_no_empty_spaces
 
 
 

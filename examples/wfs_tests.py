@@ -3,7 +3,7 @@ import numpy as np
 from openwfs.algorithms import StepwiseSequential, BasicFDR, CharacterisingFDR
 from openwfs.feedback import Controller, SingleRoi, SingleRoiSquare, SelectRoiSquare, SelectRoiCircle
 from openwfs.slm import SLM
-from test_functions import calculate_enhancement, make_angled_wavefront, angular_difference, measure_feedback, \
+from functions import calculate_enhancement, make_angled_wavefront, angular_difference, measure_feedback, \
     plot_dense_grid, plot_dense_grid_no_empty_spaces
 import matplotlib.pyplot as plt
 from skimage import data

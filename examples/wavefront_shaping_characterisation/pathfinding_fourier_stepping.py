@@ -7,7 +7,7 @@ import matplotlib
 import sys
 
 sys.path.append('..//')
-from test_functions import angular_difference
+from functions import angular_difference
 
 
 def show_pathfinding_fourier_stepping():
