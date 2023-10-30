@@ -27,6 +27,7 @@ class SingleRoi(Processor):
         cv2.circle(mask, (self._x, self._y), int(self._radius), 1, thickness=-1)
         return image * mask
 
+
     @property
     def data_shape(self):
         return (1,)
@@ -135,6 +136,10 @@ class SingleRoiSquare(Processor):
     def data_shape(self):
         return (1,)
 
+    def read_square(self):
+        image = super().read()
+        return image[self.top:self.top+self.height,self.left:self.left+self.width]
+
     def read(self):
         return np.mean(super().read())
 
@@ -148,7 +153,7 @@ class SelectRoiSquare(SingleRoiSquare):
 
         super().__init__(source)
         source.trigger()
-        self.draw_square()
+        tl,br = self.draw_square()
 
     def draw_square(self):
         """
@@ -203,12 +208,11 @@ class SelectRoiSquare(SingleRoiSquare):
             tl = (min(x1, x2), min(y1, y2))
             br = (max(x1, x2), max(y1, y2))
 
-            width = br[0] - tl[0]
-            height = br[1] - tl[1]
+            self.width = br[0] - tl[0]
+            self.height = br[1] - tl[1]
             self.top = tl[1]
             self.left = tl[0]
 
-            self._set_shape(width, height)
             return tl, br
 
         return None, None
