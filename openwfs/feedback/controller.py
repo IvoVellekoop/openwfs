@@ -86,7 +86,7 @@ class Controller:
         self._measurements_flat = np.reshape(self._measurements, (self.N, self.M))
 
     def measure(self):
-        """ Schedule a measurement. A measurements corresponds to updating the SLM, waiting for the image to
+        """ Schedule a measurement. A measurement corresponds to updating the SLM, waiting for the image to
         stabilize, triggering the detector and reading the data from the detector. There is no guarantee as to when
         this measurement is performed (measurements may even be performed out of order or batched together in some
         implementations). However, the data is guaranteed to end up in the 'measurements' array in the correct order."""
