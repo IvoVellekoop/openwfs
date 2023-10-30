@@ -2,11 +2,12 @@ from openwfs.simulation import SimulatedWFS
 import numpy as np
 from openwfs.algorithms import BasicFDR, CharacterisingFDR
 from openwfs.feedback import Controller, SingleRoi
+import matplotlib.pyplot as plt
+import matplotlib
 import sys
 sys.path.append('..//')
 from test_functions import calculate_enhancement,make_angled_wavefront, angular_difference, measure_feedback, plot_dense_grid, plot_dense_grid_no_empty_spaces
-import matplotlib.pyplot as plt
-import matplotlib
+
 
 
 def fourier_basic_pathfinding_comparison():
