@@ -1,3 +1,4 @@
+import set_path
 from openwfs.simulation import SimulatedWFS
 import numpy as np
 from openwfs.algorithms import StepwiseSequential, BasicFDR, CharacterisingFDR
@@ -179,7 +180,6 @@ if __name__ == '__main__':
         print(flat_wf_response_fourier())
         print(enhancement_fourier())
         print(enhancement_ssa())
-
 
     if test_detectors:
         # The following tests test the different detectors
