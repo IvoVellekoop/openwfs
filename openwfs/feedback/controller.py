@@ -1,56 +1,12 @@
 import numpy as np
-from typing import Protocol
 import time
 import astropy.units as u
 from astropy.units import Quantity
-
-
-class Detector(Protocol):
-    """Minimal implementation of a detector object. Any detector must implement these members and attributes"""
-
-    data_shape: tuple[int]
-    """shape of the data returned by this detector (from numpy.shape). Read only."""
-
-    measurement_time: float
-    """In seconds. Read only. Used for synchronization, and should include the measurement time of any child 
-    detectors (see Processor)."""
-
-    def trigger(self) -> None:
-        """Triggers the detector to take a new measurement. Typically, does not wait until the measurement is
-        finished. A detector may have a hardware trigger, in which case calls to trigger() may be ignored."""
-        pass
-
-    def read(self) -> np.ndarray:
-        """Returns the measured data, in the order that the triggers were given. This function blocks until the data
-        is available and raises a TimeoutError if it takes too long to obtain the data (typically because the detector
-        was not triggered)."""
-        pass
-
-
-class MockDetector:  # implements Detector
-    """Fake detector that returns random values between 0.0 and 1.0."""
-
-    def __init__(self, data_shape):
-        self.data_shape = data_shape  # shape of the data returned by this detector (from numpy.shape). Read only.
-        self.measurement_time = 0.0  # time in seconds that a measurement takes. Used for synchronization. Read only.
-        self._buffer = []  # only for demonstration purpose, not needed
-
-    def trigger(self):
-        """Triggers the detector to take a new measurement. Typically, does not wait until the measurement is
-        finished. A detector may have a hardware trigger, in which case calls to trigger() may be ignored."""
-        self._buffer.append(np.random.rand(self.data_shape))
-
-    def read(self):
-        """Returns the measured data, in the order that the triggers were given. This function blocks until the data
-        is available and raises a TimeoutError if it takes too long to obtain the data (typically because the detector
-        was not triggered)."""
-        if self._buffer.count == 0:
-            raise TimeoutError()
-        return self._buffer.pop(0)
+from ..core import DataSource, PhaseSLM
 
 
 class Controller:
-    def __init__(self, detector: Detector, slm):
+    def __init__(self, detector: DataSource, slm: PhaseSLM):
         self.M = None
         """ Number of elements in each measurement. Read only. Equal to np.prod(source.data_shape).
             Updated when 'reserve' is called"""
@@ -86,7 +42,8 @@ class Controller:
         self._measurements_flat = np.reshape(self._measurements, (self.N, self.M))
 
     def measure(self):
-        """ Schedule a measurement. A measurements corresponds to updating the SLM, waiting for the image to
+        """ Schedule a measurement.
+        A measurement corresponds to updating the SLM, waiting for the image to
         stabilize, triggering the detector and reading the data from the detector. There is no guarantee as to when
         this measurement is performed (measurements may even be performed out of order or batched together in some
         implementations). However, the data is guaranteed to end up in the 'measurements' array in the correct order."""

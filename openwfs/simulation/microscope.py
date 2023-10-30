@@ -131,7 +131,7 @@ class Microscope:
         # which means that we need exactly that many points in the NA.
         self.abbe_limit = 0.5 * self.wavelength / self.numerical_aperture
         self._pupil_resolution = int(np.ceil(float(fov / self.abbe_limit)))
-        print(self._pupil_resolution)
+  
         pupil_field = patterns.disk(self._pupil_resolution) if self.truncation_factor is None else \
             patterns.gaussian(self._pupil_resolution, 1.0 / self.truncation_factor)
         if self.aberrations is not None and self.slm is not None:

@@ -1,11 +1,16 @@
 # core classes used throughout openwfs
 import numpy as np
+import astropy.units as u
 from astropy.units import Quantity
 from abc import ABC, abstractmethod
 
 
 class DataSource(ABC):
     """Base class for all detectors, cameras and other data sources with possible dynamic behavior."""
+
+    def __init__(self, pixel_size: Quantity, data_shape):
+        self._pixel_size = pixel_size
+        self._data_shape = data_shape
 
     def buffer_depth(self) -> int:
         """Number of measurements that the detector can hold in its buffer.
@@ -41,17 +46,22 @@ class DataSource(ABC):
         ...
 
     @property
-    @abstractmethod
     def data_shape(self):
         """Returns a tuple corresponding to the shape of the returned data array.
 
+        May be overridden by a child class.
         Note:
             * This value matches the `shape` property of the array returned when calling `trigger` followed by `read`.
             * The property may change, e.g., when the ROI of a camera is changed.
               In any case, the value of `data_shape`
               just before calling `trigger` will match the size of the data returned by the corresponding `read` call.
         """
-        ...
+        return self._data_shape
+
+    @data_shape.setter
+    def data_shape(self, value):
+        """Changes the shape of the data. Typically, this function should be overridden by the child class"""
+        self._data_shape = value
 
     @property
     @abstractmethod
@@ -77,10 +87,13 @@ class DataSource(ABC):
         For cameras, this is the pixel size (in astropy length units).
         For detectors returning a time trace, this value is specified in astropy time units.
         Note:
-            At the moment, the pixel_size is a scalar, so for multi-dimensional data sources the pixel_size
-            must be the same in all dimensions (only square pixels are supported)
+            * At the moment, the pixel_size is a scalar, so for multi-dimensional data sources the pixel_size
+              must be the same in all dimensions (only square pixels are supported)
+            * By default, the pixel size cannot be set.
+              However, in some cases (such as when the `pixel_size` is actually a sampling interval),
+              it makes sense for the child class to implement a setter.
         """
-        ...
+        return self._pixel_size
 
     def coordinates(self, d):
         """Coordinate values along the d-th axis.
@@ -141,3 +154,32 @@ class Processor(DataSource):
         (see MockCamera for an example)
         """
         return self.source.read()
+
+
+class PhaseSLM(ABC):
+    phases: np.ndarray
+
+    def update(self, wait_factor=1.0, wait=True):
+        """Refresh the SLM to show the updated phase pattern.
+
+        If the SLM is currently reserved (see `reserve`), this function waits until the reservation is almost (*) over before updating the SLM.
+        The SLM waits for the pattern of the SLM to stabilize before returning.
+
+        *) In case of SLMs with an idle time (latency), the image may be sent to the hardware already before the reservation is over, as long as the actual image
+        on the SLM is guaranteed not to update until the reservation is over.
+
+        :param wait_factor: time to wait for the image to stabilize. Default = 1.0 should wait for a pre-defined time (the `settle_time`) that guarantees stability
+        for most practical cases. Use a higher value to allow for extra stabilization time, or a lower value if you want to trigger a measurement before the SLM is fully stable.
+
+        :param wait: when set to False, do not wait for the image to stabilize but reserve the SLM for this period instead. This can be used to pipeline measurements (see `Feedback`).
+        The client code needs to explicitly call `wait` to wait for stabilization of the image.
+        """
+        pass
+
+    def wait(self):
+        """Wait for the SLM to become available. If there are no current reservations, return immediately."""
+        pass
+
+    def reserve(self, time: Quantity[u.ms]):
+        """Reserve the SLM for a specified amount of time. During this time, the SLM pattern cannot be changed."""
+        pass

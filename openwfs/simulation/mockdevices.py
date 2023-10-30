@@ -222,3 +222,25 @@ class NoiseCamera:
     @saturation.setter
     def saturation(self, value):
         self._saturation = value
+
+
+class NoiseSource(DataSource):  # implements Detector
+    """Fake detector that returns random values."""
+
+    def __init__(self, data_shape):
+        self.data_shape = data_shape  # shape of the data returned by this detector (from numpy.shape). Read only.
+        self.measurement_time = 0.0  # time in seconds that a measurement takes. Used for synchronization. Read only.
+        self._buffer = []  # only for demonstration purpose, not needed
+
+    def trigger(self):
+        """Triggers the detector to take a new measurement. Typically, does not wait until the measurement is
+        finished. A detector may have a hardware trigger, in which case calls to trigger() may be ignored."""
+        self._buffer.append(np.random.rand(self.data_shape))
+
+    def read(self):
+        """Returns the measured data, in the order that the triggers were given. This function blocks until the data
+        is available and raises a TimeoutError if it takes too long to obtain the data (typically because the detector
+        was not triggered)."""
+        if self._buffer.count == 0:
+            raise TimeoutError()
+        return self._buffer.pop(0)

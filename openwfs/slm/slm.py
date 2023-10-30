@@ -8,9 +8,10 @@ from .patch import FrameBufferPatch, Patch, VertexArray
 from .geometry import fill_transform
 from openwfs.feedback import Reservation
 from weakref import WeakSet
+from ..core import PhaseSLM
 
 
-class SLM:
+class SLM(PhaseSLM):
     """
     Object representing a phase-only spatial light modulator. This object has many fancy functions that are important
     in setting up the SLM layers and geometry before starting the experiment. However, the algorithms only access
@@ -56,7 +57,7 @@ class SLM:
 
         # construct window for displaying the SLM pattern
         self.patches = []
-        self.lut_generator = lut_generator or (lambda λ: np.arange(0, 256)/255)
+        self.lut_generator = lut_generator or (lambda λ: np.arange(0, 256) / 255)
         self._monitor_id = monitor_id
         self._width = width
         self._height = height
