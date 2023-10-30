@@ -6,7 +6,6 @@ from typing import Any, Annotated
 class StepwiseSequential:
     """
     Class definition for stepwise sequential algorithm.
-    (New approach)
     """
 
     def __init__(self, phase_steps=4, n_x=4, n_y=4, controller=None):
