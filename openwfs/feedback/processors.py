@@ -5,8 +5,26 @@ from ..core import Processor
 
 class SingleRoi(Processor):
     """
-    Processor that returns the average of a circle specified by a certain x,y location & radius. Will return
-    the value of the x,y location if radius is 0.
+    Processor that returns the average of a circle specified by a certain x, y location & radius. Will return
+    the value of the x, y location if radius is 0.
+
+    Args:
+        source (object): The data source to process.
+        x (int): x-coordinate of the center of the ROI.
+        y (int): y-coordinate of the center of the ROI.
+        radius (float): Radius of the ROI in pixels (default is 0.0).
+
+    Attributes:
+        x (int): x-coordinate of center of the ROI.
+        y (int): y-coordinate of center of the ROI.
+        radius (float): Radius of the ROI in pixels.
+
+    Returns:
+        float: The average value of the pixels within the specified ROI.
+
+    Methods:
+        read_circle(): Read and return the image data within the specified circular ROI.
+
     """
 
     def __init__(self, source, x, y, radius=0.0):
@@ -61,18 +79,22 @@ class SingleRoi(Processor):
 
 
 class CropProcessor(Processor):
-    """Crops 2-d data from the source to some region of interest.
+    """Crops 2D data from the source to some region of interest.
+
+    Args:
+        source (object): The data source to process.
+        width (int): Width of the cropped region (default is None).
+        height (int): Height of the cropped region (default is None).
+        left (int): Leftmost column of the cropped region (default is 0).
+        top (int): Topmost row of the cropped region (default is 0).
 
     Attributes:
-        left(int): start of the roi.
-        right(int): start of the roi.
-        width(int): width of the roi.
-        height(int): height of the roi.
+        width (int): Width of the cropped region.
+        height (int): Height of the cropped region.
 
-    Note:
-        * if the specified roi extends below 0 or above source.data_shape, the data is zero-padded.
-          This way, the returned data always has size width x height
-        * the data_shape corresponds to (height, width)
+    Returns:
+        numpy.ndarray: The cropped image data.
+
     """
 
     def __init__(self, source, width=None, height=None, left=0, top=0):
@@ -116,8 +138,8 @@ class CropProcessor(Processor):
         # compute amount of padding on all sides bottom-right side
         tpad = top - self._top
         lpad = left - self._left
-        bpad = np.minimum(0, bottom - (image.shape[0] + tpad))
-        rpad = np.minimum(0, right - (image.shape[1] + lpad))
+        bpad = -np.minimum(0, bottom - (image.shape[0] + tpad))
+        rpad = -np.minimum(0, right - (image.shape[1] + lpad))
         if tpad != 0 or lpad != 0 or bpad != 0 or rpad != 0:
             image = np.pad(image, pad_width=((tpad, bpad), (lpad, rpad)))
 
@@ -127,6 +149,26 @@ class CropProcessor(Processor):
 class SingleRoiSquare(Processor):
     """
     Square Roi image processor that returns the average of a square specified by a certain width & height.
+
+    Args:
+        source (object): The data source to process.
+        width (int): Width of the square ROI.
+        height (int): Height of the square ROI.
+        left (int): Leftmost column of the square ROI (default is 0).
+        top (int): Topmost row of the square ROI (default is 0).
+
+    Attributes:
+        width (int): Width of the square ROI.
+        height (int): Height of the square ROI.
+        top (int): Topmost row of the square ROI.
+        left (int): Leftmost column of the square ROI.
+
+    Returns:
+        float: The average value of the pixels within the specified square ROI.
+
+    Methods:
+        read_square(): Read and return the image data within the specified square ROI.
+
     """
 
     def __init__(self, source, width=None, height=None, left=0, top=0):
@@ -146,9 +188,15 @@ class SingleRoiSquare(Processor):
 
 class SelectRoiSquare(SingleRoiSquare):
     """
-    A detector that allows the user to draw a square using the mouse. Inherits from SingleRoiSquare implementation
-    """
+    A detector that allows the user to draw a square using the mouse. Inherits from SingleRoiSquare implementation.
 
+    Args:
+        source (object): The data source to process.
+
+    Methods:
+        draw_square(): Select a rectangular region of interest (ROI) using the mouse.
+
+    """
     def __init__(self, source):
 
         super().__init__(source)
@@ -221,6 +269,13 @@ class SelectRoiSquare(SingleRoiSquare):
 class SelectRoiCircle(SingleRoi):
     """
     A detector that allows the user to draw a circle using the mouse. Inherits from SingleRoi implementation.
+
+    Args:
+        source (object): The data source to process.
+
+    Methods:
+        draw_circle(): Select a circular region of interest (ROI) using the mouse.
+
     """
 
     def __init__(self, source):
