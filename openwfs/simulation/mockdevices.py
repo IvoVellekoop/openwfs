@@ -244,3 +244,5 @@ class NoiseSource(DataSource):  # implements Detector
         if self._buffer.count == 0:
             raise TimeoutError()
         return self._buffer.pop(0)
+
+

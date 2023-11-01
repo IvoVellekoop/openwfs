@@ -117,7 +117,7 @@ class Microscope:
         s = self.source.read()  # read source image
 
         # Combine aberrations, slm pattern and pupil to compute the PSF
-        #
+
         # First, calculate the magnification and field of view.
         m = self.magnification if np.isscalar(self.magnification) else np.sqrt(np.linalg.det(self.magnification))
         fov = self.camera.pixel_size * np.max(self.camera.data_shape) / m
@@ -134,6 +134,8 @@ class Microscope:
   
         pupil_field = patterns.disk(self._pupil_resolution) if self.truncation_factor is None else \
             patterns.gaussian(self._pupil_resolution, 1.0 / self.truncation_factor)
+        pupil_field = np.array(pupil_field,dtype=np.complex128)
+
         if self.aberrations is not None and self.slm is not None:
             pupil_field *= np.exp(1.0j * (self._read_crop(self.aberrations) + self._read_crop(self.slm)))
         elif self.slm is not None:
@@ -172,8 +174,9 @@ class Microscope:
         """crop/pad an image to the NA of the microscope objective and scale to the internal resolution"""
 
         img = source.read()
-        pixel_size = img.pixel_size.value()  # size in normalized NA coordinates
+        pixel_size = source.pixel_size.value  # size in normalized NA coordinates
 
         # scale the image
         scale = pixel_size / (self.numerical_aperture / self._pupil_resolution)
-        return affine_transform(img, scale, output_shape=(self._pupil_resolution, self._pupil_resolution), order=0)
+        matrix = np.array([scale, scale])
+        return affine_transform(img, matrix, output_shape=(self._pupil_resolution, self._pupil_resolution), order=0)
