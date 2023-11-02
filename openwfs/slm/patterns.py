@@ -12,6 +12,20 @@ def coordinate_range(resolution):
     return np.arange(-1.0 + 0.5 * dx, 1.0, dx).reshape((-1, 1))
 
 
+def tilt(resolution, slope):
+    """
+    Args:
+        resolution:
+        slope(tuple of two doubles): number of 2π phase wraps in both directions
+
+    Returns:
+
+    """
+    coordinates = coordinate_range(resolution)
+    slope_2pi = 2 * np.pi * slope
+    return slope_2pi[0] * coordinates + slope_2pi[1] * coordinates.T
+
+
 def defocus(resolution):
     """Constructs a square texture that represents a defocus: 2 pi sqrt(1-r^2)
     The wavefront ranges from 0 (min) to 2pi (max)

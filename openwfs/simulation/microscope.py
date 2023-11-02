@@ -4,8 +4,8 @@ import scipy.ndimage
 from astropy.units import Quantity
 from scipy.ndimage import affine_transform
 from scipy.signal import fftconvolve
-from openwfs.simulation.mockdevices import MockImageSource, MockXYStage, MockCamera
-from openwfs.slm import patterns
+from ..simulation.mockdevices import MockImageSource, MockXYStage, MockCamera
+from ..slm import patterns
 
 
 class Microscope:
@@ -131,10 +131,10 @@ class Microscope:
         # which means that we need exactly that many points in the NA.
         self.abbe_limit = 0.5 * self.wavelength / self.numerical_aperture
         self._pupil_resolution = int(np.ceil(float(fov / self.abbe_limit)))
-  
+
         pupil_field = patterns.disk(self._pupil_resolution) if self.truncation_factor is None else \
             patterns.gaussian(self._pupil_resolution, 1.0 / self.truncation_factor)
-        pupil_field = np.array(pupil_field,dtype=np.complex128)
+        pupil_field = np.array(pupil_field, dtype=np.complex128)
 
         if self.aberrations is not None and self.slm is not None:
             pupil_field *= np.exp(1.0j * (self._read_crop(self.aberrations) + self._read_crop(self.slm)))

@@ -3,22 +3,11 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 
 
-def make_angled_wavefront(size, slope_x, slope_y):
-    # Create a meshgrid of coordinates
-    x, y = np.meshgrid(np.linspace(-np.pi, np.pi, size), np.linspace(-np.pi, np.pi, size))
-
-    # Create the square array with specified slopes
-    array = (slope_y * y + slope_x * x)
-
-    return array
-
-
 def angular_difference(A, B):
-    return np.arctan2(np.sin(A - B), np.cos(A - B))
+    np.mod(A - B, 2 * np.pi) - np.pi
 
 
 def calculate_enhancement(simulation, optimised_wf, x=256, y=256):
-
     simulation.set_data(0)
     simulation.update()
     simulation.trigger()
@@ -43,6 +32,7 @@ def measure_feedback(simulation, optimised_wf, x=256, y=256):
 
 
 def plot_dense_grid(x, y, data):
+    # TODO: make unused pixels NaN
     """
     Plot a dense grid visualization for given x, y coordinates and complex data.
     Grid points not in the provided data are set to zero (white).
@@ -58,6 +48,17 @@ def plot_dense_grid(x, y, data):
     dense_grid = np.full((len(y_range), len(x_range)), -1, dtype=complex)  # initialize with -1
 
     # Map the real data points onto the dense grid
+    dense_grid[y, x] = data
+
+    x_min = np.min(x)
+    y_min = np.min(y)
+    x_max = np.max(x)
+    y_max = np.max(y)
+
+    dense_grid = np.zeros((y_max - y_min, x_max - x_min)) + np.nan
+    for i in range(len(data)):
+        dense_grid[y[i], x[i]] = data[i]
+
     for xi in x_range:
         for yi in y_range:
             if (xi, yi) in zip(x, y):
@@ -117,6 +118,6 @@ def plot_dense_grid_no_empty_spaces(x, y, data):
                                                                         np.min(y) - 0.5, np.max(y) + 0.5),
                origin='lower', cmap=new_cmap, aspect='auto')
     plt.colorbar(label='Normalised amplitude')
-    plt.clim([0,1])
+    plt.clim([0, 1])
     plt.xlabel(r'K$_x$')
     plt.ylabel(r'K$_y$')

@@ -4,6 +4,149 @@ import astropy.units as u
 from astropy.units import Quantity
 from abc import ABC, abstractmethod
 
+"""
+# Synchronization
+There are three synchronization modes to cover different scenarios.
+
+## Automatic synchronization
+Each thread holds a list of actuators and detectors. This list is called a *context*.
+The objects that are used in a measurement sequence are added to the context using a `with acquire` statement.
+This statement makes sure that the current thread has exclusive access to the objects, 
+and registers them in the context of the current thread to enable automatic synchronization.
+
+The context can be in two states:
+- `moving`. Signifies that actuators are active, or have just been active.
+    During this phase, no measurements can be made. The context starts as 'moving'.
+- `measuring` Signifies that detectors are active, or have just been active.
+    During this phase, the actuators cannot move.
+
+### Transition to `measuring`
+A transition to the `measuring` state occurs when a detector is activated (e.g., by calling `trigger`).
+If the context is currently in the `moving` state, wait until the following conditions are met:
+    max([a.busy_until for a in context.actuators]) < current_time + min(d.latency for d in context.detectors)
+    and all([d.ready for d in context.detectors])
+
+This condition means that all actuators have (almost) finished moving, where 'almost' denotes the latency, i.e., the
+where 'almost' denotes the latency, and that all detectors are ready to be triggered.
+If the context is already in the `measuring` state, there is no need to wait.
+
+
+### Transition to `moving`
+A transition to the `moving` state occurs when an actuator is activated (e.g., by calling `refresh`, or `move_to`).
+If the context is currently in the `measuring` state, wait until the following condition is met:
+    max([d.busy_until for d in context.detectors]) < current_time + min(a.latency for a in context.actuators)
+    and all([a.ready for a in context.actuators])
+
+This condition means that all detectors have (almost) finished measuring, where 'almost' denotes the latency, 
+i.e., the time that passes before the first of the actuators starts responding to a command, and that all
+detectors are ready to receive commands.
+If the context is already in the `measuring` state, there is no need to wait.
+
+
+### Timing
+All functions that activate a detector or actuator return an awaitable object.
+For actuators, this object can be ignored. For detectors, `await` the returned value to obtain the data.
+This approach allows triggering multiple detectors at the same time, and waiting for the data at a later moment.
+
+## Example
+~~~
+for i in range(10):
+    slm.refresh()               # waits for all measurements to complete (- latency of the slm), and triggers the slm
+    futures_1[i] = cam1.trigger()   # waits for the image on the slm to stabilize, then triggers the measurement
+    futures_2[i] = cam2.trigger()   # directly triggers cam2, since we already are in the 'measuring' state
+        
+for i in range(10):
+    frames[i] = futures_1[i].wait() + futures_2[i].wait()
+~~~
+### Requirements
+- derive from DataSource or Actuator (this also implements __enter__ and __leave)
+- latency(u.ns) property (default: 0)
+- ready(bool) property (default implementation: not busy). Ready to take new commands.
+- busy(bool) property (implemented by DataSource and Actuator). Moving/measuring.
+- busy_until(u.ns) property (implemented by DataSource and Actuator)
+- all activation functions
+"""
+
+
+# Synchronization:
+#
+# Wait until objects are ready to be triggered (any context) and
+# reserve objects for exclusive use (in a multi-threading context):
+#
+# with cam, slm:
+#   ...
+#
+# Start measurement and wait for result / start movement and wait for stabilization:
+# with cam, slm:
+#   frame = await cam.refresh()
+#   await slm.trigger()
+#
+# Separate start and wait:
+# with stage1, stage2, cam1, cam2:
+#   s1 = stage1.move_by(100 * u.um)
+#   s2 = stage2.move_by(100 * u.um)
+#   await s1
+#   await s2
+#   future1 = cam1.trigger()
+#   future2 = cam2.trigger()
+#   frame1 = await future1
+#   frame2 = await future2
+#
+# Make detector depend on actuator
+
+#
+# alternative: auto sync
+# with stage1, stage2, cam1, cam2:      # keeps list of all active detectors and actuators in thread-local storage
+#   for i in range(10):
+#     stage1.move_by(100 * u.um)        # waits until all active detectors have finished their measurements
+#     stage2.move_by(100 * u.um)        # does not need to wait
+#     frames_1[i] = cam1.trigger()      # waits until all active actuators have stabilized
+#     frames_2[i] = cam2.trigger()      # does not need to wait
+#
+# This standard behavior can be overridden using an optional input to 'trigger', move_by, etc so that it does not wait
+# move_by and trigger return futures that still can be `await`-ed manually.
+
+
+class Actuator(ABC):
+    """Base class for all actuators
+
+    An actuator has three states:
+    * 'ready' - The actuator is in a stable state and can be requested to move
+    * 'busy' - The actuator is changing state (e.g., moving, or changing the phase pattern)
+    * 'reserved' - The actuator is in a stable state it is required to remain in that state for some time
+       because a detector is currently making measurements.
+
+    An actuator has one or more functions that change its state (start moving, trigger a frame change).
+    These functions wait until the state is no longer 'reserved', initiate the change, and set the Actuator to
+    'busy'.
+    After the Actuator is stabilized in the required position, the state is changed to 'ready'
+
+    """
+
+    def __init__(self):
+        self._awaitables = []
+        self.state = 'ready'
+
+    def __await__(self, reservation=None):
+        """Waits until the actuator is in the 'ready' state.
+
+        Detectors should override to return when ready to be triggered.
+        Actuators should override to return when the actuation state has stabilized (i.e., stopped moving).
+        """
+        while len(self._awaitables) > 0:
+            item = self._awaitables[0]
+            self._awaitables.remove(0)
+        if reservation is None:
+            self.state = 'ready'
+        else:
+            self._awaitables.append(reservation)
+            self.state = 'reserved'
+
+    def reserve(self, awaitable):
+        """Reserves the actuator, preventing any change until the awaitable is fulfilled."""
+        self._awaitables.append(awaitable)
+        self.state = 'busy'
+
 
 class DataSource(ABC):
     """Base class for all detectors, cameras and other data sources with possible dynamic behavior."""

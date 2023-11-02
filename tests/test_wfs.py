@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from skimage import data
 
 
-def flat_wf_response_fourier():
+def test_flat_wf_response_fourier():
     """
     Test the response of the Fourier-based WFS method when the solution is flat
     A flat solution means that the optimal correction is no correction.
@@ -31,10 +31,7 @@ def flat_wf_response_fourier():
     optimised_wf = np.angle(t)
 
     # test the optimised wavefront by checking if it has irregularities. Since a flat wavefront at 0 or pi
-    if np.std(optimised_wf) > 0.001:
-        raise Exception("Response flat wavefront not flat")
-    else:
-        return True
+    assert np.std(optimised_wf) < 0.001  # "Response flat wavefront not flat"
 
 
 def flat_wf_response_ssa():
