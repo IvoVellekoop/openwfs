@@ -1,5 +1,5 @@
 from .fourier import FourierDualRef
-
+import numpy as np
 
 def get_neighbors(n, m):
     """Get the neighbors of a point in a 2D grid.
@@ -44,7 +44,7 @@ class CharacterisingFDR(FourierDualRef):
         save_experiment(filename="experimental_data", directory=None): Save experimental data to a file.
     """
 
-    def __init__(self, phase_steps=4, overlap=0.1, max_modes=20, high_modes=0, high_phase_steps=16, intermediates=True,
+    def __init__(self, phase_steps=4, overlap=0.1, max_modes=20, high_modes=0, high_phase_steps=16, intermediates=False,
                  controller=None):
         """
 
@@ -57,7 +57,7 @@ class CharacterisingFDR(FourierDualRef):
             intermediates (bool): Flag to enable recording intermediate enhancements.
             controller (Any): The controller object containing the SLM and data source.
         """
-        super().__init__(None, phase_steps, overlap, controller)
+        super().__init__(None, None, phase_steps, overlap, controller)
         self.max_modes = max_modes
         self.high_modes = high_modes
         self.high_phase_steps = high_phase_steps
