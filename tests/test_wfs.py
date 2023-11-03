@@ -80,7 +80,7 @@ def test_flat_wf_response_pathfinding_fourier():
     roi_detector.trigger()  #
     controller = Controller(detector=roi_detector, slm=sim)
 
-    alg = CharacterisingFDR(phase_steps=8, overlap=0.1, max_modes=12, controller=controller)
+    alg = CharacterisingFDR(phase_steps=3, overlap=0.1, max_modes=12, controller=controller)
 
     t = alg.execute()
     optimised_wf = np.angle(t)
@@ -99,9 +99,8 @@ def test_enhancement_pathfinding_fourier():
     sim.set_ideal_wf(ideal_wf)
     sim.set_data(ideal_wf)
     sim.trigger()
-
     controller = Controller(detector=roi_detector, slm=sim)
-    alg = CharacterisingFDR(phase_steps=8, overlap=0.1, max_modes=12, controller=controller)
+    alg = CharacterisingFDR(phase_steps=3, overlap=0.1, max_modes=12, controller=controller)
     t = alg.execute()
     optimised_wf = np.angle(t)
 
@@ -110,6 +109,7 @@ def test_enhancement_pathfinding_fourier():
 
     # Assert condition for the enhancement factor
     assert enhancement >= 3, f"Fourier algorithm does not enhance focus as much as expected. Expected 3, got {enhancement}"
+
 
 def test_enhancement_fourier():
     """
@@ -134,8 +134,6 @@ def test_enhancement_fourier():
     assert enhancement >= 3, f"Fourier algorithm does not enhance focus as much as expected. Expected 3, got {enhancement}"
 
 
-
-
 def test_enhancement_ssa():
     """
     Test the enhancement performance of the SSA algorithm.
@@ -157,4 +155,3 @@ def test_enhancement_ssa():
 
     # Assert condition for the enhancement factor
     assert enhancement >= 3, f"SSA algorithm does not enhance focus as much as expected. Expected at least 3, got {enhancement}"
-
