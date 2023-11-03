@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import cv2
 import warnings
 from typing import Annotated
-from openwfs.simulation import make_gaussian
+from ..slm.patterns import gaussian
 import astropy.units as u
 
 class SimulatedWFS:
@@ -33,7 +33,7 @@ class SimulatedWFS:
         if beam_profile_fwhm is None:
             self.E_input_slm = np.ones((width, height), dtype="float32")
         else:
-            self.E_input_slm = make_gaussian(width, fwhm=self.beam_profile_fwhm)
+            self.E_input_slm = gaussian(width, fwhm=self.beam_profile_fwhm)
 
         self.ideal_wf = np.zeros((width, height), dtype="float32")
         self._image = None
@@ -144,20 +144,3 @@ class SimulatedWFS:
     @beam_profile_fwhm.setter
     def beam_profile_fwhm(self, value: float):
         self._beam_profile_fwhm = value
-
-
-
-# experiment
-if __name__ == "__main__":
-    from slm_patterns import make_gaussian, generate_double_pattern
-    exp = SimulatedWFS()
-
-    exp.set_data(generate_double_pattern([500, 500], 20, 0, 0))
-    exp.update()
-
-    plt.figure()
-    plt.imshow(exp.phases)
-    plt.figure()
-    exp.trigger()
-    plt.imshow(exp.read())
-    plt.show()

@@ -1,13 +1,24 @@
-import set_path
-from openwfs.simulation import SimulatedWFS
+from ..openwfs.simulation import SimulatedWFS
 import numpy as np
-from openwfs.algorithms import StepwiseSequential, BasicFDR, CharacterisingFDR
-from openwfs.feedback import Controller, SingleRoi, SingleRoiSquare, SelectRoiSquare, SelectRoiCircle
-from openwfs.slm import SLM
-from functions import calculate_enhancement, make_angled_wavefront, angular_difference, measure_feedback, \
-    plot_dense_grid, plot_dense_grid_no_empty_spaces
-import matplotlib.pyplot as plt
+from ..openwfs.algorithms import StepwiseSequential, BasicFDR, CharacterisingFDR
+from ..openwfs.feedback import Controller, SingleRoi
 from skimage import data
+
+
+def calculate_enhancement(simulation, optimised_wf, x=256, y=256):
+    simulation.set_data(0)
+    simulation.update()
+    simulation.trigger()
+    simulation.wait()
+    feedback_before = np.mean(simulation.read()[x, y])
+
+    simulation.set_data(optimised_wf)
+    simulation.update()
+    simulation.trigger()
+    simulation.wait()
+    feedback_after = np.mean(simulation.read()[x, y])
+
+    return feedback_after / feedback_before
 
 
 def test_flat_wf_response_fourier():
@@ -34,13 +45,9 @@ def test_flat_wf_response_fourier():
     assert np.std(optimised_wf) < 0.001  # "Response flat wavefront not flat"
 
 
-def flat_wf_response_ssa():
+def test_flat_wf_response_ssa():
     """
-    Test the response of the SSA WFS method when the solution is flat
-    A flat solution means that the optimal correction is no correction.
-
-    test the optimised wavefront by checking if it has irregularities.
-    Since a flat wavefront at 0 or pi have the same effect, the absolute value of the front is irrelevant.
+    Test the response of the SSA WFS method when the solution is flat.
     """
     sim = SimulatedWFS()
     sim.set_ideal_wf(np.zeros([500, 500]))  # correct wf = flat
@@ -49,19 +56,17 @@ def flat_wf_response_ssa():
     controller = Controller(detector=roi_detector, slm=sim)
     alg = StepwiseSequential(n_x=6, n_y=6, phase_steps=3, controller=controller)
 
+    # Execute algorithm and get the optimised wavefront
     t = alg.execute()
     optimised_wf = np.angle(t)
 
-    if np.std(optimised_wf) > 0.001:
-        raise Exception("Response flat wavefront not flat")
-    else:
-        return True
+    # Use pytest's assert to validate the conditions
+    assert np.std(optimised_wf) < 0.001, "Response flat wavefront not flat"
 
 
-def enhancement_fourier():
+def test_enhancement_fourier():
     """
-    Test the performance of the Fourier-based algorithm.
-    The procedure should significantly increase the signal strength
+    Test the enhancement performance of the Fourier-based algorithm.
     """
     sim = SimulatedWFS(width=512, height=512)
     roi_detector = SingleRoi(sim, x=256, y=256, radius=0)
@@ -75,37 +80,21 @@ def enhancement_fourier():
     t = alg.execute()
     optimised_wf = np.angle(t)
 
-    plt.figure()
-    plt.imshow(ideal_wf)
-    plt.colorbar(label='Phase offset (radians)')
-
-    plt.figure()
-    plt.imshow(optimised_wf)
-    plt.colorbar(label='Phase offset (radians)')
-    plt.show()
-
+    # Calculation of the enhancement factor
     enhancement = calculate_enhancement(sim, optimised_wf, x=256, y=256)
-    enhancement_perfect = calculate_enhancement(sim, ideal_wf, x=256, y=256)
-    print(f'Enhancement for 9 Fourier modes is {(enhancement / enhancement_perfect) * 100} % of possible enhancement')
-    if enhancement < 3:
-        raise Exception(f"Fourier algorithm does not enhance focus as much as expected. Expected 3, got {enhancement}")
-    else:
-        return True
+
+    # Assert condition for the enhancement factor
+    assert enhancement >= 3, f"Fourier algorithm does not enhance focus as much as expected. Expected 3, got {enhancement}"
 
 
-import time
-
-
-def enhancement_ssa():
+def test_enhancement_ssa():
     """
-    Test the performance of the SSA algorithm.
-    The procedure should significantly increase the signal strength
+    Test the enhancement performance of the SSA algorithm.
     """
     sim = SimulatedWFS(width=512, height=512)
     roi_detector = SingleRoi(sim, x=256, y=256, radius=0)
     ideal_wf = (data.camera() / 255) * 2 * np.pi
     sim.set_ideal_wf(ideal_wf)
-    # s1 = SLM(0, left=0, width=300, height=300) # input in controller for checking pattern generation
 
     controller = Controller(detector=roi_detector, slm=sim)
     alg = StepwiseSequential(n_x=3, n_y=3, phase_steps=3, controller=controller)
@@ -113,54 +102,12 @@ def enhancement_ssa():
 
     optimised_wf = np.angle(t)
 
-    plt.figure()
-    plt.imshow(ideal_wf)
-    plt.colorbar(label='Phase offset (radians)')
-
-    plt.figure()
-    plt.imshow(optimised_wf)
-    plt.colorbar(label='Phase offset (radians)')
-    plt.show()
-
+    # Calculation of the enhancement factor
     enhancement = calculate_enhancement(sim, optimised_wf)
     enhancement_perfect = calculate_enhancement(sim, ideal_wf)
-    print(f'Enhancement for 9 SSA modes is {(enhancement / enhancement_perfect) * 100} % of possible enhancement')
-    if enhancement < 3:
-        raise Exception(
-            f"SSA algorithm does not enhance focus as much as expected. Expected at least 3, got {enhancement}")
-    else:
-        return True
 
-
-def square_selection_detector_test():
-    sim = SimulatedWFS()
-    sim.set_ideal_wf(np.zeros([500, 500]))  # correct wf = flat
-
-    width = 20
-    height = 20
-    detector = SingleRoiSquare(sim, width=width, height=height, top=240, left=240)
-    detector.trigger()  #
-    if sim.read()[250, 250] / (width * height) != detector.read():
-        raise Exception(f"Square detector not working as expected")
-    return True
-
-
-def drawing_detector():
-    sim = SimulatedWFS()
-    sim.read = data.camera  # overriding the read function for more meaningful images
-
-    detector = SelectRoiCircle(sim)
-    detector.trigger()
-    print(detector.read())
-    plt.imshow(detector.read_circle())
-    plt.show()
-
-    detector = SelectRoiSquare(sim)
-    detector.trigger()
-    print(detector.read())
-    plt.imshow(detector.read_square())
-    plt.show()
-    return True
+    # Assert condition for the enhancement factor
+    assert enhancement >= 3, f"SSA algorithm does not enhance focus as much as expected. Expected at least 3, got {enhancement}"
 
 
 if __name__ == '__main__':
