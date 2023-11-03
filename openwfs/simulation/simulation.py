@@ -15,11 +15,11 @@ class SimulatedWFS:
     Todo: the axis of the SLM & image plane are bogus, they should represent real values
     """
 
-    def __init__(self, width=500, height=500, beam_profile_fwhm = None):
+    def __init__(self, width=500, height=500, beam_profile_waist = None):
         """
         Initializer. Sets a flat illumination
         """
-        self._beam_profile_fwhm = beam_profile_fwhm
+        self.beam_profile_waist = beam_profile_waist
         self.resized = True
         self.shape = (width, height)
         self.phases = np.zeros((width, height), dtype="float32")
@@ -30,10 +30,10 @@ class SimulatedWFS:
         self._width = width
         self._height = height
 
-        if beam_profile_fwhm is None:
+        if beam_profile_waist is None:
             self.E_input_slm = np.ones((width, height), dtype="float32")
         else:
-            self.E_input_slm = gaussian(width, fwhm=self.beam_profile_fwhm)
+            self.E_input_slm = gaussian(width, waist=self.beam_profile_waist)
 
         self.ideal_wf = np.zeros((width, height), dtype="float32")
         self._image = None

@@ -4,7 +4,6 @@ from openwfs.algorithms import CharacterisingFDR
 from openwfs.feedback import Controller, SingleRoi
 import sys
 sys.path.append('..//')
-from functions import calculate_enhancement,make_angled_wavefront, angular_difference, measure_feedback, plot_dense_grid, plot_dense_grid_no_empty_spaces
 import matplotlib.pyplot as plt
 from skimage import data
 
@@ -15,7 +14,7 @@ def enhancement_characterising_fourier():
 
     We can also predict enhancement, using the measured mode strength. We show the results.
     """
-    sim = SimulatedWFS(width=512, height=512, beam_profile_fwhm=500)
+    sim = SimulatedWFS(width=512, height=512, beam_profile_waist=1.5)
 
     roi_detector = SingleRoi(sim, x=256, y=256, radius=0)
     roi_detector.trigger()
@@ -25,7 +24,7 @@ def enhancement_characterising_fourier():
 
     intermediate = True
     controller = Controller(detector=roi_detector, slm=sim)
-    alg = CharacterisingFDR(phase_steps=3, overlap=0.1, max_modes=30, high_modes=0, high_phase_steps=17,
+    alg = CharacterisingFDR(phase_steps=3, overlap=0.1, max_modes=40, high_modes=0, high_phase_steps=17,
                             intermediates=intermediate, controller=controller)
     t = alg.execute()
 
@@ -33,15 +32,18 @@ def enhancement_characterising_fourier():
 
     print(alg.k_left)
     plt.figure()
-    plt.scatter(alg.k_left[0, :], alg.k_left[1, :], c=abs(alg.t_left), marker='s', cmap='viridis', s=400,
-                edgecolors='k')
+    k = alg.k_left
+    plt.imshow(abs(alg.get_dense_matrix(alg.k_left,alg.t_left)),extent=(min(k[0,:])-0.5,max(k[0,:])+0.5,min(k[1,:])-0.5,max(k[1,:])+0.5))
     plt.colorbar(label='t_abs')
 
     plt.figure()
-    plt.scatter(alg.k_right[0, :], alg.k_right[1, :], c=abs(alg.t_right), marker='s', cmap='viridis', s=400,
-                edgecolors='k')
+    k = alg.k_right
+    plt.imshow(abs(alg.get_dense_matrix(alg.k_right,alg.t_right)),extent=(min(k[0,:])-0.5,max(k[0,:])+0.5,min(-k[1,:])-0.5,max(-k[1,:])+0.5))
     plt.colorbar(label='t_abs')
-
+    print(min(alg.k_right[0,:]))
+    print(max(alg.k_right[0, :]))
+    print(min(alg.k_right[1,:]))
+    print(max(alg.k_right[1, :]))
     optimised_wf = np.angle(t)
 
     plt.figure()
@@ -55,11 +57,7 @@ def enhancement_characterising_fourier():
     plt.imshow(optimised_wf, cmap='hsv')
     plt.colorbar()
     plt.clim([-np.pi, np.pi])
-    plt.figure()
-    plt.title('Angular difference')
-    plt.imshow(angular_difference(optimised_wf, correct_wf), cmap='hsv')
-    plt.colorbar()
-    plt.clim([-np.pi, np.pi])
+
 
     predicted_enhancement = [0]
 
