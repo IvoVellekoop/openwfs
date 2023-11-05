@@ -11,10 +11,9 @@ class Generator(DataSource):
     Also simulates latency and measurement_duration.
     """
 
-    def __init__(self, generator, *, measurement_duration=0 * u.ms, latency=0 * u.ms, **kwargs):
+    def __init__(self, generator, *, measurement_duration=0 * u.ms, **kwargs):
         super().__init__(**kwargs)
         self._measurement_duration = measurement_duration
-        self._latency = latency
         self._generator = generator
 
     @property
@@ -79,14 +78,14 @@ class MockSource(Generator):
     Also simulates latency and measurement_duration.
     """
 
-    def __init__(self, data, pixel_size: Quantity[u.um] = None, measurement_duration=0 * u.ns, latency=0 * u.ns):
+    def __init__(self, data, pixel_size: Quantity[u.um] = None, **kwargs):
         def generator(data_shape):
             assert data_shape == self._data.shape
             return self._data
 
         super().__init__(generator=generator, data_shape=data.shape,
                          pixel_size=pixel_size if pixel_size is not None else get_pixel_size(data),
-                         measurement_duration=measurement_duration, latency=latency)
+                         **kwargs)
         self._data = data
 
     @property

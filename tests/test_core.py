@@ -1,3 +1,5 @@
+import time
+
 from ..openwfs.simulation.mockdevices import MockSource, Generator
 from ..openwfs.core import get_pixel_size
 import numpy as np
@@ -10,6 +12,29 @@ def test_mock_detector():
     data = source.read()
     assert np.allclose(image, data)
     assert get_pixel_size(data) == 4 * u.um
+
+
+def test_timing_detector():
+    image0 = np.zeros((4, 5))
+    image1 = np.ones((4, 5))
+    source = MockSource(image0, pixel_size=4 * u.um, measurement_duration=0.5 * u.s)
+    t0 = time.time_ns()
+    f0 = source.trigger()
+    t1 = time.time_ns()
+    source.data = image1  # waits for data acquisition to complete
+    t2 = time.time_ns()
+    f1 = source.trigger()
+    t3 = time.time_ns()
+    assert np.allclose(f1.result(), image1)
+    t4 = time.time_ns()
+    assert np.allclose(f0.result(), image0)
+    t5 = time.time_ns()
+
+    assert np.allclose(t1 - t0, 0.0E9, atol=0.1E9)
+    assert np.allclose(t2 - t1, 0.5E9, atol=0.1E9)
+    assert np.allclose(t3 - t2, 0.0E9, atol=0.1E9)
+    assert np.allclose(t4 - t3, 0.5E9, atol=0.1E9)
+    assert np.allclose(t5 - t4, 0.0E9, atol=0.1E9)
 
 
 def test_noise_detector():

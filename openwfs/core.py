@@ -100,8 +100,9 @@ class Device:
     # List of all active devices
     devices: "List[Device]" = []
 
-    def __init__(self):
+    def __init__(self, latency=0.0 * u.ms):
         self._start_time_ns = 0
+        self._latency = latency
         Device.devices.append(self)
 
     def __del__(self):
@@ -154,8 +155,8 @@ class Device:
         self._start_time_ns = time.time_ns()
 
     @property
-    def latency(self) -> Quantity[u.ns]:
-        return 0 * u.ns
+    def latency(self) -> Quantity[u.ms]:
+        return self._latency
 
     def wait_ready(self):
         """Waits until the device is ready to be triggered or take new commands.
@@ -320,6 +321,8 @@ class Processor(DataSource, ABC):
     A processor, itself, is a DataSource to allow chaining multiple processors together to combine functionality.
 
     To implement a processor, override read and/or __init__
+
+    Note: cannot specify latency, it is auto-computed based on the latency of the sources
     """
 
     def __init__(self, *args, data_shape=None, pixel_size=None):
@@ -329,7 +332,7 @@ class Processor(DataSource, ABC):
         if pixel_size is None:
             pixel_size = self._sources[0].pixel_size
 
-        super().__init__(data_shape=data_shape, pixel_size=pixel_size)
+        super().__init__(data_shape=data_shape, pixel_size=pixel_size, latency=0 * u.ms)
 
     def trigger(self, *args, **kwargs):
         """Triggers all sources at the same time (regardless of latency), and schedules a call to `_fetch()`"""
