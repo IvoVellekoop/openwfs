@@ -4,11 +4,12 @@ import scipy.ndimage
 from astropy.units import Quantity
 from scipy.ndimage import affine_transform
 from scipy.signal import fftconvolve
-from ..simulation.mockdevices import MockImageSource, MockXYStage, MockCamera
+from ..simulation.mockdevices import MockSource, MockXYStage, MockCamera
 from ..slm import patterns
+from ..core import Processor, get_pixel_size
 
 
-class Microscope:
+class Microscope(Processor):
     """A simulated microscope with pupil-conjugate SLM.
 
     The microscope simulates physical effects such as aberrations and noise, as well as devices typically found in a
@@ -76,27 +77,19 @@ class Microscope:
     def __init__(self, source, magnification, numerical_aperture, wavelength: Quantity[u.nm],
                  xy_stage=None, z_stage=None, slm=None, aberrations=None, camera_resolution=(1024, 1024),
                  camera_pixel_size=10 * u.um, truncation_factor=0.0):
-        self.source = source
+        super().__init__(source, aberrations, slm, data_shape=camera_resolution, pixel_size=camera_pixel_size)
         self.magnification = magnification
         self.numerical_aperture = numerical_aperture
         self.wavelength = wavelength.to(u.nm)
         self.xy_stage = xy_stage or MockXYStage(0.1 * u.um, 0.1 * u.um)
         self.z_stage = z_stage  # or MockStage()
-        self.slm = slm
-        self.aberrations = aberrations
         self.truncation_factor = truncation_factor
-
-        # create the mock camera object that will appear to capture the aberrated and translated image.
-        # post-processors may be added to simulated physical effects like noise, bias, and saturation.
-        self.magnified_image = MockImageSource(data_shape=camera_resolution,
-                                               pixel_size=camera_pixel_size,
-                                               on_trigger=lambda: self._update())
-        self.camera = MockCamera(self.magnified_image)
+        self.camera = MockCamera(self)  # discretized version of the microscope image
         self.abbe_limit = 0.0
         self._pupil_resolution = 0.0
         self.psf = None
 
-    def _update(self):
+    def _fetch(self, source: np.ndarray, aberrations: np.ndarray, slm: np.ndarray):
         """Updates the image on the camera sensor
 
         To compute the image:
@@ -108,19 +101,11 @@ class Microscope:
         * Compute the magnified and cropped image on the camera.
         """
 
-        # Trigger source, slm and aberration sources
-        self.source.trigger()
-        if self.aberrations is not None:
-            self.aberrations.trigger()
-        if self.slm is not None:
-            self.slm.trigger()
-        s = self.source.read()  # read source image
-
-        # Combine aberrations, slm pattern and pupil to compute the PSF
-
         # First, calculate the magnification and field of view.
         m = self.magnification if np.isscalar(self.magnification) else np.sqrt(np.linalg.det(self.magnification))
-        fov = self.camera.pixel_size * np.max(self.camera.data_shape) / m
+        fov = self.pixel_size * np.max(self.data_shape) / m
+        assert source is not None
+        source_pixel_size = get_pixel_size(source)
 
         # Then, calculate the required resolution for the pupil map.
         # The coordinates in the pupil plane correspond to spatial frequencies in the image plane.
@@ -136,19 +121,19 @@ class Microscope:
             patterns.gaussian(self._pupil_resolution, 1.0 / self.truncation_factor)
         pupil_field = np.array(pupil_field, dtype=np.complex128)
 
-        if self.aberrations is not None and self.slm is not None:
-            pupil_field *= np.exp(1.0j * (self._read_crop(self.aberrations) + self._read_crop(self.slm)))
-        elif self.slm is not None:
-            pupil_field *= np.exp(1.0j * self._read_crop(self.slm))
-        elif self.aberrations is not None:
-            pupil_field *= np.exp(1.0j * self._read_crop(self.aberrations))
+        if aberrations is not None and slm is not None:
+            pupil_field *= np.exp(1.0j * (self._crop(aberrations) + self._crop(slm)))
+        elif slm is not None:
+            pupil_field *= np.exp(1.0j * self._crop(slm))
+        elif aberrations is not None:
+            pupil_field *= np.exp(1.0j * self._crop(aberrations))
 
         # finally, pad the pupil field so that the diameter of the pupil field
         # corresponds to a focus with the size of a single pixel in the source image
         # - first compute the ratio of Abbe limit (i.e. the resolution corresponding to the current pupil size)
         #   to the pixel size of the source image (i.e. the resolution corresponding to the padded pupil size)
         # - then pad the pupil field so that the size gets multiplied by that ratio
-        pupil_resolution = round(float(self.abbe_limit / self.source.pixel_size) * self._pupil_resolution)
+        pupil_resolution = round(float(self.abbe_limit / source_pixel_size) * self._pupil_resolution)
         if pupil_resolution < self._pupil_resolution:
             raise Exception("Pixel size in the source image is larger than the Abbe diffraction limit")
 
@@ -156,25 +141,23 @@ class Microscope:
         psf = np.abs(np.fft.fft2(np.fft.ifftshift(pupil_field), (pupil_resolution, pupil_resolution))) ** 2
         psf = np.fft.ifftshift(psf) / np.sum(psf)
         self.psf = psf
-        s = fftconvolve(s, psf, 'same')
+        s = fftconvolve(source, psf, 'same')
 
         # transform image size and orientation to camera
-        m = self.magnification * (self.source.pixel_size / self.camera.pixel_size).to_value(u.dimensionless_unscaled)
+        m = self.magnification * (source_pixel_size / self.camera.pixel_size).to_value(u.dimensionless_unscaled)
         if np.isscalar(m):
             m = np.eye(3) * m
             m[2, 2] = 1
         offset = np.eye(3)
-        offset[0, 2] += self.xy_stage.x / self.source.pixel_size
-        offset[1, 2] += self.xy_stage.y / self.source.pixel_size
+        offset[0, 2] += self.xy_stage.x / source_pixel_size
+        offset[1, 2] += self.xy_stage.y / source_pixel_size
         m = m @ offset  # apply offset first, then magnification
 
         return affine_transform(s, np.linalg.inv(m), order=1, output_shape=self.camera.data_shape)
 
-    def _read_crop(self, source):
+    def _crop(self, img: Quantity):
         """crop/pad an image to the NA of the microscope objective and scale to the internal resolution"""
-
-        img = source.read()
-        pixel_size = source.pixel_size.value  # size in normalized NA coordinates
+        pixel_size = float(get_pixel_size(img))  # size in normalized NA coordinates
 
         # scale the image
         scale = pixel_size / (self.numerical_aperture / self._pupil_resolution)

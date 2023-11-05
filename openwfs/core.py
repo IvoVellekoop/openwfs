@@ -1,192 +1,264 @@
 # core classes used throughout openwfs
+import time
 import numpy as np
 import astropy.units as u
+from typing import Union, List
+from concurrent.futures import Future, ThreadPoolExecutor
 from astropy.units import Quantity
 from abc import ABC, abstractmethod
 
 """
-# Synchronization
-There are three synchronization modes to cover different scenarios.
+OpenWFS holds a global state to synchronize measurements. This state can be 
+- `moving`. Actuators may be active. No measurements can be made.
+- `measuring` Detectors may be active. All actuators must remain static.
 
-## Automatic synchronization
-Each thread holds a list of actuators and detectors. This list is called a *context*.
-The objects that are used in a measurement sequence are added to the context using a `with acquire` statement.
-This statement makes sure that the current thread has exclusive access to the objects, 
-and registers them in the context of the current thread to enable automatic synchronization.
+If a detector is activated (e.g., by calling `trigger`) when the state is `moving`, 
+the framework waits until it is safe to transition to the `measuring` state, and only then sends the trigger.
 
-The context can be in two states:
-- `moving`. Signifies that actuators are active, or have just been active.
-    During this phase, no measurements can be made. The context starts as 'moving'.
-- `measuring` Signifies that detectors are active, or have just been active.
-    During this phase, the actuators cannot move.
+It is safe to make this transition if the following conditions are met:
+    * all detectors are ready to be triggered. This is verified by calling ready
+        on all detectors, which returns a future that can be awaited.
+    * all motion is almost completed, where 'almost' denotes the latency, 
+        `latency = min(d.latency for d in detectors)`
+        i.e., the time that passes before the first of the detectors starts responding to the trigger.
+        This is verified by calling finished(latency) on all actuators,
+        which returns a future that can be awaited.
 
-### Transition to `measuring`
-A transition to the `measuring` state occurs when a detector is activated (e.g., by calling `trigger`).
-If the context is currently in the `moving` state, wait until the following conditions are met:
-    max([a.busy_until for a in context.actuators]) < current_time + min(d.latency for d in context.detectors)
-    and all([d.ready for d in context.detectors])
+The transition function simply awaits all futures before making the state transition.
 
-This condition means that all actuators have (almost) finished moving, where 'almost' denotes the latency, i.e., the
-where 'almost' denotes the latency, and that all detectors are ready to be triggered.
-If the context is already in the `measuring` state, there is no need to wait.
-
-
-### Transition to `moving`
-A transition to the `moving` state occurs when an actuator is activated (e.g., by calling `refresh`, or `move_to`).
-If the context is currently in the `measuring` state, wait until the following condition is met:
-    max([d.busy_until for d in context.detectors]) < current_time + min(a.latency for a in context.actuators)
-    and all([a.ready for a in context.actuators])
-
-This condition means that all detectors have (almost) finished measuring, where 'almost' denotes the latency, 
-i.e., the time that passes before the first of the actuators starts responding to a command, and that all
-detectors are ready to receive commands.
-If the context is already in the `measuring` state, there is no need to wait.
-
-
-### Timing
-All functions that activate a detector or actuator return an awaitable object.
-For actuators, this object can be ignored. For detectors, `await` the returned value to obtain the data.
-This approach allows triggering multiple detectors at the same time, and waiting for the data at a later moment.
+Transition from `measuring` to `moving` is completely analogous, 
+swapping detectors and actuators in the description above.
 
 ## Example
 ~~~
-for i in range(10):
-    slm.refresh()               # waits for all measurements to complete (- latency of the slm), and triggers the slm
-    futures_1[i] = cam1.trigger()   # waits for the image on the slm to stabilize, then triggers the measurement
-    futures_2[i] = cam2.trigger()   # directly triggers cam2, since we already are in the 'measuring' state
-        
-for i in range(10):
-    frames[i] = futures_1[i].wait() + futures_2[i].wait()
+### serial implementation
+fields = np.zeros((n,))
+for n in range(N):
+    for p in range(P)
+        phase = 2 * np.pi * p/P
+        slm.phases = phase
+        slm.refresh()         # waits for all measurements to complete (- latency of the slm), and triggers the slm
+        f1 = cam1.trigger()   # waits for the image on the slm to stabilize, then triggers the measurement
+        f2 = cam2.trigger()   # directly triggers cam2, since we already are in the 'measuring' state
+        fields[n] += (f2.result() - f1.result()) * np.exp(-j * phase)   # blocks until frames are read
+
+### pipelined implementation
+fields = np.zeros((n,))
+def process(n, p, f1, f2):
+    fields[n] += (f2 - f1) * np.exp(-j * phase)   # note: no need for 'result()' waiting
+
+for n in range(N):
+    for p in range(P)
+        phase = 2 * np.pi * p/P
+        slm.phases = phase
+        slm.refresh()         # waits for all measurements to complete (- latency of the slm), and triggers the slm
+        f1 = cam1.trigger()   # waits for the image on the slm to stabilize, then triggers the measurement
+        f2 = cam2.trigger()   # directly triggers cam2, since we already are in the 'measuring' state
+        Worker.enqueue(process, n, p, f1, f2) # runs processing on a separate thread in order of enqueueing
+
+Worker.wait()  # wait until all processing is done
 ~~~
-### Requirements
-- derive from DataSource or Actuator (this also implements __enter__ and __leave)
-- latency(u.ns) property (default: 0)
-- ready(bool) property (default implementation: not busy). Ready to take new commands.
-- busy(bool) property (implemented by DataSource and Actuator). Moving/measuring.
-- busy_until(u.ns) property (implemented by DataSource and Actuator)
-- all activation functions
 """
 
-
-# Synchronization:
-#
-# Wait until objects are ready to be triggered (any context) and
-# reserve objects for exclusive use (in a multi-threading context):
-#
-# with cam, slm:
-#   ...
-#
-# Start measurement and wait for result / start movement and wait for stabilization:
-# with cam, slm:
-#   frame = await cam.refresh()
-#   await slm.trigger()
-#
-# Separate start and wait:
-# with stage1, stage2, cam1, cam2:
-#   s1 = stage1.move_by(100 * u.um)
-#   s2 = stage2.move_by(100 * u.um)
-#   await s1
-#   await s2
-#   future1 = cam1.trigger()
-#   future2 = cam2.trigger()
-#   frame1 = await future1
-#   frame2 = await future2
-#
-# Make detector depend on actuator
-
-#
-# alternative: auto sync
-# with stage1, stage2, cam1, cam2:      # keeps list of all active detectors and actuators in thread-local storage
-#   for i in range(10):
-#     stage1.move_by(100 * u.um)        # waits until all active detectors have finished their measurements
-#     stage2.move_by(100 * u.um)        # does not need to wait
-#     frames_1[i] = cam1.trigger()      # waits until all active actuators have stabilized
-#     frames_2[i] = cam2.trigger()      # does not need to wait
-#
-# This standard behavior can be overridden using an optional input to 'trigger', move_by, etc so that it does not wait
-# move_by and trigger return futures that still can be `await`-ed manually.
+DONT_WAIT = Future()
+DONT_WAIT.set_result(None)
 
 
-class Actuator(ABC):
-    """Base class for all actuators
+def _await_results_and_call(fn, *args, **kwargs):
+    """Helper function that awaits all futures in the argument list, and then calls function fn"""
 
-    An actuator has three states:
-    * 'ready' - The actuator is in a stable state and can be requested to move
-    * 'busy' - The actuator is changing state (e.g., moving, or changing the phase pattern)
-    * 'reserved' - The actuator is in a stable state it is required to remain in that state for some time
-       because a detector is currently making measurements.
+    def _await(arg):
+        if isinstance(arg, Future):
+            return arg.result()
+        else:
+            return arg  # not a future
 
-    An actuator has one or more functions that change its state (start moving, trigger a frame change).
-    These functions wait until the state is no longer 'reserved', initiate the change, and set the Actuator to
-    'busy'.
-    After the Actuator is stabilized in the required position, the state is changed to 'ready'
+    awaited_args = [_await(arg) for arg in args]
+    awaited_kwargs = {key: _await(arg) for (key, arg) in kwargs.items()}
+    return fn(*awaited_args, **awaited_kwargs)
 
+
+class Device:
+    """Base class for detectors and actuators
+
+    This base class implements the synchronization and switching between 'moving' and 'measuring' states.
+
+    Note:
+        When setting a public attributes or property of the device, the Device first waits until all actions are
+        finished (wait_finished()).
+        For example, if we change the ROI or shutter time of a camera after a call to trigger, the thread blocks
+        until the frame grab is complete, and then changes the ROI or shutter time.
     """
 
+    # A thread pool for awaiting detector input, actuator stabilization,
+    # or for processing data in a non-deterministic order.
+    _workers = ThreadPoolExecutor(thread_name_prefix='Device._workers')
+
+    # Global state: 'moving' or 'measuring'
+    moving = False
+
+    # List of all active devices
+    devices: "List[Device]" = []
+
     def __init__(self):
-        self._awaitables = []
-        self.state = 'ready'
+        self._start_time_ns = 0
+        Device.devices.append(self)
 
-    def __await__(self, reservation=None):
-        """Waits until the actuator is in the 'ready' state.
+    def __del__(self):
+        try:
+            Device.devices.remove(self)
+        except ValueError:
+            pass  # happens if constructor fails, then `self` is not in the list
 
-        Detectors should override to return when ready to be triggered.
-        Actuators should override to return when the actuation state has stabilized (i.e., stopped moving).
+    def __setattr__(self, key, value):
+        """Prevents modification of public attributes and properties while the device is busy."""
+        if not key.startswith('_'):
+            self.wait_finished()
+        super().__setattr__(key, value)
+
+    @property
+    @abstractmethod
+    def is_actuator(self):
+        """True for actuators, False for detectors"""
+        ...
+
+    def _start(self):
+        """Switches the state to 'moving' (for actuators) or 'measuring' (for detectors).
+
+        This function changes the global state to 'moving' or 'measuring' if needed,
+        and it may block until this state switch is completed.
+
+        After switching, it returns the current time in the _start_time_ns field.
         """
-        while len(self._awaitables) > 0:
-            item = self._awaitables[0]
-            self._awaitables.remove(0)
-        if reservation is None:
-            self.state = 'ready'
-        else:
-            self._awaitables.append(reservation)
-            self.state = 'reserved'
 
-    def reserve(self, awaitable):
-        """Reserves the actuator, preventing any change until the awaitable is fulfilled."""
-        self._awaitables.append(awaitable)
-        self.state = 'busy'
+        if Device.moving != self.is_actuator:
+            # a transition from moving/measuring or vice versa is needed
+            same_type = [device for device in Device.devices if device.is_actuator == self.is_actuator]
+            other_type = [device for device in Device.devices if device.is_actuator != self.is_actuator]
+
+            # compute the minimum latency of same_type
+            # for instance, when switching to 'measuring', this number tells us how long it takes before any of the
+            # detectors actually starts a measurement.
+            # If this is a positive number, we can make the switch to 'measuring' slightly _before_ all actuators have
+            # stabilized.
+            latency = min((device.latency for device in same_type), default=0.0 * u.ns)
+
+            # wait until all devices of the same kind are ready to be triggered or receive new commands
+            for device in same_type:
+                device.wait_ready()
+
+            # wait until all devices of the other type have (almost) finished
+            for device in other_type:
+                device.wait_finished(latency)
+
+        self._start_time_ns = time.time_ns()
+
+    @property
+    def latency(self) -> Quantity[u.ns]:
+        return 0 * u.ns
+
+    def wait_ready(self):
+        """Waits until the device is ready to be triggered or take new commands.
+
+        By default, this is the same as wait_finished(self.latency).
+        However, some devices may take new commands before they are finished.
+        For example, a stage may accept move commands while still moving, updating the target position.
+        """
+        self.wait_finished(self.latency)
+
+    @abstractmethod
+    def wait_finished(self, up_to: Quantity[u.ns] = 0 * u.ns):
+        """Waits until the device has finished measuring or 'moving'.
+
+        By default, this is the same as wait_finished(self.latency).
+        However, some devices may take new commands before they are finished.
+        For example, a stage may accept move commands while still moving, updating the target position.
+        """
+        ...
 
 
-class DataSource(ABC):
-    """Base class for all detectors, cameras and other data sources with possible dynamic behavior."""
+class Actuator(Device, ABC):
+    """Base class for all actuators
+    """
 
-    def __init__(self, pixel_size: Quantity, data_shape):
+    def is_actuator(self):
+        return True
+
+
+class DataSource(Device, ABC):
+    """Base class for all detectors, cameras and other data sources with possible dynamic behavior.
+    """
+
+    def __init__(self, *, data_shape, pixel_size: Quantity):
+        super().__init__()
         self._pixel_size = pixel_size
         self._data_shape = data_shape
 
-    def buffer_depth(self) -> int:
-        """Number of measurements that the detector can hold in its buffer.
+    def is_actuator(self):
+        return False
 
-        If this value is larger than 1, it means we can call `trigger` that many times before calling `read`.
-        """
-        return 1
-
+    @property
     @abstractmethod
-    def trigger(self) -> None:
+    def measurement_duration(self) -> Quantity[u.ms]:
+        """Duration of the measurement (excluding data transfer and latency).
+
+        Returns None if the duration is not known.
+        """
+        ...
+
+    def wait_finished(self, up_to: Quantity[u.ms] = 0 * u.ms):
+        """Waits until the measurement is almost finished (up to 'up_to' nanoseconds)
+
+        If a measurement_duration is defined, this value is used to determine when the measurement is finished.
+        Detectors that do not specify a measurement time must override this function.
+        """
+        assert self.measurement_duration is not None
+        end_time = self._start_time_ns + (self.measurement_duration + self.latency).to_value(u.ns)
+        time_to_wait = end_time - up_to.to_value(u.ns) - time.time_ns()
+        if time_to_wait > 0:
+            time.sleep(time_to_wait / 1.0E9)
+
+    def trigger(self, *args, **kwargs) -> Future:
         """Triggers the data source to start acquisition of the data.
 
-        Note:
-            * Calls to `trigger` may be ignored by static data sources.
-            * Each call to `trigger` should be followed by a matching call to `read`.
-            * If `buffer_depth` is larger than 1, it is possible to trigger multiple measurements and read them later.
-              Each measurement is then taken with the value of the settings at the moment `trigger` was called.
-            * An implementation should not block during this function call,
-              since this will mess up the timing if multiple data sources are chained together.
-              If the device is not ready to be triggered yet, an exception should be thrown.
-            * Data sources that rely on input from other data sources should trigger those sources.
+        Use await or .result() to wait for the data.
+        All parameters are passed to the _fetch function of the detector.
+        If any of these parameters is a Future, it is awaited before calling _fetch.
+        This way, data from multiple sources can be combined (see Processor).
+
+        Child classes may override trigger() to add additional parameters.
         """
-        ...
+        self._start()
+        self._do_trigger()
+
+        def do_fetch(*args_, **kwargs_):
+            data = _await_results_and_call(self._fetch, *args_, **kwargs_)
+            data.dtype = np.dtype(data.dtype, metadata={'pixel_size': self.pixel_size})
+            assert data.shape == self.data_shape
+            return data
+
+        return Device._workers.submit(do_fetch, *args, **kwargs)
+
+    def _do_trigger(self):
+        """Override to perform the actual hardware trigger"""
+        pass
 
     @abstractmethod
-    def read(self) -> np.ndarray:
-        """Waits for the data to be acquired and returns it as a numpy array
+    def _fetch(self, *args, **kwargs) -> np.ndarray:
+        """Implement to read the data from the detector
 
+        The args and kwargs are passed from the call to trigger()/
         Note:
-            * The `shape` of the returned array matches value the `data_shape` property had when `trigger` was called.
-            * Each call to `read` should be preceded by a matching call to `trigger`.
+            After reading the data, the Detector attaches the pixel_size metadata.
         """
         ...
+
+    def read(self):
+        """Triggers the detector and waits for the data to arrive.
+
+        Shortcut for trigger().result().
+        """
+        return self.trigger().result()
 
     @property
     def data_shape(self):
@@ -201,29 +273,7 @@ class DataSource(ABC):
         """
         return self._data_shape
 
-    @data_shape.setter
-    def data_shape(self, value):
-        """Changes the shape of the data. Typically, this function should be overridden by the child class"""
-        self._data_shape = value
-
     @property
-    @abstractmethod
-    def measurement_time(self) -> Quantity:
-        """Acquisition time of the measurement, not including overhead for transferring the data.
-
-        The return value is a Quantity with an astropy time unit.
-
-        Note:
-        * This is the time between the call to `trigger` and the moment the measurement is completed.
-        * This time is used for synchronizing measurements with actuators such as an SLM or translation stage.
-        * Data sources that use data from other data sources should report the longest `measurement_time`
-          of these sources (assuming they are all triggered simultaneously).
-        * Data sources do not perform a physical measurement should return 0.0
-        """
-        ...
-
-    @property
-    @abstractmethod
     def pixel_size(self) -> Quantity:
         """Dimension of one unit in the returned data array.
 
@@ -262,7 +312,7 @@ class DataSource(ABC):
         return np.array(self.data_shape) * self.pixel_size
 
 
-class Processor(DataSource):
+class Processor(DataSource, ABC):
     """Helper base class for chaining DataSources.
 
     Processors can be used to build data processing graphs, where each Processor takes input from one or
@@ -272,57 +322,70 @@ class Processor(DataSource):
     To implement a processor, override read and/or __init__
     """
 
-    def __init__(self, source):
-        self.source = source
+    def __init__(self, *args, data_shape=None, pixel_size=None):
+        self._sources = args
+        if data_shape is None:
+            data_shape = self._sources[0].data_shape
+        if pixel_size is None:
+            pixel_size = self._sources[0].pixel_size
 
-    def trigger(self):
-        self.source.trigger()
+        super().__init__(data_shape=data_shape, pixel_size=pixel_size)
+
+    def trigger(self, *args, **kwargs):
+        """Triggers all sources at the same time (regardless of latency), and schedules a call to `_fetch()`"""
+        future_data = [(source.trigger() if source is not None else None) for source in self._sources]
+        return super().trigger(*future_data, *args, **kwargs)
 
     @property
-    def data_shape(self):
-        return self.source.data_shape
+    def latency(self) -> Quantity[u.ms]:
+        """Returns the shortest latency for all detectors."""
+        return min((source.latency for source in self._sources if source is not None), default=0 * u.ms)
 
     @property
-    def measurement_time(self):
-        return self.source.measurement_time
-
-    @property
-    def pixel_size(self):
-        return self.source.pixel_size
-
-    def read(self):
-        """The default implementation just returns the source data without modification.
-
-        This supports the usage pattern where the __init__ function of a class chains together multiple processors
-        (see MockCamera for an example)
-        """
-        return self.source.read()
+    def measurement_duration(self) -> Quantity[u.ms]:
+        """Returns the longest measurement_duration + latency, minus the shortest latency for all detectors."""
+        latency = self.latency
+        return max((source.latency + source.measurement_duration for source in self._sources if source is not None),
+                   default=latency) - latency
 
 
-class PhaseSLM(ABC):
+class Worker:
+    """The main thread has a single worker thread
+    that is used to offload data processing and to prevent the need for blocking to wait for detector data
+    in the main thread.
+
+    Note: this is not thread safe, only the main thread should submit work to the worker.
+    If we want to make this thread safe, there should be a Worker for each thread that needs one, and
+    _executor and _last_task should be thread-local variables.
+    """
+    """A single (global) thread for processing data in a fixed order."""
+    _executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='Worker._executor')
+    _last_task = DONT_WAIT
+
+    @staticmethod
+    def equeue(fn, *args, **kwargs):
+        Worker._last_task = Worker._executor.submit(_await_results_and_call, fn, *args, **kwargs)
+        return Worker._last_task
+
+    @staticmethod
+    def wait():
+        """Waits until all previously enqueued work is completed."""
+        Worker._last_task.result()
+
+
+class PhaseSLM(Actuator, ABC):
     phases: np.ndarray
 
-    def update(self, wait_factor=1.0, wait=True):
+    @abstractmethod
+    def update(self):
         """Refresh the SLM to show the updated phase pattern.
-
-        If the SLM is currently reserved (see `reserve`), this function waits until the reservation is almost (*) over before updating the SLM.
-        The SLM waits for the pattern of the SLM to stabilize before returning.
-
-        *) In case of SLMs with an idle time (latency), the image may be sent to the hardware already before the reservation is over, as long as the actual image
-        on the SLM is guaranteed not to update until the reservation is over.
-
-        :param wait_factor: time to wait for the image to stabilize. Default = 1.0 should wait for a pre-defined time (the `settle_time`) that guarantees stability
-        for most practical cases. Use a higher value to allow for extra stabilization time, or a lower value if you want to trigger a measurement before the SLM is fully stable.
-
-        :param wait: when set to False, do not wait for the image to stabilize but reserve the SLM for this period instead. This can be used to pipeline measurements (see `Feedback`).
-        The client code needs to explicitly call `wait` to wait for stabilization of the image.
+        Returns before the image is actually displayed.
+        Use the `wait_finished` property to explicitly wait for the update.
+        Usually, this is not needed because the framework waits for stabilization of the phase pattern
+        before starting a measurement anyway.
+        Implementations must call self._start()
         """
-        pass
 
-    def wait(self):
-        """Wait for the SLM to become available. If there are no current reservations, return immediately."""
-        pass
 
-    def reserve(self, time: Quantity[u.ms]):
-        """Reserve the SLM for a specified amount of time. During this time, the SLM pattern cannot be changed."""
-        pass
+def get_pixel_size(data: np.ndarray):
+    return data.dtype.metadata['pixel_size']

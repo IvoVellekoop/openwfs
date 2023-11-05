@@ -1,7 +1,7 @@
 import numpy as np
 import astropy.units as u
 import set_path
-from openwfs.simulation import Microscope, MockImageSource
+from openwfs.simulation import Microscope, MockSource
 from openwfs.utilities import grab_and_show
 
 ### Parameters that can be altered
@@ -32,7 +32,7 @@ p_limit = 100
 
 ## Code
 img = np.maximum(np.random.randint(-10000, 100, (img_size_y, img_size_x), dtype=np.int16), 0)
-src = MockImageSource.from_image(img, 50 * u.nm)
+src = MockSource(img, 50 * u.nm)
 mic = Microscope(src, magnification=magnification, numerical_aperture=numerical_aperture, wavelength=wavelength,
                  camera_pixel_size=pixel_size, camera_resolution=camera_resolution, truncation_factor=0.5)
 

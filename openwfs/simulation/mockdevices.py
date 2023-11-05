@@ -1,56 +1,111 @@
 import numpy as np
 import astropy.units as u
+import time
 from astropy.units import Quantity
-from openwfs.feedback import CropProcessor
-from ..core import DataSource, Processor
+from ..feedback import CropProcessor
+from ..core import DataSource, Processor, get_pixel_size
 
 
-class MockImageSource(DataSource):
-    """'Camera' that dynamically generates images using an 'on_trigger' callback.
-    Note that this object does not implement the full camera interface. Does not support resizing yet"""
+class Generator(DataSource):
+    """Detector that returns synthetic data.
+    Also simulates latency and measurement_duration.
+    """
 
-    def __init__(self, on_trigger, data_shape, pixel_size: Quantity[u.um]):
-        self._on_trigger = on_trigger
-        self._image = None
-        self._measurement_time = 0  # property may be set to something else to mimic acquisition time
-        self._triggered = 0  # currently only support a buffer with a single frame
-        self._data_shape = data_shape
-        self._pixel_size = pixel_size.to(u.um)
-        self._measurement_time = 0.0 * u.ms
+    def __init__(self, generator, *, measurement_duration=0 * u.ms, latency=0 * u.ms, **kwargs):
+        super().__init__(**kwargs)
+        self._measurement_duration = measurement_duration
+        self._latency = latency
+        self._generator = generator
 
     @property
-    def data_shape(self):
-        return self._data_shape
+    def measurement_duration(self) -> Quantity[u.ms]:
+        return self._measurement_duration
+
+    @measurement_duration.setter
+    def measurement_duration(self) -> Quantity[u.ms]:
+        return self._measurement_duration
 
     @property
-    def measurement_time(self) -> Quantity:
-        return 0.0 * u.s
+    def latency(self) -> Quantity[u.ms]:
+        return self._latency
+
+    @latency.setter
+    def latency(self, value):
+        self._latency = value.to(u.ns)
 
     @property
     def pixel_size(self) -> Quantity:
-        return self._pixel_size
+        return super().pixel_size
 
-    def trigger(self):
-        if self._triggered != 0:
-            raise RuntimeError('Buffer overflow: this camera can only store 1 frame, and the previous frame was not '
-                               'read yet')
-        self._image = self._on_trigger()
-        self._triggered += 1
+    @pixel_size.setter
+    def pixel_size(self, value):
+        self._pixel_size = value.to(u.ns)
 
-    def read(self):
-        if self._triggered == 0:
-            raise RuntimeError('Buffer underflow: trying to read an image without triggering the camera')
+    @property
+    def data_shape(self):
+        return super().data_shape
 
-        self._triggered -= 1
-        return self._image
+    @data_shape.setter
+    def data_shape(self, value):
+        self._data_shape = value
+
+    def _fetch(self):
+        latency_s = self.latency.to_value(u.s)
+        duration_s = self.measurement_duration.to_value(u.s)
+        if latency_s > 0.0:
+            time.sleep(latency_s)
+        data = self._generator(self.data_shape)
+        if duration_s > 0.0:
+            time.sleep(duration_s)
+        return data
 
     @staticmethod
-    def from_image(image, pixel_size: Quantity[u.um]):
-        """Create a MockImageSource that displays the given numpy array as image.
-        :param image : 2-d numpy array to return on 'read'
-        :param pixel_size : size of a single pixel, must have a pint unit of type length
-        """
-        return MockImageSource(lambda: image, image.shape, pixel_size)
+    def uniform_noise(*args, low=0.0, high=1.0, **kwargs):
+        def generator(shape):
+            return np.random.default_rng().uniform(low=low, high=high, size=shape)
+
+        return Generator(*args, generator=generator, **kwargs)
+
+    @staticmethod
+    def gaussian_noise(*args, average=0.0, standard_deviation=1.0, **kwargs):
+        def generator(shape):
+            return np.random.default_rng().normal(loc=average, scale=standard_deviation, size=shape)
+
+        return Generator(*args, generator=generator, **kwargs)
+
+
+class MockSource(Generator):
+    """Detector that static data.
+    Also simulates latency and measurement_duration.
+    """
+
+    def __init__(self, data, pixel_size: Quantity[u.um] = None, measurement_duration=0 * u.ns, latency=0 * u.ns):
+        def generator(data_shape):
+            assert data_shape == self._data.shape
+            return self._data
+
+        super().__init__(generator=generator, data_shape=data.shape,
+                         pixel_size=pixel_size if pixel_size is not None else get_pixel_size(data),
+                         measurement_duration=measurement_duration, latency=latency)
+        self._data = data
+
+    @property
+    def data(self):
+        return self._data
+
+    @data.setter
+    def data(self, value):
+        self._data = value
+        self._data_shape = value.shape
+
+    @property
+    def data_shape(self):
+        return super().data_shape
+
+
+#    @data_shape.setter
+#    def data_shape(self, value):
+#        raise RuntimeError('Cannot change data_shape for a static data source. Set data instead')
 
 
 class ADCProcessor(Processor):
@@ -70,15 +125,14 @@ class ADCProcessor(Processor):
 
     def __init__(self, source: DataSource, analog_max: float = 0.0, digital_max: int = 0xFFFF,
                  shot_noise: bool = False):
+        super().__init__(source)
         self._analog_max = analog_max
         self._digital_max = digital_max
         self._shot_noise = shot_noise
         self.analog_max = analog_max  # check value
         self.digital_max = digital_max  # check value
-        super().__init__(source)
 
-    def read(self):
-        data = super().read()
+    def _fetch(self, data):
         if self.analog_max == 0.0:
             data = data * (self.digital_max / np.max(data))
         else:
@@ -202,47 +256,3 @@ class MockXYStage:
 
     def wait(self):
         pass
-
-
-class NoiseCamera:
-    """Fake Camera object that just produces noise."""
-
-    def __init__(self, source, saturation=1000, width=None, height=None, left=0, top=0):
-        super().__init__(source, width, height, left, top)
-        self._saturation = saturation
-
-    def read(self):
-        im = np.clip(super().read() * (0xFFFF / self.saturation), 0, 0xFFFF)
-        return np.array(im, dtype='uint16')
-
-    @property
-    def saturation(self) -> float:
-        return self._saturation
-
-    @saturation.setter
-    def saturation(self, value):
-        self._saturation = value
-
-
-class NoiseSource(DataSource):  # implements Detector
-    """Fake detector that returns random values."""
-
-    def __init__(self, data_shape):
-        self.data_shape = data_shape  # shape of the data returned by this detector (from numpy.shape). Read only.
-        self.measurement_time = 0.0  # time in seconds that a measurement takes. Used for synchronization. Read only.
-        self._buffer = []  # only for demonstration purpose, not needed
-
-    def trigger(self):
-        """Triggers the detector to take a new measurement. Typically, does not wait until the measurement is
-        finished. A detector may have a hardware trigger, in which case calls to trigger() may be ignored."""
-        self._buffer.append(np.random.rand(self.data_shape))
-
-    def read(self):
-        """Returns the measured data, in the order that the triggers were given. This function blocks until the data
-        is available and raises a TimeoutError if it takes too long to obtain the data (typically because the detector
-        was not triggered)."""
-        if self._buffer.count == 0:
-            raise TimeoutError()
-        return self._buffer.pop(0)
-
-

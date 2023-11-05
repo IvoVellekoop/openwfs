@@ -3,8 +3,9 @@ import matplotlib.pyplot as plt
 import cv2
 import warnings
 from typing import Annotated
-from openwfs.simulation import make_gaussian
+from ..simulation import make_gaussian
 import astropy.units as u
+
 
 class SimulatedWFS:
     """A Simulated 2D wavefront shaping experiment. Has a settable ideal wavefront, and can calculate a feedback
@@ -15,7 +16,7 @@ class SimulatedWFS:
     Todo: the axis of the SLM & image plane are bogus, they should represent real values
     """
 
-    def __init__(self, width=500, height=500, beam_profile_fwhm = None):
+    def __init__(self, width=500, height=500, beam_profile_fwhm=None):
         """
         Initializer. Sets a flat illumination
         """
@@ -40,24 +41,22 @@ class SimulatedWFS:
         self.max_intensity = 1
         self.trigger()
 
-
-
     def trigger(self):
         """Triggers the virtual camera. This is where the intensity pattern on the camera is computed."""
         if self.resized:
             self._image = np.zeros((self.width, self.height), dtype=np.uint16)
             self.resized = False
 
-
         field_slm = self.E_input_slm * np.exp(1j * (self.displayed_phases - (self.ideal_wf)))
         field_slm_f = np.fft.fft2(field_slm)
 
         # scale image so that maximum intensity is 2 ** 16 - 1 for an input field of all 1
-        scale_factor = np.sqrt(2**16 - 1) / np.prod(self.shape)
+        scale_factor = np.sqrt(2 ** 16 - 1) / np.prod(self.shape)
         image_plane = np.array((scale_factor * abs(np.fft.fftshift(field_slm_f))) ** 2)
 
         # the max intensity must be the highest found intensity, and at least 1.
-        self.max_intensity = np.max([np.max(image_plane), self.max_intensity, 1]) # this is bad. It needs to have the same maximum
+        self.max_intensity = np.max(
+            [np.max(image_plane), self.max_intensity, 1])  # this is bad. It needs to have the same maximum
         self._image[:, :] = np.array((image_plane / self.max_intensity) * (2 ** 16 - 1), dtype=np.uint16)
 
     def read(self):
@@ -133,6 +132,7 @@ class SimulatedWFS:
     def height(self, value: int):
         self._height = value
         self._resized = True
+
     @property
     def Binning(self) -> int:
         return 1
@@ -146,10 +146,10 @@ class SimulatedWFS:
         self._beam_profile_fwhm = value
 
 
-
 # experiment
 if __name__ == "__main__":
     from slm_patterns import make_gaussian, generate_double_pattern
+
     exp = SimulatedWFS()
 
     exp.set_data(generate_double_pattern([500, 500], 20, 0, 0))

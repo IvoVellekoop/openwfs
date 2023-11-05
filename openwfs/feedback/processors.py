@@ -1,6 +1,6 @@
 import numpy as np
 import cv2
-from ..core import Processor
+from ..core import Processor, DataSource
 
 
 class SingleRoi(Processor):
@@ -44,7 +44,6 @@ class SingleRoi(Processor):
         mask = np.zeros_like(image, dtype=np.uint8)
         cv2.circle(mask, (self._x, self._y), int(self._radius), 1, thickness=-1)
         return image * mask
-
 
     @property
     def data_shape(self):
@@ -97,7 +96,7 @@ class CropProcessor(Processor):
 
     """
 
-    def __init__(self, source, width=None, height=None, left=0, top=0):
+    def __init__(self, source: DataSource, width=None, height=None, left=0, top=0):
         super().__init__(source)
         self._left = left
         self._top = top
@@ -124,9 +123,7 @@ class CropProcessor(Processor):
     def height(self, value):
         self._height = int(value)
 
-    def read(self):
-        image = super().read()
-
+    def _fetch(self, image):
         # top left corner after padding (becomes 0,0 if it was negative)
         left = np.maximum(0, self._left)
         top = np.maximum(0, self._top)
@@ -180,7 +177,7 @@ class SingleRoiSquare(Processor):
 
     def read_square(self):
         image = super().read()
-        return image[self.top:self.top+self.height,self.left:self.left+self.width]
+        return image[self.top:self.top + self.height, self.left:self.left + self.width]
 
     def read(self):
         return np.mean(super().read())
@@ -197,11 +194,12 @@ class SelectRoiSquare(SingleRoiSquare):
         draw_square(): Select a rectangular region of interest (ROI) using the mouse.
 
     """
+
     def __init__(self, source):
 
         super().__init__(source)
         source.trigger()
-        tl,br = self.draw_square()
+        tl, br = self.draw_square()
 
     def draw_square(self):
         """
