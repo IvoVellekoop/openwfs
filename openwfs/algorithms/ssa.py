@@ -1,6 +1,6 @@
-import math
 import numpy as np
 from typing import Any, Annotated
+from ..core import DataSource, PhaseSLM
 
 
 class StepwiseSequential:
@@ -8,26 +8,28 @@ class StepwiseSequential:
     Class definition for stepwise sequential algorithm.
     """
 
-    def __init__(self, phase_steps=4, n_x=4, n_y=4, controller=None):
+    def __init__(self, feedback: DataSource, slm: PhaseSLM, phase_steps=4, n_x=4, n_y=4):
         self._n_x = n_x
         self._n_y = n_y
-        self._controller = controller
+        self._slm = slm
+        self._feedback = feedback
         self._phase_steps = phase_steps
 
     def execute(self):
-        self.controller.slm.phases = np.zeros((self.n_x, self.n_y), dtype="float32")
-        self.controller.reserve((self.n_x, self.n_y, self.phase_steps))  # reserve space to hold the measurements
+        phases = np.arange(self._phase_steps) * (2 * np.pi / self._phase_steps)
+        phase_pattern = np.zeros((self.n_y, self.n_x), 'float32')
+        measurements = np.zeros((self.n_y, self.n_x, self._phase_steps, *self._feedback.data_shape))
 
-        phases = np.arange(self.phase_steps) / self.phase_steps * 2 * math.pi
-        for n in range(self.n_x * self.n_y):
-            for p in phases:
-                self.controller.slm.phases.flat[n] = p
-                self.controller.measure()
+        for n_y in range(self.n_y):
+            for n_x in range(self.n_x):
+                for p in phases:
+                    phase_pattern[n_y, n_x] = p
+                    self._slm.set_phases(phase_pattern)
+                    f = self._feedback.trigger(out=measurements[n_y, n_x, p, ...])
+            phase_pattern[n_y, n_x] = 0
 
-            self.controller.slm.phases.flat[n] = 0
-
-        t = np.conj(self.controller.compute_transmission(self.phase_steps))
-        return t[:,:,0]
+        self._feedback.wait()
+        return analyze_phase_stepping(measurements).field
 
     @property
     def n_x(self) -> int:
@@ -56,4 +58,3 @@ class StepwiseSequential:
     @property
     def controller(self) -> Any:
         return self._controller
-
