@@ -1,3 +1,5 @@
+import time
+
 from OpenGL.GL import *
 import numpy as np
 import glfw
@@ -6,7 +8,6 @@ import astropy.units as u
 from astropy.units import Quantity
 from .patch import FrameBufferPatch, Patch, VertexArray
 from .geometry import fill_transform
-from ..feedback import Reservation
 from weakref import WeakSet
 from ..core import PhaseSLM
 
@@ -26,34 +27,37 @@ class SLM(PhaseSLM):
     WINDOWED = 0
 
     def __init__(self, monitor_id=WINDOWED, width=None, height=None, left=0, top=0, refresh_rate=None,
-                 transform=None, idle_time=2, settle_time=1, wavelength=None, lut_generator=None):
+                 transform=None, latency=2, settle_time=1, wavelength=None, lut_generator=None):
         """
         Constructs a new SLM window.
-        :param monitor_id:  Monitor id, see :py:attr:`~monitor_id`
-        :param width: Width of the window, or horizontal resolution of the full screen mode, see :py:attr:`~width`.
-                      Defaults to None (recommended for full screen windows), which will use the current resolution
-                      of the monitor, or a standard width of 300 for windowed modes.
-        :param height: Height of the window, or vertical resolution of the full screen mode, see :py:attr:`~height`
-                      Defaults to None (recommended for full screen windows), which will use the current resolution
-                      of the monitor, or a standard height of 300 for windowed modes.
-        :param left: Windowed-mode only: x-coordinate of the top-left corner of the window, see :py:attr:`~left`
-        :param top:  Windowed-mode only: x-coordinate of the top-left corner of the window, see :py:attr:`~top`
-        :param refresh_rate: Refresh rate (in Hz) of the SLM. Ignored for windowed SLMs, see :py:attr:`~refresh_rate`
-                             Defaults to None, which will use the current refresh rate of the monitor.
-        :param transform: 3x3 transformation matrix to convert from vertex coordinates to window coordinates,
-                          see :py:attr:`~transform`
-        :param idle_time: time between the vertical retrace and the start of the SLM response to the new frame,
-                          Specified in milliseconds (u.ms) or multiples of the frame period (unitless).
-                          see :py:attr:`~idle_time`
-        :param settle_time: time between the start of the SLM response to the newly presented frame, and the point
-                          where the SLM has stabilized.
-                          Specified in milliseconds (u.ms) or multiples of the frame period (unitless).
-                          see :py:attr:`~settle_time`
-        :param wavelength: wavelength in nanometers (u.ns). Use in combination with lut_generator
-        :param lut_generator: function taking a wavelength in nanometers and returning a lookup table. This function
-                          is called every time the wavelength of the slm object is set, so that the lookup table is
-                          be adapted to the wavelength of the light source.
+
+        Args:
+            monitor_id:  Monitor id, see :py:attr:`~monitor_id`
+            width: Width of the window, or horizontal resolution of the full screen mode, see :py:attr:`~width`.
+                   Defaults to None (recommended for full screen windows), which will use the current resolution
+                   of the monitor, or a standard width of 300 for windowed modes.
+            height: Height of the window, or vertical resolution of the full screen mode, see :py:attr:`~height`
+                   Defaults to None (recommended for full screen windows), which will use the current resolution
+                   of the monitor, or a standard height of 300 for windowed modes.
+            left: Windowed-mode only: x-coordinate of the top-left corner of the window, see :py:attr:`~left`
+            top:  Windowed-mode only: x-coordinate of the top-left corner of the window, see :py:attr:`~top`
+            refresh_rate: Refresh rate (in Hz) of the SLM. Ignored for windowed SLMs, see :py:attr:`~refresh_rate`
+                          Defaults to None, which will use the current refresh rate of the monitor.
+            transform: 3x3 transformation matrix to convert from vertex coordinates to window coordinates,
+                       see :py:attr:`~transform`
+            latency: time between the vertical retrace and the start of the SLM response to the new frame,
+                       Specified in milliseconds (u.ms) or multiples of the frame period (unitless).
+                       see :py:attr:`~idle_time`
+            settle_time: time between the start of the SLM response to the newly presented frame, and the point
+                       where the SLM has stabilized.
+                       Specified in milliseconds (u.ms) or multiples of the frame period (unitless).
+                       see :py:attr:`~settle_time`
+            wavelength: wavelength in nanometers (u.ns). Use in combination with lut_generator
+            lut_generator: function taking a wavelength in nanometers and returning a lookup table. This function
+                       is called every time the wavelength of the slm object is set, so that the lookup table is
+                       be adapted to the wavelength of the light source.
         """
+        super().__init__()
 
         # construct window for displaying the SLM pattern
         self.patches = []
@@ -64,16 +68,13 @@ class SLM(PhaseSLM):
         self._left = left
         self._top = top
         self._refresh_rate = refresh_rate
-        self._reservation = Reservation()
         self._window = None
         self._globals = None  # will be filled by __create_window
-        self._idle_time = None  # set by idle_time setter
-        self._settle_time = None  # set by settle_time setter
         self._wavelength = wavelength
         self._create_window()
         SLM._active_slms.add(self)
 
-        self.idle_time = idle_time
+        self.latency = latency
         self.settle_time = settle_time
         self.transform = transform or fill_transform(self, 'short')
 
@@ -289,7 +290,22 @@ class SLM(PhaseSLM):
         """Activates the OpenGL context for this slm window. All OpenGL commands now apply to this slm"""
         glfw.make_context_current(self._window)
 
-    def update(self, wait_factor=1.0, wait=True):
+    def update(self, wait_factor=1.0):
+        """Sends the new phase pattern to be displayed on the SLM.
+        Args:
+            wait_factor.
+                Time to allow for stabilization of the image, relative to the settle_time property.
+                Values higher than 1.0 allow extra stabilization time before measurements are made.
+
+        Note:
+            This function waits for the vsync, and returns directly after it.
+            Therefore, it can be used as software synchronization to the SLM.
+        Note:
+            This function *does not* wait for the image to appear on the SLM.
+            To wait for the image stabilization explicitly, use 'wait_finished'.
+            However, this should rarely be needed since all Detectors
+            already call wait_finished before starting a measurement.
+        """
         self.activate()
 
         # first draw all patches into the frame buffer
@@ -304,44 +320,34 @@ class SLM(PhaseSLM):
 
         glfw.poll_events()  # process window messages
 
-        # wait until the SLM becomes available (it may be reserved because a measurement is still pending)
-        # then display the newly rendered image
-        self.wait()
+        # start 'moving' phase, then display the newly rendered image
+        self._start()
         glfw.swap_buffers(self._window)
 
         # wait for buffer swap to complete (this should be directly after a vsync, so returning from this
         # function _should_ be synced with the vsync)
         glFinish()
 
-        # before returning, also wait until the image of the slm has stabilized
-        self._reservation.reserve(self.idle_time + self.settle_time * wait_factor)
-
-        # if wait == False, return directly. The caller can do something else and call 'wait' later to wait
-        # until the image on the SLM is stable
-        if wait:
-            self.wait()
+        # update the start time, since some time has passed waiting for the vsync
+        # also adjust the start time for the wait factor, so that wait_finished can still wait
+        # until _start_time_ns + ._duration
+        self._start_time_ns = time.time_ns() + np.rint((self._duration * (1.0 - wait_factor)).to_value(u.ns))
 
     @property
-    def idle_time(self) -> Quantity[u.ms]:
-        return self._idle_time
+    def latency(self) -> Quantity[u.ms]:
+        return self._latency
 
-    @idle_time.setter
-    def idle_time(self, value):
-        self._idle_time = value if isinstance(value, Quantity) else value / self.refresh_rate
+    @latency.setter
+    def latency(self, value):
+        self._latency = value if isinstance(value, Quantity) else value / self.refresh_rate
 
     @property
     def settle_time(self) -> Quantity[u.ms]:
-        return self._settle_time
+        return self._duration
 
     @settle_time.setter
     def settle_time(self, value):
-        self._settle_time = value if isinstance(value, Quantity) else value / self.refresh_rate
-
-    def wait(self):
-        self._reservation.wait()
-
-    def reserve(self, time_seconds: Quantity[u.us]):
-        self._reservation.reserve(time_seconds - self.idle_time)
+        self._duration = value if isinstance(value, Quantity) else value / self.refresh_rate
 
     @property
     def transform(self):
@@ -386,13 +392,10 @@ class SLM(PhaseSLM):
     def lookup_table(self, value):
         self._frame_patch.lookup_table = value
 
-    @property
-    def phases(self):
-        return self.primary_phase_patch.phases
-
-    @phases.setter
-    def phases(self, value):
-        self.primary_phase_patch.phases = value
+    def set_phases(self, values, update=True):
+        self.primary_phase_patch.phases = values
+        if update:
+            self.update()
 
     def get_pixels(self, type='phase'):
         """Read back the pixels currently displayed on the SLM."""
