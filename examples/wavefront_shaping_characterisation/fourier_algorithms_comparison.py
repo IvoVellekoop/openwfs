@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 import sys
 sys.path.append('..//')
-from functions import calculate_enhancement,make_angled_wavefront, angular_difference, measure_feedback, plot_dense_grid, plot_dense_grid_no_empty_spaces
+from functions import measure_feedback
 
 
 
@@ -15,7 +15,7 @@ def fourier_basic_pathfinding_comparison():
     Runs a wavefront shaping simulation using both the basic Fourier & the pathfinding Fourier algorithms,
     It also plots the results of the experiment with an increasing amount of modes for each method.
     '''
-    sim = SimulatedWFS(width=512, height=512, beam_profile_fwhm=300)
+    sim = SimulatedWFS(width=512, height=512, beam_profile_waist=0.6)
 
     roi_detector = SingleRoi(sim, x=256, y=256, radius=0)
     roi_detector.trigger()
@@ -62,7 +62,14 @@ def fourier_basic_pathfinding_comparison():
         x_range = np.logical_and(k_basic_left[0] >= -n, k_basic_left[0] <= n)
         y_range = np.logical_and(k_basic_left[1] >= -n, k_basic_left[1] <= n)
         combined_range = np.logical_and(x_range, y_range)
-        plot_dense_grid_no_empty_spaces(k_basic_left[0,combined_range], k_basic_left[1, combined_range], t_basic_left[combined_range])
+        plt.figure()
+        # m = alg_basic.get_dense_matrix(k_basic_left[:,combined_range], t_basic_left[combined_range])
+        # plt.imshow(abs(m))
+
+        k = k_basic_left[:,combined_range]
+        plt.imshow(abs(alg_basic.get_dense_matrix(k_basic_left[:,combined_range], t_basic_left[combined_range])),
+                   extent=(min(k[0, :]) - 0.5, max(k[0, :]) + 0.5, min(k[1, :]) - 0.5, max(k[1, :]) + 0.5))
+        plt.colorbar(label='t_abs')
         plt.xlim([-8.5, 8.5])
         plt.ylim([-8.5, 8.5])
 
@@ -73,12 +80,18 @@ def fourier_basic_pathfinding_comparison():
         basic_enhancements.append(measure_feedback(sim, np.angle(t_basic)))
 
         t_pathfinding = alg_char.compute_t(t_left[:n_angles],t_right[:n_angles],k_left[:n_angles],k_right[:n_angles])
-        if n_angles==9:
-            plot_dense_grid_no_empty_spaces(k_left[0, :n_angles], k_left[1, :n_angles], t_left[:n_angles])
-        else:
-            plot_dense_grid(k_left[0,:n_angles], k_left[1,:n_angles], t_left[:n_angles])
+
+        plt.figure()
+        # m = alg_basic.get_dense_matrix(k_left[:, :n_angles], t_left[:n_angles])
+        # plt.imshow(abs(m))
+
+        k = k_left[:, :n_angles]
+        plt.imshow(abs(alg_basic.get_dense_matrix(k_left[:, :n_angles],  t_left[:n_angles])),
+                   extent=(min(k[0, :]) - 0.5, max(k[0, :]) + 0.5, min(k[1, :]) - 0.5, max(k[1, :]) + 0.5))
+        plt.colorbar(label='t_abs')
         plt.xlim([-8.5, 8.5])
         plt.ylim([-8.5, 8.5])
+        
         # plt.figure()
         pathfinding_enhancements.append(measure_feedback(sim, np.angle(t_pathfinding)))
         # plt.imshow(np.angle(t_pathfinding))

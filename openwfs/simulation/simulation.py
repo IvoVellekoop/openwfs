@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import cv2
 import warnings
 from typing import Annotated
-from ..simulation import make_gaussian
+from ..slm.patterns import gaussian
 import astropy.units as u
 
 
@@ -16,11 +16,11 @@ class SimulatedWFS:
     Todo: the axis of the SLM & image plane are bogus, they should represent real values
     """
 
-    def __init__(self, width=500, height=500, beam_profile_fwhm=None):
+    def __init__(self, width=500, height=500, beam_profile_waist = None):
         """
         Initializer. Sets a flat illumination
         """
-        self._beam_profile_fwhm = beam_profile_fwhm
+        self.beam_profile_waist = beam_profile_waist
         self.resized = True
         self.shape = (width, height)
         self.phases = np.zeros((width, height), dtype="float32")
@@ -31,10 +31,10 @@ class SimulatedWFS:
         self._width = width
         self._height = height
 
-        if beam_profile_fwhm is None:
+        if beam_profile_waist is None:
             self.E_input_slm = np.ones((width, height), dtype="float32")
         else:
-            self.E_input_slm = make_gaussian(width, fwhm=self.beam_profile_fwhm)
+            self.E_input_slm = gaussian(width, waist=self.beam_profile_waist)
 
         self.ideal_wf = np.zeros((width, height), dtype="float32")
         self._image = None
@@ -51,12 +51,11 @@ class SimulatedWFS:
         field_slm_f = np.fft.fft2(field_slm)
 
         # scale image so that maximum intensity is 2 ** 16 - 1 for an input field of all 1
-        scale_factor = np.sqrt(2 ** 16 - 1) / np.prod(self.shape)
+        scale_factor = np.sqrt(2**16 - 1) / np.prod(self.shape)
         image_plane = np.array((scale_factor * abs(np.fft.fftshift(field_slm_f))) ** 2)
 
         # the max intensity must be the highest found intensity, and at least 1.
-        self.max_intensity = np.max(
-            [np.max(image_plane), self.max_intensity, 1])  # this is bad. It needs to have the same maximum
+        self.max_intensity = np.max([np.max(image_plane), self.max_intensity, 1]) # this is bad. It needs to have the same maximum
         self._image[:, :] = np.array((image_plane / self.max_intensity) * (2 ** 16 - 1), dtype=np.uint16)
 
     def read(self):
