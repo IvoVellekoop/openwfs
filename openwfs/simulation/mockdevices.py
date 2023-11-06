@@ -8,21 +8,21 @@ from ..core import DataSource, Processor, get_pixel_size
 
 class Generator(DataSource):
     """Detector that returns synthetic data.
-    Also simulates latency and measurement_duration.
+    Also simulates latency and measurement duration.
     """
 
-    def __init__(self, generator, *, measurement_duration=0 * u.ms, **kwargs):
+    def __init__(self, generator, *, duration=0 * u.ms, **kwargs):
         super().__init__(**kwargs)
-        self._measurement_duration = measurement_duration
+        self._duration = duration
         self._generator = generator
 
     @property
-    def measurement_duration(self) -> Quantity[u.ms]:
-        return self._measurement_duration
+    def duration(self) -> Quantity[u.ms]:
+        return self._duration
 
-    @measurement_duration.setter
-    def measurement_duration(self) -> Quantity[u.ms]:
-        return self._measurement_duration
+    @duration.setter
+    def duration(self) -> Quantity[u.ms]:
+        return self._duration
 
     @property
     def latency(self) -> Quantity[u.ms]:
@@ -50,7 +50,7 @@ class Generator(DataSource):
 
     def _fetch(self):
         latency_s = self.latency.to_value(u.s)
-        duration_s = self.measurement_duration.to_value(u.s)
+        duration_s = self.duration.to_value(u.s)
         if latency_s > 0.0:
             time.sleep(latency_s)
         data = self._generator(self.data_shape)
@@ -75,7 +75,7 @@ class Generator(DataSource):
 
 class MockSource(Generator):
     """Detector that static data.
-    Also simulates latency and measurement_duration.
+    Also simulates latency and measurement duration.
     """
 
     def __init__(self, data, pixel_size: Quantity[u.um] = None, **kwargs):
@@ -94,6 +94,7 @@ class MockSource(Generator):
 
     @data.setter
     def data(self, value):
+        self.wait_finished(pending_measurements=True)
         self._data = value
         self._data_shape = value.shape
 

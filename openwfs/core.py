@@ -1,64 +1,13 @@
 # core classes used throughout openwfs
 import time
+import atomics
 import numpy as np
 import astropy.units as u
-from typing import Union, List
+from weakref import WeakSet
+from typing import Union, List, Iterable
 from concurrent.futures import Future, ThreadPoolExecutor
 from astropy.units import Quantity
 from abc import ABC, abstractmethod
-
-"""
-OpenWFS holds a global state to synchronize measurements. This state can be 
-- `moving`. Actuators may be active. No measurements can be made.
-- `measuring` Detectors may be active. All actuators must remain static.
-
-If a detector is activated (e.g., by calling `trigger`) when the state is `moving`, 
-the framework waits until it is safe to transition to the `measuring` state, and only then sends the trigger.
-
-It is safe to make this transition if the following conditions are met:
-    * all detectors are ready to be triggered. This is verified by calling ready
-        on all detectors, which returns a future that can be awaited.
-    * all motion is almost completed, where 'almost' denotes the latency, 
-        `latency = min(d.latency for d in detectors)`
-        i.e., the time that passes before the first of the detectors starts responding to the trigger.
-        This is verified by calling finished(latency) on all actuators,
-        which returns a future that can be awaited.
-
-The transition function simply awaits all futures before making the state transition.
-
-Transition from `measuring` to `moving` is completely analogous, 
-swapping detectors and actuators in the description above.
-
-## Example
-~~~
-### serial implementation
-fields = np.zeros((n,))
-for n in range(N):
-    for p in range(P)
-        phase = 2 * np.pi * p/P
-        slm.phases = phase
-        slm.refresh()         # waits for all measurements to complete (- latency of the slm), and triggers the slm
-        f1 = cam1.trigger()   # waits for the image on the slm to stabilize, then triggers the measurement
-        f2 = cam2.trigger()   # directly triggers cam2, since we already are in the 'measuring' state
-        fields[n] += (f2.result() - f1.result()) * np.exp(-j * phase)   # blocks until frames are read
-
-### pipelined implementation
-fields = np.zeros((n,))
-def process(n, p, f1, f2):
-    fields[n] += (f2 - f1) * np.exp(-j * phase)   # note: no need for 'result()' waiting
-
-for n in range(N):
-    for p in range(P)
-        phase = 2 * np.pi * p/P
-        slm.phases = phase
-        slm.refresh()         # waits for all measurements to complete (- latency of the slm), and triggers the slm
-        f1 = cam1.trigger()   # waits for the image on the slm to stabilize, then triggers the measurement
-        f2 = cam2.trigger()   # directly triggers cam2, since we already are in the 'measuring' state
-        Worker.enqueue(process, n, p, f1, f2) # runs processing on a separate thread in order of enqueueing
-
-Worker.wait()  # wait until all processing is done
-~~~
-"""
 
 DONT_WAIT = Future()
 DONT_WAIT.set_result(None)
@@ -78,14 +27,74 @@ def _await_results_and_call(fn, *args, **kwargs):
     return fn(*awaited_args, **awaited_kwargs)
 
 
+def get_pixel_size(data: np.ndarray):
+    return data.dtype.metadata['pixel_size']
+
+
 class Device:
     """Base class for detectors and actuators
 
     This base class implements the synchronization and switching between 'moving' and 'measuring' states.
+    OpenWFS holds a global state to synchronize measurements. This state can be
+    - `moving`. Actuators may be active. No measurements can be made.
+    - `measuring` Detectors may be active. All actuators must remain static.
+
+    If a detector is activated (e.g., by calling `trigger`) when the state is `moving`,
+    the framework waits until it is safe to transition to the `measuring` state, and only then sends the trigger.
+
+    It is safe to make this transition if the following conditions are met:
+        * all detectors are ready to be triggered. This is verified by calling ready
+            on all detectors, which returns a future that can be awaited.
+        * all actuators are almost completed, where 'almost' denotes the latency,
+            `latency = min(d.latency for d in detectors)`
+            i.e., the time that passes before the first of the detectors starts responding to the trigger.
+            This is verified by calling finished(latency) on all actuators,
+            which returns a future that can be awaited.
+
+    Transition from `measuring` to `moving` is completely analogous,
+    swapping detectors and actuators in the description above.
+
+    Examples:
+        $ ### serial implementation
+        $ fields = np.zeros((n,))
+        $ for n in range(N):
+        $     for p in range(P)
+        $         phase = 2 * np.pi * p/P
+        $         slm.set_phases(phase) # waits for all measurements to complete (- latency of the slm), and triggers the slm
+        $         f1 = cam1.trigger()   # waits for the image on the slm to stabilize, then triggers the measurement
+        $         f2 = cam2.trigger()   # directly triggers cam2, since we already are in the 'measuring' state
+        $         fields[n] += (f2.result() - f1.result()) * np.exp(-j * phase)   # blocks until frames are read
+
+        $ ### pipelined implementation
+        $ fields = np.zeros((n,))
+        $ def process(n, phase, f1, f2):
+        $     fields[n] += (f2 - f1) * np.exp(-j * phase)   # note: no need for 'result()' waiting
+        $
+        $ for n in range(N):
+        $     for p in range(P)
+        $         phase = 2 * np.pi * p/P
+        $         slm.set_phases(phase) # waits for all measurements to complete (- latency of the slm), and triggers the slm
+        $         f1 = cam1.trigger()   # waits for the image on the slm to stabilize, then triggers the measurement
+        $         f2 = cam2.trigger()   # directly triggers cam2, since we already are in the 'measuring' state
+        $         Worker.enqueue(process, n, phase, f1, f2) # runs processing on a separate thread in order of enqueueing
+        $
+        $ Worker.wait()  # wait until all processing is done
+
+    Attributes:
+        latency(Quantity[u.ms]): time between sending a command or trigger to the device and the moment the device
+            starts responding.
+        duration(Quantity[u.ms]): time it takes to perform the measurement or for the actuator to stabilize.
+            This value does not include the latency.
+            Child classes may directly write to the _duration attribute to modify this value when starting the
+            measurement/movement.
+            The duration is used in the default implementation of `wait_finished()`.
+            If the duration of an operation is not known in advance
+            (e.g., waiting for the user to push a button), the child class should pass np.inf * u.ms for the
+            duration, and override wait_finished().
 
     Note:
-        When setting a public attributes or property of the device, the Device first waits until all actions are
-        finished (wait_finished()).
+        When setting a public attributes or property of the device, the Device first waits until all actions
+        of that detector are finished (wait_finished()).
         For example, if we change the ROI or shutter time of a camera after a call to trigger, the thread blocks
         until the frame grab is complete, and then changes the ROI or shutter time.
     """
@@ -94,22 +103,28 @@ class Device:
     # or for processing data in a non-deterministic order.
     _workers = ThreadPoolExecutor(thread_name_prefix='Device._workers')
 
-    # Global state: 'moving' or 'measuring'
+    # Global state: 'moving'=True or 'measuring'=False
     moving = False
 
-    # List of all active devices
-    devices: "List[Device]" = []
+    # List of all Device objects
+    devices: "Iterable[Device]" = WeakSet()
 
-    def __init__(self, latency=0.0 * u.ms):
+    def __init__(self, *, latency=0.0 * u.ms, duration=0.0 * u.ms):
+        """Constructs a new Device object
+
+        Args:
+            latency: value to use for the `latency` attribute.
+                Child classes may directly write to the _latency attribute to modify this value later.
+
+            duration: time it takes to perform the measurement or for the actuator to stabilize.
+        """
         self._start_time_ns = 0
         self._latency = latency
-        Device.devices.append(self)
+        self._duration = duration
+        Device.devices.add(self)
 
     def __del__(self):
-        try:
-            Device.devices.remove(self)
-        except ValueError:
-            pass  # happens if constructor fails, then `self` is not in the list
+        self.wait_finished()
 
     def __setattr__(self, key, value):
         """Prevents modification of public attributes and properties while the device is busy."""
@@ -129,7 +144,7 @@ class Device:
         This function changes the global state to 'moving' or 'measuring' if needed,
         and it may block until this state switch is completed.
 
-        After switching, it returns the current time in the _start_time_ns field.
+        After switching, stores the current time in the _start_time_ns field.
         """
 
         if Device.moving != self.is_actuator:
@@ -158,6 +173,10 @@ class Device:
     def latency(self) -> Quantity[u.ms]:
         return self._latency
 
+    @property
+    def duration(self) -> Quantity[u.ms]:
+        return self._duration
+
     def wait_ready(self):
         """Waits until the device is ready to be triggered or take new commands.
 
@@ -167,15 +186,18 @@ class Device:
         """
         self.wait_finished(self.latency)
 
-    @abstractmethod
-    def wait_finished(self, up_to: Quantity[u.ns] = 0 * u.ns):
-        """Waits until the device has finished measuring or 'moving'.
+    def wait_finished(self, up_to: Quantity[u.ms] = 0 * u.ns):
+        """Waits until the device has (almost) finished measuring or 'moving'.
 
-        By default, this is the same as wait_finished(self.latency).
-        However, some devices may take new commands before they are finished.
-        For example, a stage may accept move commands while still moving, updating the target position.
+        Args:
+            up_to(Quantity[u.ms]): when non-zero, specifies that this function may return 'up_to' milliseconds
+                *before* the device is finished.
         """
-        ...
+        assert np.isfinite(self._duration)
+        end_time = self._start_time_ns + (self._duration + self.latency).to_value(u.ns)
+        time_to_wait = end_time - up_to.to_value(u.ns) - time.time_ns()
+        if time_to_wait > 0:
+            time.sleep(time_to_wait / 1.0E9)
 
 
 class Actuator(Device, ABC):
@@ -190,34 +212,37 @@ class DataSource(Device, ABC):
     """Base class for all detectors, cameras and other data sources with possible dynamic behavior.
     """
 
-    def __init__(self, *, data_shape, pixel_size: Quantity):
-        super().__init__()
+    def __init__(self, *, data_shape, pixel_size: Quantity, **kwargs):
+        super().__init__(**kwargs)
         self._pixel_size = pixel_size
         self._data_shape = data_shape
+        self._measurements_pending = atomics.atomic(width=4, atype=atomics.INT)
+
+    def __del__(self):
+        if self._measurements_pending > 0:
+            self.wait_finished(pending_measurements=True)
+        super().__del__()
 
     def is_actuator(self):
         return False
 
+    def wait_finished(self, up_to: Quantity[u.ms] = 0 * u.ns, pending_measurements=False):
+        """Same as Device.wait_finished, with the option to wait for pending measurements
+
+        Args:
+            pending_measurements(bool): when True, wait until all pending measurements have been _fetch()-ed
+        """
+        super().wait_finished(up_to)
+        if pending_measurements:
+            while self._measurements_pending.load() != 0:
+                time.sleep(0.0)
+
     @property
     @abstractmethod
-    def measurement_duration(self) -> Quantity[u.ms]:
+    def duration(self) -> Quantity[u.ms]:
         """Duration of the measurement (excluding data transfer and latency).
-
-        Returns None if the duration is not known.
         """
-        ...
-
-    def wait_finished(self, up_to: Quantity[u.ms] = 0 * u.ms):
-        """Waits until the measurement is almost finished (up to 'up_to' nanoseconds)
-
-        If a measurement_duration is defined, this value is used to determine when the measurement is finished.
-        Detectors that do not specify a measurement time must override this function.
-        """
-        assert self.measurement_duration is not None
-        end_time = self._start_time_ns + (self.measurement_duration + self.latency).to_value(u.ns)
-        time_to_wait = end_time - up_to.to_value(u.ns) - time.time_ns()
-        if time_to_wait > 0:
-            time.sleep(time_to_wait / 1.0E9)
+        return self._duration
 
     def trigger(self, *args, **kwargs) -> Future:
         """Triggers the data source to start acquisition of the data.
@@ -231,9 +256,11 @@ class DataSource(Device, ABC):
         """
         self._start()
         self._do_trigger()
+        self._measurements_pending.inc()
 
         def do_fetch(*args_, **kwargs_):
             data = _await_results_and_call(self._fetch, *args_, **kwargs_)
+            self._measurements_pending.dec()
             data.dtype = np.dtype(data.dtype, metadata={'pixel_size': self.pixel_size})
             assert data.shape == self.data_shape
             return data
@@ -298,8 +325,6 @@ class DataSource(Device, ABC):
 
         The coordinates are returned as an array along the d-th dimension, facilitating meshgrid-like computations,
         i.e. cam.coordinates(0) + cam.coordinates(1) gives a 2-dimensional array of coordinates.
-
-
         """
         coords = np.array(range(self.data_shape[d]), ndmin=len(self.data_shape))
         return (np.moveaxis(coords, -1, d) + 0.5) * self.pixel_size
@@ -345,10 +370,10 @@ class Processor(DataSource, ABC):
         return min((source.latency for source in self._sources if source is not None), default=0 * u.ms)
 
     @property
-    def measurement_duration(self) -> Quantity[u.ms]:
-        """Returns the longest measurement_duration + latency, minus the shortest latency for all detectors."""
+    def duration(self) -> Quantity[u.ms]:
+        """Returns the longest duration + latency, minus the shortest latency for all detectors."""
         latency = self.latency
-        return max((source.latency + source.measurement_duration for source in self._sources if source is not None),
+        return max((source.latency + source.duration for source in self._sources if source is not None),
                    default=latency) - latency
 
 
@@ -377,18 +402,33 @@ class Worker:
 
 
 class PhaseSLM(Actuator, ABC):
-    phases: np.ndarray
 
     @abstractmethod
     def update(self):
-        """Refresh the SLM to show the updated phase pattern.
-        Returns before the image is actually displayed.
-        Use the `wait_finished` property to explicitly wait for the update.
-        Usually, this is not needed because the framework waits for stabilization of the phase pattern
-        before starting a measurement anyway.
-        Implementations must call self._start()
+        """Sends the new phase pattern to be displayed on the SLM.
+
+        Implementations should call _start() before triggering the SLM.
+        Args:
+            wait_factor.
+                Time to allow for stabilization of the image, relative to the settle_time property.
+                Values higher than 1.0 allow extra stabilization time before measurements are made.
+
+        Note:
+            This function *does not* wait for the image to appear on the SLM.
+            To wait for the image stabilization explicitly, use 'wait_finished'.
+            However, this should rarely be needed since all Detectors
+            already call wait_finished before starting a measurement.
         """
 
+    @abstractmethod
+    def set_phases(self, values: np.ndarray, update=True):
+        """Sets the phase pattern on the SLM.
 
-def get_pixel_size(data: np.ndarray):
-    return data.dtype.metadata['pixel_size']
+        Args:
+            values(ndarray): phase pattern, in radians
+            update(bool): when True, calls `update` after setting the phase pattern.
+                set to `False` to suppress the call to `update`.
+                This is useful in advanced scenarios where multiple parameters of the SLM need to be changed
+                before updating the displayed image.
+        """
+        ...

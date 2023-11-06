@@ -1,5 +1,5 @@
 import time
-
+import pytest
 from ..openwfs.simulation.mockdevices import MockSource, Generator
 from ..openwfs.core import get_pixel_size
 import numpy as np
@@ -14,10 +14,11 @@ def test_mock_detector():
     assert get_pixel_size(data) == 4 * u.um
 
 
-def test_timing_detector():
+@pytest.mark.parametrize("duration", [0.0 * u.s, 0.5 * u.s])
+def test_timing_detector(duration):
     image0 = np.zeros((4, 5))
     image1 = np.ones((4, 5))
-    source = MockSource(image0, pixel_size=4 * u.um, measurement_duration=0.5 * u.s)
+    source = MockSource(image0, pixel_size=4 * u.um, duration=duration)
     t0 = time.time_ns()
     f0 = source.trigger()
     t1 = time.time_ns()
@@ -30,11 +31,11 @@ def test_timing_detector():
     assert np.allclose(f0.result(), image0)
     t5 = time.time_ns()
 
-    assert np.allclose(t1 - t0, 0.0E9, atol=0.1E9)
-    assert np.allclose(t2 - t1, 0.5E9, atol=0.1E9)
-    assert np.allclose(t3 - t2, 0.0E9, atol=0.1E9)
-    assert np.allclose(t4 - t3, 0.5E9, atol=0.1E9)
-    assert np.allclose(t5 - t4, 0.0E9, atol=0.1E9)
+    assert np.allclose(t1 - t0, 0.0, atol=0.1E9)
+    assert np.allclose(t2 - t1, duration.to_value(u.ns), atol=0.1E9)
+    assert np.allclose(t3 - t2, 0.0, atol=0.1E9)
+    assert np.allclose(t4 - t3, duration.to_value(u.ns), atol=0.1E9)
+    assert np.allclose(t5 - t4, 0.0, atol=0.1E9)
 
 
 def test_noise_detector():
