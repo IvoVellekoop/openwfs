@@ -48,15 +48,20 @@ class Generator(DataSource):
     def data_shape(self, value):
         self._data_shape = value
 
-    def _fetch(self):
+    def _fetch(self, out=None):
         latency_s = self.latency.to_value(u.s)
-        duration_s = self.duration.to_value(u.s)
         if latency_s > 0.0:
             time.sleep(latency_s)
-        data = self._generator(self.data_shape)
+
+        if out is None:
+            out = self._generator(self.data_shape)
+        else:
+            out[...] = self._generator(self.data_shape)
+
+        duration_s = self.duration.to_value(u.s)
         if duration_s > 0.0:
             time.sleep(duration_s)
-        return data
+        return out
 
     @staticmethod
     def uniform_noise(*args, low=0.0, high=1.0, **kwargs):
@@ -94,7 +99,7 @@ class MockSource(Generator):
 
     @data.setter
     def data(self, value):
-        self.wait_finished(pending_measurements=True)
+        self.wait()
         self._data = value
         self._data_shape = value.shape
 
@@ -132,17 +137,22 @@ class ADCProcessor(Processor):
         self.analog_max = analog_max  # check value
         self.digital_max = digital_max  # check value
 
-    def _fetch(self, data):
+    def _fetch(self, data, out=None):
+
         if self.analog_max == 0.0:
             data = data * (self.digital_max / np.max(data))
         else:
             data = np.clip(data * (self.digital_max / self.analog_max), 0, self.digital_max)
 
         if self._shot_noise:
-            data = np.random.poisson(data)
+            if out is None:
+                out = np.random.poisson(data)
+            else:
+                out[...] = np.random.poisson(data)
         else:
-            data = np.round(data)
-        return np.array(data, dtype='uint16')
+            return np.rint(data, out=out, dtype='uint16')
+
+        return out
 
     @property
     def analog_max(self) -> float:

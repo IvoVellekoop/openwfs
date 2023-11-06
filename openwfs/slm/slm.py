@@ -10,6 +10,7 @@ from .patch import FrameBufferPatch, Patch, VertexArray
 from .geometry import fill_transform
 from weakref import WeakSet
 from ..core import PhaseSLM
+from typing import Union
 
 
 class SLM(PhaseSLM):
@@ -392,7 +393,7 @@ class SLM(PhaseSLM):
     def lookup_table(self, value):
         self._frame_patch.lookup_table = value
 
-    def set_phases(self, values, update=True):
+    def set_phases(self, values: Union[np.ndarray, float], update=True):
         self.primary_phase_patch.phases = values
         if update:
             self.update()

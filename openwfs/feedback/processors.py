@@ -123,7 +123,7 @@ class CropProcessor(Processor):
     def height(self, value):
         self._height = int(value)
 
-    def _fetch(self, image):
+    def _fetch(self, image, out=None):
         # top left corner after padding (becomes 0,0 if it was negative)
         left = np.maximum(0, self._left)
         top = np.maximum(0, self._top)
@@ -140,7 +140,11 @@ class CropProcessor(Processor):
         if tpad != 0 or lpad != 0 or bpad != 0 or rpad != 0:
             image = np.pad(image, pad_width=((tpad, bpad), (lpad, rpad)))
 
-        return image[top:bottom, left:right]
+        if out is None:
+            out = image[top:bottom, left:right]
+        else:
+            out[...] = image[top:bottom, left:right]
+        return out
 
 
 class SingleRoiSquare(Processor):

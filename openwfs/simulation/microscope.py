@@ -89,7 +89,7 @@ class Microscope(Processor):
         self._pupil_resolution = 0.0
         self.psf = None
 
-    def _fetch(self, source: np.ndarray, aberrations: np.ndarray, slm: np.ndarray):
+    def _fetch(self, source: np.ndarray, aberrations: np.ndarray, slm: np.ndarray, out=None):
         """Updates the image on the camera sensor
 
         To compute the image:
@@ -153,7 +153,9 @@ class Microscope(Processor):
         offset[1, 2] += self.xy_stage.y / source_pixel_size
         m = m @ offset  # apply offset first, then magnification
 
-        return affine_transform(s, np.linalg.inv(m), order=1, output_shape=self.camera.data_shape)
+        if out is None:
+            out = np.empty(self.camera.data_shape)
+        return affine_transform(s, np.linalg.inv(m), order=1, output=out)
 
     def _crop(self, img: Quantity):
         """crop/pad an image to the NA of the microscope objective and scale to the internal resolution"""

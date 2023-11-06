@@ -66,19 +66,19 @@ class Device:
         $         fields[n] += (f2.result() - f1.result()) * np.exp(-j * phase)   # blocks until frames are read
 
         $ ### pipelined implementation
-        $ fields = np.zeros((n,))
-        $ def process(n, phase, f1, f2):
-        $     fields[n] += (f2 - f1) * np.exp(-j * phase)   # note: no need for 'result()' waiting
-        $
+        $ f1 = np.zeros((N,P,*cam1.data_shape))
+        $ f2 = np.zeros((N,P,*cam2.data_shape))
         $ for n in range(N):
         $     for p in range(P)
         $         phase = 2 * np.pi * p/P
         $         slm.set_phases(phase) # waits for all measurements to complete (- latency of the slm), and triggers the slm
-        $         f1 = cam1.trigger()   # waits for the image on the slm to stabilize, then triggers the measurement
-        $         f2 = cam2.trigger()   # directly triggers cam2, since we already are in the 'measuring' state
+        $         cam1.trigger(out = f1[n,p,...])   # waits for the image on the slm to stabilize, then triggers the measurement
+        $         cam2.trigger(out = f2[n,p,...])   # directly triggers cam2, since we already are in the 'measuring' state
         $         Worker.enqueue(process, n, phase, f1, f2) # runs processing on a separate thread in order of enqueueing
         $
-        $ Worker.wait()  # wait until all processing is done
+        $ cam1.wait()  # wait until all acquisition is done
+        $ cam2.wait()  # wait until all acquisition is done
+        $ fields = (f2 - f1) * np.exp(-j * phase)
 
     Attributes:
         latency(Quantity[u.ms]): time between sending a command or trigger to the device and the moment the device
@@ -124,12 +124,12 @@ class Device:
         Device.devices.add(self)
 
     def __del__(self):
-        self.wait_finished()
+        self._wait_finished()
 
     def __setattr__(self, key, value):
         """Prevents modification of public attributes and properties while the device is busy."""
         if not key.startswith('_'):
-            self.wait_finished()
+            self._wait_finished()
         super().__setattr__(key, value)
 
     @property
@@ -161,11 +161,11 @@ class Device:
 
             # wait until all devices of the same kind are ready to be triggered or receive new commands
             for device in same_type:
-                device.wait_ready()
+                device._wait_ready()
 
             # wait until all devices of the other type have (almost) finished
             for device in other_type:
-                device.wait_finished(latency)
+                device._wait_finished(latency)
 
         self._start_time_ns = time.time_ns()
 
@@ -177,27 +177,43 @@ class Device:
     def duration(self) -> Quantity[u.ms]:
         return self._duration
 
-    def wait_ready(self):
+    def _wait_ready(self):
         """Waits until the device is ready to be triggered or take new commands.
 
         By default, this is the same as wait_finished(self.latency).
         However, some devices may take new commands before they are finished.
         For example, a stage may accept move commands while still moving, updating the target position.
         """
-        self.wait_finished(self.latency)
+        self._wait_finished(self.latency)
 
-    def wait_finished(self, up_to: Quantity[u.ms] = 0 * u.ns):
+    def _wait_finished(self, up_to: Quantity[u.ms] = 0 * u.ns):
         """Waits until the device has (almost) finished measuring or 'moving'.
+
+        This function uses the specified _duration.
+        If _duration is np.inf, the wait() function is called instead.
 
         Args:
             up_to(Quantity[u.ms]): when non-zero, specifies that this function may return 'up_to' milliseconds
                 *before* the device is finished.
         """
-        assert np.isfinite(self._duration)
+        if not np.isfinite(self._duration):
+            return self.wait()
+
         end_time = self._start_time_ns + (self._duration + self.latency).to_value(u.ns)
         time_to_wait = end_time - up_to.to_value(u.ns) - time.time_ns()
         if time_to_wait > 0:
             time.sleep(time_to_wait / 1.0E9)
+
+    def wait(self):
+        """Waits until the device is completely done with all actions.
+
+        By default, this function just calls self._wait_finished().
+        `Detector` overrides this function to wait for the final acquisition to finish.
+        `Actuator` objects that do not specify a finite _duration must override this function
+            to check if the actuator has finished moving.
+        """
+        assert np.isfinite(self._duration)
+        return self._wait_finished()
 
 
 class Actuator(Device, ABC):
@@ -219,23 +235,23 @@ class DataSource(Device, ABC):
         self._measurements_pending = atomics.atomic(width=4, atype=atomics.INT)
 
     def __del__(self):
-        if self._measurements_pending > 0:
-            self.wait_finished(pending_measurements=True)
+        if self._measurements_pending.load() > 0:
+            self._wait_finished(pending_measurements=True)
         super().__del__()
 
     def is_actuator(self):
         return False
 
-    def wait_finished(self, up_to: Quantity[u.ms] = 0 * u.ns, pending_measurements=False):
-        """Same as Device.wait_finished, with the option to wait for pending measurements
+    def wait(self):
+        """Waits until all measurements are completed.
 
-        Args:
-            pending_measurements(bool): when True, wait until all pending measurements have been _fetch()-ed
+        Example:
+            for i in range(10:
+                detector.trigger(out=data[i,...])
+            detector.wait() # wait for the measurements to complete and be stored in `data`
         """
-        super().wait_finished(up_to)
-        if pending_measurements:
-            while self._measurements_pending.load() != 0:
-                time.sleep(0.0)
+        while self._measurements_pending.load() != 0:
+            time.sleep(0.0)
 
     @property
     @abstractmethod
@@ -272,12 +288,20 @@ class DataSource(Device, ABC):
         pass
 
     @abstractmethod
-    def _fetch(self, *args, **kwargs) -> np.ndarray:
-        """Implement to read the data from the detector
+    def _fetch(self, *args, out=None, **kwargs) -> np.ndarray:
+        """Read the data from the detector
 
-        The args and kwargs are passed from the call to trigger()/
+        Args:
+            out(ndarray) numpy array or view of an array that will receive the data
+                when present, the data will be stored in `out`, and `out` is returned.
+                Otherwise, a new array is returned.
+                Can also be used with views.
+                For example: trigger(out=data[i,...]).
+            The args and kwargs are passed from the call to trigger()
         Note:
             After reading the data, the Detector attaches the pixel_size metadata.
+        Note:
+            Child classes must implement this function, and store the data in `out[...]` if `out` is not None.
         """
         ...
 
@@ -375,30 +399,6 @@ class Processor(DataSource, ABC):
         latency = self.latency
         return max((source.latency + source.duration for source in self._sources if source is not None),
                    default=latency) - latency
-
-
-class Worker:
-    """The main thread has a single worker thread
-    that is used to offload data processing and to prevent the need for blocking to wait for detector data
-    in the main thread.
-
-    Note: this is not thread safe, only the main thread should submit work to the worker.
-    If we want to make this thread safe, there should be a Worker for each thread that needs one, and
-    _executor and _last_task should be thread-local variables.
-    """
-    """A single (global) thread for processing data in a fixed order."""
-    _executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='Worker._executor')
-    _last_task = DONT_WAIT
-
-    @staticmethod
-    def equeue(fn, *args, **kwargs):
-        Worker._last_task = Worker._executor.submit(_await_results_and_call, fn, *args, **kwargs)
-        return Worker._last_task
-
-    @staticmethod
-    def wait():
-        """Waits until all previously enqueued work is completed."""
-        Worker._last_task.result()
 
 
 class PhaseSLM(Actuator, ABC):

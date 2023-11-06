@@ -1,6 +1,6 @@
 import numpy as np
 import time
-import set_path
+import set_path  # noqa : set_path makes sure the OpenWFS toolbox can be found when running this script stand-alone
 from openwfs.slm import SLM, Patch, geometry, patterns
 from skimage import data
 import astropy.units as u
@@ -32,7 +32,7 @@ p1 = None  # test deletion. After deleting the two windowed SLMs, we can create 
 s1.patches.clear()
 s1 = 0
 s2 = 0
-s3 = SLM(1)  # full screen window
+s3 = SLM(1)  # full-screen window
 s3.update()
 s3.monitor_id = 0
 time.sleep(0.5)

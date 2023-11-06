@@ -10,7 +10,13 @@ def test_mock_detector():
     image = np.ones((4, 5))
     source = MockSource(image, pixel_size=4 * u.um)
     data = source.read()
+    data2 = source.trigger().result()
+    data3 = np.empty(data.shape)
+    source.trigger(out=data3)
+    source.wait()
     assert np.allclose(image, data)
+    assert np.allclose(image, data2)
+    assert np.allclose(image, data3)
     assert get_pixel_size(data) == 4 * u.um
 
 

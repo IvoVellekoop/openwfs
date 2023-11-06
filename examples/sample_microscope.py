@@ -1,6 +1,6 @@
 import numpy as np
 import astropy.units as u
-import set_path
+import set_path  # noqa : set_path makes sure the OpenWFS toolbox can be found when running this script stand-alone
 from openwfs.simulation import Microscope, MockSource
 from openwfs.utilities import grab_and_show
 
