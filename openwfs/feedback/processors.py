@@ -3,6 +3,31 @@ import cv2
 from ..core import Processor, DataSource
 
 
+class PhaseProcessor(Processor):
+    def __init__(self, source: DataSource, phase_steps: int):
+        super().__init__(source, data_shape=source.data_shape, pixel_size=source.pixel_size)
+        self.phase_steps = phase_steps
+
+        # Placeholder for all phase measurements of a single slm segment
+        self.all_phase_measurements = np.zeros((phase_steps,) + source.data_shape, dtype=complex)
+
+    def read(self, pixel_index: int) -> complex:
+        # Collect measurements for all phases for a single slm segment
+        for phase_step in range(self.phase_steps):
+            # This assumes that the DataSource `source` triggers a new measurement for each phase
+            self.all_phase_measurements[phase_step] = self._sources[0].read()
+
+        # Now that all measurements are collected, compute the transmission for this pixel
+        return self._fetch(pixel_index)
+
+    def _fetch(self, pixel_index: int) -> complex:
+        # Compute the phases corresponding to each phase step
+        phases = np.arange(self.phase_steps) / self.phase_steps * 2 * np.pi
+        # Compute the transmission for the pixel using the phase measurements
+        transmission = np.sum(self.all_phase_measurements * np.exp(-1j * phases))
+        return transmission
+
+
 class SingleRoi(Processor):
     """
     Processor that returns the average of a circle specified by a certain x, y location & radius. Will return
@@ -33,17 +58,20 @@ class SingleRoi(Processor):
         self._y = y
         self._radius = radius
 
-    def read(self):
-        image = super().read()
+    def _fetch(self, image):
+        # Implement the logic to fetch the data for this processor
         mask = np.zeros_like(image, dtype=np.uint8)
-        cv2.circle(mask, (self._x, self._y), int(self._radius), 1, thickness=-1)
-        return np.mean(image[mask == 1])
+        cv2.circle(mask, center=(self._x, self._y), radius=int(self._radius), color=1, thickness=-1)
+        if self._radius <= 1:
+            return np.array([np.mean(image[mask == 1])])
+        else:
+            return np.mean(image[mask == 1])
 
     def read_circle(self):
         image = super().read()
         mask = np.zeros_like(image, dtype=np.uint8)
         cv2.circle(mask, (self._x, self._y), int(self._radius), 1, thickness=-1)
-        return image * mask
+        return np.array(image * mask)
 
     @property
     def data_shape(self):
