@@ -4,13 +4,10 @@ import atomics
 import numpy as np
 import astropy.units as u
 from weakref import WeakSet
-from typing import Union, Set
+from typing import Union, Set, final
 from concurrent.futures import Future, ThreadPoolExecutor
 from astropy.units import Quantity
 from abc import ABC, abstractmethod
-
-DONT_WAIT = Future()
-DONT_WAIT.set_result(None)
 
 
 def get_pixel_size(data: np.ndarray):
@@ -46,7 +43,7 @@ class Device:
             fields = np.zeros((n,))
             for n in range(N):
                 for p in range(P)
-                    phase = 2 * np.pi * p/P
+                    phase = 2 * np.pi * p / P
                     slm.set_phases(phase) # waits for all measurements to complete (- latency of the slm),
                                           # and then triggers the slm
                     f1 = cam1.trigger()   # waits for the image on the slm to stabilize, then triggers the measurement
@@ -55,17 +52,23 @@ class Device:
 
         Pipelined implementation::
 
-            f1 = np.zeros((N,P,*cam1.data_shape))
-            f2 = np.zeros((N,P,*cam2.data_shape))
+            f1 = np.zeros((N, P, *cam1.data_shape))
+            f2 = np.zeros((N, P, *cam2.data_shape))
             for n in range(N):
                 for p in range(P)
-                    phase = 2 * np.pi * p/P
-                    slm.set_phases(phase) # waits for all measurements to complete (- latency of the slm), and triggers the slm
-                    cam1.trigger(out = f1[n,p,...])   # waits for the image on the slm to stabilize, then triggers the measurement
-                    cam2.trigger(out = f2[n,p,...])   # directly triggers cam2, since we already are in the 'measuring' state
-                    Worker.enqueue(process, n, phase, f1, f2) # runs processing on a separate thread in order of enqueueing
-                    cam1.wait()  # wait until all acquisition is done
-            cam2.wait()  # wait until all acquisition is done
+                    phase = 2 * np.pi * p / P
+
+                    # wait for all measurements to complete (up to the latency of the slm), and trigger the slm.
+                    slm.set_phases(phase)
+
+                    # wait for the image on the slm to stabilize, then trigger the measurement.
+                    cam1.trigger(out = f1[n, p, ...])
+
+                    # directly trigger cam2, since we already are in the 'measuring' state.
+                    cam2.trigger(out = f2[n, p, ...])
+
+            cam1.wait() # wait until camera 1 is done grabbing frames
+            cam2.wait() # wait until camera 2 is done grabbing frames
             fields = (f2 - f1) * np.exp(-j * phase)
 
     Note:
@@ -80,10 +83,10 @@ class Device:
     _workers = ThreadPoolExecutor(thread_name_prefix='Device._workers')
 
     # Global state: 'moving'=True or 'measuring'=False
-    moving = False
+    _moving = False
 
     # List of all Device objects
-    devices: "Set[Device]" = WeakSet()
+    _devices: "Set[Device]" = WeakSet()
 
     def __init__(self, *, latency=0.0 * u.ms, duration=0.0 * u.ms):
         """Constructs a new Device object
@@ -97,7 +100,7 @@ class Device:
         self._start_time_ns = 0
         self._latency = latency
         self._duration = duration
-        Device.devices.add(self)
+        Device._devices.add(self)
 
     def __del__(self):
         self.wait()
@@ -123,10 +126,10 @@ class Device:
         After switching, stores the current time in the _start_time_ns field.
         """
 
-        if Device.moving != self.is_actuator:
+        if Device._moving != self.is_actuator:
             # a transition from moving/measuring or vice versa is needed
-            same_type = [device for device in Device.devices if device.is_actuator == self.is_actuator]
-            other_type = [device for device in Device.devices if device.is_actuator != self.is_actuator]
+            same_type = [device for device in Device._devices if device.is_actuator == self.is_actuator]
+            other_type = [device for device in Device._devices if device.is_actuator != self.is_actuator]
 
             # compute the minimum latency of same_type
             # for instance, when switching to 'measuring', this number tells us how long it takes before any of the
@@ -209,6 +212,7 @@ class Actuator(Device, ABC):
     """Base class for all actuators
     """
 
+    @final
     def is_actuator(self):
         return True
 
@@ -223,6 +227,7 @@ class DataSource(Device, ABC):
         self._data_shape = data_shape
         self._measurements_pending = atomics.atomic(width=4, atype=atomics.INT)
 
+    @final
     def is_actuator(self):
         return False
 
@@ -231,7 +236,7 @@ class DataSource(Device, ABC):
 
         Example:
             for i in range(10):
-                detector.trigger(out = data[i,...])
+                detector.trigger(out = data[i, ...])
             detector.wait() # wait for the measurements to complete and be stored in `data`
         """
         while self._measurements_pending.load() != 0:
@@ -286,6 +291,7 @@ class DataSource(Device, ABC):
         """
         ...
 
+    @final
     def read(self):
         """Triggers the detector and waits for the data to arrive.
 
@@ -321,6 +327,7 @@ class DataSource(Device, ABC):
         """
         return self._pixel_size
 
+    @final
     def coordinates(self, d):
         """Coordinate values along the d-th axis.
 
@@ -334,6 +341,7 @@ class DataSource(Device, ABC):
         c = np.array(range(self.data_shape[d]), ndmin=len(self.data_shape))
         return (np.moveaxis(c, -1, d) + 0.5) * self.pixel_size
 
+    @final
     def dimensions(self):
         """Returns the physical size of the data: data_shape * pixel_size.
 
