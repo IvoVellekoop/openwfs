@@ -1,10 +1,10 @@
 import numpy as np
 import astropy.units as u
-import scipy.ndimage
 from astropy.units import Quantity
 from scipy.ndimage import affine_transform
 from scipy.signal import fftconvolve
-from ..simulation.mockdevices import MockSource, MockXYStage, MockCamera
+from typing import Union
+from ..simulation.mockdevices import MockXYStage, MockCamera
 from ..slm import patterns
 from ..core import Processor, get_pixel_size
 
@@ -32,10 +32,6 @@ class Microscope(Processor):
     All aberrations are considered to occur in the plane of that pupil.
 
     Attributes:
-        source (ImageSource): Image source that produces 2-d images of the original 'specimen'
-            as it is located in the focal plane.
-            May be a MockImageSource (for a fixed image), or any other detector that produces 2-d data.
-            The source must have `dimensions` specified in astropy distance units.
         magnification (float or matrix): magnification from object plane to camera.
             Can be a scalar, or a coordinate transformation matrix
             that maps points in the image plane to points in plane of the image sensor.
@@ -51,17 +47,6 @@ class Microscope(Processor):
         z_stage (Stage): Optional stage object that moves the sample up and down to focus the microscope.
             Higher values are further away from the microscope objective.
             Defaults to a MockStage.
-        slm (ImageSource): 2-D image containing the phase (in radians) as displayed on the SLM.
-            The `dimensions` attribute must be set to twice the NA covered by the phase pattern.
-            The pixels in the image are mapped to a square of -slm.NA(0) to +slm.NA(0) and -slm.NA(1) to slm.NA(1)
-            at the back pupil pupil.
-        aberrations (ImageSource): 2-D image containing the phase (in radians) of aberrations observed
-            in the back pupil of the microscope objective.
-            The `dimensions` attribute must be set to twice the NA covered by the aberration pattern.
-        camera_resolution (tuple(float, float)): size of the image sensor in pixels.
-            Defaults to 1024 pixels.
-        camera_pixel_size (astropy distance unit): pixel pitch of the image sensor.
-            Defaults to 10 μm.
         camera (ImageSource, output only): represents the camera in the magnified image plane of the microscope
             (i.e., where an actual camera would be located).
         truncation_factor (float): is used to simulate a gaussian beam illumination of the SLM/back pupil.
@@ -77,6 +62,31 @@ class Microscope(Processor):
     def __init__(self, source, magnification, numerical_aperture, wavelength: Quantity[u.nm],
                  xy_stage=None, z_stage=None, slm=None, aberrations=None, camera_resolution=(1024, 1024),
                  camera_pixel_size=10 * u.um, truncation_factor=0.0):
+        """
+
+        Args:
+            source (ImageSource): Image source that produces 2-d images of the original 'specimen'
+                as it is located in the focal plane.
+                Could be a MockSource (for a fixed image), or any other detector that produces 2-d data.
+                The source must have `dimensions` specified in astropy distance units.
+            magnification:
+            numerical_aperture:
+            wavelength:
+            xy_stage:
+            z_stage:
+            slm (ImageSource): 2-D image containing the phase (in radians) as displayed on the SLM.
+                The `dimensions` attribute must be set to twice the NA covered by the phase pattern.
+                The pixels in the image are mapped to a square of -slm.NA(0) to +slm.NA(0) and -slm.NA(1) to slm.NA(1)
+                at the back pupil.
+            aberrations (ImageSource): 2-D image containing the phase (in radians) of aberrations observed
+                in the back pupil of the microscope objective.
+                The `dimensions` attribute must be set to twice the NA covered by the aberration pattern.
+            camera_resolution (tuple(float, float)): size of the image sensor in pixels.
+                Defaults to 1024 pixels.
+            camera_pixel_size (astropy distance unit): pixel pitch of the image sensor.
+                Defaults to 10 μm.
+            truncation_factor:
+        """
         super().__init__(source, aberrations, slm, data_shape=camera_resolution, pixel_size=camera_pixel_size)
         self.magnification = magnification
         self.numerical_aperture = numerical_aperture
@@ -89,7 +99,9 @@ class Microscope(Processor):
         self._pupil_resolution = 0.0
         self.psf = None
 
-    def _fetch(self, source: np.ndarray, aberrations: np.ndarray, slm: np.ndarray, out=None):
+    def _fetch(self, out: Union[np.ndarray, None], source: np.ndarray, aberrations: np.ndarray,  # noqa
+               slm: np.ndarray) -> np.ndarray:
+
         """Updates the image on the camera sensor
 
         To compute the image:
@@ -157,7 +169,7 @@ class Microscope(Processor):
             out = np.empty(self.camera.data_shape)
         return affine_transform(s, np.linalg.inv(m), order=1, output=out)
 
-    def _crop(self, img: Quantity):
+    def _crop(self, img: np.ndarray):
         """crop/pad an image to the NA of the microscope objective and scale to the internal resolution"""
         pixel_size = float(get_pixel_size(img))  # size in normalized NA coordinates
 

@@ -1,7 +1,8 @@
 import numpy as np
 import astropy.units as u
-import time
 from astropy.units import Quantity
+import time
+from typing import Union
 from ..feedback import CropProcessor
 from ..core import DataSource, Processor, get_pixel_size
 
@@ -21,15 +22,15 @@ class Generator(DataSource):
         return self._duration
 
     @duration.setter
-    def duration(self) -> Quantity[u.ms]:
-        return self._duration
+    def duration(self, value: Quantity[u.ms]):
+        self._duration = value
 
     @property
     def latency(self) -> Quantity[u.ms]:
         return self._latency
 
     @latency.setter
-    def latency(self, value):
+    def latency(self, value: Quantity[u.ms]):
         self._latency = value.to(u.ns)
 
     @property
@@ -48,7 +49,7 @@ class Generator(DataSource):
     def data_shape(self, value):
         self._data_shape = value
 
-    def _fetch(self, out=None):
+    def _fetch(self, out: Union[np.ndarray, None]) -> np.ndarray:  # noqa
         latency_s = self.latency.to_value(u.s)
         if latency_s > 0.0:
             time.sleep(latency_s)
@@ -108,11 +109,6 @@ class MockSource(Generator):
         return super().data_shape
 
 
-#    @data_shape.setter
-#    def data_shape(self, value):
-#        raise RuntimeError('Cannot change data_shape for a static data source. Set data instead')
-
-
 class ADCProcessor(Processor):
     """Mimics an analog-digital converter.
 
@@ -124,21 +120,22 @@ class ADCProcessor(Processor):
             When set to 0.0, the input signal is scaled automatically so that the maximum corresponds to
             `digital_max`
         digital_max(int): maximum value that the ADC can output.
-            defaults to 0xFFFF (16 bits)
-        shot_nose(bool): when True, apply Poisson noise to the data instead of rounding
+            Default value is 0xFFFF (16 bits)
+        shot_noise(bool): when True, apply Poisson noise to the data instead of rounding
     """
 
     def __init__(self, source: DataSource, analog_max: float = 0.0, digital_max: int = 0xFFFF,
                  shot_noise: bool = False):
         super().__init__(source)
-        self._analog_max = analog_max
-        self._digital_max = digital_max
-        self._shot_noise = shot_noise
+        self._analog_max = None
+        self._digital_max = None
+        self._shot_noise = None
+        self.shot_noise = shot_noise
         self.analog_max = analog_max  # check value
         self.digital_max = digital_max  # check value
 
-    def _fetch(self, data, out=None):
-
+    def _fetch(self, out: Union[np.ndarray, None], data) -> np.ndarray:  # noqa
+        """Clips the data to the range of the ADC, and digitizes the values."""
         if self.analog_max == 0.0:
             data = data * (self.digital_max / np.max(data))
         else:
@@ -179,14 +176,14 @@ class ADCProcessor(Processor):
         return self._shot_noise
 
     @shot_noise.setter
-    def shot_noise(self, value):
+    def shot_noise(self, value: bool):
         self._shot_noise = value
 
 
 class MockCamera(ADCProcessor):
     """Wraps any 2-d image source as a camera.
 
-    To implement the camera interface (see bootstrap.py), in addition to the DataSource interface
+    To implement the camera interface (see bootstrap.py), in addition to the DataSource interface,
     we must implement the following functions:
         top: int
         left: int
@@ -232,7 +229,7 @@ class MockCamera(ADCProcessor):
     def bottom(self):
         return self._cropped.bottom
 
-    @top.setter
+    @bottom.setter
     def bottom(self, value):
         self._cropped.bottom = value
 

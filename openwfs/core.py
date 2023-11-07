@@ -1,30 +1,16 @@
-# core classes used throughout openwfs
+# core classes used throughout openWFS
 import time
 import atomics
 import numpy as np
 import astropy.units as u
 from weakref import WeakSet
-from typing import Union, List, Iterable
+from typing import Union, Set
 from concurrent.futures import Future, ThreadPoolExecutor
 from astropy.units import Quantity
 from abc import ABC, abstractmethod
 
 DONT_WAIT = Future()
 DONT_WAIT.set_result(None)
-
-
-def _await_results_and_call(fn, *args, **kwargs):
-    """Helper function that awaits all futures in the argument list, and then calls function fn"""
-
-    def _await(arg):
-        if isinstance(arg, Future):
-            return arg.result()
-        else:
-            return arg  # not a future
-
-    awaited_args = [_await(arg) for arg in args]
-    awaited_kwargs = {key: _await(arg) for (key, arg) in kwargs.items()}
-    return fn(*awaited_args, **awaited_kwargs)
 
 
 def get_pixel_size(data: np.ndarray):
@@ -43,9 +29,9 @@ class Device:
     the framework waits until it is safe to transition to the `measuring` state, and only then sends the trigger.
 
     It is safe to make this transition if the following conditions are met:
-        * all detectors are ready to be triggered. This is verified by calling ready
+        1. all detectors are ready to be triggered. This is verified by calling ready
             on all detectors, which returns a future that can be awaited.
-        * all actuators are almost completed, where 'almost' denotes the latency,
+        2. all actuators are almost completed, where 'almost' denotes the latency,
             `latency = min(d.latency for d in detectors)`
             i.e., the time that passes before the first of the detectors starts responding to the trigger.
             This is verified by calling finished(latency) on all actuators,
@@ -55,42 +41,32 @@ class Device:
     swapping detectors and actuators in the description above.
 
     Examples:
-        $ ### serial implementation
-        $ fields = np.zeros((n,))
-        $ for n in range(N):
-        $     for p in range(P)
-        $         phase = 2 * np.pi * p/P
-        $         slm.set_phases(phase) # waits for all measurements to complete (- latency of the slm), and triggers the slm
-        $         f1 = cam1.trigger()   # waits for the image on the slm to stabilize, then triggers the measurement
-        $         f2 = cam2.trigger()   # directly triggers cam2, since we already are in the 'measuring' state
-        $         fields[n] += (f2.result() - f1.result()) * np.exp(-j * phase)   # blocks until frames are read
+        Serial implementation::
 
-        $ ### pipelined implementation
-        $ f1 = np.zeros((N,P,*cam1.data_shape))
-        $ f2 = np.zeros((N,P,*cam2.data_shape))
-        $ for n in range(N):
-        $     for p in range(P)
-        $         phase = 2 * np.pi * p/P
-        $         slm.set_phases(phase) # waits for all measurements to complete (- latency of the slm), and triggers the slm
-        $         cam1.trigger(out = f1[n,p,...])   # waits for the image on the slm to stabilize, then triggers the measurement
-        $         cam2.trigger(out = f2[n,p,...])   # directly triggers cam2, since we already are in the 'measuring' state
-        $         Worker.enqueue(process, n, phase, f1, f2) # runs processing on a separate thread in order of enqueueing
-        $
-        $ cam1.wait()  # wait until all acquisition is done
-        $ cam2.wait()  # wait until all acquisition is done
-        $ fields = (f2 - f1) * np.exp(-j * phase)
+            fields = np.zeros((n,))
+            for n in range(N):
+                for p in range(P)
+                    phase = 2 * np.pi * p/P
+                    slm.set_phases(phase) # waits for all measurements to complete (- latency of the slm),
+                                          # and then triggers the slm
+                    f1 = cam1.trigger()   # waits for the image on the slm to stabilize, then triggers the measurement
+                    f2 = cam2.trigger()   # directly triggers cam2, since we already are in the 'measuring' state
+                    fields[n] += (f2.result() - f1.result()) * np.exp(-j * phase)   # blocks until frames are read
 
-    Attributes:
-        latency(Quantity[u.ms]): time between sending a command or trigger to the device and the moment the device
-            starts responding.
-        duration(Quantity[u.ms]): time it takes to perform the measurement or for the actuator to stabilize.
-            This value does not include the latency.
-            Child classes may directly write to the _duration attribute to modify this value when starting the
-            measurement/movement.
-            The duration is used in the default implementation of `wait_finished()`.
-            If the duration of an operation is not known in advance
-            (e.g., waiting for the user to push a button), the child class should pass np.inf * u.ms for the
-            duration, and override wait_finished().
+        Pipelined implementation::
+
+            f1 = np.zeros((N,P,*cam1.data_shape))
+            f2 = np.zeros((N,P,*cam2.data_shape))
+            for n in range(N):
+                for p in range(P)
+                    phase = 2 * np.pi * p/P
+                    slm.set_phases(phase) # waits for all measurements to complete (- latency of the slm), and triggers the slm
+                    cam1.trigger(out = f1[n,p,...])   # waits for the image on the slm to stabilize, then triggers the measurement
+                    cam2.trigger(out = f2[n,p,...])   # directly triggers cam2, since we already are in the 'measuring' state
+                    Worker.enqueue(process, n, phase, f1, f2) # runs processing on a separate thread in order of enqueueing
+                    cam1.wait()  # wait until all acquisition is done
+            cam2.wait()  # wait until all acquisition is done
+            fields = (f2 - f1) * np.exp(-j * phase)
 
     Note:
         When setting a public attributes or property of the device, the Device first waits until all actions
@@ -107,7 +83,7 @@ class Device:
     moving = False
 
     # List of all Device objects
-    devices: "Iterable[Device]" = WeakSet()
+    devices: "Set[Device]" = WeakSet()
 
     def __init__(self, *, latency=0.0 * u.ms, duration=0.0 * u.ms):
         """Constructs a new Device object
@@ -171,10 +147,23 @@ class Device:
 
     @property
     def latency(self) -> Quantity[u.ms]:
+        """latency (Quantity[u.ms]): time between sending a command or trigger to the device and the moment the device
+            starts responding.
+        """
         return self._latency
 
     @property
     def duration(self) -> Quantity[u.ms]:
+        """ duration (Quantity[u.ms]): time it takes to perform the measurement or for the actuator to stabilize.
+
+        This value does not include latency.
+        Child classes may directly write to the _duration attribute to modify this value when starting the
+        measurement/movement.
+        The duration is used in the default implementation of `wait_finished()`.
+        If the duration of an operation is not known in advance
+        (e.g., waiting for the user to push a button), the child class should pass `np.inf * u.ms` for the
+        duration, and override `wait_finished()`.
+        """
         return self._duration
 
     def _wait_ready(self):
@@ -236,7 +225,7 @@ class DataSource(Device, ABC):
 
     def __del__(self):
         if self._measurements_pending.load() > 0:
-            self._wait_finished(pending_measurements=True)
+            self.wait()
         super().__del__()
 
     def is_actuator(self):
@@ -246,8 +235,8 @@ class DataSource(Device, ABC):
         """Waits until all measurements are completed.
 
         Example:
-            for i in range(10:
-                detector.trigger(out=data[i,...])
+            for i in range(10):
+                detector.trigger(out = data[i,...])
             detector.wait() # wait for the measurements to complete and be stored in `data`
         """
         while self._measurements_pending.load() != 0:
@@ -260,7 +249,7 @@ class DataSource(Device, ABC):
         """
         return self._duration
 
-    def trigger(self, *args, **kwargs) -> Future:
+    def trigger(self, *args, out=None, **kwargs) -> Future:
         """Triggers the data source to start acquisition of the data.
 
         Use await or .result() to wait for the data.
@@ -274,21 +263,25 @@ class DataSource(Device, ABC):
         self._do_trigger()
         self._measurements_pending.inc()
 
-        def do_fetch(*args_, **kwargs_):
-            data = _await_results_and_call(self._fetch, *args_, **kwargs_)
+        def do_fetch(out_, *args_, **kwargs_):
+            """Helper function that awaits all futures in the keyword argument list, and then calls _fetch"""
+            awaited_args = [(arg.result if isinstance(arg, Future) else arg) for arg in args_]
+            awaited_kwargs = {key: (arg.result if isinstance(arg, Future) else arg) for (key, arg) in kwargs_.items()}
+            data = self._fetch(out_, *awaited_args, **awaited_kwargs)
+
             self._measurements_pending.dec()
             data.dtype = np.dtype(data.dtype, metadata={'pixel_size': self.pixel_size})
             assert data.shape == self.data_shape
             return data
 
-        return Device._workers.submit(do_fetch, *args, **kwargs)
+        return Device._workers.submit(do_fetch, out, *args, **kwargs)
 
     def _do_trigger(self):
         """Override to perform the actual hardware trigger"""
         pass
 
     @abstractmethod
-    def _fetch(self, *args, out=None, **kwargs) -> np.ndarray:
+    def _fetch(self, out: Union[np.ndarray, None], *args, **kwargs) -> np.ndarray:
         """Read the data from the detector
 
         Args:
@@ -296,7 +289,7 @@ class DataSource(Device, ABC):
                 when present, the data will be stored in `out`, and `out` is returned.
                 Otherwise, a new array is returned.
                 Can also be used with views.
-                For example: trigger(out=data[i,...]).
+                For example, `trigger(out = data[i, ...])`
             The args and kwargs are passed from the call to trigger()
         Note:
             After reading the data, the Detector attaches the pixel_size metadata.
@@ -319,7 +312,7 @@ class DataSource(Device, ABC):
         May be overridden by a child class.
         Note:
             * This value matches the `shape` property of the array returned when calling `trigger` followed by `read`.
-            * The property may change, e.g., when the ROI of a camera is changed.
+            * The property may change, for example, when the ROI of a camera is changed.
               In any case, the value of `data_shape`
               just before calling `trigger` will match the size of the data returned by the corresponding `read` call.
         """
@@ -332,7 +325,7 @@ class DataSource(Device, ABC):
         For cameras, this is the pixel size (in astropy length units).
         For detectors returning a time trace, this value is specified in astropy time units.
         Note:
-            * At the moment, the pixel_size is a scalar, so for multi-dimensional data sources the pixel_size
+            * At the moment, the pixel_size is a scalar, so for multidimensional data sources the pixel_size
               must be the same in all dimensions (only square pixels are supported)
             * By default, the pixel size cannot be set.
               However, in some cases (such as when the `pixel_size` is actually a sampling interval),
@@ -350,8 +343,8 @@ class DataSource(Device, ABC):
         The coordinates are returned as an array along the d-th dimension, facilitating meshgrid-like computations,
         i.e. cam.coordinates(0) + cam.coordinates(1) gives a 2-dimensional array of coordinates.
         """
-        coords = np.array(range(self.data_shape[d]), ndmin=len(self.data_shape))
-        return (np.moveaxis(coords, -1, d) + 0.5) * self.pixel_size
+        c = np.array(range(self.data_shape[d]), ndmin=len(self.data_shape))
+        return (np.moveaxis(c, -1, d) + 0.5) * self.pixel_size
 
     def dimensions(self):
         """Returns the physical size of the data: data_shape * pixel_size.
@@ -366,12 +359,12 @@ class Processor(DataSource, ABC):
     """Helper base class for chaining DataSources.
 
     Processors can be used to build data processing graphs, where each Processor takes input from one or
-    more input DataSources and processes that data (e.g. cropping an image, averaging over an roi, etc.).
+    more input DataSources and processes that data (e.g., cropping an image, averaging over an ROI, etc.).
     A processor, itself, is a DataSource to allow chaining multiple processors together to combine functionality.
 
     To implement a processor, override read and/or __init__
 
-    Note: cannot specify latency, it is auto-computed based on the latency of the sources
+    Note: it is not possible to specify the latency, it is computed based on the latency of the sources
     """
 
     def __init__(self, *args, data_shape=None, pixel_size=None):

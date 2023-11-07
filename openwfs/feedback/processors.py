@@ -1,5 +1,6 @@
 import numpy as np
 import cv2
+from typing import Union
 from ..core import Processor, DataSource
 
 
@@ -35,13 +36,10 @@ class SingleRoi(Processor):
 
     Args:
         source (object): The data source to process.
-        x (int): x-coordinate of the center of the ROI.
-        y (int): y-coordinate of the center of the ROI.
-        radius (float): Radius of the ROI in pixels (default is 0.0).
 
     Attributes:
-        x (int): x-coordinate of center of the ROI.
-        y (int): y-coordinate of center of the ROI.
+        x (int): x-coordinate of the center of the ROI.
+        y (int): y-coordinate of the center of the ROI.
         radius (float): Radius of the ROI in pixels.
 
     Returns:
@@ -106,61 +104,82 @@ class SingleRoi(Processor):
 
 
 class CropProcessor(Processor):
-    """Crops 2D data from the source to some region of interest.
+    """Processor to crop 2D data from the source to some region of interest.
 
     Args:
         source (object): The data source to process.
-        width (int): Width of the cropped region (default is None).
-        height (int): Height of the cropped region (default is None).
+        width (int): Width of the cropped region (default is None: use the full width of the source).
+        height (int): Height of the cropped region (default is None: use the full width of the source).
         left (int): Leftmost column of the cropped region (default is 0).
         top (int): Topmost row of the cropped region (default is 0).
-
-    Attributes:
-        width (int): Width of the cropped region.
-        height (int): Height of the cropped region.
-
-    Returns:
-        numpy.ndarray: The cropped image data.
-
     """
 
     def __init__(self, source: DataSource, width=None, height=None, left=0, top=0):
+        if len(source.data_shape) != 2:
+            raise ValueError("`source` must produce 2-D data.")
         super().__init__(source)
-        self._left = left
         self._top = top
-        self._width = width or source.data_shape[1]
-        self._height = height or source.data_shape[0]
+        self._left = left
+        self._data_shape = (height or source.data_shape[0], width or source.data_shape[1])
 
     @property
-    def data_shape(self):
-        return (self._height, self._width)
+    def left(self) -> int:
+        return self._left
+
+    @left.setter
+    def left(self, value: int):
+        self._left = value
+
+    @property
+    def right(self) -> int:
+        return self.left + self.width
+
+    @right.setter
+    def right(self, value: int):
+        self.width = value - self.left
+
+    @property
+    def top(self) -> int:
+        return self._top
+
+    @top.setter
+    def top(self, value: int):
+        self._top = value
+
+    @property
+    def bottom(self) -> int:
+        return self.top + self.height
+
+    @bottom.setter
+    def bottom(self, value: int):
+        self.height = value - self.top
 
     @property
     def width(self) -> int:
-        return self._width
+        return self._data_shape[1]
 
     @width.setter
-    def width(self, value):
-        self._width = int(value)
+    def width(self, value: int):
+        self._data_shape = (self._data_shape[0], value)
 
     @property
     def height(self) -> int:
-        return self._height
+        return self._data_shape[0]
 
     @height.setter
-    def height(self, value):
-        self._height = int(value)
+    def height(self, value: int):
+        self._data_shape = (value, self._data_shape[1])
 
-    def _fetch(self, image, out=None):
+    def _fetch(self, out: Union[np.ndarray, None], image: np.ndarray) -> np.ndarray:  # noqa
         # top left corner after padding (becomes 0,0 if it was negative)
         left = np.maximum(0, self._left)
         top = np.maximum(0, self._top)
 
         # bottom right corner after padding
-        bottom = top + self._height
-        right = left + self._width
+        bottom = self.bottom
+        right = left + self.width
 
-        # compute amount of padding on all sides bottom-right side
+        # compute the amount of padding on all sides bottom-right side
         tpad = top - self._top
         lpad = left - self._left
         bpad = -np.minimum(0, bottom - (image.shape[0] + tpad))
