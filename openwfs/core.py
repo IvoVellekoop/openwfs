@@ -242,13 +242,6 @@ class DataSource(Device, ABC):
         while self._measurements_pending.load() != 0:
             time.sleep(0.0)
 
-    @property
-    @abstractmethod
-    def duration(self) -> Quantity[u.ms]:
-        """Duration of the measurement (excluding data transfer and latency).
-        """
-        return self._duration
-
     def trigger(self, *args, out=None, **kwargs) -> Future:
         """Triggers the data source to start acquisition of the data.
 
@@ -265,8 +258,8 @@ class DataSource(Device, ABC):
 
         def do_fetch(out_, *args_, **kwargs_):
             """Helper function that awaits all futures in the keyword argument list, and then calls _fetch"""
-            awaited_args = [(arg.result if isinstance(arg, Future) else arg) for arg in args_]
-            awaited_kwargs = {key: (arg.result if isinstance(arg, Future) else arg) for (key, arg) in kwargs_.items()}
+            awaited_args = [(arg.result() if isinstance(arg, Future) else arg) for arg in args_]
+            awaited_kwargs = {key: (arg.result() if isinstance(arg, Future) else arg) for (key, arg) in kwargs_.items()}
             data = self._fetch(out_, *awaited_args, **awaited_kwargs)
 
             self._measurements_pending.dec()
