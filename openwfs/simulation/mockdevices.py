@@ -1,10 +1,11 @@
 import numpy as np
 import astropy.units as u
 from astropy.units import Quantity
+from scipy.ndimage import zoom
 import time
 from typing import Union
 from ..feedback import CropProcessor
-from ..core import DataSource, Processor, get_pixel_size
+from ..core import DataSource, Processor, PhaseSLM, get_pixel_size
 
 
 class Generator(DataSource):
@@ -263,3 +264,25 @@ class MockXYStage:
 
     def wait(self):
         pass
+
+
+class MockSLM(PhaseSLM):
+    def __init__(self, width: int, height: int):
+        super().__init__()
+        self._back_buffer = np.zeros((height, width), 'float32')
+        self._front_buffer = np.zeros((height, width), 'float32')
+        self._monitor = MockSource(self._front_buffer, pixel_size=1.0 / min(width, height) * u.dimensionless_unscaled)
+
+    def update(self):
+        np.copyto(self._front_buffer, self._back_buffer)
+        self._back_buffer[:] = 0.0
+
+    def set_phases(self, values: Union[np.ndarray, float], update=True):
+        values = np.atleast_2d(values)
+        scale = np.array(self._back_buffer.shape) / np.array(values.shape)
+        zoom(values, scale, output=self._back_buffer, order=0)
+        if update:
+            self.update()
+
+    def pixels(self) -> DataSource:
+        return self._monitor

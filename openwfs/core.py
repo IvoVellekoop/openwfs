@@ -100,7 +100,7 @@ class Device:
         Device.devices.add(self)
 
     def __del__(self):
-        self._wait_finished()
+        self.wait()
 
     def __setattr__(self, key, value):
         """Prevents modification of public attributes and properties while the device is busy."""
@@ -222,11 +222,6 @@ class DataSource(Device, ABC):
         self._pixel_size = pixel_size
         self._data_shape = data_shape
         self._measurements_pending = atomics.atomic(width=4, atype=atomics.INT)
-
-    def __del__(self):
-        if self._measurements_pending.load() > 0:
-            self.wait()
-        super().__del__()
 
     def is_actuator(self):
         return False
@@ -407,7 +402,7 @@ class PhaseSLM(Actuator, ABC):
         """
 
     @abstractmethod
-    def set_phases(self, values: np.ndarray, update=True):
+    def set_phases(self, values: Union[np.ndarray, float], update=True):
         """Sets the phase pattern on the SLM.
 
         Args:

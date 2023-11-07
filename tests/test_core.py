@@ -1,6 +1,6 @@
 import time
 import pytest
-from ..openwfs.simulation.mockdevices import MockSource, Generator
+from ..openwfs.simulation.mockdevices import MockSource, Generator, MockSLM
 from ..openwfs.core import get_pixel_size
 import numpy as np
 import astropy.units as u
@@ -55,3 +55,17 @@ def test_noise_detector():
     assert get_pixel_size(data) == 4 * u.um
     source.data_shape = (2, 3)
     assert source.read().shape == (2, 3)
+
+
+def test_mock_slm():
+    slm = MockSLM(4, 4)
+    slm.set_phases(0.5)
+    assert np.allclose(slm.pixels().read(), 0.5)
+    slm.set_phases(np.array(((0.1, 0.2), (0.3, 0.4))), update=False)
+    assert np.allclose(slm.pixels().read(), 0.5)
+    slm.update()
+    assert np.allclose(slm.pixels().read(), np.array((
+        (0.1, 0.1, 0.2, 0.2),
+        (0.1, 0.1, 0.2, 0.2),
+        (0.3, 0.3, 0.4, 0.4),
+        (0.3, 0.3, 0.4, 0.4))))
