@@ -57,7 +57,7 @@ def gaussian(resolution, waist, truncation_radius=None):
         resolution (int):
             width and height (in pixels) of the returned pattern.
         waist (float):
-            location of the beaem waist (1/e value)
+            location of the beam waist (1/e value)
             relative to half of the width of the pattern (i.e. relative to the `radius` of the square)
         truncation_radius (float or None):
             when not None, specifies the radius of a disk that is used to truncate the Gaussian.

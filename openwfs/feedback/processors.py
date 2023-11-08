@@ -2,44 +2,40 @@ import numpy as np
 import cv2
 from typing import Union
 from ..core import Processor, DataSource
-from ..slm.patterns import disk
+from ..slm.patterns import disk, gaussian
 
 
 class SingleRoi(Processor):
     """
-    Processor that returns the average of a circle specified by a certain x, y location & radius. Will return
-    the value of the x, y location if radius is 0.
-
-    Args:
-        source (object): The data source to process.
-
-    Attributes:
-        x (int): x-coordinate of the center of the ROI.
-        y (int): y-coordinate of the center of the ROI.
-        radius (float): Radius of the ROI in pixels.
-
-    Returns:
-        float: The average value of the pixels within the specified ROI.
-
-    Methods:
-        read_circle(): Read and return the image data within the specified circular ROI.
-
+    Processor that averages a signal over a region of interest.
     """
 
-    def __init__(self, source, x, y, radius=0.1):
+    def __init__(self, source, x, y, radius=0.1, mask_type='disk', waist=0.5):
+        """
+
+        """
         super().__init__(source, data_shape=(1,))
         self._x = x
         self._y = y
         self._radius = radius
+        self._mask_type = mask_type
+        self.mask_type = mask_type  # checks if value is correct
         self._mask = None
+        self._waist = waist
 
     def trigger(self, *args, **kwargs):
         # pass x, y and mask to the fetch function, because they may change after
-        # triggering and before _fetch-ing
+        # triggering and before fetching
         if self._mask is None:
-            d = np.floor(self.radius) * 2.0 + 1.0  # make sure number of pixels is odd, so (0,0) is the center pixel
+            d = np.floor(self.radius) * 2.0 + 1.0  # make sure the number of pixels is odd, so (0,0) is the center pixel
             r = np.maximum(2.0 * self.radius / d, 0.1)  # always include at least one pixel
-            self._mask = disk(d, r)
+            if self._mask_type == 'disk':
+                self._mask = disk(d, r)
+            elif self._mask_type == 'gaussian':
+                self._mask = gaussian(d, r * self._waist)
+            else:  # square
+                r = np.rint(self.radius).astype('int32')
+                self._mask = np.ones((r, r))
 
         # compute top-left coordinates of the roi
         offset = (self._mask.shape[0] - 1) / 2
@@ -65,7 +61,7 @@ class SingleRoi(Processor):
 
     @property
     def x(self) -> int:
-        """x-coordinate of center of the ROI"""
+        """x-coordinate of the center of the ROI"""
         return self._x
 
     @x.setter
@@ -75,7 +71,7 @@ class SingleRoi(Processor):
 
     @property
     def y(self) -> int:
-        """y-coordinate of center of the ROI"""
+        """y-coordinate of the center of the ROI"""
         return self._y
 
     @y.setter
@@ -91,6 +87,27 @@ class SingleRoi(Processor):
     @radius.setter
     def radius(self, value):
         self._radius = value
+        self._mask = None
+
+    @property
+    def mask_type(self):
+        """Type of weighting function to use: 'disk', 'square', 'gaussian'"""
+        return self._mask_type
+
+    @mask_type.setter
+    def mask_type(self, value):
+        if value not in ['disk', 'square', 'gaussian']:
+            raise ValueError(f"Unknown mask type {value}")
+        self._mask_type = value
+        self._mask = None
+
+    @property
+    def waist(self):
+        return self._waist
+
+    @waist.setter
+    def waist(self, value):
+        self._waist = value
         self._mask = None
 
 
@@ -185,47 +202,7 @@ class CropProcessor(Processor):
         return out
 
 
-class SingleRoiSquare(Processor):
-    """
-    Square Roi image processor that returns the average of a square specified by a certain width & height.
-
-    Args:
-        source (object): The data source to process.
-        width (int): Width of the square ROI.
-        height (int): Height of the square ROI.
-        left (int): Leftmost column of the square ROI (default is 0).
-        top (int): Topmost row of the square ROI (default is 0).
-
-    Attributes:
-        width (int): Width of the square ROI.
-        height (int): Height of the square ROI.
-        top (int): Topmost row of the square ROI.
-        left (int): Leftmost column of the square ROI.
-
-    Returns:
-        float: The average value of the pixels within the specified square ROI.
-
-    Methods:
-        read_square(): Read and return the image data within the specified square ROI.
-
-    """
-
-    def __init__(self, source, width=None, height=None, left=0, top=0):
-        super().__init__(CropProcessor(source, width=width, height=height, left=left, top=top))
-
-    @property
-    def data_shape(self):
-        return (1,)
-
-    def read_square(self):
-        image = super().read()
-        return image[self.top:self.top + self.height, self.left:self.left + self.width]
-
-    def read(self):
-        return np.mean(super().read())
-
-
-class SelectRoiSquare(SingleRoiSquare):
+class SelectRoi(SingleRoi):
     """
     A detector that allows the user to draw a square using the mouse. Inherits from SingleRoiSquare implementation.
 
@@ -239,7 +216,7 @@ class SelectRoiSquare(SingleRoiSquare):
 
     def __init__(self, source):
 
-        super().__init__(source)
+        super().__init__(source, x=0, y=0, mask_type='square')
         source.trigger()
         tl, br = self.draw_square()
 

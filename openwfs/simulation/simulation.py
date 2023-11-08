@@ -1,8 +1,5 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import cv2
-import warnings
-from typing import Annotated
 from ..slm.patterns import gaussian
 import astropy.units as u
 from .mockdevices import MockSLM, Generator
@@ -32,6 +29,7 @@ class SimulatedWFS:
 
     def compute_image(self, shape):
         """This is where the intensity pattern on the camera is computed."""
+        assert shape == self.E_input_slm.shape
         field_slm = self.E_input_slm * np.exp(1.0j * self.slm.phases)
         field_slm_f = np.fft.fft2(field_slm)
         return abs(np.fft.fftshift(field_slm_f)) ** 2

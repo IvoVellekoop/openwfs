@@ -1,6 +1,6 @@
 from ..openwfs.simulation import SimulatedWFS
 import numpy as np
-from ..openwfs.feedback import SingleRoiSquare, SelectRoiSquare, SelectRoiCircle
+from ..openwfs.feedback import SingleRoiSquare, SelectRoi, SelectRoiCircle
 from skimage import data
 import pytest
 
@@ -58,7 +58,7 @@ def test_select_roi_square(mock_simulated_wfs):
     """
     Test the SelectRoiSquare detector functionality.
     """
-    detector = SelectRoiSquare(mock_simulated_wfs)
+    detector = SelectRoi(mock_simulated_wfs)
     detector.trigger()
 
     square_image = detector.read_square()
