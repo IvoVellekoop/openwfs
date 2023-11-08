@@ -1,6 +1,7 @@
 import numpy as np
 from typing import Any, Annotated
 from ..core import DataSource, PhaseSLM
+from .utilities import analyze_phase_stepping
 
 
 class StepwiseSequential:
@@ -16,20 +17,19 @@ class StepwiseSequential:
         self._phase_steps = phase_steps
 
     def execute(self):
-        phases = np.arange(self._phase_steps) * (2 * np.pi / self._phase_steps)
         phase_pattern = np.zeros((self.n_y, self.n_x), 'float32')
         measurements = np.zeros((self.n_y, self.n_x, self._phase_steps, *self._feedback.data_shape))
 
         for n_y in range(self.n_y):
             for n_x in range(self.n_x):
-                for p in phases:
-                    phase_pattern[n_y, n_x] = p
+                for p in range(self._phase_steps):
+                    phase_pattern[n_y, n_x] = p * 2 * np.pi / self._phase_steps
                     self._slm.set_phases(phase_pattern)
-                    f = self._feedback.trigger(out=measurements[n_y, n_x, p, ...])
-            phase_pattern[n_y, n_x] = 0
+                    self._feedback.trigger(out=measurements[n_y, n_x, p, ...])
+                phase_pattern[n_y, n_x] = 0
 
         self._feedback.wait()
-        return analyze_phase_stepping(measurements).field
+        return analyze_phase_stepping(measurements, axis=2).field
 
     @property
     def n_x(self) -> int:

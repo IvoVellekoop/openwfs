@@ -2,31 +2,7 @@ import numpy as np
 import cv2
 from typing import Union
 from ..core import Processor, DataSource
-
-
-class PhaseProcessor(Processor):
-    def __init__(self, source: DataSource, phase_steps: int):
-        super().__init__(source, data_shape=source.data_shape, pixel_size=source.pixel_size)
-        self.phase_steps = phase_steps
-
-        # Placeholder for all phase measurements of a single slm segment
-        self.all_phase_measurements = np.zeros((phase_steps,) + source.data_shape, dtype=complex)
-
-    def read(self, pixel_index: int) -> complex:
-        # Collect measurements for all phases for a single slm segment
-        for phase_step in range(self.phase_steps):
-            # This assumes that the DataSource `source` triggers a new measurement for each phase
-            self.all_phase_measurements[phase_step] = self._sources[0].read()
-
-        # Now that all measurements are collected, compute the transmission for this pixel
-        return self._fetch(pixel_index)
-
-    def _fetch(self, pixel_index: int) -> complex:
-        # Compute the phases corresponding to each phase step
-        phases = np.arange(self.phase_steps) / self.phase_steps * 2 * np.pi
-        # Compute the transmission for the pixel using the phase measurements
-        transmission = np.sum(self.all_phase_measurements * np.exp(-1j * phases))
-        return transmission
+from ..slm.patterns import disk
 
 
 class SingleRoi(Processor):
@@ -50,30 +26,42 @@ class SingleRoi(Processor):
 
     """
 
-    def __init__(self, source, x, y, radius=0.0):
-        super().__init__(source)
+    def __init__(self, source, x, y, radius=0.1):
+        super().__init__(source, data_shape=(1,))
         self._x = x
         self._y = y
         self._radius = radius
+        self._mask = None
 
-    def _fetch(self, image):
+    def trigger(self, *args, **kwargs):
+        # pass x, y and mask to the fetch function, because they may change after
+        # triggering and before _fetch-ing
+        if self._mask is None:
+            d = np.floor(self.radius) * 2.0 + 1.0  # make sure number of pixels is odd, so (0,0) is the center pixel
+            r = np.maximum(2.0 * self.radius / d, 0.1)  # always include at least one pixel
+            self._mask = disk(d, r)
+
+        # compute top-left coordinates of the roi
+        offset = (self._mask.shape[0] - 1) / 2
+        x = self.x - offset
+        y = self.y - offset
+        return super().trigger(*args, pos=np.rint((y, x)).astype('int32'), mask=self._mask, **kwargs)
+
+    def _fetch(self, out: Union[np.ndarray, None], image: np.ndarray, pos: np.ndarray, mask: np.ndarray) -> np.ndarray:
         # Implement the logic to fetch the data for this processor
-        mask = np.zeros_like(image, dtype=np.uint8)
-        cv2.circle(mask, center=(self._x, self._y), radius=int(self._radius), color=1, thickness=-1)
-        if self._radius <= 1:
-            return np.array([np.mean(image[mask == 1])])
-        else:
-            return np.mean(image[mask == 1])
+        # crop top/left
+        mask_start = np.maximum(0, -pos)
+        image_start = np.maximum(0, pos)
+        image_end = np.minimum(image.shape, pos + np.array(mask.shape, dtype='int32'))
+        mask_end = image_end - image_start
+        mask_cropped = mask[mask_start[0]:mask_end[0], mask_start[1]:mask_end[1]]
+        image_cropped = image[image_start[0]:image_end[0], image_start[1]:image_end[1]]
+        value = np.sum(image_cropped * mask_cropped) / np.sum(mask_cropped)
 
-    def read_circle(self):
-        image = super().read()
-        mask = np.zeros_like(image, dtype=np.uint8)
-        cv2.circle(mask, (self._x, self._y), int(self._radius), 1, thickness=-1)
-        return np.array(image * mask)
-
-    @property
-    def data_shape(self):
-        return (1,)
+        if out is None:
+            out = np.empty((1,))
+        out[:] = value
+        return out  # return an array so that we can store metadata on it
 
     @property
     def x(self) -> int:
@@ -83,6 +71,7 @@ class SingleRoi(Processor):
     @x.setter
     def x(self, value):
         self._x = value
+        self._mask = None
 
     @property
     def y(self) -> int:
@@ -92,6 +81,7 @@ class SingleRoi(Processor):
     @y.setter
     def y(self, value):
         self._y = value
+        self._mask = None
 
     @property
     def radius(self) -> float:
@@ -101,6 +91,7 @@ class SingleRoi(Processor):
     @radius.setter
     def radius(self, value):
         self._radius = value
+        self._mask = None
 
 
 class CropProcessor(Processor):

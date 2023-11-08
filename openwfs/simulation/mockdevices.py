@@ -1,3 +1,5 @@
+from concurrent.futures import Future
+
 import numpy as np
 import astropy.units as u
 from astropy.units import Quantity
@@ -49,6 +51,20 @@ class Generator(DataSource):
     @data_shape.setter
     def data_shape(self, value):
         self._data_shape = value
+
+    def trigger(self, *args, out=None, **kwargs) -> Future:
+        """In the special case that the measurement time is zero, perform the 'measurement' directly.
+        """
+        if self._duration <= 0.0 * u.ms:
+            if self._latency < 0.0 * u.ms:
+                raise RuntimeError("""It is not possible to specify a non-zero latency together with a zero duration,
+                as this would result in timing inconsistencies: the jitter on when the measurement starts will be
+                larger than the (zero) duration of the measurement.""")
+            result = Future()
+            result.set_result(self._fetch(out, *args, **kwargs))  # noqa
+            return result
+        else:
+            return super().trigger(*args, out, **kwargs)
 
     def _fetch(self, out: Union[np.ndarray, None]) -> np.ndarray:  # noqa
         latency_s = self.latency.to_value(u.s)
@@ -267,13 +283,17 @@ class MockXYStage:
 
 
 class MockSLM(PhaseSLM):
-    def __init__(self, width: int, height: int):
+    def __init__(self, shape):
         super().__init__()
-        self._back_buffer = np.zeros((height, width), 'float32')
-        self._front_buffer = np.zeros((height, width), 'float32')
-        self._monitor = MockSource(self._front_buffer, pixel_size=1.0 / min(width, height) * u.dimensionless_unscaled)
+        if len(shape) != 2:
+            raise ValueError("Shape of the SLM should be 2-dimensional.")
+
+        self._back_buffer = np.zeros(shape, 'float32')
+        self._front_buffer = np.zeros(shape, 'float32')
+        self._monitor = MockSource(self._front_buffer, pixel_size=1.0 / np.min(shape) * u.dimensionless_unscaled)
 
     def update(self):
+        self._start()  # wait for detectors to finish
         np.copyto(self._front_buffer, self._back_buffer)
         self._back_buffer[:] = 0.0
 
@@ -283,6 +303,10 @@ class MockSLM(PhaseSLM):
         zoom(values, scale, output=self._back_buffer, order=0)
         if update:
             self.update()
+
+    @property
+    def phases(self):
+        return self._front_buffer
 
     def pixels(self) -> DataSource:
         return self._monitor

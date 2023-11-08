@@ -226,6 +226,7 @@ class DataSource(Device, ABC):
         self._pixel_size = pixel_size
         self._data_shape = data_shape
         self._measurements_pending = atomics.atomic(width=4, atype=atomics.INT)
+        self._error = None
 
     @final
     def is_actuator(self):
@@ -241,6 +242,10 @@ class DataSource(Device, ABC):
         """
         while self._measurements_pending.load() != 0:
             time.sleep(0.0)
+        if self._error is not None:
+            e = self._error
+            self._error = None
+            raise e
 
     def trigger(self, *args, out=None, **kwargs) -> Future:
         """Triggers the data source to start acquisition of the data.
@@ -258,14 +263,24 @@ class DataSource(Device, ABC):
 
         def do_fetch(out_, *args_, **kwargs_):
             """Helper function that awaits all futures in the keyword argument list, and then calls _fetch"""
-            awaited_args = [(arg.result() if isinstance(arg, Future) else arg) for arg in args_]
-            awaited_kwargs = {key: (arg.result() if isinstance(arg, Future) else arg) for (key, arg) in kwargs_.items()}
-            data = self._fetch(out_, *awaited_args, **awaited_kwargs)
-
-            self._measurements_pending.dec()
-            data.dtype = np.dtype(data.dtype, metadata={'pixel_size': self.pixel_size})
-            assert data.shape == self.data_shape
-            return data
+            try:
+                awaited_args = [(arg.result() if isinstance(arg, Future) else arg) for arg in args_]
+                awaited_kwargs = {key: (arg.result() if isinstance(arg, Future) else arg) for (key, arg) in
+                                  kwargs_.items()}
+                data = self._fetch(out_, *awaited_args, **awaited_kwargs)
+                data.dtype = np.dtype(data.dtype, metadata={'pixel_size': self.pixel_size})
+                assert data.shape == self.data_shape
+                return data
+            except Exception as e:
+                # if we are storing the result in an `out` array,
+                # the user may never call result() on the returned future object,
+                # and the error may be lost.
+                # Therefore, store it so that it can be raised on the next call to wait()
+                if out_ is not None:
+                    self._error = e
+                raise e
+            finally:
+                self._measurements_pending.dec()
 
         return Device._workers.submit(do_fetch, out, *args, **kwargs)
 
