@@ -55,6 +55,3 @@ class StepwiseSequential:
     def phase_steps(self, value):
         self._phase_steps = value
 
-    @property
-    def controller(self) -> Any:
-        return self._controller

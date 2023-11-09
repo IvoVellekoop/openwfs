@@ -1,8 +1,7 @@
 import numpy as np
 from typing import Any, Annotated
-import os
-import pickle
-
+from ..core import DataSource, PhaseSLM
+from .utilities import analyze_phase_stepping
 
 class FourierDualRef:
     """Base class definition for the Fourier algorithm as described by Mastiani et al. [1].
@@ -22,7 +21,7 @@ class FourierDualRef:
       "Wavefront shaping for forward scattering," Opt. Express 30, 37436-37445 (2022)
       """
 
-    def __init__(self, k_left=None, k_right=None, phase_steps=4, overlap=0.1, controller=None):
+    def __init__(self,feedback: DataSource, slm: PhaseSLM, slm_shape, k_left=None, k_right=None, phase_steps=4, overlap=0.1):
         """
 
         Args:
@@ -32,14 +31,14 @@ class FourierDualRef:
           overlap (float): The overlap between the reference and measurement part of the SLM (default is 0.1).
           controller (Any): The controller object containing the SLM and data source (default is None).
         """
-        self._controller = controller
+
         self._phase_steps = phase_steps
         self._overlap = overlap
-
-
+        self._slm = slm
+        self._feedback = feedback
         self.k_left = k_left
         self.k_right = k_right
-
+        self.slm_shape = slm_shape
 
 
     def execute(self):
@@ -49,12 +48,14 @@ class FourierDualRef:
             numpy.ndarray: The SLM transmission matrix.
         """
         # left side experiment
-        self.single_side_experiment(0)
-        self.t_left = self.controller.compute_transmission(self.phase_steps)
+        measurements_left = self.single_side_experiment(0)
+
+        # the measurements are returned in a list of combinations of x&y angles, so only 1-dimensional
+        self.t_left = analyze_phase_stepping(measurements_left,axis=1).field
 
         # right side experiment
-        self.single_side_experiment(1)
-        self.t_right = self.controller.compute_transmission(self.phase_steps)
+        measurements_right = self.single_side_experiment(1)
+        self.t_right = analyze_phase_stepping(measurements_right,axis=1).field
 
         # calculate transmission matrix of the SLM plane from the Fourier transmission matrices:
         self.t_slm = self.compute_t(self.t_left,self.t_right,self.k_left,self.k_right)
@@ -63,20 +64,11 @@ class FourierDualRef:
 
     def get_phase_pattern(self, k_x, k_y, phase_offset, side):
         """
-        Builds the phase pattern that is projected on the SLM.
-
-        Args:
-            k_x (float): Spatial frequency in the x-direction.
-            k_y (float): Spatial frequency in the y-direction.
-            phase_offset (float): Phase offset for the pattern.
-            side (int): 0 for left, 1 for right side of the SLM.
-
-        Returns:
-            numpy.ndarray: The phase pattern matrix.
+        ToDo: Depreciate this by using the function  in openwfs.slm.patterns: tilt
         """
 
-        height = self.controller.slm.width
-        width = self.controller.slm.height
+        height = self.slm_shape[0]
+        width = self.slm_shape[1]
         overlap = int(self._overlap * width // 2)
         start = 0 if side == 0 else 0.5 - self._overlap / 2
         end = 0.5 + self._overlap / 2 if side == 0 else 1
@@ -128,22 +120,25 @@ class FourierDualRef:
         return dense_matrix
 
     def single_side_experiment(self, side):
-        """Conducts the single-side experiment, either on a single side of the SLM.
+        """
+        Conducts the experiment on one side of the SLM and analyzes the result.
 
         Args:
-            side (int): 0 for left, 1 for right side.
+            side (int): 0 for left, 1 for right side of the SLM.
         """
-        self.controller.reserve((len(self.k_x), self.phase_steps))
+        k_set = self.k_left if side == 0 else self.k_right
+        measurements = np.zeros((len(k_set[0]), self.phase_steps, *self._feedback.data_shape))
 
-        phases = np.arange(self.phase_steps) / self.phase_steps * 2 * np.pi
+        for i, (k_x, k_y) in enumerate(zip(k_set[0], k_set[1])):
+            for p in range(self.phase_steps):
+                phase_offset = p * 2 * np.pi / self.phase_steps
+                phase_pattern = self.get_phase_pattern(k_x, k_y, phase_offset, side)
+                self._slm.set_phases(phase_pattern)
+                self._feedback.trigger(out=measurements[i, p, ...])
+            # Reset phase pattern if needed after each iteration
 
-        for n_angle in range(len(self.k_x)):
-            for phase in phases:
-
-                self.controller.slm.phases = self.get_phase_pattern(self.k_x[n_angle],
-                                                                    self.k_y[n_angle],
-                                                                    phase, side)
-                self.controller.measure()
+        self._feedback.wait()
+        return measurements
 
 
     def compute_t(self, t_fourier_left, t_fourier_right ,k_left, k_right):
@@ -159,8 +154,8 @@ class FourierDualRef:
             numpy.ndarray: The SLM transmission matrix.
         """
         # bepaal ruis: bahareh. Find peak & dc ofset
-        t1 = np.zeros((self.controller.slm.height, self.controller.slm.width), dtype='complex128')
-        t2 = np.zeros((self.controller.slm.height, self.controller.slm.width), dtype='complex128')
+        t1 = np.zeros((self.slm_shape[1], self.slm_shape[0]), dtype='complex128')
+        t2 = np.zeros((self.slm_shape[1], self.slm_shape[0]), dtype='complex128')
 
         for n, t in enumerate(t_fourier_left):
             phi = self.get_phase_pattern(k_left[0,n], k_left[1,n], 0, 0)
@@ -170,9 +165,9 @@ class FourierDualRef:
             phi = self.get_phase_pattern(k_right[0,n], k_right[1,n], 0, 1)
             t2 += np.exp(1j * phi) * np.conj(t)
 
-        overlap_len = int(self._overlap * self.controller.slm.width)
-        overlap_begin = self.controller.slm.width // 2 - int(overlap_len / 2)
-        overlap_end = self.controller.slm.width // 2 + int(overlap_len / 2)
+        overlap_len = int(self._overlap * self.slm_shape[0])
+        overlap_begin = self.slm_shape[0] // 2 - int(overlap_len / 2)
+        overlap_end = self.slm_shape[0] // 2 + int(overlap_len / 2)
 
         if self._overlap != 0:
             c = np.vdot(t2[:, overlap_begin:overlap_end], t1[:, overlap_begin:overlap_end])
@@ -197,10 +192,3 @@ class FourierDualRef:
     def phase_steps(self, value):
         self._phase_steps = value
 
-    @property
-    def controller(self) -> Any:
-        return self._controller
-
-    @controller.setter
-    def controller(self, value):
-        self._controller = value

@@ -1,4 +1,5 @@
 from .fourier import FourierDualRef
+from ..core import DataSource, PhaseSLM
 import numpy as np
 
 class BasicFDR(FourierDualRef):
@@ -19,7 +20,7 @@ class BasicFDR(FourierDualRef):
         build_kspace(): Constructs the k-space arrays used in the algorithm.
     """
 
-    def __init__(self, phase_steps=4, k_angles_min=-3, k_angles_max=3, overlap=0.1, controller=None):
+    def __init__(self,feedback: DataSource, slm: PhaseSLM, slm_shape=(500,500), phase_steps=4, k_angles_min=-3, k_angles_max=3, overlap=0.1):
         """
 
         Args:
@@ -29,7 +30,7 @@ class BasicFDR(FourierDualRef):
             overlap (float): The overlap value.
             controller (Any): The controller object containing the SLM and data source.
         """
-        super().__init__(None, None, phase_steps, overlap, controller)
+        super().__init__(feedback,slm, slm_shape, None, None, phase_steps, overlap)
         self._k_angles_min = k_angles_min
         self._k_angles_max = k_angles_max
 

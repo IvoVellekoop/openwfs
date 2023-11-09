@@ -47,6 +47,29 @@ def test_ssa():
     assert enhancement >= 3.0, f"""The SSA algorithm did not enhance focus as much as expected.
         Expected at least 3.0, got {enhancement}"""
 
+def test_fourier():
+    """
+    Test the enhancement performance of the Fourier-based algorithm.
+    """
+    aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
+    sim = SimulatedWFS(width=512, height=512, aberrations=aberrations)
+    roi_detector = SingleRoi(sim.cam, x=256, y=256, radius=0.5)
+    alg = BasicFDR(feedback=roi_detector, slm=sim.slm, slm_shape=np.shape(aberrations),k_angles_min=-1,k_angles_max=1, phase_steps=3)
+    t = alg.execute()
+
+    # compute the phase pattern to optimize the intensity in target 0
+    optimised_wf = np.angle(t)+np.pi
+
+    # Calculate the enhancement factor
+    # Note: technically this is not the enhancement, just the ratio after/before
+    sim.slm.set_phases(0.0)
+    before = roi_detector.read()
+    sim.slm.set_phases(optimised_wf)
+    after = roi_detector.read()
+    enhancement = after / before
+
+    assert enhancement >= 3.0, f"""The SSA algorithm did not enhance focus as much as expected.
+        Expected at least 3.0, got {enhancement}"""
 
 def test_flat_wf_response_fourier():
     """
@@ -67,7 +90,7 @@ def test_flat_wf_response_fourier():
 
     t = alg.execute()
 
-    optimised_wf = np.angle(t)
+    optimised_wf = -np.angle(t[..., 0])
 
     # test the optimised wavefront by checking if it has irregularities. Since a flat wavefront at 0 or pi
     assert np.std(optimised_wf) < 0.001  # "Response flat wavefront not flat"
@@ -77,20 +100,22 @@ def test_flat_wf_response_ssa():
     """
     Test the response of the SSA WFS method when the solution is flat.
     """
-    sim = SimulatedWFS()
-    sim.set_ideal_wf(np.zeros([500, 500]))  # correct wf = flat
-    roi_detector = SingleRoi(sim, x=250, y=250, radius=3.0)
+    # Simulate a wavefront sensor with an ideal (flat) wavefront
+    aberrations = np.zeros([500,500])
+    sim = SimulatedWFS(width=500, height=500, aberrations=aberrations)
 
-    controller = Controller(detector=roi_detector, slm=sim)
-    alg = StepwiseSequential(n_x=6, n_y=6, phase_steps=3, controller=controller)
+    # Set up the region of interest detector
+    roi_detector = SingleRoi(sim.cam, x=250, y=250, radius=0.5)
+    # Initialize the SSA algorithm with the simulated SLM and feedback detector
+    alg = StepwiseSequential(feedback=roi_detector, slm=sim.slm, n_x=6, n_y=6, phase_steps=3)
 
-    # Execute algorithm and get the optimised wavefront
+    # Execute the SSA algorithm to get the optimized wavefront
     t = alg.execute()
     optimised_wf = np.angle(t)
 
-    # Use pytest's assert to validate the conditions
-    assert np.std(optimised_wf) < 0.001, "Response flat wavefront not flat"
-
+    # Assert that the standard deviation of the optimized wavefront is below the threshold,
+    # indicating that it is effectively flat
+    assert np.std(optimised_wf) < 0.001, f"Response flat wavefront not flat, std: {np.std(optimised_wf)}"
 
 def test_flat_wf_response_pathfinding_fourier():
     """
