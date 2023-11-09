@@ -39,7 +39,7 @@ mm_src_path = path.join(path.dirname(project_path), "mmCoreAndDevices")
 if not path.isdir(mm_src_path):
     mm_src_path = path.join(path.dirname(path.dirname(project_path)), "micro-manager\mmCoreAndDevices")
     if not path.isdir(mm_src_path):
-        mm_src_path = path.dirname(project_path)
+        mm_src_path = path.dirname(path.dirname(project_path))
 
 
 mm_src_path = locate(mm_src_path, "the mmCoreAndDevices repository", "micromanager.sln")

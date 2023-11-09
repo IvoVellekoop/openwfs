@@ -174,7 +174,7 @@ int CPyHub::RunScript() noexcept {
     auto code = std::stringstream();
     code << "SCRIPT_PATH = '" << scriptPath.generic_string() << "'\n";
     const char* bootstrap;
-    #include "../openwfs/bootstrap.py"
+    #include "bootstrap.py"
     code << &bootstrap[1]; // skip leading ["]
 
     auto scope = PyObj(PyDict_New()); // create a scope to execute the scripts in
