@@ -1,8 +1,8 @@
 import numpy as np
 import cv2
 from typing import Union
-from ..core import Processor, DataSource
-from ..slm.patterns import disk, gaussian
+from .core import Processor, DataSource
+from .slm.patterns import disk, gaussian
 
 
 class SingleRoi(Processor):
@@ -43,7 +43,8 @@ class SingleRoi(Processor):
         y = self.y - offset
         return super().trigger(*args, pos=np.rint((y, x)).astype('int32'), mask=self._mask, **kwargs)
 
-    def _fetch(self, out: Union[np.ndarray, None], image: np.ndarray, pos: np.ndarray, mask: np.ndarray) -> np.ndarray:
+    def _fetch(self, out: Union[np.ndarray, None], image: np.ndarray, pos: np.ndarray,
+               mask: np.ndarray) -> np.ndarray:  # noqa
         # Implement the logic to fetch the data for this processor
         # crop top/left
         mask_start = np.maximum(0, -pos)
@@ -112,93 +113,71 @@ class SingleRoi(Processor):
 
 
 class CropProcessor(Processor):
-    """Processor to crop 2D data from the source to some region of interest.
+    """Processor to crop data from the source to some region of interest.
+
+    Works on any number of dimensions.
+    If the cropped area extends beyond the size of the source data,
+    the data is padded with 'padding_value'
 
     Args:
         source (object): The data source to process.
-        width (int): Width of the cropped region (default is None: use the full width of the source).
-        height (int): Height of the cropped region (default is None: use the full width of the source).
-        left (int): Leftmost column of the cropped region (default is 0).
-        top (int): Topmost row of the cropped region (default is 0).
+        size (tuple): Size of the cropped region (this is data_shape property)
+            default is None: use the full size of the source.
+            may be a tuple holding one or more None values.
+            These values are then replaced by the size of the source in that dimension.
+        pos (tuple): Coordinates of the start of the cropped region.
+            For 2-D data, this is the top-left corner.
+        padding_value (float): Value to use if the cropped area extends beyond the original data.
     """
 
-    def __init__(self, source: DataSource, width=None, height=None, left=0, top=0):
-        if len(source.data_shape) != 2:
-            raise ValueError("`source` must produce 2-D data.")
+    def __init__(self, source: DataSource, size=None, pos=None, padding_value=0.0):
         super().__init__(source)
-        self._top = top
-        self._left = left
-        self._data_shape = (height or source.data_shape[0], width or source.data_shape[1])
+        if size is None:
+            size = source.data_shape
+        else:
+            size = tuple([s if s is not None else d for s, d in zip(size, source.data_shape)])
+        self._data_shape = size or source.data_shape
+        self._pos = np.zeros((len(source.data_shape),))
+        if pos is not None:
+            self.pos = pos
+        self._padding_value = padding_value
 
     @property
-    def left(self) -> int:
-        return self._left
+    def pos(self) -> tuple:
+        """Start ('top-left' corner) of the cropped region."""
+        return tuple(self._pos)
 
-    @left.setter
-    def left(self, value: int):
-        self._left = value
-
-    @property
-    def right(self) -> int:
-        return self.left + self.width
-
-    @right.setter
-    def right(self, value: int):
-        self.width = value - self.left
+    @pos.setter
+    def pos(self, value):
+        self._pos = np.array(value, ndmin=1)
 
     @property
-    def top(self) -> int:
-        return self._top
+    def data_shape(self) -> tuple:
+        return self._data_shape
 
-    @top.setter
-    def top(self, value: int):
-        self._top = value
-
-    @property
-    def bottom(self) -> int:
-        return self.top + self.height
-
-    @bottom.setter
-    def bottom(self, value: int):
-        self.height = value - self.top
-
-    @property
-    def width(self) -> int:
-        return self._data_shape[1]
-
-    @width.setter
-    def width(self, value: int):
-        self._data_shape = (self._data_shape[0], value)
-
-    @property
-    def height(self) -> int:
-        return self._data_shape[0]
-
-    @height.setter
-    def height(self, value: int):
-        self._data_shape = (value, self._data_shape[1])
+    @data_shape.setter
+    def data_shape(self, value):
+        self._data_shape = tuple(np.array(value, ndmin=1))
 
     def _fetch(self, out: Union[np.ndarray, None], image: np.ndarray) -> np.ndarray:  # noqa
-        # top left corner after padding (becomes 0,0 if it was negative)
-        left = np.maximum(0, self._left)
-        top = np.maximum(0, self._top)
-
-        # bottom right corner after padding
-        bottom = self.bottom
-        right = left + self.width
-
-        # compute the amount of padding on all sides bottom-right side
-        tpad = top - self._top
-        lpad = left - self._left
-        bpad = -np.minimum(0, bottom - (image.shape[0] + tpad))
-        rpad = -np.minimum(0, right - (image.shape[1] + lpad))
-        if tpad != 0 or lpad != 0 or bpad != 0 or rpad != 0:
-            image = np.pad(image, pad_width=((tpad, bpad), (lpad, rpad)))
+        src_start = np.maximum(self._pos, 0).astype('int32')
+        src_end = np.minimum(self._pos + self._data_shape, image.shape).astype('int32')
+        dst_start = np.maximum(-self._pos, 0).astype('int32')
+        dst_end = dst_start + src_end - src_start
+        src_select = tuple(
+            slice(start, end) for (start, end) in zip(src_start, src_end))
+        src = image.__getitem__(src_select)
+        if any(dst_start != 0) or any(dst_end != self._data_shape):
+            dst = np.zeros(self._data_shape) + self._padding_value
+            dst_select = tuple(slice(start, end) for (start, end) in zip(dst_start, dst_end))
+            dst.__setitem__(dst_select, src)
+        else:
+            dst = src
 
         if out is None:
-            out = image[top:bottom, left:right]
+            out = dst
         else:
-            out[...] = image[top:bottom, left:right]
+            out[...] = dst
         return out
 
 
@@ -354,3 +333,66 @@ class SelectRoiCircle(SingleRoi):
             return circle_params[0], circle_params[1]
 
         return None, None
+
+#
+#
+# ////
+#
+# @property
+# def left(self) -> int:
+#     return self._left
+#
+#
+# @left.setter
+# def left(self, value: int):
+#     self._left = value
+#
+#
+# @property
+# def right(self) -> int:
+#     return self.left + self.width
+#
+#
+# @right.setter
+# def right(self, value: int):
+#     self.width = value - self.left
+#
+#
+# @property
+# def top(self) -> int:
+#     return self._top
+#
+#
+# @top.setter
+# def top(self, value: int):
+#     self._top = value
+#
+#
+# @property
+# def bottom(self) -> int:
+#     return self.top + self.height
+#
+#
+# @bottom.setter
+# def bottom(self, value: int):
+#     self.height = value - self.top
+#
+#
+# @property
+# def width(self) -> int:
+#     return self._data_shape[1]
+#
+#
+# @width.setter
+# def width(self, value: int):
+#     self._data_shape = (self._data_shape[0], value)
+#
+#
+# @property
+# def height(self) -> int:
+#     return self._data_shape[0]
+#
+#
+#     @height.setter
+#     def height(self, value: int):
+#         self._data_shape = (value, self._data_shape[1])

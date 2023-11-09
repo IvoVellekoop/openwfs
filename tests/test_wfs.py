@@ -1,7 +1,7 @@
 from ..openwfs.simulation import SimulatedWFS, MockSource, MockSLM, Microscope
 import numpy as np
 from ..openwfs.algorithms import StepwiseSequential, BasicFDR, CharacterisingFDR
-from ..openwfs.feedback import SingleRoi
+from ..openwfs.processors import SingleRoi
 import skimage
 import astropy.units as u
 import cv2
