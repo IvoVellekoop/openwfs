@@ -157,7 +157,7 @@ class FrameBufferPatch(Patch):
         # is then processed as a whole (applying the software lookup table) and displayed on the screen.
         self.frame_buffer = glGenFramebuffers(1)
 
-        self.phases = np.zeros((slm.height, slm.width), dtype=np.float32)
+        self.phases = np.zeros(slm.shape, dtype=np.float32)
         self._textures[Patch.PHASES_TEXTURE].synchronize()
         glBindFramebuffer(GL_FRAMEBUFFER, self.frame_buffer)
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
@@ -167,7 +167,7 @@ class FrameBufferPatch(Patch):
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
         self._textures.append(Texture(slm, GL_TEXTURE_1D))  # create texture for lookup table
-        self.lookup_table = np.arange(0, 256) / 255.0 # 256 entries from 0.0 to 1.0
+        self.lookup_table = np.arange(0, 256) / 255.0  # 256 entries from 0.0 to 1.0
         self.additive_blend = False
 
     def __del__(self):
@@ -188,9 +188,10 @@ class FrameBufferPatch(Patch):
     def get_pixels(self):
         self.context().activate()
         tex = self._textures[FrameBufferPatch.PHASES_TEXTURE]
-        data = np.empty((tex.height, tex.width), dtype='float32')
+        data = np.empty(tex.shape, dtype='float32')
         glGetTextureImage(tex.handle, 0, GL_RED, GL_FLOAT, data.size * 4, data)
         return data
+
 
 class VertexArray:
     # A VertexArray informs OpenGL about the format of the vertex data we will use.

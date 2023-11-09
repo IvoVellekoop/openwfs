@@ -18,8 +18,8 @@ class TestSLM:
 
     @pytest.fixture
     def windowed_slm(self):
-        slm = SLM(width=200, height=100, left=20, top=10)
-        mask = np.ones((slm.height, slm.width))
+        slm = SLM(shape=(100, 200), pos=(20, 10))
+        mask = np.ones(slm.shape)
         mask[:, :50] = 0
         mask[:, 150:] = 0
         return slm, mask
@@ -28,21 +28,16 @@ class TestSLM:
         (slm, mask) = windowed_slm
 
         # create a new windowed-mode SLM and check if size and position match the specification
-        assert slm.width == 200
-        assert slm.height == 100
-        assert slm.left == 20
-        assert slm.top == 10
+        assert slm.shape == (100, 200)
+        assert slm.pos == (20, 10)
 
         # check if frame buffer has correct size
         fb_texture = slm._frame_patch._textures[Patch.PHASES_TEXTURE]
-        assert fb_texture.width == slm.width
-        assert fb_texture.height == slm.height
+        assert fb_texture.shape == slm.shape
 
-        # move window
-        slm.left = 1
-        slm.top = 2
-        assert slm.left == 1
-        assert slm.top == 2
+        # move window (we cannot really check this)
+        slm.pos = (2, 1)
+        assert slm.pos == (2, 1)
 
         # check default LUT
         assert slm.lookup_table[-1] == 1.0
@@ -50,20 +45,16 @@ class TestSLM:
         assert_allclose(slm.lookup_table, np.arange(0, 256) / 255.0, )
 
         # put homogeneous phase on slm and read back
-        slm.phases = TestSLM.VAL1
-        slm.update()
+        slm.set_phases(TestSLM.VAL1)
 
         assert_allclose(slm.get_pixels('gray_value'), TestSLM.GVAL1 * mask)
         assert_allclose(slm.get_pixels('phase'), TestSLM.VAL1 * mask)
-        slm.phases = TestSLM.VAL2
+        slm.set_phases(TestSLM.VAL2, update=False)
         assert_allclose(slm.get_pixels('gray_value'), TestSLM.GVAL1 * mask)  # nothing changed yet
         assert_allclose(slm.get_pixels('phase'), TestSLM.VAL1 * mask)
         slm.update()
         assert_allclose(slm.get_pixels('gray_value'), TestSLM.GVAL2 * mask)
         assert_allclose(slm.get_pixels(), TestSLM.VAL2 * mask)
-
-    def test_monitor_id(self):
-        assert False
 
     def test_refresh_rate(self):
         slm = SLM(1)
@@ -74,8 +65,7 @@ class TestSLM:
         start = time.time_ns() * u.ns
         frame_count = 100
         for i in range(frame_count):
-            slm.phases = 0.0 if (i % 2) else np.pi
-            slm.update()
+            slm.set_phases(0.0 if (i % 2) else np.pi)
         stop = time.time_ns() * u.ns
         del slm
         actual_refresh_rate = frame_count / (stop - start)
@@ -84,12 +74,11 @@ class TestSLM:
     def test_get_pixels(self):
         width = 73
         height = 99
-        slm = SLM(SLM.WINDOWED, width, height)
+        slm = SLM(SLM.WINDOWED, shape=(height, width))
         slm.transform = geometry.fill_transform(slm, 'full')  # fill full screen exactly (anisotropic coordinates
-        pattern = numpy.eye(height, width) * TestSLM.VAL1
+        pattern = numpy.eye(*slm.shape) * TestSLM.VAL1
         pattern[-10:, -10:] = TestSLM.VAL1
-        slm.phases = np.array(pattern, dtype='float32')
-        slm.update()
+        slm.set_phases(np.array(pattern, dtype='float32'))
         read_back = slm.get_pixels('gray_value')
         assert_allclose(pattern, read_back / 256 * 2 * np.pi)
         read_back = slm.get_pixels('phase')
@@ -116,9 +105,6 @@ class TestSLM:
     def test_wait(self):
         assert False
 
-    def test_reserve(self):
-        assert False
-
     def test_transform(self):
         assert False
 
@@ -126,8 +112,7 @@ class TestSLM:
         (slm, mask) = windowed_slm
 
         # put homogeneous phase on slm and read back
-        slm.phases = TestSLM.VAL2
-        slm.update()
+        slm.set_phases(TestSLM.VAL2)
         assert_allclose(slm.get_pixels('gray_value'), TestSLM.GVAL2 * mask)
 
         # change lookup table for one gray value

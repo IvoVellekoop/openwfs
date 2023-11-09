@@ -20,18 +20,13 @@ class Texture:
         glTexParameteri(self.type, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
 
     @property
-    def width(self):
-        """ :return: Width of texture. For debugging and unit testing."""
+    def shape(self):
+        """Shape (height x width) of the texture in pixels."""
         self.context().activate()
         glBindTexture(self.type, self.handle)
-        return glGetTexLevelParameteriv(self.type, 0, GL_TEXTURE_WIDTH)
-
-    @property
-    def height(self):
-        """ :return: Height of texture. For debugging and unit testing."""
-        self.context().activate()
-        glBindTexture(self.type, self.handle)
-        return glGetTexLevelParameteriv(self.type, 0, GL_TEXTURE_HEIGHT)
+        return (
+            glGetTexLevelParameteriv(self.type, 0, GL_TEXTURE_HEIGHT),
+            glGetTexLevelParameteriv(self.type, 0, GL_TEXTURE_WIDTH))
 
     def __del__(self):
         if self.context() is not None and hasattr(self, 'handle'):
@@ -97,10 +92,12 @@ class Texture:
 
         elif self.type == GL_TEXTURE_2D:
             if self._data_size_changed:
-                glTexImage2D(GL_TEXTURE_2D, 0, internal_format, self._data.shape[1], self._data.shape[0], 0, data_format,
+                glTexImage2D(GL_TEXTURE_2D, 0, internal_format, self._data.shape[1], self._data.shape[0], 0,
+                             data_format,
                              data_type, self._data)
             else:
-                glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, self._data.shape[1], self._data.shape[0], data_format, data_type,
+                glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, self._data.shape[1], self._data.shape[0], data_format,
+                                data_type,
                                 self._data)
 
         self.synchronized = True
