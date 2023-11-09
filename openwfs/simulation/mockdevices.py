@@ -6,7 +6,7 @@ from astropy.units import Quantity
 from scipy.ndimage import zoom
 import time
 from typing import Union
-from ..feedback import CropProcessor
+from ..processors import CropProcessor
 from ..core import DataSource, Processor, PhaseSLM, get_pixel_size
 
 
@@ -52,19 +52,20 @@ class Generator(DataSource):
     def data_shape(self, value):
         self._data_shape = value
 
-    def trigger(self, *args, out=None, **kwargs) -> Future:
+    def trigger(self, *args, out=None, immediate=None, **kwargs) -> Future:
         """In the special case that the measurement time is zero, perform the 'measurement' directly.
         """
-        if self._duration <= 0.0 * u.ms:
-            if self._latency < 0.0 * u.ms:
-                raise RuntimeError("""It is not possible to specify a non-zero latency together with a zero duration,
-                as this would result in timing inconsistencies: the jitter on when the measurement starts will be
-                larger than the (zero) duration of the measurement.""")
-            result = Future()
-            result.set_result(self._fetch(out, *args, **kwargs))  # noqa
-            return result
-        else:
-            return super().trigger(*args, out, **kwargs)
+        if immediate is None:
+            if self._duration <= 0.0 * u.ms:
+                if self._latency < 0.0 * u.ms:
+                    raise RuntimeError("""It is not possible to specify a non-zero latency together with a zero duration,
+                    as this would result in timing inconsistencies: the jitter on when the measurement starts will be
+                    larger than the (zero) duration of the measurement.""")
+                immediate = True
+            else:
+                immediate = False  # run in separate thread
+
+        return super().trigger(*args, out=out, immediate=immediate, **kwargs)
 
     def _fetch(self, out: Union[np.ndarray, None]) -> np.ndarray:  # noqa
         latency_s = self.latency.to_value(u.s)
@@ -215,40 +216,48 @@ class MockCamera(ADCProcessor):
 
     def __init__(self, source: DataSource, width: int = None, height: int = None, left: int = 0, top: int = 0,
                  analog_max: float = 0.0, digital_max: int = 0xFFF):
-        self._cropped = CropProcessor(source, width, height, left, top)
-        super().__init__(source=self._cropped, digital_max=digital_max, analog_max=analog_max)
+        self._crop = CropProcessor(source, size=(height, width), pos=(top, left))
+        super().__init__(source=self._crop, digital_max=digital_max, analog_max=analog_max)
 
     @property
     def left(self):
-        return self._cropped.left
+        return self._crop.pos[1]
 
     @left.setter
     def left(self, value):
-        self._cropped.left = value
+        self._crop.pos = (self._crop.pos[0], value)
 
     @property
     def right(self):
-        return self._cropped.right
-
-    @right.setter
-    def right(self, value):
-        self._cropped.right = value
+        return self.left + self.width
 
     @property
     def top(self):
-        return self._cropped.top
+        return self._crop.pos[0]
 
     @top.setter
     def top(self, value):
-        self._cropped.top = value
+        self._crop.pos = (value, self._crop.pos[1])
 
     @property
     def bottom(self):
-        return self._cropped.bottom
+        return self.top + self.height
 
-    @bottom.setter
-    def bottom(self, value):
-        self._cropped.bottom = value
+    @property
+    def height(self):
+        return self.data_shape[0]
+
+    @height.setter
+    def height(self, value):
+        self.data_shape = (value, self.data_shape[1])
+
+    @property
+    def width(self):
+        return self.data_shape[1]
+
+    @width.setter
+    def width(self, value):
+        self.data_shape = (self.data_shape[0], value)
 
 
 class MockXYStage:
