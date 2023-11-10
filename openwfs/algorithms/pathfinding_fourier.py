@@ -1,5 +1,8 @@
 from .fourier import FourierDualRef
 import numpy as np
+from ..core import DataSource, PhaseSLM
+from .utilities import analyze_phase_stepping
+
 
 def get_neighbors(n, m):
     """Get the neighbors of a point in a 2D grid.
@@ -44,8 +47,7 @@ class CharacterisingFDR(FourierDualRef):
         save_experiment(filename="experimental_data", directory=None): Save experimental data to a file.
     """
 
-    def __init__(self, phase_steps=4, overlap=0.1, max_modes=20, high_modes=0, high_phase_steps=16, intermediates=False,
-                 controller=None):
+    def __init__(self,feedback: DataSource, slm: PhaseSLM, slm_shape = (500,500), phase_steps=4, overlap=0.1, max_modes=20, high_modes=0, high_phase_steps=16, intermediates=False):
         """
 
         Args:
@@ -55,9 +57,8 @@ class CharacterisingFDR(FourierDualRef):
             high_modes (int): The number of high modes to measure.
             high_phase_steps (int): The number of phase steps for high mode measurements.
             intermediates (bool): Flag to enable recording intermediate enhancements.
-            controller (Any): The controller object containing the SLM and data source.
         """
-        super().__init__(None, None, phase_steps, overlap, controller)
+        super().__init__(feedback, slm, slm_shape,None, None, phase_steps=phase_steps, overlap=overlap)
         self.max_modes = max_modes
         self.high_modes = high_modes
         self.high_phase_steps = high_phase_steps
@@ -97,8 +98,8 @@ class CharacterisingFDR(FourierDualRef):
 
             while n < self.max_modes:
 
-                self.single_side_experiment(side)
-                t_fourier = np.append(t_fourier, self.controller.compute_transmission(self.phase_steps))
+                measurements = self.single_side_experiment(np.vstack((self.k_x, self.k_y)),side)
+                t_fourier = np.append(t_fourier, analyze_phase_stepping(measurements,axis=1).field)
                 kx_total = np.append(kx_total, self.k_x)
                 ky_total = np.append(ky_total, self.k_y)
 
@@ -177,9 +178,8 @@ class CharacterisingFDR(FourierDualRef):
         for idx in high_mode_indices:
             self.k_x = np.array([kx_total[idx]])
             self.k_y = np.array([ky_total[idx]])
-            self.single_side_experiment(side)
-            t_fourier[idx] = self.controller.compute_transmission(self.phase_steps) / (
-                    self.phase_steps / original_phase_steps)
+            measurements = self.single_side_experiment(np.vstack((self.k_x, self.k_y)),side)
+            t_fourier[idx] = analyze_phase_stepping(measurements,axis=1).field
 
         # Restore the original phase_steps for subsequent measurements
         self.phase_steps = original_phase_steps
@@ -211,14 +211,10 @@ class CharacterisingFDR(FourierDualRef):
             k_left = self.k_left
 
         t_slm = self.compute_t(t_left, t_right, k_left, k_right)
-
         self.intermediate_t.append(t_slm)
+        self._slm.set_phases(np.angle(t_slm))
 
-        self.controller.slm.phases = np.angle(t_slm)
-        self.controller.slm.update()
-        self.controller._source.trigger()
-
-        self.intermediate_enhancements.append(self.controller._source.read())
+        self.intermediate_enhancements.append(self._feedback.read())
 
     def save_experiment(self, filename="experimental_data", directory=None):
         """Save the experimental data to a specified directory.

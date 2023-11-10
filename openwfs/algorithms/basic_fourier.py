@@ -30,7 +30,7 @@ class BasicFDR(FourierDualRef):
             overlap (float): The overlap value.
             controller (Any): The controller object containing the SLM and data source.
         """
-        super().__init__(feedback,slm, slm_shape, None, None, phase_steps, overlap)
+        super().__init__(feedback,slm, slm_shape, None, None, phase_steps=phase_steps, overlap=overlap)
         self._k_angles_min = k_angles_min
         self._k_angles_max = k_angles_max
 

@@ -48,13 +48,13 @@ class FourierDualRef:
             numpy.ndarray: The SLM transmission matrix.
         """
         # left side experiment
-        measurements_left = self.single_side_experiment(0)
+        measurements_left = self.single_side_experiment(self.k_left,0)
 
         # the measurements are returned in a list of combinations of x&y angles, so only 1-dimensional
         self.t_left = analyze_phase_stepping(measurements_left,axis=1).field
 
         # right side experiment
-        measurements_right = self.single_side_experiment(1)
+        measurements_right = self.single_side_experiment(self.k_right,1)
         self.t_right = analyze_phase_stepping(measurements_right,axis=1).field
 
         # calculate transmission matrix of the SLM plane from the Fourier transmission matrices:
@@ -119,14 +119,13 @@ class FourierDualRef:
 
         return dense_matrix
 
-    def single_side_experiment(self, side):
+    def single_side_experiment(self,k_set, side):
         """
         Conducts the experiment on one side of the SLM and analyzes the result.
 
         Args:
             side (int): 0 for left, 1 for right side of the SLM.
         """
-        k_set = self.k_left if side == 0 else self.k_right
         measurements = np.zeros((len(k_set[0]), self.phase_steps, *self._feedback.data_shape))
 
         for i, (k_x, k_y) in enumerate(zip(k_set[0], k_set[1])):
