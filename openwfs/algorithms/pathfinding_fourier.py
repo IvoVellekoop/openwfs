@@ -52,6 +52,10 @@ class CharacterisingFDR(FourierDualRef):
         """
 
         Args:
+            feedback (DataSource): Source of feedback
+            slm (PhaseSLM): The spatial light modulator
+            slm_shape (tuple of two ints): The shape that the SLM patterns & transmission matrices are calculated for,
+                                        does not necessarily have to be the actual pixel dimensions as the SLM.
             phase_steps (int): The number of phase steps.
             overlap (float): The overlap value.
             max_modes (int): The maximum number of modes to characterize.
@@ -80,54 +84,63 @@ class CharacterisingFDR(FourierDualRef):
         Returns:
             numpy.ndarray: Final calculated transmission matrix for the SLM.
         """
-        kx_total = []
-        ky_total = []
 
-        # measure the flat_wf value
+        # measure the response before correction
         if self.intermediates:
             self.record_intermediate_enhancement([0], [0], [0], 0)
 
-        for side in range(2):
-            n = 0
-            # we begin in K[0,0]
-            self.k_x = np.zeros((1, 1), dtype=int)
-            self.k_y = np.zeros((1, 1), dtype=int)
-            t_fourier = np.array([])
-            kx_total = np.array([])
-            ky_total = np.array([])
+        for side in range(2): # for the left or right side of the SLM:
+
+            n = 0 # number of measured modes
+            self.k_x = self.k_y = np.array(0, dtype=int) # we begin in K[0,0]
+            t_fourier = kx_total = ky_total = np.array([]) # arrays in which to store the results
+
+            # the centers are the point around which the modes are measured. We store them to avoid duplicates
             centers = np.array([[], []], dtype=int)
 
+            # Current implementation is to measure a certain number of modes, possibly, this can be
+            # replaced by another metric, like the SNR of the measured modes.
             while n < self.max_modes:
 
+                # do measurement for current k_x and k_y
                 measurements = self.single_side_experiment(np.vstack((self.k_x, self.k_y)),side)
+                # calculate their transmission elements
                 t_fourier = np.append(t_fourier, analyze_phase_stepping(measurements,axis=1).field)
+                # store which k_x and k_y we just measured
                 kx_total = np.append(kx_total, self.k_x)
                 ky_total = np.append(ky_total, self.k_y)
 
+                # This section decides which point is the next centre of measurement. We want the k-space element
+                # that has the highest contribution, that has not been a centre yet.
                 found_next_center = False
                 ind = 1
+
+                # go down the list of k-space elements until we've found one that has not been the centre yet:
                 while found_next_center is False:
                     nth_highest_index = np.argsort(abs(t_fourier))[-ind]
                     in_x = np.isin(centers[0, :], kx_total[nth_highest_index])
                     in_y = np.isin(centers[1, :], ky_total[nth_highest_index])
 
-                    if not any(in_x & in_y) is True:
+                    if not any(in_x & in_y) is True: # if it has not been a centre element yet:
                         center = np.array([[kx_total[nth_highest_index]], [ky_total[nth_highest_index]]])
                         next_points = get_neighbors(center[0], center[1])
 
-                        # cull all the previously measured points
+                        # don't measure the same k-space elements twice:
                         unique_next_points = np.array([point for point in next_points[:, :, 0] if not any(
                             (np.array(np.vstack((kx_total, ky_total))).T == point).all(1))])
                         centers = np.concatenate((centers, center), axis=1)
 
+                        # If all point around this one have already been measured: Find a new centre
                         if len(unique_next_points) > 0:
                             found_next_center = True
 
                     ind += 1
 
+                # set the next measurements in the right property
                 self.k_x = unique_next_points[:, 0]
                 self.k_y = unique_next_points[:, 1]
 
+                # don't put the next measurements in the array if this was the last iteration:
                 if (n + len(self.k_x)) < self.max_modes:
                     self.added_modes.append(unique_next_points.tolist())
 
@@ -136,9 +149,11 @@ class CharacterisingFDR(FourierDualRef):
 
                 n += len(self.k_x)
 
-            # Measuring highest modes
-            self.measure_high_modes(t_fourier, kx_total, ky_total, side)
+            # Re-measuring highest modes
+            if self.high_modes == True:
+                self.measure_high_modes(t_fourier, kx_total, ky_total, side)
 
+            # Measure the effect of remeasuring highest modes
             if self.high_modes != 0 and self.intermediates:
                 self.record_intermediate_enhancement(t_fourier, kx_total, ky_total, side)
 
@@ -150,6 +165,7 @@ class CharacterisingFDR(FourierDualRef):
                 self.t_right = t_fourier
                 self.k_right = np.vstack((kx_total, ky_total))
 
+        # Compute the transmission matrix with respect to the SLM plane from the transmission matrices in k-space
         self.t_slm = self.compute_t(self.t_left, self.t_right, self.k_left, self.k_right)
         return self.t_slm
 
@@ -164,9 +180,6 @@ class CharacterisingFDR(FourierDualRef):
         """
 
         # Get indices of the n highest modes
-        if self.high_modes == 0:
-            return
-
         high_mode_indices = np.argsort(np.abs(t_fourier))[-self.high_modes:]
 
         # Store the original phase_steps

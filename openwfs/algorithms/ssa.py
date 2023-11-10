@@ -10,6 +10,15 @@ class StepwiseSequential:
     """
 
     def __init__(self, feedback: DataSource, slm: PhaseSLM, phase_steps=4, n_x=4, n_y=4):
+        """
+
+        Args:
+            feedback (DataSource): Source of feedback
+            slm (PhaseSLM): The spatial light modulator
+            phase_steps (int): The number of phase steps.
+            n_x (int): Number of SLM elements in x direction
+            n_y (int): Number of SLM elements in y direction
+        """
         self._n_x = n_x
         self._n_y = n_y
         self._slm = slm

@@ -10,9 +10,12 @@ class FourierDualRef:
       Can run natively, provided you input the kspace for the reference and measurement part of the SLM.
 
       Attributes:
+          feedback (DataSource): Source of feedback
+          slm (PhaseSLM): The spatial light modulator
+          slm_shape (tuple of two ints): The shape that the SLM patterns & transmission matrices are calculated for,
+                                        does not necessarily have to be the actual pixel dimensions as the SLM.
           phase_steps (int): The number of phase steps for the experiment.
           overlap (float): The overlap between the reference and measurement part of the SLM.
-          controller (Any): The controller object containing the SLM and data source.
           t_slm (numpy.ndarray): The SLM transmission matrix.
 
       Returns:
@@ -30,7 +33,6 @@ class FourierDualRef:
           k_right (numpy.ndarray): The [k_x, k_y] matrix for the right side of shape (2, n).
           phase_steps (int): The number of phase steps for each mode (default is 4).
           overlap (float): The overlap between the reference and measurement part of the SLM (default is 0.1).
-          controller (Any): The controller object containing the SLM and data source (default is None).
         """
 
         self._phase_steps = phase_steps
@@ -81,41 +83,6 @@ class FourierDualRef:
             final_pattern[:, -num_columns:] = tilted_front[:, -num_columns:] + phase_offset
 
         return final_pattern
-
-
-    def get_dense_matrix(self,k_set, t_set):
-        """
-        Create a dense matrix visualization for given x, y coordinates and complex data.
-        Grid points not in the provided data are set to NaN.
-
-        Parameters:
-        - k_set: Arrays of x and y coordinates.
-        - t_set: Array of complex data corresponding to x, y coordinates.
-
-        Returns:
-        - dense_matrix: A 2D numpy array with data filled in the corresponding x, y locations and NaN elsewhere.
-        """
-        x = k_set[0, :]
-        y = k_set[1, :]
-
-        # Find the unique sorted coordinates
-        unique_x = np.unique(x)
-        unique_y = np.unique(y)
-
-        # Create a mapping from coordinate to index
-        x_to_index = {x_val: idx for idx, x_val in enumerate(unique_x)}
-        y_to_index = {y_val: idx for idx, y_val in enumerate(unique_y)}
-
-        # Initialize a dense matrix full of NaNs
-        dense_matrix = np.full((len(unique_y), len(unique_x)), np.nan, dtype=complex)
-
-        # Place the data into the dense matrix using the mapping
-        for (x_val, y_val), val in zip(zip(x, y), t_set):
-            x_idx = x_to_index[x_val]
-            y_idx = y_to_index[y_val]
-            dense_matrix[y_idx, x_idx] = val
-
-        return dense_matrix
 
     def single_side_experiment(self,k_set, side):
         """

@@ -24,11 +24,14 @@ class BasicFDR(FourierDualRef):
         """
 
         Args:
+            feedback (DataSource): Source of feedback
+            slm (PhaseSLM): The spatial light modulator
+            slm_shape (tuple of two ints): The shape that the SLM patterns & transmission matrices are calculated for,
+                            does not necessarily have to be the actual pixel dimensions as the SLM.
             phase_steps (int): The number of phase steps.
             k_angles_min (int): The minimum k-angle.
             k_angles_max (int): The maximum k-angle.
             overlap (float): The overlap value.
-            controller (Any): The controller object containing the SLM and data source.
         """
         super().__init__(feedback,slm, slm_shape, None, None, phase_steps=phase_steps, overlap=overlap)
         self._k_angles_min = k_angles_min
@@ -37,7 +40,8 @@ class BasicFDR(FourierDualRef):
         self.build_kspace()
 
     def build_kspace(self):
-        """Constructs the k-space by creating Cartesian products of k_x and k_y angles. Populates the k_left and k_right matrices.
+        """Constructs the k-space by creating Cartesian products of k_x and k_y angles.
+        Filles the k_left and k_right matrices with the same k-space.
 
         Returns:
             None: The function updates the instance attributes.
@@ -58,6 +62,7 @@ class BasicFDR(FourierDualRef):
     @k_angles_min.setter
     def k_angles_min(self, value):
         self._k_angles_min = value
+        self.build_kspace()
 
     @property
     def k_angles_max(self) -> int:
@@ -66,3 +71,4 @@ class BasicFDR(FourierDualRef):
     @k_angles_max.setter
     def k_angles_max(self, value):
         self._k_angles_max = value
+        self.build_kspace()
