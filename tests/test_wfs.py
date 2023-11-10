@@ -186,6 +186,7 @@ def test_flat_wf_response_pathfinding_fourier():
     roi_detector = SingleRoi(sim.cam, x=256, y=256, radius=0.5)
     alg = CharacterisingFDR(feedback=roi_detector, slm=sim.slm, phase_steps=3, overlap=0.1, max_modes=12)
 
+
     # Execute the SSA algorithm to get the optimized wavefront
     t = alg.execute()
     optimised_wf = np.angle(t)

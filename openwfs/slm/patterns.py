@@ -21,6 +21,7 @@ def tilt(resolution, slope):
     Returns:
 
     """
+    slope = np.array(slope)
     coordinates = coordinate_range(resolution)
     slope_2pi = 2 * np.pi * slope
     return slope_2pi[0] * coordinates + slope_2pi[1] * coordinates.T

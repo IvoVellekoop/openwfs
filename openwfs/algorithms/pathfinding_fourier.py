@@ -2,7 +2,8 @@ from .fourier import FourierDualRef
 import numpy as np
 from ..core import DataSource, PhaseSLM
 from .utilities import analyze_phase_stepping
-
+import os
+import pickle
 
 def get_neighbors(n, m):
     """Get the neighbors of a point in a 2D grid.

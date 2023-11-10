@@ -2,6 +2,7 @@ import numpy as np
 from typing import Any, Annotated
 from ..core import DataSource, PhaseSLM
 from .utilities import analyze_phase_stepping
+from ..slm.patterns import tilt
 
 class FourierDualRef:
     """Base class definition for the Fourier algorithm as described by Mastiani et al. [1].
@@ -63,27 +64,24 @@ class FourierDualRef:
         return self.t_slm
 
     def get_phase_pattern(self, k_x, k_y, phase_offset, side):
-        """
-        ToDo: Depreciate this by using the function  in openwfs.slm.patterns: tilt
-        """
-
-        height = self.slm_shape[0]
-        width = self.slm_shape[1]
-        overlap = int(self._overlap * width // 2)
+        height, width = self.slm_shape
         start = 0 if side == 0 else 0.5 - self._overlap / 2
         end = 0.5 + self._overlap / 2 if side == 0 else 1
 
-        x = np.arange(start, end, 1 / ((height - overlap) + overlap))[np.newaxis, :]
-        y = np.arange(0, 1, 1 / width)[:, np.newaxis]
+        # Use tilt function
+        tilted_front = tilt(width, (k_x, k_y))
 
+        # Apply phase offset and handle side-dependent pattern
         final_pattern = np.zeros((width, height))
+        num_columns = int((end - start) * height)
 
         if side == 0:
-            final_pattern[:, :x.shape[1]] = (2 * np.pi * k_x) * x + ((2 * np.pi * k_y) * y + phase_offset)
+            final_pattern[:, :num_columns] = tilted_front[:, :num_columns] + phase_offset
         else:
-            final_pattern[:, -x.shape[1]:] = (2 * np.pi * k_x) * x + ((2 * np.pi * k_y) * y + phase_offset)
+            final_pattern[:, -num_columns:] = tilted_front[:, -num_columns:] + phase_offset
 
         return final_pattern
+
 
     def get_dense_matrix(self,k_set, t_set):
         """
