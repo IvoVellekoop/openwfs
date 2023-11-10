@@ -64,4 +64,5 @@ class Gain:
         self._gain = value
 
 
-gain = Gain()
+gain = Gain(port_ao="Dev2/ao0", port_ai="Dev2/ai0", port_do="Dev2/port0/line0")
+

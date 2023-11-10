@@ -1,11 +1,11 @@
 from typing import Annotated
-
+from typing import Union
 import astropy.units as u
 import numpy as np
 from astropy.units import Quantity
-
+from ..core import DataSource
 from .Pyscanner import single_capture
-
+import time
 
 class GalvoScanner:
 
@@ -17,7 +17,7 @@ class GalvoScanner:
         buffer[:, :] = np.reshape(im, resolution)
 
 
-class LaserScanning:
+class LaserScanning(DataSource):
     """
     Camera implementation that performs laser scanning,
     It is very much under construction, and requires testing
@@ -28,6 +28,7 @@ class LaserScanning:
                  x_mirror_mapping='Dev4/ao2', y_mirror_mapping='Dev4/ao3', input_min=-1, input_max=1, delay=0,
                  measurement_time: Quantity[u.ms] = 600 * u.ms, zoom=1, scan_padding=1, bidirectional=True, invert=0,
                  galvo_scanner=None):
+        super().__init__(data_shape=(height, width), pixel_size=1 * u.um,duration=measurement_time , latency=measurement_time)
         if galvo_scanner is None:
             galvo_scanner = GalvoScanner()
 
@@ -51,21 +52,37 @@ class LaserScanning:
         self._bidirectional = bidirectional
         self._invert = invert
 
-    def read(self):
-        return self._image
-
-    def trigger(self):
-
+    def _fetch(self, out: Union[np.ndarray, None]) -> np.ndarray:
+        # Check if out is None and initialize if necessary
         if self._resized:
-            self._image = np.zeros(self.data_shape, dtype=np.uint16)
+            self._update_pixel_size()
             self._resized = False
 
-        self.galvo_scanner.galvo_scan(self._image, [self._invert], [self._height, self._width], [self._input_mapping],
-                                      [self._x_mirror_mapping, self._y_mirror_mapping], [self._scan_padding],
-                                      [self._delay],
-                                      [self._bidirectional], [self._zoom], [self._input_min, self._input_max],
-                                      [self._measurement_time.to(u.s).value])
+        if out is None:
+            out = np.zeros(self.data_shape, dtype=np.uint16)
+        else:
 
+            out[...] = single_capture(
+                invert_values=[self._invert],
+                resolution=[self._height, self._width],
+                input_mapping=[self._input_mapping],
+                output_mapping=[self._x_mirror_mapping, self._y_mirror_mapping],
+                scanpaddingfactor=[self._scan_padding],
+                delay=[self._delay],
+                bidirectional=[self._bidirectional],
+                zoom=[self._zoom],
+                input_range=[self._input_min, self._input_max],
+                duration=[self._measurement_time.to(u.s).value]
+            )
+
+        return out
+
+
+
+    def _update_pixel_size(self):
+        # Calculate pixel size based on zoom, width, and height
+        self._pixel_size = (800 * u.um / (self._zoom * self._width),
+                            800 * u.um / (self._zoom * self._height))
     @property
     def data_shape(self):
         return self._height, self._width
@@ -163,6 +180,7 @@ class LaserScanning:
     @zoom.setter
     def zoom(self, value: float):
         self._zoom = value
+        self._update_pixel_size()
 
     @property
     def scan_padding(self) -> float:

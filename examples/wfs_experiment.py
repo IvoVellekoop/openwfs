@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 
 scanner = LaserScanning(x_mirror_mapping='Dev2/ao0', y_mirror_mapping='Dev2/ao1', input_mapping='Dev2/ai0',
                         measurement_time=100 * u.ms)
-roi_detector = SingleRoi(scanner, x=50, y=50, radius=1)
+roi_detector = SingleRoi(scanner, x=scanner.data_shape[1], y=scanner.data_shape[1], radius=1)
 
 slm = SLM(2)
 
@@ -19,14 +19,12 @@ transform_matrix = transform_matrix * 0.8  # scaling according to last
 transform_matrix[2, :] = [-0.0147 / (0.4 + 0.5), 0.0036 / 0.5,
                           1]  # from the old hardcoded offset, visually adjusted to be right
 
-slm.lut_generator = lambda λ: np.arange(0, 0.2623 * λ.to(u.nm).value - 23.33)  # again copied from earlier hardcodes
-slm.wavelength = 0.804 * u.um
 
 slm.transform = transform_matrix
 
-controller = Controller(detector=roi_detector, slm=slm)
+
 # alg = StepwiseSequential(n_x=1, n_y=1, phase_steps=3, controller=controller)
-alg = CharacterisingFDR(max_modes=10, controller=controller)
+alg = CharacterisingFDR(feedback=roi_detector, slm= slm, max_modes=10)
 
 t = alg.execute()
 optimised_wf = np.angle(t)
