@@ -31,11 +31,9 @@ When configuring as a stand-alone build (recommended):
 
 1. Open the autoconfig.vcxproj project, build it. This will build the Solution containing the PyDevice project. 
 2. If the script cannot find all folders, you can configure them manually later by editing the AutoConfig.props file.
-3. If a build error occurs in `python autoconfig.py`, make sure that the python executable can be found on Path
-4. Open PyDevice.sln, check if AutoConfig.props contains the correct paths to numpy, python, micro-manager executable and micro-manager repository.
-5. Build PyDevice.sln, You might get an error (Python.h not found)
-6. Build the project again.
-7. If the device is unavailable in Micro-Manager, make sure that the python executable can be found on Path
+3. Open PyDevice.sln, check if AutoConfig.props contains the correct paths to numpy, python, micro-manager executable and micro-manager repository.
+4. Build PyDevice.sln, You might get an error (Python.h not found)
+5. Build the project again.
 
 
 ## When building all Micro-Manager devices:
@@ -53,4 +51,6 @@ This is the approach recommended by the Micro-Manager team
 
 # Troubleshooting
 make sure you have the same version of micro-manager as you cloned from github. If the versions are different, the plugin will not be recognized.
-
+Right-click on the Solution and choose 'Project dependencies...'. Make sure MMCore depends on MMDevice-SharedRuntime and PyDevice depends on MMCore
+Right-click on the PythonBinding project and 'set as startup project' 
+If python > autoconfig.props occurs, make sure your Python install is in PATH
