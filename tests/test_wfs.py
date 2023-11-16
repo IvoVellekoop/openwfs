@@ -1,3 +1,5 @@
+import matplotlib.pyplot as plt
+
 from ..openwfs.simulation import SimulatedWFS, MockSource, MockSLM, Microscope
 import numpy as np
 from ..openwfs.algorithms import StepwiseSequential, BasicFDR, CharacterisingFDR
@@ -55,7 +57,7 @@ def test_fourier():
     aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
     sim = SimulatedWFS(width=512, height=512, aberrations=aberrations)
     roi_detector = SingleRoi(sim.cam, x=256, y=256, radius=0.5)
-    alg = BasicFDR(feedback=roi_detector, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-1, k_angles_max=1,
+    alg = BasicFDR(feedback=roi_detector, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-4, k_angles_max=4,
                    phase_steps=3)
     t = alg.execute()
 
@@ -70,9 +72,29 @@ def test_fourier():
     after = roi_detector.read()
     enhancement = after / before
 
-    assert enhancement >= 3.0, f"""The SSA algorithm did not enhance focus as much as expected.
+    assert enhancement >= 3.0, f"""The Fourier algorithm did not enhance focus as much as expected.
         Expected at least 3.0, got {enhancement}"""
 
+
+def test_fourier_correction_field():
+    """
+    Check the field correlation between set aberration and optimised wavefront of the Fourier-based algorithm.
+    """
+    aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
+    sim = SimulatedWFS(width=512, height=512, aberrations=aberrations)
+    roi_detector = SingleRoi(sim.cam, x=256, y=256, radius=0.5)
+    alg = BasicFDR(feedback=roi_detector, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-1, k_angles_max=1,
+                   phase_steps=3)
+    t = alg.execute()
+
+    norm_t1 = np.exp(1j * -aberrations) / (len(aberrations[:]))
+    norm_t2 = t / np.linalg.norm(t[:])
+    # If you need to show the phase difference between the two fields:
+    # plt.imshow(np.angle(norm_t1/norm_t2))
+    # plt.show()
+
+    assert abs(
+        np.vdot(norm_t1, norm_t2)) > 0.73  # not that high because a 9 mode WFS procedure can only do so much
 
 
 def test_pathfinding_fourier():
@@ -98,6 +120,7 @@ def test_pathfinding_fourier():
 
     assert enhancement >= 3.0, f"""The SSA algorithm did not enhance focus as much as expected.
         Expected at least 3.0, got {enhancement}"""
+
 
 def test_phaseshift_correction():
     """
@@ -185,7 +208,6 @@ def test_flat_wf_response_pathfinding_fourier():
 
     roi_detector = SingleRoi(sim.cam, x=256, y=256, radius=0.5)
     alg = CharacterisingFDR(feedback=roi_detector, slm=sim.slm, phase_steps=3, overlap=0.1, max_modes=12)
-
 
     # Execute the SSA algorithm to get the optimized wavefront
     t = alg.execute()

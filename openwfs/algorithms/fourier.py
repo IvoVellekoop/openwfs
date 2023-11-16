@@ -91,11 +91,11 @@ class FourierDualRef:
         Args:
             side (int): 0 for left, 1 for right side of the SLM.
         """
-        measurements = np.zeros((len(k_set[0]), self._phase_steps, *self._feedback.data_shape))
+        measurements = np.zeros((len(k_set[0]), self.phase_steps, *self._feedback.data_shape))
 
         for i, (k_x, k_y) in enumerate(zip(k_set[0], k_set[1])):
-            for p in range(self._phase_steps):
-                phase_offset = p * 2 * np.pi / self._phase_steps
+            for p in range(self.phase_steps):
+                phase_offset = p * 2 * np.pi / self.phase_steps
                 phase_pattern = self.get_phase_pattern(k_x, k_y, phase_offset, side)
                 self._slm.set_phases(phase_pattern)
                 self._feedback.trigger(out=measurements[i, p, ...])
@@ -143,8 +143,25 @@ class FourierDualRef:
             overlap = (t1[:, overlap_begin:overlap_end] + t2[:, overlap_begin:overlap_end]) / 2
             t_full = np.concatenate([t1[:, 0:overlap_begin], overlap, t2[:, overlap_end:]], axis=1)
         else:
-            t_full = np.concatenate([t1[:, 0:overlap_begin], t2[:, overlap_end:]], axis=1)
+            t_full = np.concatenate([t1[:, 0:overlap_begin], t2[:, overlap_end:]], axis=0)
 
 
         return t_full
+
+    @property
+    def phase_steps(self) -> int:
+        return self._phase_steps
+
+    @phase_steps.setter
+    def phase_steps(self, value):
+        self._phase_steps = value
+
+    @property
+    def execute_button(self) -> bool:
+        return self._execute_button
+
+    @execute_button.setter
+    def execute_button(self, value):
+        self.execute()
+        self._execute_button = value
 

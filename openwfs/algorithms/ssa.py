@@ -24,6 +24,7 @@ class StepwiseSequential:
         self._slm = slm
         self._feedback = feedback
         self._phase_steps = phase_steps
+        self._execute_button = False
 
     def execute(self):
         phase_pattern = np.zeros((self.n_y, self.n_x), 'float32')
@@ -64,3 +65,11 @@ class StepwiseSequential:
     def phase_steps(self, value):
         self._phase_steps = value
 
+    @property
+    def execute_button(self) -> bool:
+        return self._execute_button
+
+    @execute_button.setter
+    def execute_button(self, value):
+        self.execute()
+        self._execute_button = value
