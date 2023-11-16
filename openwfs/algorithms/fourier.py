@@ -34,7 +34,7 @@ class FourierDualRef:
           phase_steps (int): The number of phase steps for each mode (default is 4).
           overlap (float): The overlap between the reference and measurement part of the SLM (default is 0.1).
         """
-
+        self._execute_button = False
         self._phase_steps = phase_steps
         self._overlap = overlap
         self._slm = slm
@@ -91,11 +91,11 @@ class FourierDualRef:
         Args:
             side (int): 0 for left, 1 for right side of the SLM.
         """
-        measurements = np.zeros((len(k_set[0]), self.phase_steps, *self._feedback.data_shape))
+        measurements = np.zeros((len(k_set[0]), self._phase_steps, *self._feedback.data_shape))
 
         for i, (k_x, k_y) in enumerate(zip(k_set[0], k_set[1])):
-            for p in range(self.phase_steps):
-                phase_offset = p * 2 * np.pi / self.phase_steps
+            for p in range(self._phase_steps):
+                phase_offset = p * 2 * np.pi / self._phase_steps
                 phase_pattern = self.get_phase_pattern(k_x, k_y, phase_offset, side)
                 self._slm.set_phases(phase_pattern)
                 self._feedback.trigger(out=measurements[i, p, ...])
@@ -147,12 +147,4 @@ class FourierDualRef:
 
 
         return t_full
-
-    @property
-    def phase_steps(self) -> int:
-        return self._phase_steps
-
-    @phase_steps.setter
-    def phase_steps(self, value):
-        self._phase_steps = value
 

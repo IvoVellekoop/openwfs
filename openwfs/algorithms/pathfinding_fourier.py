@@ -253,3 +253,11 @@ class CharacterisingFDR(FourierDualRef):
 
         with open(os.path.join(directory, f'{filename}.pkl'), 'wb') as f:
             pickle.dump(data_to_save, f)
+    @property
+    def execute_button(self) -> bool:
+        return self._execute_button
+
+    @execute_button.setter
+    def execute_button(self, value):
+        self.execute()
+        self._execute_button = value

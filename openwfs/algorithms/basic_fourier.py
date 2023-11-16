@@ -72,3 +72,12 @@ class BasicFDR(FourierDualRef):
     def k_angles_max(self, value):
         self._k_angles_max = value
         self.build_kspace()
+
+    @property
+    def execute_button(self) -> bool:
+        return self._execute_button
+
+    @execute_button.setter
+    def execute_button(self, value):
+        self.execute()
+        self._execute_button = value
