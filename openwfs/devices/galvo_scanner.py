@@ -5,7 +5,7 @@ import numpy as np
 from astropy.units import Quantity
 from ..core import DataSource
 from .Pyscanner import single_capture
-import time
+
 
 class GalvoScanner:
 
@@ -154,6 +154,7 @@ class LaserScanning(DataSource):
         self._dwelltime = value.to(u.us)
         if self._measurement_time is not (value) * (self._width * self._height):
             self._measurement_time = (value * (self._width * self._height)).to(u.ms)
+            self.duration = self._measurement_time
 
     @property
     def measurement_time(self) -> Quantity[u.ms]:
@@ -162,6 +163,7 @@ class LaserScanning(DataSource):
     @measurement_time.setter
     def measurement_time(self, value):
         self._measurement_time = value.to(u.ms)
+        self._duration = value.to(u.ms)
         if self._dwelltime is not value / (self._width * self._height):
             self._dwelltime = (value / (self._width * self._height)).to(u.us)
 
@@ -206,8 +208,7 @@ class LaserScanning(DataSource):
     def invert(self, value: bool):
         self._invert = value
 
-
 g = GalvoScanner()
-devices = {
-    'cam': LaserScanning(x_mirror_mapping='Dev4/ao2', y_mirror_mapping='Dev4/ao3', input_mapping='Dev4/ai24', galvo_scanner=g),
-    'g': g}
+scanner = LaserScanning(x_mirror_mapping='Dev4/ao2', y_mirror_mapping='Dev4/ao3', input_mapping='Dev4/ai24', galvo_scanner=g)
+devices = {'cam': scanner,'g': g}
+
