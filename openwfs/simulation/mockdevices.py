@@ -286,7 +286,8 @@ class MockXYStage:
 
     @x.setter
     def x(self, value: Quantity[u.um]):
-        self._x = value.to(u.um)
+        former = self._x
+        self._x = value.to(u.um) + former
 
     @property
     def y(self) -> Quantity[u.um]:
@@ -294,7 +295,8 @@ class MockXYStage:
 
     @y.setter
     def y(self, value: Quantity[u.um]):
-        self._y = value.to(u.um)
+        former = self._y
+        self._y = value.to(u.um) + former
 
     def home(self):
         self._x = 0.0 * u.um

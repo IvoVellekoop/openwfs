@@ -88,7 +88,7 @@ class Microscope(Processor):
             truncation_factor:
         """
         super().__init__(source, aberrations, slm, data_shape=camera_resolution, pixel_size=camera_pixel_size)
-        self.magnification = magnification
+        self._magnification = magnification
         self.numerical_aperture = numerical_aperture
         self.wavelength = wavelength.to(u.nm)
         self.xy_stage = xy_stage or MockXYStage(0.1 * u.um, 0.1 * u.um)
@@ -177,3 +177,11 @@ class Microscope(Processor):
         scale = pixel_size / (self.numerical_aperture / self._pupil_resolution)
         matrix = np.array([scale, scale])
         return affine_transform(img, matrix, output_shape=(self._pupil_resolution, self._pupil_resolution), order=0)
+
+    @property
+    def magnification(self) -> float:
+        return self._magnification
+
+    @magnification.setter
+    def magnification(self, value: float):
+        self._magnification = value
