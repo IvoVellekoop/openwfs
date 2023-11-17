@@ -61,7 +61,7 @@ class Microscope(Processor):
 
     def __init__(self, source, magnification, numerical_aperture, wavelength: Quantity[u.nm],
                  xy_stage=None, z_stage=None, slm=None, aberrations=None, camera_resolution=(1024, 1024),
-                 camera_pixel_size=10 * u.um, truncation_factor=0.0):
+                 camera_pixel_size=10 * u.um, truncation_factor=None):
         """
 
         Args:
@@ -98,7 +98,7 @@ class Microscope(Processor):
         self.abbe_limit = 0.0
         self._pupil_resolution = 0.0
         self.psf = None
-
+        self.slm = slm
     def _fetch(self, out: Union[np.ndarray, None], source: np.ndarray, aberrations: np.ndarray,  # noqa
                slm: np.ndarray) -> np.ndarray:
 
