@@ -57,7 +57,7 @@ def test_fourier():
     aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
     sim = SimulatedWFS(width=512, height=512, aberrations=aberrations)
     roi_detector = SingleRoi(sim.cam, x=256, y=256, radius=0.5)
-    alg = BasicFDR(feedback=roi_detector, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-4, k_angles_max=4,
+    alg = BasicFDR(feedback=roi_detector, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-1, k_angles_max=1,
                    phase_steps=3)
     t = alg.execute()
 

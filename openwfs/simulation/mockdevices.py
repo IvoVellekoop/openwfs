@@ -219,7 +219,7 @@ class MockCamera(ADCProcessor):
     """
 
     def __init__(self, source: DataSource, width: int = None, height: int = None, left: int = 0, top: int = 0,
-                 analog_max: float = 0.0, digital_max: int = 0xFFF, measurement_time: Quantity[u.ms]=100 * u.ms):
+                 analog_max: float = 0.0, digital_max: int = 0xFFFF, measurement_time: Quantity[u.ms]=100 * u.ms):
         self._crop = CropProcessor(source, size=(height, width), pos=(top, left))
         super().__init__(source=self._crop, digital_max=digital_max, analog_max=analog_max)
         self._measurement_time = measurement_time.to(u.ms)
@@ -334,3 +334,4 @@ class MockSLM(PhaseSLM):
 
     def pixels(self) -> DataSource:
         return self._monitor
+
