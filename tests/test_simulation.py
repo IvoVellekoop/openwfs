@@ -41,8 +41,8 @@ def test_Microscope_without_magnification():
 
 def test_Microscope_and_aberration():
     '''
-    This test concens the basic effect of casting an abberation or SLM pattern on the backpupil.
-    They should abberate a point source in the image plane.
+    This test concens the basic effect of casting an aberration or SLM pattern on the backpupil.
+    They should aberrate a point source in the image plane.
     '''
     img = np.zeros((1000, 1000), dtype=np.int16)
     img[256, 256] = 100
@@ -119,6 +119,19 @@ def test_SLM_tilt():
     # Tilt function is in y,x convention, so to get the correct x,y coordinates of the next point:
     new_location = (signal_location[0] + shift[1], signal_location[1] + shift[0])
 
-    assert sim.camera.read()[new_location] == 2**16 -1
+    assert sim.camera.read()[new_location] == 2**16 - 1
 
-    
+def test_crop():
+    """
+    Tests how the crop function works in the microscope
+    """
+    img = np.ones((512,512))
+    src = MockSource(img,1/512 * u.dimensionless_unscaled)
+    sim = Microscope(source=src, magnification=1, numerical_aperture=1,
+                     wavelength=800 * u.nm,camera_pixel_size=400 * u.nm,
+                     camera_resolution=(512,512))
+    sim._pupil_resolution = 1000
+
+    # So we expect the function to return a full matrix with ones. Unfortunately, the last row in x
+    # and y direction it returns are zeros
+    assert (np.sum(sim._crop(src.read()))) == 1000*1000
