@@ -140,6 +140,7 @@ class Microscope(Processor):
         elif aberrations is not None:
             pupil_field *= np.exp(1.0j * self._crop(aberrations))
 
+
         # finally, pad the pupil field so that the diameter of the pupil field
         # corresponds to a focus with the size of a single pixel in the source image
         # - first compute the ratio of Abbe limit (i.e. the resolution corresponding to the current pupil size)
@@ -161,8 +162,8 @@ class Microscope(Processor):
             m = np.eye(3) * m
             m[2, 2] = 1
         offset = np.eye(3)
-        offset[0, 2] += self.xy_stage.x / source_pixel_size
-        offset[1, 2] += self.xy_stage.y / source_pixel_size
+        offset[0, 2] += (self.xy_stage.x / source_pixel_size)-1 # correct the offset introduced by the convolution
+        offset[1, 2] += (self.xy_stage.y / source_pixel_size)-1
         m = m @ offset  # apply offset first, then magnification
 
         if out is None:

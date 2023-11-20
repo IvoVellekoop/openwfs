@@ -16,7 +16,7 @@ def tilt(resolution, slope):
     """
     Args:
         resolution:
-        slope(tuple of two doubles): number of 2π phase wraps in both directions
+        slope(tuple of two doubles): number of 2π phase wraps in both directions (y,x)
 
     Returns:
 

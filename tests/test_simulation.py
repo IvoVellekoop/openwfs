@@ -21,8 +21,6 @@ def test_MockCamera_and_SingleRoi():
     img[256, 256] = 39.39 # some random float
     src = MockCamera(MockSource(img, 450 * u.nm))
     roi_detector = SingleRoi(src, x=256, y=256, radius=0) # Only measure that specific point
-    plt.imshow(src.read())
-    plt.show()
     assert roi_detector.read() == int(2**16-1) # it should cast the array into some int
 
 def test_Microscope_without_magnification():
@@ -30,16 +28,18 @@ def test_Microscope_without_magnification():
     Attempt to understand how the microscope works. Without any magnification, and the same
     '''
     img = np.zeros((1000, 1000), dtype=np.int16)
+
     img[256, 256] = 100
     src = MockCamera(MockSource(img, 400 * u.nm))
 
     sim = Microscope(source=src, magnification=1, numerical_aperture=1, wavelength=800 * u.nm,
                      camera_pixel_size=400 * u.nm, camera_resolution=(1000,1000))
+    plt.imshow(sim.camera.read())
+    plt.show()
 
-    ## This currently fails, but passes for [257,257]. I think this is incorrect, or at least unexpected behaviour.
     assert sim.camera.read()[256,256] == 2**16 -1
 
-def test_Microscope_and_SLM():
+def test_Microscope_and_aberration():
     '''
     This test concens the basic effect of casting an abberation or SLM pattern on the backpupil.
     They should abberate a point source in the image plane.
@@ -95,3 +95,30 @@ def test_SLM_and_aberration():
     assert abs(np.vdot(norm_a, norm_b)) >= 1
 
 
+
+def test_SLM_tilt():
+    """
+    Display a tilt on the SLM should result in an image plane shift. If the magnification is 1, this should
+    correspond to a tilt of 1 pixel for a 2 pi phase shift.
+    """
+    img = np.zeros((1000, 1000), dtype=np.int16)
+    signal_location = (256,256)
+    img[signal_location] = 100
+    src = MockCamera(MockSource(img, 400 * u.nm))
+
+    slm = MockSLM(shape=(1000,1000))
+
+    sim = Microscope(source=src, slm=slm.pixels(), magnification=1, numerical_aperture=1,
+                     wavelength=800 * u.nm,camera_pixel_size=400 * u.nm,
+                     camera_resolution=(1000,1000))
+
+    # introduce a tilted pupil plane
+    shift = (-24,40)
+    slm.set_phases(tilt(1000,shift))
+
+    # Tilt function is in y,x convention, so to get the correct x,y coordinates of the next point:
+    new_location = (signal_location[0] + shift[1], signal_location[1] + shift[0])
+
+    assert sim.camera.read()[new_location] == 2**16 -1
+
+    
