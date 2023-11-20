@@ -175,7 +175,7 @@ class Microscope(Processor):
         pixel_size = float(get_pixel_size(img))  # size in normalized NA coordinates
 
         # scale the image
-        scale = pixel_size / (self.numerical_aperture / self._pupil_resolution)
+        scale = (self.numerical_aperture / self._pupil_resolution) / pixel_size
         matrix = np.array([scale, scale])
         return affine_transform(img, matrix, output_shape=(self._pupil_resolution, self._pupil_resolution), order=0)
 
