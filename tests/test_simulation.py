@@ -133,3 +133,34 @@ def test_crop():
     # So we expect the function to return a full matrix with ones. Unfortunately, the last row in x
     # and y direction it returns are zeros
     assert (np.sum(sim._crop(src.read()))) == 1000*1000
+
+def test_microscope_wavefrontshaping():
+    """
+    Reproduces a bug that occurs due to the location of the measurements.wait() command.
+    """
+    aberrations = skimage.data.camera() * ((2 * np.pi) / 255.0) + np.pi
+
+    aberration = MockSource(aberrations, pixel_size=1.0 / (512) * u.dimensionless_unscaled)
+
+    img = np.zeros((1000, 1000), dtype=np.int16)
+    img[256, 256] = 100
+
+    img = np.zeros((1000, 1000), dtype=np.int16)
+    signal_location = (256, 256)
+
+    img[signal_location] = 100
+    src = MockSource(img, 400 * u.nm)
+
+    slm = MockSLM(shape=(1000, 1000))
+
+    sim = Microscope(source=src, slm=slm.pixels(), magnification=1, numerical_aperture=1, aberrations=aberration,
+                     wavelength=800 * u.nm, camera_pixel_size=400 * u.nm,
+                     camera_resolution=(1000, 1000), analog_max=100)
+
+    roi_detector = SingleRoi(sim.camera, x=256, y=256, radius=0)  # Only measure that specific point
+
+    alg = StepwiseSequential(feedback=roi_detector, slm=slm,phase_steps=3, n_x=3, n_y=3)
+    t = alg.execute()
+
+    # test if the modes differ. The error causes them not to differ
+    assert np.std(t[:][1:]) > 0
