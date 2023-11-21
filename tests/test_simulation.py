@@ -34,8 +34,6 @@ def test_Microscope_without_magnification():
 
     sim = Microscope(source=src, magnification=1, numerical_aperture=1, wavelength=800 * u.nm,
                      camera_pixel_size=400 * u.nm, camera_resolution=(1000,1000))
-    plt.imshow(sim.camera.read())
-    plt.show()
 
     assert sim.camera.read()[256,256] == 2**16 -1
 

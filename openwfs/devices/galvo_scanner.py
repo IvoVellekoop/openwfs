@@ -28,7 +28,7 @@ class LaserScanning(DataSource):
                  x_mirror_mapping='Dev4/ao2', y_mirror_mapping='Dev4/ao3', input_min=-1, input_max=1, delay=0,
                  measurement_time: Quantity[u.ms] = 600 * u.ms, zoom=1, scan_padding=1, bidirectional=True, invert=0,
                  galvo_scanner=None):
-        super().__init__(data_shape=(height, width), pixel_size=1 * u.um,duration=measurement_time , latency=measurement_time)
+        super().__init__(data_shape=(height, width), pixel_size=1 * u.um,duration=measurement_time)
         if galvo_scanner is None:
             galvo_scanner = GalvoScanner()
 

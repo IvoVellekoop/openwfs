@@ -15,6 +15,7 @@ class SingleRoi(Processor):
 
         """
         super().__init__(source, data_shape=(1,))
+        self._source = source
         self._x = x
         self._y = y
         self._radius = radius
@@ -204,7 +205,7 @@ class SelectRoi(SingleRoi):
         Select a rectangular region of interest (ROI) using the mouse.
         Returns the ROI coordinates (top-left and bottom-right corners).
         """
-        image = self.source.read()
+        image = self._source.read()
 
         roi_pts = []
         win_name = "Select ROI and press c, to redraw press r"

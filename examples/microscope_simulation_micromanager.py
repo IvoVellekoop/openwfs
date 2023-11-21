@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import set_path
 import numpy as np
 from openwfs.algorithms import StepwiseSequential, BasicFDR, CharacterisingFDR
-from openwfs.algorithms.utilities import get_dense_matrix
+from openwfs.devices.wfs_device import FDRController
 from openwfs.processors import SingleRoi
 from openwfs.simulation import SimulatedWFS,Microscope,MockCamera,MockSource,MockXYStage,MockSLM
 import skimage
@@ -13,7 +13,7 @@ from openwfs.slm.patterns import tilt,disk
 import astropy.units as u
 
 aberrations = skimage.data.camera() * ((2*np.pi) / 255.0)+np.pi
-# aberrations = tilt(512,(-2,0))
+
 aberration = MockSource(aberrations, pixel_size=1.0 / (512) * u.dimensionless_unscaled)
 
 stage = MockXYStage(0.1 * u.um, 0.1 * u.um)
@@ -35,40 +35,43 @@ sim = Microscope(source=src, slm=slm.pixels(), magnification=1, numerical_apertu
 
 roi_detector = SingleRoi(sim.camera, x=256, y=256, radius=0) # Only measure that specific point
 
-alg = BasicFDR(feedback=roi_detector,slm=slm,slm_shape=(1000,1000),k_angles_min=-2,k_angles_max=2,phase_steps=3)
+alg = BasicFDR(feedback=roi_detector,slm=slm,slm_shape=(1000,1000),k_angles_min=-1,k_angles_max=1,phase_steps=3)
+controller = FDRController(alg)
+# plt.figure()
+# t = alg.execute()
 
-plt.figure()
-t = alg.execute()
+# plt.imshow(np.angle(t))
+# plt.figure()
+# plt.imshow(np.abs(get_dense_matrix(alg.k_left,alg.t_left)))
+# plt.figure()
+# plt.imshow(np.abs(get_dense_matrix(alg.k_right,alg.t_right)))
 
-plt.imshow(np.angle(t))
-plt.figure()
-plt.imshow(np.abs(get_dense_matrix(alg.k_left,alg.t_left)))
-plt.figure()
-plt.imshow(np.abs(get_dense_matrix(alg.k_right,alg.t_right)))
+#
+# optimised_wf = np.angle(t)
 
-
-optimised_wf = np.angle(t)
-
-
-plt.figure()
-slm.set_phases(0)
-plt.imshow(sim.camera.read())
-plt.title('No correction')
-plt.figure()
-slm.set_phases(-aberrations)
-plt.imshow(sim.camera.read())
-plt.title('Perfect correction')
-plt.figure()
-slm.set_phases(optimised_wf)
-plt.title('Optimised correction')
-plt.imshow(sim.camera.read())
-plt.show()
+#
+# plt.figure()
+# slm.set_phases(0)
+# plt.imshow(sim.camera.read())
+# plt.title('No correction')
+# plt.figure()
+# slm.set_phases(-aberrations)
+# plt.imshow(sim.camera.read())
+# plt.title('Perfect correction')
+# plt.figure()
+# slm.set_phases(optimised_wf)
+# plt.title('Optimised correction')
+# plt.imshow(sim.camera.read())
+# plt.show()
 
 
 devices = {
     'cam': sim.camera,
+    'wfs_controller': controller,
+    'slm': slm,
     'stage': sim.xy_stage,
-    'microscope': sim}
+    'microscope': sim,
+    'wfs': alg}
 
 
 
