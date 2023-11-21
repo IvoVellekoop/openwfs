@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from ..openwfs.simulation import SimulatedWFS, MockSource, MockSLM, Microscope
 import numpy as np
 from ..openwfs.algorithms import StepwiseSequential, BasicFDR, CharacterisingFDR
+from ..openwfs.algorithms.utilities import get_dense_matrix
 from ..openwfs.processors import SingleRoi
 import skimage
 import astropy.units as u

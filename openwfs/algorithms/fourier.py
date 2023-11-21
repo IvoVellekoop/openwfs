@@ -99,9 +99,10 @@ class FourierDualRef:
                 phase_pattern = self.get_phase_pattern(k_x, k_y, phase_offset, side)
                 self._slm.set_phases(phase_pattern)
                 self._feedback.trigger(out=measurements[i, p, ...])
+                self._feedback.wait()
             # Reset phase pattern if needed after each iteration
 
-        self._feedback.wait()
+        # self._feedback.wait()
         return measurements
 
 
