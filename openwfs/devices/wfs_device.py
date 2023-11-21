@@ -1,19 +1,18 @@
-from ..algorithms import StepwiseSequential, BasicFDR, CharacterisingFDR
 import numpy as np
 
 
-class FDRController:
+class WFSController:
     def __init__(self, algorithm):
         """
-        Initializes the FDRController with an instance of BasicFDR.
+        Initializes the FDRController with an algorithm ojbect.
 
         Args:
-            algorithm (BasicFDR): An instance of the BasicFDR class.
+            algorithm: An instance of an algorithm class. (e.g. StepwiseSequential, BasicFDR, CharacterisingFDR)
         """
         self.algorithm = algorithm
         self._show_flat_wavefront = False
         self._show_optimized_wavefront = False
-        self.t = None
+        self.transmission_matrix = None
 
     @property
     def execute_button(self) -> bool:
@@ -27,7 +26,7 @@ class FDRController:
 
     @execute_button.setter
     def execute_button(self, value):
-        self.t = self.algorithm.execute()
+        self.transmission_matrix = self.algorithm.execute()
         self.algorithm.execute_button = value
 
     @property
@@ -59,5 +58,8 @@ class FDRController:
     @show_optimized_wavefront.setter
     def show_optimized_wavefront(self, value):
         if value:
-            self.algorithm._slm.set_phases(np.angle(self.t))
+            if len(self.transmission_matrix.shape) == 3:
+                self.algorithm._slm.set_phases(-np.angle(self.transmission_matrix[...,0]))
+            else:
+                self.algorithm._slm.set_phases(np.angle(self.transmission_matrix))
         self._show_optimized_wavefront = value
