@@ -2,14 +2,11 @@ import matplotlib.pyplot as plt
 
 import set_path
 import numpy as np
-from openwfs.algorithms import StepwiseSequential, BasicFDR, CharacterisingFDR
+from openwfs.algorithms import BasicFDR
 from openwfs.devices.wfs_device import WFSController
 from openwfs.processors import SingleRoi
-from openwfs.simulation import SimulatedWFS,Microscope,MockCamera,MockSource,MockXYStage,MockSLM
+from openwfs.simulation import Microscope, MockSource, MockSLM
 import skimage
-
-from openwfs.slm import SLM
-from openwfs.slm.patterns import tilt,disk
 import astropy.units as u
 
 aberrations = skimage.data.camera() * ((2*np.pi) / 255.0)+np.pi
@@ -33,16 +30,8 @@ sim = Microscope(source=src, slm=slm.pixels(), magnification=1, numerical_apertu
 
 roi_detector = SingleRoi(sim.camera, x=256, y=256, radius=0) # Only measure that specific point
 
-# alg = BasicFDR(feedback=roi_detector,slm=slm,slm_shape=(1000,1000),k_angles_min=-1,k_angles_max=1,phase_steps=3)
-alg = StepwiseSequential(feedback=roi_detector,slm=slm)
+alg = BasicFDR(feedback=roi_detector,slm=slm,slm_shape=(1000,1000),k_angles_min=-1,k_angles_max=1,phase_steps=3)
 controller = WFSController(alg)
-
-controller.execute_button = True
-alg._slm = SLM(0)
-controller.show_optimized_wavefront = True
-
-import time
-time.sleep(5)
 
 devices = {
     'cam': sim.camera,
@@ -51,7 +40,3 @@ devices = {
     'stage': sim.xy_stage,
     'microscope': sim,
     'wfs': alg}
-
-
-
-

@@ -4,7 +4,7 @@ import numpy as np
 class WFSController:
     def __init__(self, algorithm):
         """
-        Initializes the FDRController with an algorithm ojbect.
+        Initializes the WFSController with an algorithm object.
 
         Args:
             algorithm: An instance of an algorithm class. (e.g. StepwiseSequential, BasicFDR, CharacterisingFDR)
