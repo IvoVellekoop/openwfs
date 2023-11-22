@@ -7,11 +7,15 @@ from openwfs.slm.geometry import fill_transform
 import astropy.units as u
 import matplotlib.pyplot as plt
 
+# This python script shows how a wavefront shaping experiment can be performed from Python
+
 scanner = LaserScanning(x_mirror_mapping='Dev2/ao0', y_mirror_mapping='Dev2/ao1', input_mapping='Dev2/ai0',
                         measurement_time=100 * u.ms)
 roi_detector = SingleRoi(scanner, x=scanner.data_shape[1], y=scanner.data_shape[1], radius=1)
 
-slm = SLM(2)
+slm = SLM(0, wavelength=804)
+slm.lut_generator = lambda λ: np.arange(0, 0.2623 * λ.to(u.nm).value - 23.33)/255 # again copied from earlier hardcodes
+slm.wavelength = 804 * u.nm
 
 # hardcode offset, because our calibrations don't work yet
 transform_matrix = np.array(fill_transform(slm, fit='short'))
