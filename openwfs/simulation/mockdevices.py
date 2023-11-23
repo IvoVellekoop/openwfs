@@ -7,7 +7,7 @@ from scipy.ndimage import zoom
 import time
 from typing import Union
 from ..processors import CropProcessor
-from ..core import DataSource, Processor, PhaseSLM, get_pixel_size
+from ..core import DataSource, Processor, PhaseSLM, Actuator, get_pixel_size
 
 
 class Generator(DataSource):
@@ -170,7 +170,6 @@ class ADCProcessor(Processor):
             else:
                 out[...] = np.rint(data).astype('uint16')
 
-
         return out
 
     @property
@@ -219,7 +218,7 @@ class MockCamera(ADCProcessor):
     """
 
     def __init__(self, source: DataSource, width: int = None, height: int = None, left: int = 0, top: int = 0,
-                 analog_max: float = 0.0, digital_max: int = 0xFFFF, measurement_time: Quantity[u.ms]=100 * u.ms):
+                 analog_max: float = 0.0, digital_max: int = 0xFFFF, measurement_time: Quantity[u.ms] = 100 * u.ms):
         self._crop = CropProcessor(source, size=(height, width), pos=(top, left))
         super().__init__(source=self._crop, digital_max=digital_max, analog_max=analog_max)
         self._measurement_time = measurement_time.to(u.ms)
@@ -273,8 +272,9 @@ class MockCamera(ADCProcessor):
         self._measurement_time = value.to(u.ms)
 
 
-class MockXYStage:
+class MockXYStage(Actuator):
     def __init__(self, step_size_x: Quantity[u.um], step_size_y: Quantity[u.um]):
+        super().__init__()
         self.step_size_x = step_size_x.to(u.um)
         self.step_size_y = step_size_y.to(u.um)
         self._y = 0.0 * u.um
@@ -301,9 +301,6 @@ class MockXYStage:
     def home(self):
         self._x = 0.0 * u.um
         self._y = 0.0 * u.um
-
-    def wait(self):
-        pass
 
 
 class MockSLM(PhaseSLM):
@@ -334,4 +331,3 @@ class MockSLM(PhaseSLM):
 
     def pixels(self) -> DataSource:
         return self._monitor
-

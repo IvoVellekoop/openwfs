@@ -200,7 +200,7 @@ class Device:
             time.sleep(time_to_wait / 1.0E9)
 
     def wait(self):
-        """Waits until the device is completely done with all actions.
+        """Waits until the device is completely done with all actions (i.e. busy == False).
 
         By default, this function just calls self._wait_finished().
         `Detector` overrides this function to wait for the final acquisition to finish.
@@ -209,6 +209,12 @@ class Device:
         """
         assert np.isfinite(self._duration)
         return self._wait_finished()
+
+    def busy(self) -> bool:
+        """Returns true if the device is measuring or moving (see `wait()`)"""
+        assert np.isfinite(self._duration)
+        end_time = self._start_time_ns + (self._duration + self.latency).to_value(u.ns)
+        return end_time > time.time_ns()
 
 
 class Actuator(Device, ABC):
