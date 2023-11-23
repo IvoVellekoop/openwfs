@@ -221,7 +221,6 @@ class MockCamera(ADCProcessor):
                  analog_max: float = 0.0, digital_max: int = 0xFFFF, measurement_time: Quantity[u.ms] = 100 * u.ms):
         self._crop = CropProcessor(source, size=(height, width), pos=(top, left))
         super().__init__(source=self._crop, digital_max=digital_max, analog_max=analog_max)
-        self._measurement_time = measurement_time.to(u.ms)
 
     @property
     def left(self):
@@ -262,14 +261,6 @@ class MockCamera(ADCProcessor):
     @width.setter
     def width(self, value):
         self.data_shape = (self.data_shape[0], value)
-
-    @property
-    def measurement_time(self) -> Quantity[u.ms]:
-        return self._measurement_time
-
-    @measurement_time.setter
-    def measurement_time(self, value):
-        self._measurement_time = value.to(u.ms)
 
 
 class MockXYStage(Actuator):

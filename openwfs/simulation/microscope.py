@@ -61,7 +61,7 @@ class Microscope(Processor):
 
     def __init__(self, source, magnification, numerical_aperture, wavelength: Quantity[u.nm],
                  xy_stage=None, z_stage=None, slm=None, aberrations=None, camera_resolution=(1024, 1024),
-                 camera_pixel_size=10 * u.um, truncation_factor=None):
+                 camera_pixel_size=10 * u.um, truncation_factor=None, analog_max = 0.0):
         """
 
         Args:
@@ -94,7 +94,10 @@ class Microscope(Processor):
         self.xy_stage = xy_stage or MockXYStage(0.1 * u.um, 0.1 * u.um)
         self.z_stage = z_stage  # or MockStage()
         self.truncation_factor = truncation_factor
-        self.camera = MockCamera(self)  # discretized version of the microscope image
+
+
+        self.camera = MockCamera(self,analog_max=analog_max)
+
         self.abbe_limit = 0.0
         self._pupil_resolution = 0.0
         self.psf = None
@@ -141,6 +144,10 @@ class Microscope(Processor):
             pupil_field *= np.exp(1.0j * self._crop(aberrations))
 
 
+        # import matplotlib.pyplot as plt
+        #
+        # plt.imshow(np.angle(pupil_field))
+        # plt.show()
         # finally, pad the pupil field so that the diameter of the pupil field
         # corresponds to a focus with the size of a single pixel in the source image
         # - first compute the ratio of Abbe limit (i.e. the resolution corresponding to the current pupil size)
