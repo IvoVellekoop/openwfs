@@ -26,9 +26,9 @@ class LaserScanning(DataSource):
     def __init__(self, left=0, top=0, width=100, height=100, dwelltime: Quantity[u.us] = 6 * u.us,
                  input_mapping='Dev4/ai24',
                  x_mirror_mapping='Dev4/ao2', y_mirror_mapping='Dev4/ao3', input_min=-1, input_max=1, delay=0,
-                 measurement_time: Quantity[u.ms] = 600 * u.ms, zoom=1, scan_padding=1, bidirectional=True, invert=0,
+                 duration: Quantity[u.ms] = 600 * u.ms, zoom=1, scan_padding=1, bidirectional=True, invert=0,
                  galvo_scanner=None):
-        super().__init__(data_shape=(height, width), pixel_size=1 * u.um,duration=measurement_time)
+        super().__init__(data_shape=(height, width), pixel_size=1 * u.um,duration=duration)
         if galvo_scanner is None:
             galvo_scanner = GalvoScanner()
 
@@ -46,7 +46,6 @@ class LaserScanning(DataSource):
         self._input_min = input_min
         self._input_max = input_max
         self._delay = delay
-        self._measurement_time = measurement_time.to(u.ms)
         self._zoom = zoom
         self._scan_padding = scan_padding
         self._bidirectional = bidirectional
@@ -72,7 +71,7 @@ class LaserScanning(DataSource):
                 bidirectional=[self._bidirectional],
                 zoom=[self._zoom],
                 input_range=[self._input_min, self._input_max],
-                duration=[self._measurement_time.to(u.s).value]
+                duration=[self._duration.to(u.s).value]
             )
 
         return out
@@ -110,7 +109,7 @@ class LaserScanning(DataSource):
     @width.setter
     def width(self, value: int):
         self._width = value
-        self._dwelltime = (self._measurement_time / (self._width * self._height))
+        self._dwelltime = (self._duration / (self._width * self._height))
         self._resized = True
 
     @property
@@ -120,7 +119,7 @@ class LaserScanning(DataSource):
     @height.setter
     def height(self, value: int):
         self._height = value
-        self._dwelltime = (self._measurement_time / (self._width * self._height))
+        self._dwelltime = (self._duration / (self._width * self._height))
         self._resized = True
 
     @property
@@ -152,20 +151,8 @@ class LaserScanning(DataSource):
     @dwelltime.setter
     def dwelltime(self, value):
         self._dwelltime = value.to(u.us)
-        if self._measurement_time is not (value) * (self._width * self._height):
-            self._measurement_time = (value * (self._width * self._height)).to(u.ms)
-            self.duration = self._measurement_time
-
-    @property
-    def measurement_time(self) -> Quantity[u.ms]:
-        return self._measurement_time
-
-    @measurement_time.setter
-    def measurement_time(self, value):
-        self._measurement_time = value.to(u.ms)
-        self._duration = value.to(u.ms)
-        if self._dwelltime is not value / (self._width * self._height):
-            self._dwelltime = (value / (self._width * self._height)).to(u.us)
+        if self._duration is not (value) * (self._width * self._height):
+            self._duration = (value * (self._width * self._height)).to(u.ms)
 
     @property
     def delay(self) -> int:
