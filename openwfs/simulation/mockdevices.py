@@ -7,10 +7,10 @@ from scipy.ndimage import zoom
 import time
 from typing import Union
 from ..processors import CropProcessor
-from ..core import DataSource, Processor, PhaseSLM, Actuator, get_pixel_size
+from ..core import Detector, Processor, PhaseSLM, Actuator, get_pixel_size
 
 
-class Generator(DataSource):
+class Generator(Detector):
     """Detector that returns synthetic data.
     Also simulates latency and measurement duration.
     """
@@ -142,7 +142,7 @@ class ADCProcessor(Processor):
         shot_noise(bool): when True, apply Poisson noise to the data instead of rounding
     """
 
-    def __init__(self, source: DataSource, analog_max: float = 0.0, digital_max: int = 0xFFFF,
+    def __init__(self, source: Detector, analog_max: float = 0.0, digital_max: int = 0xFFFF,
                  shot_noise: bool = False):
         super().__init__(source)
         self._analog_max = None
@@ -204,7 +204,7 @@ class ADCProcessor(Processor):
 class MockCamera(ADCProcessor):
     """Wraps any 2-d image source as a camera.
 
-    To implement the camera interface (see bootstrap.py), in addition to the DataSource interface,
+    To implement the camera interface (see bootstrap.py), in addition to the Detector interface,
     we must implement the following functions:
         top: int
         left: int
@@ -217,7 +217,7 @@ class MockCamera(ADCProcessor):
     Conversion to uint16 is implemented in the ADCProcessor base class.
     """
 
-    def __init__(self, source: DataSource, width: int = None, height: int = None, left: int = 0, top: int = 0,
+    def __init__(self, source: Detector, width: int = None, height: int = None, left: int = 0, top: int = 0,
                  analog_max: float = 0.0, digital_max: int = 0xFFFF, measurement_time: Quantity[u.ms] = 100 * u.ms):
         self._crop = CropProcessor(source, size=(height, width), pos=(top, left))
         super().__init__(source=self._crop, digital_max=digital_max, analog_max=analog_max)
@@ -277,8 +277,7 @@ class MockXYStage(Actuator):
 
     @x.setter
     def x(self, value: Quantity[u.um]):
-        former = self._x
-        self._x = value.to(u.um) + former
+        self._x = value.to(u.um)
 
     @property
     def y(self) -> Quantity[u.um]:
@@ -286,8 +285,7 @@ class MockXYStage(Actuator):
 
     @y.setter
     def y(self, value: Quantity[u.um]):
-        former = self._y
-        self._y = value.to(u.um) + former
+        self._y = value.to(u.um)
 
     def home(self):
         self._x = 0.0 * u.um
@@ -320,5 +318,5 @@ class MockSLM(PhaseSLM):
     def phases(self):
         return self._front_buffer
 
-    def pixels(self) -> DataSource:
+    def pixels(self) -> Detector:
         return self._monitor

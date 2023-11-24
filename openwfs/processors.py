@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
 from typing import Union
-from .core import Processor, DataSource
+from .core import Processor, Detector
 from .slm.patterns import disk, gaussian
 
 
@@ -11,9 +11,6 @@ class SingleRoi(Processor):
     """
 
     def __init__(self, source, x, y, radius=0.1, mask_type='disk', waist=0.5):
-        """
-
-        """
         super().__init__(source, data_shape=(1,))
         self._source = source
         self._x = x
@@ -131,7 +128,7 @@ class CropProcessor(Processor):
         padding_value (float): Value to use if the cropped area extends beyond the original data.
     """
 
-    def __init__(self, source: DataSource, size=None, pos=None, padding_value=0.0):
+    def __init__(self, source: Detector, size=None, pos=None, padding_value=0.0):
         super().__init__(source)
         if size is None:
             size = source.data_shape

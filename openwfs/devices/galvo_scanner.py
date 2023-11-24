@@ -3,21 +3,16 @@ from typing import Union
 import astropy.units as u
 import numpy as np
 from astropy.units import Quantity
-from ..core import DataSource
+from ..core import Detector
 from .Pyscanner import single_capture
 
 
-class GalvoScanner:
-
-    def galvo_scan(self, buffer, invert, resolution, input, output, scanpadding, delay, bidirectional, zoom,
-                   input_range, exposure):
         im = single_capture(invert_values=invert, resolution=resolution, input_mapping=input, output_mapping=output,
                             scanpaddingfactor=scanpadding, delay=delay, bidirectional=bidirectional, zoom=zoom,
                             input_range=input_range, duration=exposure, )
-        buffer[:, :] = np.reshape(im, resolution)
 
 
-class LaserScanning(DataSource):
+class LaserScanning(Detector):
     """
     Camera implementation that performs laser scanning,
     It is very much under construction, and requires testing

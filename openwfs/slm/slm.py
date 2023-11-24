@@ -114,7 +114,7 @@ class SLM(PhaseSLM):
         self.activate()
         self._monitor_id = value
         self._shape = None
-        self._refresh_rate = 0.0
+        self._refresh_rate = 0.0 * u.Hz
         monitor = self._set_default_video_mode()
         glfw.set_window_monitor(self._window, monitor, self._pos[1], self._pos[0], self._pos[1], self._pos[0],
                                 int(self._refresh_rate / u.Hz))

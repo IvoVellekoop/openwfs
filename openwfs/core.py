@@ -11,6 +11,15 @@ from abc import ABC, abstractmethod
 
 
 def get_pixel_size(data: np.ndarray):
+    """Extracts the `pixel_size` metadata from the data returned from a detector.
+    Usage:
+
+     from openwfs.simulation import MockDetector
+     det = MockDetector()
+     data = det.trigger().result()
+     pixel_size = get_pixel_size(data)
+
+    """
     try:
         return data.dtype.metadata['pixel_size']
     except (KeyError, TypeError):
@@ -226,13 +235,14 @@ class Actuator(Device, ABC):
         return True
 
 
-class DataSource(Device, ABC):
+class Detector(Device, ABC):
     """Base class for all detectors, cameras and other data sources with possible dynamic behavior.
     """
 
     def __init__(self, *, data_shape, pixel_size: Quantity, **kwargs):
         super().__init__(**kwargs)
-        self._pixel_size = pixel_size
+        ndim = len(data_shape)
+        self._pixel_size = pixel_size if pixel_size.size == ndim else np.tile(pixel_size, (ndim,))
         self._data_shape = data_shape
         self._measurements_pending = atomics.atomic(width=4, atype=atomics.INT)
         self._error = None
@@ -336,55 +346,66 @@ class DataSource(Device, ABC):
             * This value matches the `shape` property of the array returned when calling `trigger` followed by `read`.
             * The property may change, for example, when the ROI of a camera is changed.
               In any case, the value of `data_shape`
-              just before calling `trigger` will match the size of the data returned by the corresponding `read` call.
+              just before calling `trigger` will match the size of the data returned by the corresponding `result` call.
         """
         return self._data_shape
 
     @property
     def pixel_size(self) -> Quantity:
-        """Dimension of one unit in the returned data array.
+        """Dimension of one element in the returned data array.
 
         For cameras, this is the pixel size (in astropy length units).
         For detectors returning a time trace, this value is specified in astropy time units.
-        Note:
-            * At the moment, the pixel_size is a scalar, so for multidimensional data sources the pixel_size
-              must be the same in all dimensions (only square pixels are supported)
-            * By default, the pixel size cannot be set.
-              However, in some cases (such as when the `pixel_size` is actually a sampling interval),
+
+        The pixel_size is a 1-D array with an element for each dimension of the returned data.
+
+        By default, the pixel size cannot be set.
+        However, in some cases (such as when the `pixel_size` is actually a sampling interval),
               it makes sense for the child class to implement a setter.
         """
         return self._pixel_size
 
     @final
-    def coordinates(self, d):
+    def coordinates(self, dim):
         """Coordinate values along the d-th axis.
 
         The coordinates represent the center of the pixels (or sample intervals),
         so they range from 0.5*pixel_size to (data_shape[d]-0.5) * pixel_size.
         Coordinates have the same astropy base unit as pixel_size.
 
-        The coordinates are returned as an array along the d-th dimension, facilitating meshgrid-like computations,
-        i.e. cam.coordinates(0) + cam.coordinates(1) gives a 2-dimensional array of coordinates.
+        The coordinates are returned as an array with the same number of dimensions as the returned data,
+        with the d-th dimension holding the coordinates.
+        This faclilitates meshgrid-like computations, e.g.
+         `cam.coordinates(0) + cam.coordinates(1)` gives a 2-dimensional array of coordinates.
+
+        Args:
+            dim: Dimension for which to return the coordinates.
+
+        Returns:
+            Quantity: An array holding the coordinates.
         """
-        c = np.array(range(self.data_shape[d]), ndmin=len(self.data_shape))
-        return (np.moveaxis(c, -1, d) + 0.5) * self.pixel_size
+        c = np.arange(0.5, 0.5 + self.data_shape[dim], 1.0) * self._pixel_size[dim]
+        shape = np.ones(len(self.data_shape), dtype='uint32')
+        shape[dim] = self.data_shape[dim]
+        return c.reshape(shape)
 
     @final
-    def dimensions(self):
+    @property
+    def extent(self) -> Quantity:
         """Returns the physical size of the data: data_shape * pixel_size.
 
         Note:
             The value is returned as a numpy array with astropy unit rather than as a tuple to allow easy manipulation.
         """
-        return np.array(self.data_shape) * self.pixel_size
+        return self.data_shape * self.pixel_size
 
 
-class Processor(DataSource, ABC):
-    """Helper base class for chaining DataSources.
+class Processor(Detector, ABC):
+    """Helper base class for chaining Detectors.
 
     Processors can be used to build data processing graphs, where each Processor takes input from one or
-    more input DataSources and processes that data (e.g., cropping an image, averaging over an ROI, etc.).
-    A processor, itself, is a DataSource to allow chaining multiple processors together to combine functionality.
+    more input Detectors and processes that data (e.g., cropping an image, averaging over an ROI, etc.).
+    A processor, itself, is a Detector to allow chaining multiple processors together to combine functionality.
 
     To implement a processor, override read and/or __init__
 
@@ -425,16 +446,12 @@ class PhaseSLM(Actuator, ABC):
         """Sends the new phase pattern to be displayed on the SLM.
 
         Implementations should call _start() before triggering the SLM.
-        Args:
-            wait_factor.
-                Time to allow for stabilization of the image, relative to the settle_time property.
-                Values higher than 1.0 allow extra stabilization time before measurements are made.
 
         Note:
             This function *does not* wait for the image to appear on the SLM.
-            To wait for the image stabilization explicitly, use 'wait_finished'.
+            To wait for the image stabilization explicitly, use 'wait()'.
             However, this should rarely be needed since all Detectors
-            already call wait_finished before starting a measurement.
+            already wait for the image to stabilize before starting a measurement.
         """
 
     @abstractmethod

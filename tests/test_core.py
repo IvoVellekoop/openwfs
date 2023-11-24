@@ -7,9 +7,10 @@ import numpy as np
 import astropy.units as u
 
 
-def test_mock_detector():
+@pytest.mark.parametrize("pixel_size", [4 * u.um, (4, 3) * u.um])
+def test_mock_detector(pixel_size):
     image = np.ones((4, 5))
-    source = MockSource(image, pixel_size=4 * u.um)
+    source = MockSource(image, pixel_size=pixel_size)
     data = source.read()
     data2 = source.trigger().result()
     data3 = np.empty(data.shape)
@@ -18,7 +19,16 @@ def test_mock_detector():
     assert np.allclose(image, data)
     assert np.allclose(image, data2)
     assert np.allclose(image, data3)
-    assert get_pixel_size(data) == 4 * u.um
+    ps = get_pixel_size(data)
+    assert len(ps) == 2
+    assert len(source.pixel_size)
+    assert np.all(ps == source.pixel_size)
+    assert np.all(ps == pixel_size)
+    y = source.coordinates(0)
+    x = source.coordinates(1)
+    assert np.allclose(y, ([0.5, 1.5, 2.5, 3.5] * ps[0]).reshape((4, 1)))
+    assert np.allclose(x, ([0.5, 1.5, 2.5, 3.5, 4.5] * ps[1]).reshape((1, 5)))
+    assert np.allclose(source.extent, (4, 5) * ps)
 
 
 @pytest.mark.parametrize("duration", [0.0 * u.s, 0.5 * u.s])
@@ -53,7 +63,7 @@ def test_noise_detector():
     assert np.max(data) < 1.0
     assert np.allclose(np.mean(data), 0.0, atol=0.1)
     assert np.allclose(np.std(data), 2.0 / np.sqrt(12.0), atol=0.1)
-    assert get_pixel_size(data) == 4 * u.um
+    assert np.all(get_pixel_size(data) == 4 * u.um)
     source.data_shape = (2, 3)
     assert source.read().shape == (2, 3)
 
@@ -97,7 +107,7 @@ def test_crop():
     assert np.alltrue(c3[1:, 2:] == data[0:1, 0:2])
 
 
-def test_crop_1D():
+def test_crop_1d():
     data = np.random.uniform(size=(10,))
     source = MockSource(data, pixel_size=1 * u.um)
     cropped = CropProcessor(source, padding_value=np.nan)

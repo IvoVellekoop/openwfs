@@ -1,6 +1,6 @@
 import numpy as np
 from typing import Any, Annotated
-from ..core import DataSource, PhaseSLM
+from ..core import Detector, PhaseSLM
 from .utilities import analyze_phase_stepping
 
 
@@ -9,11 +9,11 @@ class StepwiseSequential:
     Class definition for stepwise sequential algorithm.
     """
 
-    def __init__(self, feedback: DataSource, slm: PhaseSLM, phase_steps=4, n_x=4, n_y=4):
+    def __init__(self, feedback: Detector, slm: PhaseSLM, phase_steps=4, n_x=4, n_y=4):
         """
 
         Args:
-            feedback (DataSource): Source of feedback
+            feedback (Detector): Source of feedback
             slm (PhaseSLM): The spatial light modulator
             phase_steps (int): The number of phase steps.
             n_x (int): Number of SLM elements in x direction

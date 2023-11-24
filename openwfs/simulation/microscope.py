@@ -61,7 +61,7 @@ class Microscope(Processor):
 
     def __init__(self, source, magnification, numerical_aperture, wavelength: Quantity[u.nm],
                  xy_stage=None, z_stage=None, slm=None, aberrations=None, camera_resolution=(1024, 1024),
-                 camera_pixel_size=10 * u.um, truncation_factor=None, analog_max = 0.0):
+                 camera_pixel_size=10 * u.um, truncation_factor=None, analog_max=0.0):
         """
 
         Args:
@@ -94,14 +94,13 @@ class Microscope(Processor):
         self.xy_stage = xy_stage or MockXYStage(0.1 * u.um, 0.1 * u.um)
         self.z_stage = z_stage  # or MockStage()
         self.truncation_factor = truncation_factor
-
-
-        self.camera = MockCamera(self,analog_max=analog_max)
-
+        self.camera = MockCamera(self, analog_max=analog_max)
         self.abbe_limit = 0.0
         self._pupil_resolution = 0.0
         self.psf = None
         self.slm = slm
+        assert source is not None
+
     def _fetch(self, out: Union[np.ndarray, None], source: np.ndarray, aberrations: np.ndarray,  # noqa
                slm: np.ndarray) -> np.ndarray:
 
@@ -118,8 +117,7 @@ class Microscope(Processor):
 
         # First, calculate the magnification and field of view.
         m = self.magnification if np.isscalar(self.magnification) else np.sqrt(np.linalg.det(self.magnification))
-        fov = self.pixel_size * np.max(self.data_shape) / m
-        assert source is not None
+        fov = self.extent.pixel_size * np.max(self.data_shape) / m
         source_pixel_size = get_pixel_size(source)
 
         # Then, calculate the required resolution for the pupil map.
@@ -143,11 +141,6 @@ class Microscope(Processor):
         elif aberrations is not None:
             pupil_field *= np.exp(1.0j * self._crop(aberrations))
 
-
-        # import matplotlib.pyplot as plt
-        #
-        # plt.imshow(np.angle(pupil_field))
-        # plt.show()
         # finally, pad the pupil field so that the diameter of the pupil field
         # corresponds to a focus with the size of a single pixel in the source image
         # - first compute the ratio of Abbe limit (i.e. the resolution corresponding to the current pupil size)
@@ -169,8 +162,8 @@ class Microscope(Processor):
             m = np.eye(3) * m
             m[2, 2] = 1
         offset = np.eye(3)
-        offset[0, 2] += (self.xy_stage.x / source_pixel_size)-1 # correct the offset introduced by the convolution
-        offset[1, 2] += (self.xy_stage.y / source_pixel_size)-1
+        offset[0, 2] += (self.xy_stage.x / source_pixel_size) - 1  # correct the offset introduced by the convolution
+        offset[1, 2] += (self.xy_stage.y / source_pixel_size) - 1
         m = m @ offset  # apply offset first, then magnification
 
         if out is None:
@@ -179,7 +172,7 @@ class Microscope(Processor):
 
     def _crop(self, img: np.ndarray):
         """crop/pad an image to the NA of the microscope objective and scale to the internal resolution"""
-        pixel_size = float(get_pixel_size(img))  # size in normalized NA coordinates
+        pixel_size = get_pixel_size(img)  # size in normalized NA coordinates
 
         # scale the image
         scale = (self.numerical_aperture / self._pupil_resolution) / pixel_size

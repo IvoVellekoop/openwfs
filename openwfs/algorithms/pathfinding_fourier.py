@@ -1,9 +1,10 @@
 from .fourier import FourierDualRef
 import numpy as np
-from ..core import DataSource, PhaseSLM
+from ..core import Detector, PhaseSLM
 from .utilities import analyze_phase_stepping
 import os
 import pickle
+
 
 def get_neighbors(n, m):
     """Get the neighbors of a point in a 2D grid.
@@ -16,9 +17,9 @@ def get_neighbors(n, m):
         numpy.ndarray: Array containing the coordinates of the neighbors.
     """
     directions = [
-        (-1, -1), (-1, 0),  (-1, 1),
-        (0, -1),             (0, 1),
-        (1, -1),   (1, 0),   (1, 1)
+        (-1, -1), (-1, 0), (-1, 1),
+        (0, -1), (0, 1),
+        (1, -1), (1, 0), (1, 1)
     ]
 
     neighbors = [(n + dx, m + dy) for dx, dy in directions]
@@ -48,11 +49,12 @@ class CharacterisingFDR(FourierDualRef):
         save_experiment(filename="experimental_data", directory=None): Save experimental data to a file.
     """
 
-    def __init__(self,feedback: DataSource, slm: PhaseSLM, slm_shape = (500,500), phase_steps=4, overlap=0.1, max_modes=20, high_modes=0, high_phase_steps=16, intermediates=False):
+    def __init__(self, feedback: Detector, slm: PhaseSLM, slm_shape=(500, 500), phase_steps=4, overlap=0.1,
+                 max_modes=20, high_modes=0, high_phase_steps=16, intermediates=False):
         """
 
         Args:
-            feedback (DataSource): Source of feedback
+            feedback (Detector): Source of feedback
             slm (PhaseSLM): The spatial light modulator
             slm_shape (tuple of two ints): The shape that the SLM patterns & transmission matrices are calculated for,
                                         does not necessarily have to be the actual pixel dimensions as the SLM.
@@ -63,7 +65,7 @@ class CharacterisingFDR(FourierDualRef):
             high_phase_steps (int): The number of phase steps for high mode measurements.
             intermediates (bool): Flag to enable recording intermediate enhancements.
         """
-        super().__init__(feedback, slm, slm_shape,None, None, phase_steps=phase_steps, overlap=overlap)
+        super().__init__(feedback, slm, slm_shape, None, None, phase_steps=phase_steps, overlap=overlap)
         self.max_modes = max_modes
         self.high_modes = high_modes
         self.high_phase_steps = high_phase_steps
@@ -89,11 +91,11 @@ class CharacterisingFDR(FourierDualRef):
         if self.intermediates:
             self.record_intermediate_enhancement([0], [0], [0], 0)
 
-        for side in range(2): # for the left or right side of the SLM:
+        for side in range(2):  # for the left or right side of the SLM:
 
-            n = 0 # number of measured modes
-            self.k_x = self.k_y = np.array(0, dtype=int) # we begin in K[0,0]
-            t_fourier = kx_total = ky_total = np.array([]) # arrays in which to store the results
+            n = 0  # number of measured modes
+            self.k_x = self.k_y = np.array(0, dtype=int)  # we begin in K[0,0]
+            t_fourier = kx_total = ky_total = np.array([])  # arrays in which to store the results
 
             # the centers are the point around which the modes are measured. We store them to avoid duplicates
             centers = np.array([[], []], dtype=int)
@@ -103,9 +105,9 @@ class CharacterisingFDR(FourierDualRef):
             while n < self.max_modes:
 
                 # do measurement for current k_x and k_y
-                measurements = self.single_side_experiment(np.vstack((self.k_x, self.k_y)),side)
+                measurements = self.single_side_experiment(np.vstack((self.k_x, self.k_y)), side)
                 # calculate their transmission elements
-                t_fourier = np.append(t_fourier, analyze_phase_stepping(measurements,axis=1).field)
+                t_fourier = np.append(t_fourier, analyze_phase_stepping(measurements, axis=1).field)
                 # store which k_x and k_y we just measured
                 kx_total = np.append(kx_total, self.k_x)
                 ky_total = np.append(ky_total, self.k_y)
@@ -121,7 +123,7 @@ class CharacterisingFDR(FourierDualRef):
                     in_x = np.isin(centers[0, :], kx_total[nth_highest_index])
                     in_y = np.isin(centers[1, :], ky_total[nth_highest_index])
 
-                    if not any(in_x & in_y) is True: # if it has not been a centre element yet:
+                    if not any(in_x & in_y) is True:  # if it has not been a centre element yet:
                         center = np.array([[kx_total[nth_highest_index]], [ky_total[nth_highest_index]]])
                         next_points = get_neighbors(center[0], center[1])
 
@@ -192,8 +194,8 @@ class CharacterisingFDR(FourierDualRef):
         for idx in high_mode_indices:
             self.k_x = np.array([kx_total[idx]])
             self.k_y = np.array([ky_total[idx]])
-            measurements = self.single_side_experiment(np.vstack((self.k_x, self.k_y)),side)
-            t_fourier[idx] = analyze_phase_stepping(measurements,axis=1).field
+            measurements = self.single_side_experiment(np.vstack((self.k_x, self.k_y)), side)
+            t_fourier[idx] = analyze_phase_stepping(measurements, axis=1).field
 
         # Restore the original phase_steps for subsequent measurements
         self.phase_steps = original_phase_steps
@@ -253,6 +255,7 @@ class CharacterisingFDR(FourierDualRef):
 
         with open(os.path.join(directory, f'{filename}.pkl'), 'wb') as f:
             pickle.dump(data_to_save, f)
+
     @property
     def execute_button(self) -> bool:
         return self._execute_button

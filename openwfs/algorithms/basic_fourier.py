@@ -1,6 +1,7 @@
 from .fourier import FourierDualRef
-from ..core import DataSource, PhaseSLM
+from ..core import Detector, PhaseSLM
 import numpy as np
+
 
 class BasicFDR(FourierDualRef):
     """The most simple implementation of the FourierDualRef algorithm. It constructs a symmetric k-space for the algorithm.
@@ -20,11 +21,12 @@ class BasicFDR(FourierDualRef):
         build_kspace(): Constructs the k-space arrays used in the algorithm.
     """
 
-    def __init__(self,feedback: DataSource, slm: PhaseSLM, slm_shape=(500,500), phase_steps=4, k_angles_min=-3, k_angles_max=3, overlap=0.1):
+    def __init__(self, feedback: Detector, slm: PhaseSLM, slm_shape=(500, 500), phase_steps=4, k_angles_min=-3,
+                 k_angles_max=3, overlap=0.1):
         """
 
         Args:
-            feedback (DataSource): Source of feedback
+            feedback (Detector): Source of feedback
             slm (PhaseSLM): The spatial light modulator
             slm_shape (tuple of two ints): The shape that the SLM patterns & transmission matrices are calculated for,
                             does not necessarily have to be the actual pixel dimensions as the SLM.
@@ -33,7 +35,7 @@ class BasicFDR(FourierDualRef):
             k_angles_max (int): The maximum k-angle.
             overlap (float): The overlap value.
         """
-        super().__init__(feedback,slm, slm_shape, None, None, phase_steps=phase_steps, overlap=overlap)
+        super().__init__(feedback, slm, slm_shape, None, None, phase_steps=phase_steps, overlap=overlap)
         self._k_angles_min = k_angles_min
         self._k_angles_max = k_angles_max
 
