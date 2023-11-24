@@ -10,14 +10,20 @@ def coordinate_range(resolution: Union[int, Sequence[int]]):
     """Returns a coordinate vectors for the two coordinates (y and x)
 
     If resolution is a scalar, assumes the same resolution for both axes.
+    The OpenGL convention is used, where the coordinates indicate the centers of the pixels.
+    To describe a texture that covers a range from -1 to 1, therefore the coordinates range from -1+dx/2 to 1-dx/2
+    where dx=2.0/resolution is the pixel size.
     """
-    if np.size(resolution) == 1:
-        resolution = (resolution, resolution)
 
-    dy = 2.0 / resolution[0]
-    dx = 2.0 / resolution[1]
-    return (np.arange(-1.0 + 0.5 * dy, 1.0, dy).reshape((-1, 1)),
-            np.arange(-1.0 + 0.5 * dx, 1.0, dx).reshape((1, -1)))
+    def range(res):
+        dx = 2.0 / res
+        return np.arange(res) * dx + (0.5 * dx - 1.0)
+
+    if np.size(resolution) == 1:
+        c = range(resolution)
+        return c.reshape((-1, 1)), c.reshape((1, -1))
+    else:
+        return range(resolution[0]).reshape((-1, 1)), range(resolution[1]).reshape((1, -1))
 
 
 def r2_range(resolution: Union[int, Sequence[int]]):
