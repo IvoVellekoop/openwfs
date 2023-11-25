@@ -116,7 +116,7 @@ class SLM(PhaseSLM):
         self._shape = None
         self._refresh_rate = 0.0 * u.Hz
         monitor = self._set_default_video_mode()
-        glfw.set_window_monitor(self._window, monitor, self._pos[1], self._pos[0], self._pos[1], self._pos[0],
+        glfw.set_window_monitor(self._window, monitor, self._pos[1], self._pos[0], self._shape[1], self._shape[0],
                                 int(self._refresh_rate / u.Hz))
         self._set_actual_video_mode()
         glViewport(0, 0, self._shape[1], self._shape[0])
@@ -197,6 +197,7 @@ class SLM(PhaseSLM):
         (fb_width, fb_height) = glfw.get_framebuffer_size(self._window)
         fb_shape = (fb_height, fb_width)
         if self._shape != fb_shape:
+            raise Exception("aa")
             warnings.warn(f"Actual resolution {fb_shape} does not match requested resolution {self._shape}.")
             self._shape = fb_shape
 
@@ -208,7 +209,8 @@ class SLM(PhaseSLM):
                     f"Bit depth is less than 8 bits "
                     f"(RGB = {current_mode.bits.red},{current_mode.bits.green},{current_mode.bits.blue} bits). "
                     f"You may not be able to use the full phase resolution of your SLM.")
-            if current_mode.refresh_rate != int(self._refresh_rate / u.Hz):
+            if (self.refresh_rate != glfw.DONT_CARE * u.Hz and
+                    current_mode.refresh_rate != int(self._refresh_rate / u.Hz)):
                 warnings.warn(f"Actual refresh rate of {current_mode.refresh_rate} Hz does not match set rate "
                               f"of {self.refresh_rate}")
         else:

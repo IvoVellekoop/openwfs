@@ -1,5 +1,7 @@
 import pytest
-from ..openwfs.devices import LaserScanning
+
+openwfs_devices = pytest.importorskip("openwfs.devices")
+from openwfs_devices import LaserScanning
 import time
 import astropy.units as u
 

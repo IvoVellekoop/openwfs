@@ -1,91 +1,131 @@
 import numpy as np
 from typing import Union, Sequence
+import astropy.units as u
+from astropy.units import Quantity
+
+"""
+Library of functions to create commonly used patterns
+
+Each of the functions takes a `shape` input, which may be a scalar integer or a 2-element Sequence of integers
+indicating the size (shape) in pixels of the returned field. If `shape` is a scalar, the same value is
+used for both axes.
+
+For the coordinates, the OpenGL convention is used, where the coordinates indicate the centers of the pixels.
+By default, the returned pattern is assumed to cover a -1,1 x -1,1 square, 
+which corresponds to a default `extent` parameter of (2.0, 2.0).
+In this case, the coordinates range from -1+dx/2 to 1-dx/2, where dx=2.0/shape is the pixel size.
+
+Optionally, a different `extent` can be specified to scale the coordinates.
+This is especially useful when working with anisotropic pixels or rectangular patterns.
+For example, a square pattern with anisotropic may be described by shape=(80,100) and extent(2,2)
+whereas shape=(80,100) and extent(8,10) describes square pixels that form a rectangle.
+
+In a pupil-conjugate configuration, the transformation matrix of the SLM should be set such that
+SLM coordinates correspond to normalized pupil coordinates.
+In this case, a disk of extent=(NA, NA) exactly covers the back pupil of the microscope objective.
+
+The extent may have a unit of measure. In this case, other parameters (such as `radius`) may need to have
+an according unit of measure.
+
+The (0,0) coordinate is always located in the center of the pattern, which may be on a grid point (for odd shape)
+or between grid points (for even shape).
+
+The returned array has a pixel_size property attached.
+"""
+
+ShapeType = Union[int, Sequence[int]]
+ExtentType = Union[Sequence[float], np.ndarray, Quantity]
+ScalarType = Union[float, np.ndarray, Quantity]
 
 
-# Each of the functions in this module computes a square pattern with a given resolution for x and y dimensions
-# The coordinate system that is used assumes that the pixels in the pattern fill a range from -1.0 to 1.0.
-# All computations are then done on the coordinates that represent the  _centers_ of these pixels.
+def coordinate_range(shape: ShapeType, extent: ExtentType):
+    """Returns coordinate vectors for the two coordinates (y and x)"""
+    if isinstance(shape, Quantity):
+        shape = shape.to_value(u.dimensionless_unscaled)
 
-def coordinate_range(resolution: Union[int, Sequence[int]]):
-    """Returns a coordinate vectors for the two coordinates (y and x)
+    if np.size(shape) == 1:
+        shape = (shape, shape)
 
-    If resolution is a scalar, assumes the same resolution for both axes.
-    The OpenGL convention is used, where the coordinates indicate the centers of the pixels.
-    To describe a texture that covers a range from -1 to 1, therefore the coordinates range from -1+dx/2 to 1-dx/2
-    where dx=2.0/resolution is the pixel size.
-    """
+    def c_range(res, ex):
+        dx = ex / res
+        return np.arange(res) * dx + (0.5 * dx - 0.5 * ex)
 
-    def range(res):
-        dx = 2.0 / res
-        return np.arange(res) * dx + (0.5 * dx - 1.0)
-
-    if np.size(resolution) == 1:
-        c = range(resolution)
-        return c.reshape((-1, 1)), c.reshape((1, -1))
-    else:
-        return range(resolution[0]).reshape((-1, 1)), range(resolution[1]).reshape((1, -1))
+    return (c_range(shape[0], extent[0]).reshape((-1, 1)),
+            c_range(shape[1], extent[1]).reshape((1, -1)))
 
 
-def r2_range(resolution: Union[int, Sequence[int]]):
+def r2_range(shape: ShapeType, extent: ExtentType):
     """Convenience function to return square distance to the origin
     Equivalent to computing cx^2 + cy^2
     """
-    c0, c1 = coordinate_range(resolution)
+    c0, c1 = coordinate_range(shape, extent)
     return c0 ** 2 + c1 ** 2
 
 
-def tilt(resolution: Union[int, Sequence[int]], slope):
-    """
+def tilt(shape: ShapeType, k: ExtentType, extent: ExtentType = (2.0, 2.0)):
+    """Constructs a linear gradient pattern
+
     Args:
-        resolution:
-        slope(tuple of two doubles): number of 2π phase wraps in both directions (y,x)
-
-    Returns:
-
+        shape: see module documentation
+        k(tuple of two floats): perpendicular wave vector.
+          This has the unit: radians / extent.unit.
+          For the default extent of (2.0, 2.0), a value of k=(π,0)
+          corresponds to having a 2π phase ramp over the height of the pattern (from -π to +π)
+          When this pattern is used as a phase, this corresponds to a periodicity of 1.
+        extent: see module documentation
     """
-    slope = np.array(slope)
-    c0, c1 = coordinate_range(resolution)
-    slope_2pi = np.pi * slope
-    return slope_2pi[1] * c1 + slope_2pi[0] * c0
+    k = Quantity(k)
+    c0, c1 = coordinate_range(shape, extent * k)
+    return c0 + c1
 
 
-def defocus(resolution: Union[int, Sequence[int]]):
-    """Constructs a square texture that represents a defocus: 2 pi sqrt(1-r^2)
-    The wavefront ranges from 0 (min) to 2pi (max)
-    For a pupil-conjugate configuration, with the wavefront displayed on a 1.0 'radius' square, this texture causes
-    the focus to shift to one wavelength further away from the lens (deeper).
-    Justification:
-    Coordinates correspond to sin(theta). This function then computes 2 pi cos(theta), which corresponds to
-    k_z lambda phase shift, i.e. one wavelength displacement in the z-direction.
-    the defocus can be computed as f = lambda / ...
+def lens(shape: ShapeType, f: ScalarType, wavelength: ScalarType, extent: ExtentType):
+    """Constructs a square texture that represents a wavefront defocus: (f-sqrt(f²+r²)) · 2π/λ
+
+    `extent`, `wavelength` and `f` should have compatible units (typically astropy length units).
+
+    Args:
+        shape(ShapeType): see module documentation
+        f(ScalarType): focal length
+        wavelength(ScalarType): wavelength
+        extent(ExtentType): physical extent of the SLM, same units as `f` and `wavelength`
     """
-
-    # construct coordinate range. The full texture spans the range -1 to 1, and it is divided into N_pixels pixels.
-    # The coordinates correspond to the centers of these pixels
-    r_sqr = r2_range(resolution)
-    return (2 * np.pi) * np.sqrt(np.maximum(1.0 - r_sqr, 0.0)) - np.pi
+    r_sqr = r2_range(shape, extent)
+    return Quantity((f - np.sqrt(np.maximum(f ** 2 - r_sqr, 0.0))) * (2 * np.pi / wavelength)).to_value(
+        u.dimensionless_unscaled)
 
 
-def disk(resolution: Union[int, Sequence[int]], radius=1.0):
-    """Constructs an image of a centered disk. With radius=1.0, the disk touches the sides of the square"""
-    return 1.0 * (r2_range(resolution) < radius ** 2)
+def disk(shape: ShapeType, radius: ScalarType = 1.0, extent: ExtentType = (2.0, 2.0)):
+    """Constructs an image of a centered (ellipsoid) disk.
+
+    (x / rx)^2 + (y / ry)^2 <= 1.0
+
+    Args:
+          shape: see module documentation
+          radius (ScalarType): radius of the disk, should have the same unit as `extent`.
+          extent: see module documentation
+    """
+    return 1.0 * (r2_range(shape, extent) < radius ** 2)
 
 
-def gaussian(resolution: Union[int, Sequence[int]], waist, truncation_radius=None):
-    """Constructs an image of a centered gaussian
+def gaussian(shape: ShapeType, waist: ScalarType,
+             truncation_radius: ScalarType = None, extent: ExtentType = (2.0, 2.0)):
+    """Constructs an image of a centered Gaussian
+
+    `waist`, `extent` and the optional `truncation_radius` should all have the same unit.
     Arguments:
-        resolution (int):
-            width and height (in pixels) of the returned pattern.
-        waist (float):
+        shape: see module documentation
+        waist (ScalarType):
             location of the beam waist (1/e value)
-            relative to half of the width of the pattern (i.e. relative to the `radius` of the square)
-        truncation_radius (float or None):
+            relative to half of the size of the pattern (i.e. relative to the `radius` of the square)
+        truncation_radius (ScalarType):
             when not None, specifies the radius of a disk that is used to truncate the Gaussian.
             All values outside the disk are set to 0.
+        extent: see module documentation
     """
-    r_sqr = r2_range(resolution)
+    r_sqr = r2_range(shape, extent)
     w2inv = -1.0 / waist ** 2
     gauss = np.exp(r_sqr * w2inv)
     if truncation_radius is not None:
-        gauss = gauss * disk(resolution, truncation_radius)
+        gauss = gauss * disk(shape, truncation_radius, extent=extent)
     return gauss

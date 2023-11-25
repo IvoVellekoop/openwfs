@@ -72,7 +72,7 @@ class FourierDualRef:
         end = 0.5 + self._overlap / 2 if side == 0 else 1
 
         # Use tilt function
-        tilted_front = tilt(width, (k_x, k_y))
+        tilted_front = tilt(width, (np.pi * k_x, np.pi * k_y))
 
         # Apply phase offset and handle side-dependent pattern
         final_pattern = np.zeros((width, height))

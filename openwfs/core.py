@@ -10,6 +10,11 @@ from astropy.units import Quantity
 from abc import ABC, abstractmethod
 
 
+def set_pixel_size(data: np.ndarray, pixel_size: Quantity) -> np.ndarray:
+    data.dtype = np.dtype(data.dtype, metadata={'pixel_size': pixel_size})
+    return data
+
+
 def get_pixel_size(data: np.ndarray):
     """Extracts the `pixel_size` metadata from the data returned from a detector.
     Usage:
@@ -292,8 +297,7 @@ class Detector(Device, ABC):
             awaited_args = [(arg.result() if isinstance(arg, Future) else arg) for arg in args_]
             awaited_kwargs = {key: (arg.result() if isinstance(arg, Future) else arg) for (key, arg) in
                               kwargs_.items()}
-            data = self._fetch(out_, *awaited_args, **awaited_kwargs)
-            data.dtype = np.dtype(data.dtype, metadata={'pixel_size': self.pixel_size})
+            data = set_pixel_size(self._fetch(out_, *awaited_args, **awaited_kwargs), self.pixel_size)
             assert data.shape == self.data_shape
             return data
         except Exception as e:

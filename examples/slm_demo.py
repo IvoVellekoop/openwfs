@@ -21,7 +21,7 @@ p3.phases = 0.25
 p4.phases = 1
 p4.additive_blend = False
 
-pf.phases = patterns.defocus(100) * 6
+pf.phases = patterns.lens(100, f=1 * u.m, wavelength=0.8 * u.um, extent=(10 * u.mm, 10 * u.mm))
 rng = np.random.default_rng()
 for n in range(50):
     random_data = rng.random([10, 10], np.float32) * 2.0 * np.pi
@@ -34,7 +34,7 @@ s1 = 0
 s2 = 0
 s3 = SLM(1)  # full-screen window
 s3.update()
-s3.monitor_id = 0
+s3.monitor_id = 0  # test switching monitor id
 time.sleep(0.5)
 
 s = SLM(0)

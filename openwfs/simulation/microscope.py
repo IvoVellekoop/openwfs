@@ -1,12 +1,12 @@
 import numpy as np
 import astropy.units as u
 from astropy.units import Quantity
-from scipy.ndimage import affine_transform
 from scipy.signal import fftconvolve
 from typing import Union
 from ..simulation.mockdevices import MockXYStage, MockCamera
 from ..slm import patterns
-from ..core import Processor, get_pixel_size
+from ..core import Processor, get_pixel_size, set_pixel_size
+from ..utilities import project
 
 
 class Microscope(Processor):
@@ -90,13 +90,13 @@ class Microscope(Processor):
         super().__init__(source, aberrations, slm, data_shape=camera_resolution, pixel_size=camera_pixel_size)
         self._magnification = magnification
         self.numerical_aperture = numerical_aperture
+        self.aberration_transform = None  # coordinate transform from the `aberration` object to the pupil plane
+        self.slm_transform = None  # coordinate transform from the `slm` object to the pupil plane
         self.wavelength = wavelength.to(u.nm)
         self.xy_stage = xy_stage or MockXYStage(0.1 * u.um, 0.1 * u.um)
         self.z_stage = z_stage  # or MockStage()
         self.truncation_factor = truncation_factor
         self.camera = MockCamera(self, analog_max=analog_max)
-        self.abbe_limit = 0.0
-        self._pupil_resolution = 0.0
         self.psf = None
         self.slm = slm
         assert source is not None
@@ -115,69 +115,68 @@ class Microscope(Processor):
         * Compute the magnified and cropped image on the camera.
         """
 
-        # First, calculate the magnification and field of view.
-        m = self.magnification if np.isscalar(self.magnification) else np.sqrt(np.linalg.det(self.magnification))
-        fov = self.extent.pixel_size * np.max(self.data_shape) / m
+        # Calculate the field in the pupil plane.
+        #
+        # First, set up pupil coordinates such that:
+        # 1. the Fourier transform of the pupil has a resolution that matches the resolution of the specimen image.
+        # 2. the resolution in the pupil plane is high enough such that
+        #    the Fourier transform of the pupil field has a size that is at least equal to the fov of the microscope.
+        #    This means that then number of pixels should be at least as high as the number of points in the fov
+        #    (at the resolution of the specimen image).
+        #
+        # The NA of the pupil corresponds to a disk that is contained in this pupil plane.
+        # We compute the aberrations over the full pupil plane, and clip to the NA by using a disk function.
+        #
+
+        # condition 1. Extent of pupil in pupil coordinates
         source_pixel_size = get_pixel_size(source)
+        pupil_extent = self.wavelength / source_pixel_size
+        fov = self.extent
+        pupil_shape = np.ceil(fov / source_pixel_size)  # condition 2. Minimum number of pixels in x and y
+        pupil_pixel_size = pupil_extent / pupil_shape
+        na_relative = self.numerical_aperture / pupil_extent
+        if np.any(pupil_extent < self.numerical_aperture):
+            raise Exception("The resolution of the specimen image is worse than the Abbe diffraction limit.")
 
-        # Then, calculate the required resolution for the pupil map.
-        # The coordinates in the pupil plane correspond to spatial frequencies in the image plane.
-        # For a normalized pupil coordinate ξ, we have a spatial frequency of k_x = ξ k_0.
-        # A maximum spatial frequency of NA·k_0 corresponds to a period of λ/NA, which gives
-        # a Nyquist limit of λ/(2.0·NA), which is the Abbe diffraction limit.
-        # The total field of view holds 2.0 Δ NA / λ diffraction limited points,
-        # which means that we need exactly that many points in the NA.
-        self.abbe_limit = 0.5 * self.wavelength / self.numerical_aperture
-        self._pupil_resolution = int(np.ceil(float(fov / self.abbe_limit)))
-
-        pupil_field = patterns.disk(self._pupil_resolution) if self.truncation_factor is None else \
-            patterns.gaussian(self._pupil_resolution, 1.0 / self.truncation_factor)
-        pupil_field = np.array(pupil_field, dtype=np.complex128)
+        # Compute the field in the pupil plane
+        # Aberrations and the SLM phase are mapped to the pupil plane coordinates
+        pupil_field = patterns.disk(pupil_shape, na_relative) if self.truncation_factor is None else \
+            patterns.gaussian(pupil_shape, na_relative / self.truncation_factor)
 
         if aberrations is not None and slm is not None:
-            pupil_field *= np.exp(1.0j * (self._crop(aberrations) + self._crop(slm)))
+            pupil_field *= np.exp(1.0j *
+                                  project(pupil_shape, pupil_pixel_size, aberrations, self.aberration_transform) +
+                                  project(pupil_shape, pupil_pixel_size, slm, self.slm_transform))
         elif slm is not None:
-            pupil_field *= np.exp(1.0j * self._crop(slm))
+            pupil_field *= np.exp(1.0j * project(pupil_shape, pupil_pixel_size, slm, self.slm_transform))
         elif aberrations is not None:
-            pupil_field *= np.exp(1.0j * self._crop(aberrations))
+            pupil_field *= np.exp(1.0j * project(pupil_shape, pupil_pixel_size, aberrations, self.aberration_transform))
 
-        # finally, pad the pupil field so that the diameter of the pupil field
-        # corresponds to a focus with the size of a single pixel in the source image
-        # - first compute the ratio of Abbe limit (i.e. the resolution corresponding to the current pupil size)
-        #   to the pixel size of the source image (i.e. the resolution corresponding to the padded pupil size)
-        # - then pad the pupil field so that the size gets multiplied by that ratio
-        pupil_resolution = round(float(self.abbe_limit / source_pixel_size) * self._pupil_resolution)
-        if pupil_resolution < self._pupil_resolution:
-            raise Exception("Pixel size in the source image is larger than the Abbe diffraction limit")
+        # Compute the point spread function
+        # This is done by Fourier transforming the pupil field and taking the absolute value squared
+        # Due to condition 1, after the Fourier transform,
+        # the pixel size matches that of the source (the specimen image).
+        # Note: there is no need to `ifftshift` the pupil field, since we are taking the absolute value anyway
+        psf = np.abs(np.fft.fft2(pupil_field)) ** 2
+        psf = np.fft.fftshift(psf) / np.sum(psf)
+        self.psf = psf  # store psf for later inspection
 
-        # compute the PSF
-        psf = np.abs(np.fft.fft2(np.fft.ifftshift(pupil_field), (pupil_resolution, pupil_resolution))) ** 2
-        psf = np.fft.ifftshift(psf) / np.sum(psf)
-        self.psf = psf
-        s = fftconvolve(source, psf, 'same')
+        # todo: crop part of the source image that we don't need anyway
+        source = fftconvolve(source, psf, 'same')
+        source = set_pixel_size(source, source_pixel_size)
 
-        # transform image size and orientation to camera
-        m = self.magnification * (source_pixel_size / self.camera.pixel_size).to_value(u.dimensionless_unscaled)
+        # finally, transform the source image to the camera coordinates (cropping/padding and up/downsampling the image)
+        # this transformation also takes into account the position of the microscope stage and the magnification
+        # todo: test if the convolution does not introduce an offset
+        m = self.magnification
         if np.isscalar(m):
-            m = np.eye(3) * m
-            m[2, 2] = 1
+            m = np.eye(2, 3) * m
         offset = np.eye(3)
-        offset[0, 2] += (self.xy_stage.x / source_pixel_size) - 1  # correct the offset introduced by the convolution
-        offset[1, 2] += (self.xy_stage.y / source_pixel_size) - 1
+        offset[0, 2] = self.xy_stage.y / source_pixel_size[0]
+        offset[1, 2] = self.xy_stage.x / source_pixel_size[1]
         m = m @ offset  # apply offset first, then magnification
 
-        if out is None:
-            out = np.empty(self.camera.data_shape)
-        return affine_transform(s, np.linalg.inv(m), order=1, output=out)
-
-    def _crop(self, img: np.ndarray):
-        """crop/pad an image to the NA of the microscope objective and scale to the internal resolution"""
-        pixel_size = get_pixel_size(img)  # size in normalized NA coordinates
-
-        # scale the image
-        scale = (self.numerical_aperture / self._pupil_resolution) / pixel_size
-        matrix = np.array([scale, scale])
-        return affine_transform(img, matrix, output_shape=(self._pupil_resolution, self._pupil_resolution), order=0)
+        return project(self.data_shape, self.pixel_size, source, m, out=out)
 
     @property
     def magnification(self) -> float:

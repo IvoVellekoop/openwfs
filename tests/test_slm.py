@@ -96,18 +96,6 @@ class TestSLM:
         assert slm.lookup_table.size == 256
         assert slm.lookup_table[-1] == 255
 
-    def test_idle_time(self):
-        assert False
-
-    def test_settle_time(self):
-        assert False
-
-    def test_wait(self):
-        assert False
-
-    def test_transform(self):
-        assert False
-
     def test_lookup_table(self, windowed_slm):
         (slm, mask) = windowed_slm
 

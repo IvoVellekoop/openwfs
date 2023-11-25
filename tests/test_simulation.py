@@ -122,22 +122,6 @@ def test_SLM_tilt():
     assert sim.camera.read()[new_location] == 2 ** 16 - 1
 
 
-def test_crop():
-    """
-    Tests how the crop function works in the microscope
-    """
-    img = np.ones((512, 512))
-    src = MockSource(img, 1 / 512 * u.dimensionless_unscaled)
-    sim = Microscope(source=src, magnification=1, numerical_aperture=1,
-                     wavelength=800 * u.nm, camera_pixel_size=400 * u.nm,
-                     camera_resolution=(512, 512))
-    sim._pupil_resolution = 1000
-
-    # So we expect the function to return a full matrix with ones. Unfortunately, the last row in x
-    # and y direction it returns are zeros
-    assert (np.sum(sim._crop(src.read()))) == 1000 * 1000
-
-
 def test_microscope_wavefrontshaping():
     """
     Reproduces a bug that occurs due to the location of the measurements.wait() command.
