@@ -15,7 +15,7 @@ def set_pixel_size(data: np.ndarray, pixel_size: Quantity) -> np.ndarray:
     return data
 
 
-def get_pixel_size(data: np.ndarray):
+def get_pixel_size(data: np.ndarray) -> Quantity:
     """Extracts the `pixel_size` metadata from the data returned from a detector.
     Usage:
 

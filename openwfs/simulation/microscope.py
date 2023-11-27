@@ -6,7 +6,7 @@ from typing import Union
 from ..simulation.mockdevices import MockXYStage, MockCamera
 from ..slm import patterns
 from ..core import Processor, get_pixel_size, set_pixel_size
-from ..utilities import project
+from ..utilities import project, place
 
 
 class Microscope(Processor):
@@ -32,11 +32,7 @@ class Microscope(Processor):
     All aberrations are considered to occur in the plane of that pupil.
 
     Attributes:
-        magnification (float or matrix): magnification from object plane to camera.
-            Can be a scalar, or a coordinate transformation matrix
-            that maps points in the image plane to points in plane of the image sensor.
-            See scipy.ndimage.affine_transform for the format of the matrix.
-            numerical_aperture
+        magnification (float): magnification from object plane to image plane.
         numerical_aperture (float): numerical aperture of the microscope objective.
             The field in the back pupil is cropped to this size
             (even if the slm and/or aberration map use a different NA).
@@ -93,6 +89,7 @@ class Microscope(Processor):
         self.aberration_transform = None  # coordinate transform from the `aberration` object to the pupil plane
         self.slm_transform = None  # coordinate transform from the `slm` object to the pupil plane
         self.wavelength = wavelength.to(u.nm)
+        self.oversampling_factor = 2.0
         self.xy_stage = xy_stage or MockXYStage(0.1 * u.um, 0.1 * u.um)
         self.z_stage = z_stage  # or MockStage()
         self.truncation_factor = truncation_factor
@@ -103,7 +100,6 @@ class Microscope(Processor):
 
     def _fetch(self, out: Union[np.ndarray, None], source: np.ndarray, aberrations: np.ndarray,  # noqa
                slm: np.ndarray) -> np.ndarray:
-
         """Updates the image on the camera sensor
 
         To compute the image:
@@ -114,6 +110,18 @@ class Microscope(Processor):
         * Convolve the source image with the PSF.
         * Compute the magnified and cropped image on the camera.
         """
+
+        # First crop and downscale the source image to have the same size as the output
+        # todo: add some padding
+        # todo: add option for oversampling
+        source_pixel_size = get_pixel_size(source)
+        target_pixel_size = self.pixel_size / self.magnification
+        if np.any(source_pixel_size >= target_pixel_size):
+            raise Exception("The resolution of the specimen image is worse than that of the output.")
+
+        # construct matrix for translation of the specimen
+        source = place(self.data_shape, self.pixel_size / self.magnification, source,
+                       (self.xy_stage.y, self.xy_stage.x))
 
         # Calculate the field in the pupil plane.
         #
@@ -128,15 +136,13 @@ class Microscope(Processor):
         # We compute the aberrations over the full pupil plane, and clip to the NA by using a disk function.
         #
 
-        # condition 1. Extent of pupil in pupil coordinates
-        source_pixel_size = get_pixel_size(source)
-        pupil_extent = self.wavelength / source_pixel_size
-        fov = self.extent
-        pupil_shape = np.ceil(fov / source_pixel_size)  # condition 2. Minimum number of pixels in x and y
+        # condition 1. Extent of pupil in pupil coordinates: Abbe limit should give pixel_size resolution
+        pupil_extent = self.wavelength / (self.pixel_size / self.magnification)
+
+        # condition 2. Minimum number of pixels in x and y
+        pupil_shape = self.data_shape
         pupil_pixel_size = pupil_extent / pupil_shape
         na_relative = self.numerical_aperture / pupil_extent
-        if np.any(pupil_extent < self.numerical_aperture):
-            raise Exception("The resolution of the specimen image is worse than the Abbe diffraction limit.")
 
         # Compute the field in the pupil plane
         # Aberrations and the SLM phase are mapped to the pupil plane coordinates
@@ -161,22 +167,15 @@ class Microscope(Processor):
         psf = np.fft.fftshift(psf) / np.sum(psf)
         self.psf = psf  # store psf for later inspection
 
-        # todo: crop part of the source image that we don't need anyway
-        source = fftconvolve(source, psf, 'same')
-        source = set_pixel_size(source, source_pixel_size)
-
-        # finally, transform the source image to the camera coordinates (cropping/padding and up/downsampling the image)
-        # this transformation also takes into account the position of the microscope stage and the magnification
         # todo: test if the convolution does not introduce an offset
-        m = self.magnification
-        if np.isscalar(m):
-            m = np.eye(2, 3) * m
-        offset = np.eye(3)
-        offset[0, 2] = self.xy_stage.y / source_pixel_size[0]
-        offset[1, 2] = self.xy_stage.x / source_pixel_size[1]
-        m = m @ offset  # apply offset first, then magnification
+        source = fftconvolve(source, psf, 'same')
+        source = set_pixel_size(source, self.pixel_size)  # not needed, happens automatically
 
-        return project(self.data_shape, self.pixel_size, source, m, out=out)
+        if out is None:
+            out = source
+        else:
+            out[...] = source
+        return out
 
     @property
     def magnification(self) -> float:
