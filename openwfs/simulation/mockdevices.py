@@ -155,7 +155,9 @@ class ADCProcessor(Processor):
     def _fetch(self, out: Union[np.ndarray, None], data) -> np.ndarray:  # noqa
         """Clips the data to the range of the ADC, and digitizes the values."""
         if self.analog_max == 0.0:
-            data = data * (self.digital_max / np.max(data))
+            max = np.max(data)
+            if max > 0.0:
+                data = data * (self.digital_max / np.max(data))  # auto-scale to maximum value
         else:
             data = np.clip(data * (self.digital_max / self.analog_max), 0, self.digital_max)
 

@@ -6,7 +6,7 @@ from typing import Union
 from ..simulation.mockdevices import MockXYStage, MockCamera
 from ..slm import patterns
 from ..core import Processor, get_pixel_size, set_pixel_size
-from ..utilities import project, place
+from ..utilities import project, place, imshow
 
 
 class Microscope(Processor):
@@ -32,7 +32,6 @@ class Microscope(Processor):
     All aberrations are considered to occur in the plane of that pupil.
 
     Attributes:
-        magnification (float): magnification from object plane to image plane.
         numerical_aperture (float): numerical aperture of the microscope objective.
             The field in the back pupil is cropped to this size
             (even if the slm and/or aberration map use a different NA).
@@ -120,13 +119,13 @@ class Microscope(Processor):
             raise Exception("The resolution of the specimen image is worse than that of the output.")
 
         # construct matrix for translation of the specimen
-        source = place(self.data_shape, self.pixel_size / self.magnification, source,
-                       (self.xy_stage.y, self.xy_stage.x))
+        source = place(self.data_shape, target_pixel_size, source, Quantity((self.xy_stage.y, self.xy_stage.x)))
 
         # Calculate the field in the pupil plane.
         #
         # First, set up pupil coordinates such that:
-        # 1. the Fourier transform of the pupil has a resolution that matches the resolution of the specimen image.
+        # 1. the Fourier transform of the pupil has a resolution
+        #    that exactly matches the resolution of the specimen image.
         # 2. the resolution in the pupil plane is high enough such that
         #    the Fourier transform of the pupil field has a size that is at least equal to the fov of the microscope.
         #    This means that then number of pixels should be at least as high as the number of points in the fov
@@ -137,17 +136,19 @@ class Microscope(Processor):
         #
 
         # condition 1. Extent of pupil in pupil coordinates: Abbe limit should give pixel_size resolution
-        pupil_extent = self.wavelength / (self.pixel_size / self.magnification)
+        pupil_extent = self.wavelength / target_pixel_size
 
         # condition 2. Minimum number of pixels in x and y
         pupil_shape = self.data_shape
         pupil_pixel_size = pupil_extent / pupil_shape
-        na_relative = self.numerical_aperture / pupil_extent
 
         # Compute the field in the pupil plane
         # Aberrations and the SLM phase are mapped to the pupil plane coordinates
-        pupil_field = patterns.disk(pupil_shape, na_relative) if self.truncation_factor is None else \
-            patterns.gaussian(pupil_shape, na_relative / self.truncation_factor)
+        if self.truncation_factor is None:
+            pupil_field = patterns.disk(pupil_shape, radius=self.numerical_aperture, extent=pupil_extent)
+        else:
+            pupil_field = patterns.gaussian(pupil_shape, waist=self.truncation_factor * self.numerical_aperture,
+                                            truncation_radius=self.numerical_aperture, extent=pupil_extent)
 
         if aberrations is not None and slm is not None:
             pupil_field *= np.exp(1.0j *
@@ -169,7 +170,9 @@ class Microscope(Processor):
 
         # todo: test if the convolution does not introduce an offset
         source = fftconvolve(source, psf, 'same')
-        source = set_pixel_size(source, self.pixel_size)  # not needed, happens automatically
+        # apply magnification by just adjusting the pixel size
+        # note, this is not needed as it happens automatically in the _do_fetch function
+        source = set_pixel_size(source, self.pixel_size)
 
         if out is None:
             out = source
@@ -179,8 +182,18 @@ class Microscope(Processor):
 
     @property
     def magnification(self) -> float:
+        """Magnification from object plane to image plane.
+
+        Note that, as in a real microscope, the magnification does not affect the effective resolution of the image.
+        The resolution is determined by the Abbe diffraction limit λ/2NA.
+        """
         return self._magnification
 
     @magnification.setter
     def magnification(self, value: float):
         self._magnification = value
+
+    @property
+    def abbe_limit(self) -> Quantity:
+        """Returns the Abbe diffraction limit: λ/(2 NA)"""
+        return 0.5 * self.wavelength / self.numerical_aperture
