@@ -15,8 +15,11 @@ def set_pixel_size(data: np.ndarray, pixel_size: Quantity) -> np.ndarray:
     return data
 
 
-def get_pixel_size(data: np.ndarray) -> Quantity:
+def get_pixel_size(data: Union[np.ndarray, Quantity], may_fail: bool = False) -> Quantity:
     """Extracts the `pixel_size` metadata from the data returned from a detector.
+    Args:
+        data(np.ndarray|Quantity): array that holds `pixel_size` metadata, as set by `set_pixel_size`
+        may_fail(bool): when set to True, silently set missing pixel size to 1.0 dimensionless
     Usage:
 
      from openwfs.simulation import MockDetector
@@ -28,7 +31,10 @@ def get_pixel_size(data: np.ndarray) -> Quantity:
     try:
         return data.dtype.metadata['pixel_size']
     except (KeyError, TypeError):
-        raise KeyError("data does not have pixel size metadata.")
+        if may_fail:
+            return 1.0 * u.dimensionless_unscaled
+        else:
+            raise KeyError("data does not have pixel size metadata.")
 
 
 class Device:
@@ -272,9 +278,11 @@ class Detector(Device, ABC):
             raise e
 
     def trigger(self, *args, out=None, immediate=False, **kwargs) -> Future:
-        """Triggers the data source to start acquisition of the data.
+        """Triggers the detector to start acquisition of the data.
 
-        Use await or .result() to wait for the data.
+        This function returns a `concurrent.futures.Future`.
+        Call `.result()` on the returned object to wait for the data.
+
         All parameters are passed to the _fetch function of the detector.
         If any of these parameters is a Future, it is awaited before calling _fetch.
         This way, data from multiple sources can be combined (see Processor).
