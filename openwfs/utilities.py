@@ -15,6 +15,17 @@ def grab_and_show(cam: Detector, magnification=1.0):
     plt.ylabel('μm')
 
 
+def imshow(data):
+    pixel_size = get_pixel_size(data, may_fail=True)
+    extent = pixel_size * data.shape
+    plt.xlabel(extent.unit)
+    plt.ylabel(extent.unit)
+    extent = extent.value
+    plt.imshow(data, extent=(0.0, extent[0], 0.0, extent[1]), cmap='gray')
+    plt.show()
+    plt.pause(0.1)
+
+
 def place(out_shape: Sequence[int], out_pixel_size: Quantity, source: np.ndarray, offset: Union[Quantity, None] = None,
           out: Union[np.ndarray, None] = None):
     """Takes a source array and places it in an otherwise empty array of specified shape and pixel size.
@@ -26,6 +37,8 @@ def place(out_shape: Sequence[int], out_pixel_size: Quantity, source: np.ndarray
     with respect to the output array.
     Parts of the source array that extend beyond the output are cropped, and parts of the array that are not
     covered by the source array are zero padded.
+
+    Note: this function currently works for 2-d inputs only
 
     Args:
 
@@ -60,15 +73,17 @@ def project(out_shape: Sequence[int], out_pixel_size: Quantity, source: np.ndarr
 
     """
     # matrix to adjust pixel size
-    scale = np.diag((out_pixel_size / get_pixel_size(source)).to_value(u.dimensionless_unscaled))
+    source_pixel_size = get_pixel_size(source)
+    scale = np.diag((out_pixel_size / source_pixel_size).to_value(u.dimensionless_unscaled))
 
     # adjust center positions (cv2 takes the corner as origin, not the center)
-    transform[0:2, 2] += 0.5 * (np.array(out_shape) - scale @ np.array(source.shape))
+    # transform is specified in source _pixels_
+    transform[0:2, 2] += 0.5 * (scale @ out_shape - source.shape)
 
     # swap x and y in matrix and size, since cv2 uses the (x,y) convention.
     transform = np.array(((transform[1, 1], transform[1, 0], transform[1, 2]),
                           (transform[0, 1], transform[0, 0], transform[0, 2])))
     out_size = (out_shape[1], out_shape[0])
-    dst = cv2.warpAffine(source, scale @ transform, out_size, dst=out, flags=cv2.INTER_LINEAR,
+    dst = cv2.warpAffine(source, scale @ transform, out_size, dst=out, flags=cv2.INTER_AREA,
                          borderMode=cv2.BORDER_CONSTANT, borderValue=(0.0,))
     return set_pixel_size(dst, out_pixel_size)
