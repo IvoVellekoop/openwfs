@@ -9,8 +9,9 @@ def test_tilt(shape):
     if np.size(shape) == 1:
         shape = (shape, shape)
 
-    phase_diff0 = 5 * 2 * (1.0 - 1.0 / shape[0])
-    phase_diff1 = 0.71 * 2 * (1.0 - 1.0 / shape[1])
+    # for a default extent of 2.0, 2.0, the tilt should span 4 pi * t
+    phase_diff0 = 5 * 4 * np.pi * (1.0 - 1.0 / shape[0])
+    phase_diff1 = 0.71 * 4 * np.pi * (1.0 - 1.0 / shape[1])
     assert np.allclose(t[-1, 0] - t[0, 0], phase_diff0)
     assert np.allclose(t[-1, -1] - t[0, -1], phase_diff0)
     assert np.allclose(t[0, -1] - t[0, 0], phase_diff1)
