@@ -342,12 +342,12 @@ class Detector(Device, ABC):
         ...
 
     @final
-    def read(self):
+    def read(self, *args, **kwargs):
         """Triggers the detector and waits for the data to arrive.
 
         Shortcut for trigger().result().
         """
-        return self.trigger().result()
+        return self.trigger(*args, **kwargs).result()
 
     @property
     def data_shape(self):

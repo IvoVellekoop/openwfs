@@ -2,7 +2,7 @@ import numpy as np
 import astropy.units as u
 import set_path  # noqa : set_path makes sure the OpenWFS toolbox can be found when running this script stand-alone
 from openwfs.simulation import Microscope, MockSource
-from openwfs.utilities import grab_and_show
+from openwfs.utilities import grab_and_show, Transform
 
 ### Parameters that can be altered
 
@@ -37,14 +37,12 @@ mic = Microscope(src, magnification=magnification, numerical_aperture=numerical_
                  camera_pixel_size=pixel_size, camera_resolution=camera_resolution, truncation_factor=0.5)
 
 # simulate shot noise in an 8-bit camera with auto-exposure:
-mic.camera.shot_noise = True
-mic.camera.digital_max = 255
-devices = {'camera': mic.camera, 'stage': mic.xy_stage}
+cam = mic.get_camera(shot_noise=True, digital_max=255, transform=Transform.zoom(2.0))
+devices = {'camera': cam, 'stage': mic.xy_stage}
 
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
 
-    c = mic.camera
     plt.subplot(1, 2, 1)
     plt.imshow(img)
     plt.title('Original image')
@@ -53,6 +51,6 @@ if __name__ == '__main__':
     for p in range(p_limit):
         # mic.xy_stage.x = p * 1 * u.um
         mic.numerical_aperture = 1.0 * (p + 1) / p_limit  # NA increases to 1.0
-        grab_and_show(c)
+        grab_and_show(cam)
         plt.title(f"NA: {mic.numerical_aperture}, δ: {mic.abbe_limit.to_value(u.um):2.2} μm")
         plt.pause(0.2)

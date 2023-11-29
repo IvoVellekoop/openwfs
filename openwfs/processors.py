@@ -1,8 +1,9 @@
 import numpy as np
 import cv2
-from typing import Union
+from typing import Union, Sequence
 from .core import Processor, Detector
 from .slm.patterns import disk, gaussian
+from .utilities import project, Transform
 
 
 class SingleRoi(Processor):
@@ -119,7 +120,7 @@ class CropProcessor(Processor):
 
     Args:
         source (object): The data source to process.
-        size (tuple): Size of the cropped region (this is data_shape property)
+        shape (tuple): Size of the cropped region (this is data_shape property)
             default is None: use the full size of the source.
             may be a tuple holding one or more None values.
             These values are then replaced by the size of the source in that dimension.
@@ -128,16 +129,14 @@ class CropProcessor(Processor):
         padding_value (float): Value to use if the cropped area extends beyond the original data.
     """
 
-    def __init__(self, source: Detector, size=None, pos=None, padding_value=0.0):
+    def __init__(self, source: Detector, shape: Union[Sequence[int], None] = None,
+                 pos: Union[Sequence[int], None] = None, padding_value=0.0):
         super().__init__(source)
-        if size is None:
-            size = source.data_shape
-        else:
-            size = tuple([s if s is not None else d for s, d in zip(size, source.data_shape)])
-        self._data_shape = size or source.data_shape
-        self._pos = np.zeros((len(source.data_shape),))
-        if pos is not None:
-            self.pos = pos
+        if shape is None:
+            shape = source.data_shape
+
+        self._data_shape = shape or source.data_shape
+        self._pos = pos if pos is not None else np.zeros((len(source.data_shape),))
         self._padding_value = padding_value
 
     @property
@@ -332,65 +331,22 @@ class SelectRoiCircle(SingleRoi):
 
         return None, None
 
-#
-#
-# ////
-#
-# @property
-# def left(self) -> int:
-#     return self._left
-#
-#
-# @left.setter
-# def left(self, value: int):
-#     self._left = value
-#
-#
-# @property
-# def right(self) -> int:
-#     return self.left + self.width
-#
-#
-# @right.setter
-# def right(self, value: int):
-#     self.width = value - self.left
-#
-#
-# @property
-# def top(self) -> int:
-#     return self._top
-#
-#
-# @top.setter
-# def top(self, value: int):
-#     self._top = value
-#
-#
-# @property
-# def bottom(self) -> int:
-#     return self.top + self.height
-#
-#
-# @bottom.setter
-# def bottom(self, value: int):
-#     self.height = value - self.top
-#
-#
-# @property
-# def width(self) -> int:
-#     return self._data_shape[1]
-#
-#
-# @width.setter
-# def width(self, value: int):
-#     self._data_shape = (self._data_shape[0], value)
-#
-#
-# @property
-# def height(self) -> int:
-#     return self._data_shape[0]
-#
-#
-#     @height.setter
-#     def height(self, value: int):
-#         self._data_shape = (value, self._data_shape[1])
+
+class TransformProcessor(Processor):
+    def __init__(self, source, transform, **kwargs):
+        """
+        Performs a 2-D transform of the input data (including shifting, padding, cropping, resampling).
+
+        Args:
+            transform: Transform object that describes the transformation from the source
+            data_shape (in **kwargs): defaults to source.data_shape
+            pixel_size (in **kwargs): defaults to source.pixel_size
+        """
+        if len(source.data_shape) != 2:
+            raise ValueError("Source should produce 2-D data")
+
+        super().__init__(source, **kwargs)
+        self.transform = transform
+
+    def _fetch(self, out: Union[np.ndarray, None], source) -> np.ndarray:
+        return project(self.data_shape, self.pixel_size, source, self.transform, out)

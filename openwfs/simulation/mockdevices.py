@@ -5,7 +5,7 @@ import astropy.units as u
 from astropy.units import Quantity
 from scipy.ndimage import zoom
 import time
-from typing import Union
+from typing import Union, Sequence
 from ..processors import CropProcessor
 from ..core import Detector, Processor, PhaseSLM, Actuator, get_pixel_size
 
@@ -98,8 +98,9 @@ class Generator(Detector):
 
 
 class MockSource(Generator):
-    """Detector that static data.
+    """Detector that returns pre-set data.
     Also simulates latency and measurement duration.
+    Note: `data` is stored unmodified, so any changes made to the array are reflected in the returned data.
     """
 
     def __init__(self, data, pixel_size: Quantity[u.um] = None, **kwargs):
@@ -219,10 +220,10 @@ class MockCamera(ADCProcessor):
     Conversion to uint16 is implemented in the ADCProcessor base class.
     """
 
-    def __init__(self, source: Detector, width: int = None, height: int = None, left: int = 0, top: int = 0,
-                 analog_max: float = 0.0, digital_max: int = 0xFFFF, measurement_time: Quantity[u.ms] = 100 * u.ms):
-        self._crop = CropProcessor(source, size=(height, width), pos=(top, left))
-        super().__init__(source=self._crop, digital_max=digital_max, analog_max=analog_max)
+    def __init__(self, source: Detector, shape: Union[Sequence[int], None] = None,
+                 pos: Union[Sequence[int], None] = None, **kwargs):
+        self._crop = CropProcessor(source, shape=shape, pos=pos)
+        super().__init__(source=self._crop, **kwargs)
 
     @property
     def left(self):
@@ -302,7 +303,7 @@ class MockSLM(PhaseSLM):
 
         self._back_buffer = np.zeros(shape, 'float32')
         self._front_buffer = np.zeros(shape, 'float32')
-        self._monitor = MockSource(self._front_buffer, pixel_size=1.0 / np.min(shape) * u.dimensionless_unscaled)
+        self._monitor = MockSource(self._front_buffer, pixel_size=2.0 / np.min(shape) * u.dimensionless_unscaled)
 
     def update(self):
         self._start()  # wait for detectors to finish
@@ -321,4 +322,7 @@ class MockSLM(PhaseSLM):
         return self._front_buffer
 
     def pixels(self) -> Detector:
+        """Returns a `camera` that returns the current phase on the SLM.
+
+        The camera coordinates are spanning the [-1,1] range by default."""
         return self._monitor

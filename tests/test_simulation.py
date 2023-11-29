@@ -8,15 +8,15 @@ import skimage
 from ..openwfs.slm import SLM
 from ..openwfs.slm.patterns import tilt, disk
 import astropy.units as u
+from ..openwfs.utilities import imshow
 
 
 def test_MockCamera_and_SingleRoi():
     """
-    The MockCamera is supposed to wrap any Detector into a base-16-int image source, as MicroManager requires the
-    camera object to return the images in that form. It casts the maximum value to the 16-int maximum, signified by the
-    hexidecimal 0xFFFF in the default maximum.
-    Returns:
-
+    The MockCamera wraps a Detector producing 2-D data, so that the data can be read by MicroManager.
+    The data is converted into a 16-bit int, and methods are added to set width, height, top and bottom.
+    By default, the MockCamera scales the input image such that the maximum value is mapped to the unsigned integer
+    0xFFFF = 2 ** 16 - 1.
     """
     img = np.zeros((1000, 1000), dtype=np.int16)
     img[256, 256] = 39.39  # some random float
@@ -25,26 +25,30 @@ def test_MockCamera_and_SingleRoi():
     assert roi_detector.read() == int(2 ** 16 - 1)  # it should cast the array into some int
 
 
-def test_Microscope_without_magnification():
-    '''
-    Attempt to understand how the microscope works. Without any magnification, and the same
-    '''
-    img = np.zeros((1000, 1000), dtype=np.int16)
-
+@pytest.mark.parametrize("shape", [(1000, 1000), (999, 999)])
+def test_Microscope_without_magnification(shape):
+    """
+    Checks if the microscope can be constructed and read out without exceptions being thrown.
+    Also checks if the microscope does not offset the image (for odd and even number of pixels)
+    """
+    # construct input image
+    img = np.zeros(shape, dtype=np.int16)
     img[256, 256] = 100
     src = MockCamera(MockSource(img, 400 * u.nm))
 
-    sim = Microscope(source=src, magnification=1, numerical_aperture=1, wavelength=800 * u.nm,
-                     camera_pixel_size=400 * u.nm, camera_resolution=(1000, 1000))
+    # construct microscope
+    sim = Microscope(source=src, magnification=1, numerical_aperture=1, wavelength=800 * u.nm)
 
-    assert sim.camera.read()[256, 256] == 2 ** 16 - 1
+    cam = sim.get_camera()
+    img = cam.read()
+    assert img[256, 256] == 2 ** 16 - 1
 
 
 def test_Microscope_and_aberration():
-    '''
-    This test concens the basic effect of casting an aberration or SLM pattern on the backpupil.
+    """
+    This test concerns the basic effect of casting an aberration or SLM pattern on the backpupil.
     They should aberrate a point source in the image plane.
-    '''
+    """
     img = np.zeros((1000, 1000), dtype=np.int16)
     img[256, 256] = 100
     src = MockCamera(MockSource(img, 400 * u.nm))
@@ -53,8 +57,7 @@ def test_Microscope_and_aberration():
 
     aberrations = skimage.data.camera() * ((2 * np.pi) / 255.0)
 
-    sim = Microscope(source=src, magnification=1, slm=slm.pixels(), numerical_aperture=1, wavelength=800 * u.nm,
-                     camera_pixel_size=400 * u.nm, camera_resolution=(1000, 1000))
+    sim = Microscope(source=src, magnification=1, slm=slm.pixels(), numerical_aperture=1, wavelength=800 * u.nm)
 
     without_aberration = sim.read()[256, 256]
     slm.set_phases(aberrations)
@@ -78,12 +81,9 @@ def test_SLM_and_aberration():
     slm.set_phases(-aberrations)
     aberration = MockSource(aberrations, pixel_size=1.0 / 512 * u.dimensionless_unscaled)
 
-    sim1 = Microscope(source=src, slm=slm.pixels(), magnification=1, numerical_aperture=1,
-                      aberrations=aberration, wavelength=800 * u.nm, camera_pixel_size=400 * u.nm,
-                      camera_resolution=(1000, 1000))
-
-    sim2 = Microscope(source=src, magnification=1, numerical_aperture=1, wavelength=800 * u.nm,
-                      camera_pixel_size=400 * u.nm, camera_resolution=(1000, 1000))
+    sim1 = Microscope(source=src, slm=slm.pixels(), numerical_aperture=1.0, aberrations=aberration,
+                      wavelength=800 * u.nm)
+    sim2 = Microscope(source=src, numerical_aperture=1.0, wavelength=800 * u.nm)
 
     # We correlate the two. Any discrepency between the two matrices should throw an error
     # try putting one of the wavelengths to 800
@@ -102,24 +102,28 @@ def test_SLM_tilt():
     correspond to a tilt of 1 pixel for a 2 pi phase shift.
     """
     img = np.zeros((1000, 1000), dtype=np.int16)
-    signal_location = (256, 256)
+    signal_location = (256, 250)
     img[signal_location] = 100
-    src = MockCamera(MockSource(img, 400 * u.nm))
+    pixel_size = 400 * u.nm
+    wavelength = 750 * u.nm
+    src = MockCamera(MockSource(img, pixel_size))
 
     slm = MockSLM(shape=(1000, 1000))
 
-    sim = Microscope(source=src, slm=slm.pixels(), magnification=1, numerical_aperture=1,
-                     wavelength=800 * u.nm, camera_pixel_size=400 * u.nm,
-                     camera_resolution=(1000, 1000))
+    sim = Microscope(source=src, slm=slm.pixels(), magnification=1, numerical_aperture=1, wavelength=wavelength)
 
     # introduce a tilted pupil plane
-    shift = (-24, 40)
-    slm.set_phases(tilt(1000, shift))
+    # the input parameter to `tilt` corresponds to a shift in wavelengths.
+    # so we need to multiply by pixel_size / λ
+    shift = np.array((-24, 40))  # to get the
+    slm.set_phases(tilt(1000, - shift * pixel_size / wavelength))
 
-    # Tilt function is in y,x convention, so to get the correct x,y coordinates of the next point:
-    new_location = (signal_location[0] + shift[1], signal_location[1] + shift[0])
+    new_location = signal_location + shift
 
-    assert sim.camera.read()[new_location] == 2 ** 16 - 1
+    cam = sim.get_camera()
+    img = cam.read(immediate=True)
+    max_pos = np.unravel_index(np.argmax(img), img.shape)
+    assert np.all(max_pos == new_location)
 
 
 def test_microscope_wavefrontshaping():
@@ -141,11 +145,10 @@ def test_microscope_wavefrontshaping():
 
     slm = MockSLM(shape=(1000, 1000))
 
-    sim = Microscope(source=src, slm=slm.pixels(), magnification=1, numerical_aperture=1, aberrations=aberration,
-                     wavelength=800 * u.nm, camera_pixel_size=400 * u.nm,
-                     camera_resolution=(1000, 1000), analog_max=100)
+    sim = Microscope(source=src, slm=slm.pixels(), numerical_aperture=1, aberrations=aberration, wavelength=800 * u.nm)
 
-    roi_detector = SingleRoi(sim.camera, x=256, y=256, radius=0)  # Only measure that specific point
+    cam = sim.get_camera(analog_max=100)
+    roi_detector = SingleRoi(cam, x=256, y=256, radius=0)  # Only measure that specific point
 
     alg = StepwiseSequential(feedback=roi_detector, slm=slm, phase_steps=3, n_x=3, n_y=3)
     t = alg.execute()

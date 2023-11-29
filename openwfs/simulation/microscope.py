@@ -2,11 +2,12 @@ import numpy as np
 import astropy.units as u
 from astropy.units import Quantity
 from scipy.signal import fftconvolve
-from typing import Union
+from typing import Union, Optional
 from ..simulation.mockdevices import MockXYStage, MockCamera
 from ..slm import patterns
-from ..core import Processor, get_pixel_size, set_pixel_size
-from ..utilities import project, place, imshow
+from ..core import Processor, Detector, get_pixel_size, set_pixel_size
+from ..utilities import project, place, Transform, imshow
+from ..processors import TransformProcessor
 
 
 class Microscope(Processor):
@@ -37,65 +38,93 @@ class Microscope(Processor):
             (even if the slm and/or aberration map use a different NA).
         wavelength (astropy distance unit): wavelength of the light in micrometer.
             Used to compute the diffraction limit and the effect of aberrations.
-        xy_stage (XYStage): Optional stage object that can be used to move the sample laterally.
-            Defaults to a MockXYStage.
-        z_stage (Stage): Optional stage object that moves the sample up and down to focus the microscope.
-            Higher values are further away from the microscope objective.
-            Defaults to a MockStage.
         camera (ImageSource, output only): represents the camera in the magnified image plane of the microscope
             (i.e., where an actual camera would be located).
         truncation_factor (float): is used to simulate a gaussian beam illumination of the SLM/back pupil.
             Corresponds to w/r, with w the beam waist (1/e² intensity) and r the pupil radius.
             Defaults to None for a flat intensity distribution.
 
+     numerical_aperture (float):
+                numerical
+            magnification:
+            wavelength:
+            xy_stage:
+            z_stage:
+            camera_resolution (tuple(float, float)): size of the image sensor in pixels.
+                Defaults to 1024 pixels.
+            camera_pixel_size (astropy distance unit): pixel pitch of the image sensor.
+                Defaults to 10 μm.
+            truncation_factor:
         Note:
             The aberration map and slm phase map are cropped/padded to the NA of the microscope objective, and
             scaled to have the same pixel resolution so that they can be added.
 
     """
 
-    def __init__(self, source, magnification, numerical_aperture, wavelength: Quantity[u.nm],
-                 xy_stage=None, z_stage=None, slm=None, aberrations=None, camera_resolution=(1024, 1024),
-                 camera_pixel_size=10 * u.um, truncation_factor=None, analog_max=0.0):
+    def __init__(self, source: Detector, *, data_shape=None, numerical_aperture: float, wavelength: Quantity[u.nm],
+                 magnification: float = 1.0, xy_stage=None, z_stage=None,
+                 slm: Optional[Detector] = None, slm_transform: Optional[Transform] = None,
+                 aberrations: Optional[Detector] = None, aberration_transform: Optional[Transform] = None,
+                 truncation_factor: Optional[float] = None, pixel_size: Quantity = None):
         """
-
         Args:
-            source (ImageSource): Image source that produces 2-d images of the original 'specimen'
-                as it is located in the focal plane.
-                Could be a MockSource (for a fixed image), or any other detector that produces 2-d data.
-                The source must have `dimensions` specified in astropy distance units.
-            magnification:
-            numerical_aperture:
-            wavelength:
-            xy_stage:
-            z_stage:
-            slm (ImageSource): 2-D image containing the phase (in radians) as displayed on the SLM.
-                The `dimensions` attribute must be set to twice the NA covered by the phase pattern.
-                The pixels in the image are mapped to a square of -slm.NA(0) to +slm.NA(0) and -slm.NA(1) to slm.NA(1)
-                at the back pupil.
+            source (Detector): Detector that produces 2-d images of the original 'specimen'
+            data_shape: shape (size in pixels) of the output.
+                Default value: source.data_shape
+            pixel_size (Quantity): 1 or 2-element pixel size (in astropy units).
+                Default value: source.pixel_size * magnification
+            numerical_aperture: Numerical aperture of the microscope objective
+            wavelength: Wavelength of the light used for imaging,
+                the wavelength and numerical_aperture together determine the resolution of the microscope.
+            magnification: Scalar magnification factor between input and output image.
+                Note that this factor does not affect the effective image resolution.
+                Increasing the magnification will just produce a zoomed-in blurred image.
+                The default settings for data_shape, pixel_size and magnification cause the simulated microscope
+                to only convolve the source image with the point-spread function (PSF) without applying any scaling.
+            xy_stage (XYStage): Optional stage object that can be used to move the sample laterally.
+                Defaults to a MockXYStage.
+            z_stage (Stage): Optional stage object that moves the sample up and down to focus the microscope.
+                Higher values are further away from the microscope objective.
+                Defaults to a MockStage.
+            slm (Detector): Detector that produces 2-d images containing the phase (in radians) as displayed on the SLM.
+                If no `slm_transform` is specified, the `pixel_size` attribute should correspond to normalized pupil coordinates
+                (e.g. with a disk of radius 1.0, i.e. an extent of 2.0, corresponding to an NA of 1.0)
+            slm_transform (Transform|None):
+                Optional Transform that transforms the phase pattern from the slm object (in slm.pixel_size units) to normalized pupil
+                coordinates.
+                Typically, the slm image is already in normalized pupil coordinates,
+                but this transform can be used to mimic SLM misalignment.
             aberrations (ImageSource): 2-D image containing the phase (in radians) of aberrations observed
                 in the back pupil of the microscope objective.
-                The `dimensions` attribute must be set to twice the NA covered by the aberration pattern.
-            camera_resolution (tuple(float, float)): size of the image sensor in pixels.
-                Defaults to 1024 pixels.
-            camera_pixel_size (astropy distance unit): pixel pitch of the image sensor.
-                Defaults to 10 μm.
-            truncation_factor:
+                The `pixel_size` attribute corresponds to normalized pupil coordinates.
+            aberration_transform (Transform|None):
+                Optional Transform that transforms the phase pattern from the aberration object (in slm.pixel_size units) to normalized pupil
+                coordinates.
+                Typically, the slm image is already in normalized pupil coordinates,
+                but this transform may e.g. be used to scale an aberration pattern
+                from extent 2.0 to extent 2.0 * NA.
+            truncation_factor (float | None):
+                When set to a value > 0.0,
+                the microscope pupil is illuminated by a Gaussian beam (instead of a flat intensity).
+                The value corresponds to the beam waist relative to the full pupil (the full NA).
         """
-        super().__init__(source, aberrations, slm, data_shape=camera_resolution, pixel_size=camera_pixel_size)
+        if pixel_size is None:
+            pixel_size = source.pixel_size * magnification
+        if not isinstance(source, Detector):
+            raise ValueError("`source` should be a Detector object.")
+
+        super().__init__(source, aberrations, slm, pixel_size=pixel_size)
         self._magnification = magnification
         self.numerical_aperture = numerical_aperture
-        self.aberration_transform = None  # coordinate transform from the `aberration` object to the pupil plane
-        self.slm_transform = None  # coordinate transform from the `slm` object to the pupil plane
+        self.aberration_transform = aberration_transform
+        self.slm_transform = slm_transform
         self.wavelength = wavelength.to(u.nm)
         self.oversampling_factor = 2.0
         self.xy_stage = xy_stage or MockXYStage(0.1 * u.um, 0.1 * u.um)
         self.z_stage = z_stage  # or MockStage()
         self.truncation_factor = truncation_factor
-        self.camera = MockCamera(self, analog_max=analog_max)
         self.psf = None
         self.slm = slm
-        assert source is not None
 
     def _fetch(self, out: Union[np.ndarray, None], source: np.ndarray, aberrations: np.ndarray,  # noqa
                slm: np.ndarray) -> np.ndarray:
@@ -115,11 +144,17 @@ class Microscope(Processor):
         # todo: add option for oversampling
         source_pixel_size = get_pixel_size(source)
         target_pixel_size = self.pixel_size / self.magnification
-        if np.any(source_pixel_size >= target_pixel_size):
+        if np.any(source_pixel_size > target_pixel_size):
             raise Exception("The resolution of the specimen image is worse than that of the output.")
 
         # construct matrix for translation of the specimen
-        source = place(self.data_shape, target_pixel_size, source, Quantity((self.xy_stage.y, self.xy_stage.x)))
+        # Note: there seems to be a bug (feature?) in fftconvolve that shifts the image by one pixel
+        # when the 'same' option is used.
+        # To compensate for this feature, the image is shifted by - source_pixel_size here.
+        # this will cause an empty line at the side of the image!
+        # todo: implement our own version of fftconvolve, or crop manually
+        shift = Quantity((self.xy_stage.y, self.xy_stage.x)) - source_pixel_size
+        source = place(self.data_shape, target_pixel_size, source, shift)
 
         # Calculate the field in the pupil plane.
         #
@@ -133,12 +168,14 @@ class Microscope(Processor):
         #
         # The NA of the pupil corresponds to a disk that is contained in this pupil plane.
         # We compute the aberrations over the full pupil plane, and clip to the NA by using a disk function.
-        #
+        # TODO: think about what happens when the requested output resolution is lower than the diffraction limit
+        #       at the moment, not the full pupil is used.
+        # TODO: think about what happens when the slm is smaller than the pupil
 
         # condition 1. Extent of pupil in pupil coordinates: Abbe limit should give pixel_size resolution
         pupil_extent = self.wavelength / target_pixel_size
 
-        # condition 2. Minimum number of pixels in x and y
+        # condition 2. Minimum number of pixels in x and y should be data_shape
         pupil_shape = self.data_shape
         pupil_pixel_size = pupil_extent / pupil_shape
 
@@ -151,21 +188,23 @@ class Microscope(Processor):
                                             truncation_radius=self.numerical_aperture, extent=pupil_extent)
 
         if aberrations is not None and slm is not None:
-            pupil_field *= np.exp(1.0j *
-                                  project(pupil_shape, pupil_pixel_size, aberrations, self.aberration_transform) +
-                                  project(pupil_shape, pupil_pixel_size, slm, self.slm_transform))
+            pupil_field = pupil_field * np.exp(1.0j *
+                                               project(pupil_shape, pupil_pixel_size, aberrations,
+                                                       self.aberration_transform) +
+                                               project(pupil_shape, pupil_pixel_size, slm, self.slm_transform))
         elif slm is not None:
-            pupil_field *= np.exp(1.0j * project(pupil_shape, pupil_pixel_size, slm, self.slm_transform))
+            pupil_field = pupil_field * np.exp(1.0j * project(pupil_shape, pupil_pixel_size, slm, self.slm_transform))
         elif aberrations is not None:
-            pupil_field *= np.exp(1.0j * project(pupil_shape, pupil_pixel_size, aberrations, self.aberration_transform))
+            pupil_field = pupil_field * np.exp(
+                1.0j * project(pupil_shape, pupil_pixel_size, aberrations, self.aberration_transform))
 
         # Compute the point spread function
         # This is done by Fourier transforming the pupil field and taking the absolute value squared
         # Due to condition 1, after the Fourier transform,
         # the pixel size matches that of the source (the specimen image).
         # Note: there is no need to `ifftshift` the pupil field, since we are taking the absolute value anyway
-        psf = np.abs(np.fft.fft2(pupil_field)) ** 2
-        psf = np.fft.fftshift(psf) / np.sum(psf)
+        psf = np.abs(np.fft.ifft2(pupil_field)) ** 2
+        psf = np.fft.ifftshift(psf) / np.sum(psf)
         self.psf = psf  # store psf for later inspection
 
         # todo: test if the convolution does not introduce an offset
@@ -197,3 +236,18 @@ class Microscope(Processor):
     def abbe_limit(self) -> Quantity:
         """Returns the Abbe diffraction limit: λ/(2 NA)"""
         return 0.5 * self.wavelength / self.numerical_aperture
+
+    def get_camera(self, *, transform: Union[Transform, None] = None, **kwargs) -> Detector:
+        """Returns a simulated camera that observes the microscope image.
+
+        The camera is a MockCamera object that simulates an AD-converter with optional noise.
+        shot noise and readout noise (see MockCamera for options).
+        In addition to the inputs accepted by the MockCamera constructor (data_shape, analog_max, shot_noise, etc.),
+        it is also possible to specify a transform, to mimic the (mis)alignment of the camera.
+        """
+        if transform is None:
+            src = self
+        else:
+            src = TransformProcessor(self, transform)
+
+        return MockCamera(src, **kwargs)
