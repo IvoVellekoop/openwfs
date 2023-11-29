@@ -4,4 +4,4 @@ from . import galvo_scanner
 
 
 from .gain import Gain
-from .galvo_scanner import LaserScanning, GalvoScanner
+from .galvo_scanner import LaserScanning
