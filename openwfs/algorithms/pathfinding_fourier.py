@@ -77,6 +77,7 @@ class CharacterisingFDR(FourierDualRef):
             self.intermediate_enhancements = []
             self.intermediate_t = []
         self.added_modes = [['Uncorrected enhancement']]
+        self.feedback_target = []  # Pathfinding only works for 1-dimensional feedback.
 
     def execute(self):
         """Execute the algorithm.
@@ -86,6 +87,8 @@ class CharacterisingFDR(FourierDualRef):
         """
 
         # measure the response before correction
+
+
         if self.intermediates:
             self.record_intermediate_enhancement([0], [0], [0], 0)
 

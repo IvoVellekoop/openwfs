@@ -4,7 +4,7 @@ from ..openwfs.simulation import SimulatedWFS, MockSource, MockSLM, Microscope
 import numpy as np
 from ..openwfs.algorithms import StepwiseSequential, BasicFDR, CharacterisingFDR
 from ..openwfs.algorithms.utilities import get_dense_matrix
-from ..openwfs.processors import SingleRoi
+from ..openwfs.processors import SingleRoi, CropProcessor
 import skimage
 import astropy.units as u
 import cv2
@@ -217,3 +217,56 @@ def test_flat_wf_response_pathfinding_fourier():
     # Assert that the standard deviation of the optimized wavefront is below the threshold,
     # indicating that it is effectively flat
     assert np.std(optimised_wf) < 0.001, f"Response flat wavefront not flat, std: {np.std(optimised_wf)}"
+
+
+def test_multidimensional_feedback_ssa():
+    aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
+    sim = SimulatedWFS(width=512, height=512, aberrations=aberrations)
+
+    # alg = BasicFDR(feedback=sim.cam, slm=sim.slm, k_angles_min=-1, k_angles_max=1, phase_steps=3)
+    alg = StepwiseSequential(feedback=sim.cam,slm=sim.slm)
+    t = alg.execute()
+    roi_detector = SingleRoi(sim.cam, x=256, y=256, radius=0)
+
+    # compute the phase pattern to optimize the intensity in target 256,256
+    optimised_wf = -np.angle(t[...,256,256])
+
+    # Calculate the enhancement factor
+    # Note: technically this is not the enhancement, just the ratio after/before
+    sim.slm.set_phases(0.0)
+    before = roi_detector.read()
+    sim.slm.set_phases(optimised_wf)
+    after = roi_detector.read()
+    enhancement = after / before
+
+    assert enhancement >= 3.0, f"""The SSA algorithm did not enhance focus as much as expected.
+            Expected at least 3.0, got {enhancement}"""
+
+
+def test_multidimensional_feedback_fourier():
+    aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
+    sim = SimulatedWFS(width=512, height=512, aberrations=aberrations)
+    roi_detector = SingleRoi(sim.cam, x=256, y=256, radius=0)
+
+    # input the camera as a feedback object, such that it is multidimensional
+    alg = BasicFDR(feedback=sim.cam, slm=sim.slm, k_angles_min=-1, k_angles_max=1, phase_steps=3)
+    alg.feedback_target = (253, 23)
+    wrong_t = alg.execute()
+
+    # you calculate the SLM transmission matrix of a different feedback point, by setting a different feedback target
+    alg.feedback_target = (256, 256)
+    t = alg.compute_t()
+
+    # compute the phase pattern to optimize the intensity in target 0
+    optimised_wf = np.angle(t)
+
+    # Calculate the enhancement factor
+    # Note: technically this is not the enhancement, just the ratio after/before
+    sim.slm.set_phases(0.0)
+    before = roi_detector.read()
+    sim.slm.set_phases(optimised_wf)
+    after = roi_detector.read()
+    enhancement = after / before
+
+    assert enhancement >= 3.0, f"""The SSA algorithm did not enhance focus as much as expected.
+            Expected at least 3.0, got {enhancement}"""
