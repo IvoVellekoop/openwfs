@@ -226,44 +226,61 @@ class MockCamera(ADCProcessor):
         super().__init__(source=self._crop, **kwargs)
 
     @property
-    def left(self):
+    def left(self) -> int:
         return self._crop.pos[1]
 
     @left.setter
-    def left(self, value):
+    def left(self, value: int):
         self._crop.pos = (self._crop.pos[0], value)
 
     @property
-    def right(self):
+    def right(self) -> int:
         return self.left + self.width
 
     @property
-    def top(self):
+    def top(self) -> int:
         return self._crop.pos[0]
 
     @top.setter
-    def top(self, value):
+    def top(self, value: int):
         self._crop.pos = (value, self._crop.pos[1])
 
     @property
-    def bottom(self):
+    def bottom(self) -> int:
         return self.top + self.height
 
     @property
-    def height(self):
+    def height(self) -> int:
         return self.data_shape[0]
 
     @height.setter
-    def height(self, value):
+    def height(self, value: int):
         self.data_shape = (value, self.data_shape[1])
 
     @property
-    def width(self):
+    def width(self) -> int:
         return self.data_shape[1]
 
     @width.setter
-    def width(self, value):
+    def width(self, value: int):
         self.data_shape = (self.data_shape[0], value)
+
+    @property
+    def data_shape(self):
+        return self._data_shape
+
+    @data_shape.setter
+    def data_shape(self, value):
+        self._crop.data_shape = value
+        self._data_shape = value
+
+    @property
+    def duration(self) -> Quantity[u.ms]:
+        return self._duration
+
+    @duration.setter
+    def duration(self, value):
+        self._duration = value.to(u.ms)
 
 
 class MockXYStage(Actuator):

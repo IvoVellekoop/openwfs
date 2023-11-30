@@ -22,6 +22,7 @@ def imshow(data):
     plt.ylabel(extent.unit)
     extent = extent.value
     plt.imshow(data, extent=(0.0, extent[0], 0.0, extent[1]), cmap='gray')
+    plt.colorbar()
     plt.show()
     plt.pause(0.1)
 

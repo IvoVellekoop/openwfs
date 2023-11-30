@@ -151,7 +151,7 @@ class Device:
 
     @staticmethod
     def _on_main_thread() -> bool:
-        return threading.current_thread().ident == Device._main_thread
+        return True  # threading.current_thread().ident == Device._main_thread
 
     def _start(self):
         """Switches the state to 'moving' (for actuators) or 'measuring' (for detectors).
