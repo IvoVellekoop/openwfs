@@ -173,7 +173,7 @@ def PMT_to_image(data,
                  x_crop,
                  y_crop,
                  depadsize=0,
-                 bidirectional=False,
+                 bidirectional=False,  
                  delayforward=0,
                  delaybackward=0,
                  ignore_first_point=True):

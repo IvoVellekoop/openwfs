@@ -45,6 +45,8 @@ class FourierDualRef:
         self.k_right = k_right
         self.slm_shape = slm_shape
 
+        self.feedback_target = None
+
     def execute(self):
         """Execute the FourierDualRef algorithm. This computes the SLM transmission matrix.
 
@@ -61,8 +63,17 @@ class FourierDualRef:
         measurements_right = self.single_side_experiment(self.k_right, 1)
         self.t_right = analyze_phase_stepping(measurements_right, axis=1).field
 
+        if len(self.t_left[0, ...].flatten()) == 1:  # If our feedback is 1 element
+            self.feedback_target = [0]
+
+        if self.feedback_target == None:
+            print("Input a tuple in the shape of the feedback as feedback_target to compute the SLM transmission matrix"
+                  "for that feedback point, then, execute compute_t to obtain the SLM transmission matrix")
+            return None
+
         # calculate transmission matrix of the SLM plane from the Fourier transmission matrices:
         self.t_slm = self.compute_t(self.t_left, self.t_right, self.k_left, self.k_right)
+        self.t_slm = self.compute_t(self.t_left, self.t_right, self.k_left,self.k_right)
 
         return self.t_slm
 
@@ -106,7 +117,7 @@ class FourierDualRef:
         # self._feedback.wait()
         return measurements
 
-    def compute_t(self, t_fourier_left, t_fourier_right, k_left, k_right):
+    def compute_t(self, t_fourier_left=None, t_fourier_right=None, k_left=None, k_right=None):
         """Computes the SLM transmission matrix from the Fourier transmission matrices.
 
         Args:
@@ -118,6 +129,19 @@ class FourierDualRef:
         Returns:
             numpy.ndarray: The SLM transmission matrix.
         """
+        # Set defaults if None
+        if t_fourier_left is None:
+            t_fourier_left = self.t_left
+        if t_fourier_right is None:
+            t_fourier_right = self.t_right
+        if k_left is None:
+            k_left = self.k_left
+        if k_right is None:
+            k_right = self.k_right
+
+        t_fourier_left = t_fourier_left[..., *self.feedback_target]
+        t_fourier_right = t_fourier_right[..., *self.feedback_target]
+
         # bepaal ruis: bahareh. Find peak & dc ofset
         t1 = np.zeros((self.slm_shape[1], self.slm_shape[0]), dtype='complex128')
         t2 = np.zeros((self.slm_shape[1], self.slm_shape[0]), dtype='complex128')
