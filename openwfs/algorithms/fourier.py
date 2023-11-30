@@ -1,5 +1,4 @@
 import numpy as np
-from typing import Any, Annotated
 from ..core import Detector, PhaseSLM
 from .utilities import analyze_phase_stepping
 from ..slm.patterns import tilt
@@ -66,14 +65,14 @@ class FourierDualRef:
         if len(self.t_left[0, ...].flatten()) == 1:  # If our feedback is 1 element
             self.feedback_target = [0]
 
-        if self.feedback_target == None:
+        if self.feedback_target is None:
             print("Input a tuple in the shape of the feedback as feedback_target to compute the SLM transmission matrix"
                   "for that feedback point, then, execute compute_t to obtain the SLM transmission matrix")
             return None
 
         # calculate transmission matrix of the SLM plane from the Fourier transmission matrices:
         self.t_slm = self.compute_t(self.t_left, self.t_right, self.k_left, self.k_right)
-        self.t_slm = self.compute_t(self.t_left, self.t_right, self.k_left,self.k_right)
+        self.t_slm = self.compute_t(self.t_left, self.t_right, self.k_left, self.k_right)
 
         return self.t_slm
 
@@ -139,8 +138,8 @@ class FourierDualRef:
         if k_right is None:
             k_right = self.k_right
 
-        t_fourier_left = t_fourier_left[..., *self.feedback_target]
-        t_fourier_right = t_fourier_right[..., *self.feedback_target]
+        t_fourier_left = t_fourier_left[(..., *self.feedback_target)]
+        t_fourier_right = t_fourier_right[(..., *self.feedback_target)]
 
         # bepaal ruis: bahareh. Find peak & dc ofset
         t1 = np.zeros((self.slm_shape[1], self.slm_shape[0]), dtype='complex128')
