@@ -15,8 +15,8 @@ from nidaqmx.stream_writers import AnalogMultiChannelWriter
 class LaserScanning(Detector):
 
     def __init__(self, left=0, top=0, data_shape = (100,100), input_mapping='Dev4/ai24',
-                 x_mirror_mapping='Dev4/ao2', y_mirror_mapping='Dev4/ao3', full_scan_range = 800 * u.um, input_min=-1, input_max=1, delay=0,
-                 duration: Quantity[u.ms] = 600 * u.ms, zoom=1, scan_padding=0, bidirectional=True, invert=0):
+                 x_mirror_mapping='Dev4/ao2', y_mirror_mapping='Dev4/ao3', full_scan_range = 884.4 * u.um, input_min=-1, input_max=1, delay=0,
+                 duration: Quantity[u.ms] = 600 * u.ms, zoom=1, scan_padding=0, bidirectional=True, invert=True):
         super().__init__(data_shape=data_shape, pixel_size=1 * u.um, duration=duration)
 
         self._resized = True
@@ -250,7 +250,7 @@ class LaserScanning(Detector):
         self._top = value
 
     @property
-    def height(self):
+    def height(self) -> int:
         return self.data_shape[0]
 
     @height.setter
@@ -258,7 +258,7 @@ class LaserScanning(Detector):
         self._data_shape = (value, self.data_shape[1])
 
     @property
-    def width(self):
+    def width(self) -> int:
         return self.data_shape[1]
 
     @width.setter
