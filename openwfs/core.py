@@ -4,6 +4,7 @@ import time
 import atomics
 import numpy as np
 import astropy.units as u
+import threading
 from weakref import WeakSet
 from typing import Union, Set, final
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -112,6 +113,11 @@ class Device:
     # List of all Device objects
     _devices: "Set[Device]" = WeakSet()
 
+    # Main thread id. All operations on detectors should be performed from the main thread only
+    # The only exception is the _fetch function, which is running on a worker thread, unless
+    # `immediate=True` is specified in `trigger()`.
+    _main_thread = threading.current_thread().ident
+
     def __init__(self, *, latency=0.0 * u.ms, duration=0.0 * u.ms):
         """Constructs a new Device object
 
@@ -121,6 +127,7 @@ class Device:
 
             duration: time it takes to perform the measurement or for the actuator to stabilize.
         """
+        assert Device._on_main_thread()
         self._start_time_ns = 0
         self._latency = latency
         self._duration = duration
@@ -131,6 +138,7 @@ class Device:
 
     def __setattr__(self, key, value):
         """Prevents modification of public attributes and properties while the device is busy."""
+        assert Device._on_main_thread()
         if not key.startswith('_'):
             self._wait_finished()
         super().__setattr__(key, value)
@@ -141,6 +149,10 @@ class Device:
         """True for actuators, False for detectors"""
         ...
 
+    @staticmethod
+    def _on_main_thread() -> bool:
+        return threading.current_thread().ident == Device._main_thread
+
     def _start(self):
         """Switches the state to 'moving' (for actuators) or 'measuring' (for detectors).
 
@@ -149,7 +161,7 @@ class Device:
 
         After switching, stores the current time in the _start_time_ns field.
         """
-
+        assert Device._on_main_thread()
         if Device._moving != self.is_actuator():
             if Device._moving:
                 logging.debug("switch to MEASURING requested by %s.", self)
