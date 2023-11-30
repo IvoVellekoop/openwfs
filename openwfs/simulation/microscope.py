@@ -113,7 +113,7 @@ class Microscope(Processor):
         if not isinstance(source, Detector):
             raise ValueError("`source` should be a Detector object.")
 
-        super().__init__(source, aberrations, slm, pixel_size=pixel_size)
+        super().__init__(source, aberrations, slm, pixel_size=pixel_size, data_shape=data_shape)
         self._magnification = magnification
         self.numerical_aperture = numerical_aperture
         self.aberration_transform = aberration_transform
