@@ -1,3 +1,5 @@
+import logging
+
 import matplotlib.pyplot as plt
 import pytest
 import numpy as np
@@ -126,10 +128,11 @@ def test_SLM_tilt():
     assert np.all(max_pos == new_location)
 
 
-def test_microscope_wavefrontshaping():
+def test_microscope_wavefrontshaping(caplog):
     """
     Reproduces a bug that occurs due to the location of the measurements.wait() command.
     """
+    caplog.set_level(logging.DEBUG)
     aberrations = skimage.data.camera() * ((2 * np.pi) / 255.0) + np.pi
 
     aberration = MockSource(aberrations, pixel_size=1.0 / (512) * u.dimensionless_unscaled)

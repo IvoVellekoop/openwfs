@@ -37,7 +37,7 @@ class StepwiseSequential:
                     self._slm.set_phases(phase_pattern)
                     self._feedback.trigger(out=measurements[n_y, n_x, p, ...])
                     # TODO: FIXME: this line should not be necessary, timing issue/race condition?
-                    self._feedback.wait()
+                    # self._feedback.wait()
                 phase_pattern[n_y, n_x] = 0
 
         self._feedback.wait()

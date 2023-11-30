@@ -1,4 +1,5 @@
 # core classes used throughout openWFS
+import logging
 import time
 import atomics
 import numpy as np
@@ -149,7 +150,11 @@ class Device:
         After switching, stores the current time in the _start_time_ns field.
         """
 
-        if Device._moving != self.is_actuator:
+        if Device._moving != self.is_actuator():
+            if Device._moving:
+                logging.debug("switch to MEASURING requested by %s.", self)
+            else:
+                logging.debug("switch to MOVING requested by %s.", self)
             # a transition from moving/measuring or vice versa is needed
             same_type = [device for device in Device._devices if device.is_actuator == self.is_actuator]
             other_type = [device for device in Device._devices if device.is_actuator != self.is_actuator]
@@ -168,6 +173,12 @@ class Device:
             # wait until all devices of the other type have (almost) finished
             for device in other_type:
                 device._wait_finished(latency)
+
+            Device._moving = not Device._moving
+            if Device._moving:
+                logging.debug("state is now MOVING.")
+            else:
+                logging.debug("state is now MEASURING.")
 
         self._start_time_ns = time.time_ns()
 
@@ -292,6 +303,7 @@ class Detector(Device, ABC):
         self._start()
         self._do_trigger()
         self._measurements_pending.inc()
+        logging.debug("triggering %s.", self)
         if immediate:
             result = Future()
             result.set_result(self._do_fetch(out, *args, **kwargs))  # noqa
@@ -302,9 +314,12 @@ class Detector(Device, ABC):
     def _do_fetch(self, out_, *args_, **kwargs_):
         """Helper function that awaits all futures in the keyword argument list, and then calls _fetch"""
         try:
+            if len(args_) > 0 or len(kwargs_) > 0:
+                logging.debug("awaiting inputs for %s.", self)
             awaited_args = [(arg.result() if isinstance(arg, Future) else arg) for arg in args_]
             awaited_kwargs = {key: (arg.result() if isinstance(arg, Future) else arg) for (key, arg) in
                               kwargs_.items()}
+            logging.debug("fetching data of %s.", self)
             data = set_pixel_size(self._fetch(out_, *awaited_args, **awaited_kwargs), self.pixel_size)
             assert data.shape == self.data_shape
             return data
