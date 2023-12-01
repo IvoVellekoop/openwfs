@@ -1,10 +1,8 @@
-from typing import Annotated
 from typing import Union
 import astropy.units as u
 import numpy as np
 from astropy.units import Quantity
 from ..core import Detector
-from .Pyscanner import single_capture
 import nidaqmx as ni
 from nidaqmx.constants import TaskMode
 
@@ -12,10 +10,18 @@ from nidaqmx.constants import Edge
 from nidaqmx.stream_readers import AnalogUnscaledReader
 from nidaqmx.stream_writers import AnalogMultiChannelWriter
 
+
 class LaserScanning(Detector):
 
-    def __init__(self, left=0, top=0, data_shape = (100,100), input_mapping='Dev4/ai24',
-                 x_mirror_mapping='Dev4/ao2', y_mirror_mapping='Dev4/ao3', full_scan_range = 884.4 * u.um, input_min=-1, input_max=1, delay=0,
+    # TODO: left/right -> pos
+    # TODO: more descriptive names for 'input_mapping' 'x_mirror_mapping'->'x_channel'
+    # TODO: docstring
+    # TODO: full_scan_range -> pixel_size
+    # TODO: specify input with astropy voltage units
+    # TODO: enable working with volt and ampere units in pydevice
+    # TODO: don't use full-scan-range, use data_shape and pixel_size instead (you automatically get the extent property from the Detector base class)
+    def __init__(self, data_shape, pixel_size, input_mapping: str,
+                 x_mirror_mapping: str, y_mirror_mapping: str, pos=(0, 0), input_min=-1, input_max=1, delay=0,
                  duration: Quantity[u.ms] = 600 * u.ms, zoom=1, scan_padding=0, bidirectional=True, invert=True):
         super().__init__(data_shape=data_shape, pixel_size=1 * u.um, duration=duration)
 
@@ -39,11 +45,14 @@ class LaserScanning(Detector):
         self._zoom = zoom
         self._scan_padding = scan_padding
         self._bidirectional = bidirectional
+
+        # TODO: remove _invert this doesn't do anything
         self._invert = invert
 
-
+        # TODO: no need to store this. Don't (to reduce bookkeeping)
         self._sample_rate = self.calculate_sample_rate()
 
+    # TODO: this should be `_scan_pattern`  (1st underscore because it is a private method, second because of grammar)
     def scanpattern(self):
         """This produces 2 numpy arrays which can be used as input for the Galvo scanners
 
@@ -51,13 +60,24 @@ class LaserScanning(Detector):
         """
 
         # This is the linear signal. Everything after is padding & structuring. Adapt here for custom patterns.
+
         rangex = np.linspace(self._input_min, self._input_max, self.data_shape[1])
         rangey = np.linspace(self._input_min, self._input_max, self.data_shape[0])
 
+        # TODO: consider replacing the code below by meshgrid followed by flatten
+        # flipping every second row could be done with:
+        # xsteps(1::2, :) = -xsteps(1, :)
+        #
+        # TODO: consider padding with some smooth transition, now the mirror is expected to stop instantaneously!
+        # TODO: for large pixels, the mirror will start 'stepping',
+        #  which is not what you want, because you will get extra jitter.
+        #  Not sure how to solve this.
+        #  We could ask NiDaq to low-pass filter the output, or let the output always run at a high sample rate
+        #  even when the input only needs low frequencies because of a long dwell time.
+        # TODO: put the delay in the output signal, not in the input signal.
+        #  This way you can have a fractional delay.
         xsteps = np.array([])
         ysteps = np.array([])
-
-
 
         for ind, y in enumerate(rangey):
             if self._bidirectional:
@@ -81,7 +101,7 @@ class LaserScanning(Detector):
 
         return np.stack([xsteps, ysteps])
 
-    def setup_reader_writer(self,scanpattern):
+    def setup_reader_writer(self, scanpattern):
         """Function adapted from NI forum that has an electrical output signal and a electrical input signal.
         Because it goes into the dac, the input for the galvos is called output (analog out)
         and the output of the PMT is called input (analog in)
@@ -95,12 +115,11 @@ class LaserScanning(Detector):
 
         returns indata: measured signal from analog in channel (V)
         """
-        # TODO: Make a buffer-loading & trigger function seperately
         # TODO: Make the function robust for different channel numbers
-
+        # TODO: put read and write in a single task! This way you can do onw 'start' instead of two, and
+        #  we don't want rely on software synchronization
         # in order to handle both singular and multiple channel output data:
         self._number_of_samples = scanpattern[0].shape[0]
-
 
         with ni.Task() as write_task, ni.Task() as read_task, ni.Task() as sample_clk_task:
             # Use a counter output pulse train task as the sample clock source
@@ -109,7 +128,7 @@ class LaserScanning(Detector):
             # We're stealing the device identifier for the clock from the input mapping string, because of backward
             # compatibility
             sample_clk_task.co_channels.add_co_pulse_chan_freq(
-                f"{self._input_mapping.split('/')[0]}/ctr0", freq= self.calculate_sample_rate()
+                f"{self._input_mapping.split('/')[0]}/ctr0", freq=self.calculate_sample_rate()
             )
             sample_clk_task.timing.cfg_implicit_timing(samps_per_chan=self._number_of_samples)
 
@@ -144,20 +163,24 @@ class LaserScanning(Detector):
             writer = AnalogMultiChannelWriter(write_task.out_stream)
             reader = AnalogUnscaledReader(read_task.in_stream)
 
+            # TODO: move to _do_trigger!
+            # TODO: is it possible to re-use the samples and just trigger them again?
             writer.write_many_sample(scanpattern)
             # Start the read and write tasks before starting the sample clock
             # source task.
-
-            # IN TRIGGER!
             read_task.start()
             write_task.start()
             sample_clk_task.start()
 
-            # This needs to be separated into some read function
+            # TODO: move to _fetch
+            # TODO: don't write to veriables in trigger or fetch because this is not thread safe.
+            #  In future versions this will cause a deadlock.
+            #  Just return the data.
+            # TODO: why is the array below 2-D? why not just (self._number_of_samples,)
             self.raw_data = np.zeros([1, self._number_of_samples], dtype=np.int16)
             reader.read_int16(
-                self.raw_data, number_of_samples_per_channel=self._number_of_samples, timeout=ni.constants.WAIT_INFINITELY)
-
+                self.raw_data, number_of_samples_per_channel=self._number_of_samples,
+                timeout=ni.constants.WAIT_INFINITELY)
 
     def pmt_to_image(self, data):
         """
@@ -170,7 +193,6 @@ class LaserScanning(Detector):
         numpy.ndarray: 2D reconstructed image.
         """
 
-
         # Skip the first point if necessary and compensate for delay
         data = data[1:]
         delay = self._delay
@@ -182,7 +204,7 @@ class LaserScanning(Detector):
 
         # Reshape data to 2D with padding
         image_with_padding = np.reshape(data, (y_steps, x_steps_with_padding))
-        image = np.zeros((self.data_shape[0],self.data_shape[1]),dtype='uint16')
+        image = np.zeros((self.data_shape[0], self.data_shape[1]), dtype='uint16')
 
         # Remove padding from the image
         if self._scan_padding:
@@ -206,7 +228,6 @@ class LaserScanning(Detector):
 
         return image
 
-
     def calculate_sample_rate(self):
 
         # Example calculation
@@ -228,6 +249,10 @@ class LaserScanning(Detector):
         return out
 
     def _update_pixel_size(self):
+        # TODO: remove, the pixel_size and data_shape should be leading.
+        # TODO: do we need a 'zoom'?
+        #  if so, do we want to implement it like this?
+        #  The implementation should be compatible with the MM pixel_size calibration! Perhaps just remove it?
         # Calculate pixel size based on zoom, width, and height
         # check this with tom
         # perhaps make property of the magic number 800
@@ -280,9 +305,10 @@ class LaserScanning(Detector):
     @duration.setter
     def duration(self, value):
         self._duration = value.to(u.ms)
+
     @property
     def delay(self) -> int:
-        return self._delay # add unit
+        return self._delay  # add unit
 
     @delay.setter
     def delay(self, value: int):
@@ -322,6 +348,7 @@ class LaserScanning(Detector):
     def invert(self, value: bool):
         self._invert = value
 
+
+# TODO: remove this part, put in example or test. You are now creating a scanner when loading the library!
 scanner = LaserScanning(x_mirror_mapping='Dev4/ao0', y_mirror_mapping='Dev4/ao1', input_mapping='Dev4/ai0')
 devices = {'cam': scanner}
-
