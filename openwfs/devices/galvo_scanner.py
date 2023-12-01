@@ -40,6 +40,10 @@ class LaserScanning(Detector):
         self._input_max = input_max
         self._full_scan_range = full_scan_range
 
+        # Reader voltage limits
+        self._reader_min = -1
+        self._reader_max = 1
+
         # Scan settings
         self._delay = delay
         self._zoom = zoom
@@ -60,7 +64,7 @@ class LaserScanning(Detector):
         """
 
         # This is the linear signal. Everything after is padding & structuring. Adapt here for custom patterns.
-
+        # don't use linspace
         rangex = np.linspace(self._input_min, self._input_max, self.data_shape[1])
         rangey = np.linspace(self._input_min, self._input_max, self.data_shape[0])
 
@@ -141,8 +145,8 @@ class LaserScanning(Detector):
             write_task.ao_channels.add_ao_voltage_chan(self._x_mirror_mapping, **ao_args)
             write_task.ao_channels.add_ao_voltage_chan(self._y_mirror_mapping, **ao_args)
 
-            ai_args = {'min_val': self._input_min,
-                       'max_val': self._input_max,
+            ai_args = {'min_val': self._reader_min,
+                       'max_val': self._reader_max,
                        'terminal_config': ni.constants.TerminalConfiguration.RSE}
             write_task.timing.cfg_samp_clk_timing(
                 self.calculate_sample_rate(),
@@ -196,11 +200,18 @@ class LaserScanning(Detector):
         # Skip the first point if necessary and compensate for delay
         data = data[1:]
         delay = self._delay
+
+        # this will actually put zeros in the image, perhaps it is better to measure an extra row when using delay.
         data = np.pad(data, (delay, 0), mode='constant')[:len(data)]
 
         # Calculate the actual number of steps in x-direction accounting for padding
         x_steps_with_padding = self.data_shape[1] + self._scan_padding
         y_steps = self.data_shape[0]
+
+        if self._input_min < 0:
+            data = data + (2 ** 16) / 2
+        if self._invert:
+            data = (2 ** 16) - data
 
         # Reshape data to 2D with padding
         image_with_padding = np.reshape(data, (y_steps, x_steps_with_padding))
@@ -236,8 +247,8 @@ class LaserScanning(Detector):
         return total_points / self._duration.to(u.s).value
 
     def _do_trigger(self):
-        pattern = self.scanpattern()
 
+        pattern = self.scanpattern()
         self.setup_reader_writer(pattern)
 
     def _fetch(self, out: Union[np.ndarray, None]) -> np.ndarray:
@@ -348,7 +359,3 @@ class LaserScanning(Detector):
     def invert(self, value: bool):
         self._invert = value
 
-
-# TODO: remove this part, put in example or test. You are now creating a scanner when loading the library!
-scanner = LaserScanning(x_mirror_mapping='Dev4/ao0', y_mirror_mapping='Dev4/ao1', input_mapping='Dev4/ai0')
-devices = {'cam': scanner}
