@@ -123,8 +123,8 @@ class Microscope(Processor):
         self.xy_stage = xy_stage or MockXYStage(0.1 * u.um, 0.1 * u.um)
         self.z_stage = z_stage  # or MockStage()
         self.truncation_factor = truncation_factor
-        self.psf = None
         self.slm = slm
+        self._psf = None
 
     def _fetch(self, out: Union[np.ndarray, None], source: np.ndarray, aberrations: np.ndarray,  # noqa
                slm: np.ndarray) -> np.ndarray:
@@ -205,7 +205,7 @@ class Microscope(Processor):
         # Note: there is no need to `ifftshift` the pupil field, since we are taking the absolute value anyway
         psf = np.abs(np.fft.ifft2(pupil_field)) ** 2
         psf = np.fft.ifftshift(psf) / np.sum(psf)
-        self.psf = psf  # store psf for later inspection
+        self._psf = psf  # store psf for later inspection
 
         # todo: test if the convolution does not introduce an offset
         source = fftconvolve(source, psf, 'same')

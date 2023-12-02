@@ -1,7 +1,6 @@
 # core classes used throughout openWFS
 import logging
 import time
-import atomics
 import numpy as np
 import astropy.units as u
 import threading
@@ -28,7 +27,6 @@ def get_pixel_size(data: Union[np.ndarray, Quantity], may_fail: bool = False) ->
      det = MockDetector()
      data = det.trigger().result()
      pixel_size = get_pixel_size(data)
-
     """
     try:
         return data.dtype.metadata['pixel_size']
@@ -42,65 +40,73 @@ def get_pixel_size(data: Union[np.ndarray, Quantity], may_fail: bool = False) ->
 class Device:
     """Base class for detectors and actuators
 
-    This base class implements the synchronization and switching between 'moving' and 'measuring' states.
-    OpenWFS holds a global state to synchronize measurements. This state can be
-    - `moving`. Actuators may be active. No measurements can be made.
-    - `measuring` Detectors may be active. All actuators must remain static.
+    This base class implements the synchronization of detectors and actuators.
+    Devices hold a thread lock, which is automatically locked when an attribute is set
+    (by overriding __setattr__).
+    The lock prevents concurrent modification of the detector settings in a multi-threaded environment.
+    In addition, detectors lock the object on `trigger()` and release it after `_fetch`-ing the last measurement data.
 
-    If a detector is activated (e.g., by calling `trigger`) when the state is `moving`,
-    the framework waits until it is safe to transition to the `measuring` state, and only then sends the trigger.
+    In addition to the locking mechanism, each device can either be `busy` or `ready`.
+    Detectors are `busy` as long as the detector hardware is measuring.
+    That is, between `trigger()` and the end of the physical measurement,
+    which by definition occurs some time _before_ `_fetch` completes,
+    so the detector may become `ready` _before_ the measurement data is all fetched and processed.
+    Actuators are `busy` when they are moving, about to move, or settling after movement.
+    To check if a device is busy, read the `busy` attribute.
+    To wait for a device to become `ready`, call `wait`.
 
-    It is safe to make this transition if the following conditions are met:
-        1. all detectors are ready to be triggered. This is verified by calling ready
-            on all detectors, which returns a future that can be awaited.
-        2. all actuators are almost completed, where 'almost' denotes the latency,
-            `latency = min(d.latency for d in detectors)`
-            i.e., the time that passes before the first of the detectors starts responding to the trigger.
-            This is verified by calling finished(latency) on all actuators,
-            which returns a future that can be awaited.
+    `wait` takes an additional optional time parameter `up_to`.
+    When present, the `wait` function will try to return `up_to` seconds before the device becomes ready.
+    This feature is used to synchronize detectors and actuators with a latency (see below).
 
-    Transition from `measuring` to `moving` is completely analogous,
-    swapping detectors and actuators in the description above.
+    For detectors, `wait` has an additional flag `await_data`.
+    When `True` (default), the function waits until the detector becomes unlocked
+    (i.e. also waits for `_fetch` to complete), and `up_to` is ignored.
+    When `False`, just waits until the detector has finished the physical measurements, but it may still be
+    transferring and processing the data.
 
-    Examples:
-        Serial implementation::
+    Devices may indicate a `duration`, which is the time between the transition `ready`->`busy`
+    (made by an internal call to _start, which is done when triggering a detector, or starting an actuator update)
+    and the `busy`->`ready` transition.
+    If a `duration` is specified, the `Device` base class takes care of the `busy`->`ready` transition automatically.
+    If `duration = 0 * u.ms`, the device is never `busy`.
+    This makes sense for data sources that are not physical detectors, such as mock data sources.
+    If the measurement/movement duration is nog known in advance,
+    devices should set `duration=None` and override `busy` and `wait` to poll if the device is rady.
 
-            fields = np.zeros((n,))
-            for n in range(N):
-                for p in range(P)
-                    phase = 2 * np.pi * p / P
-                    slm.set_phases(phase) # waits for all measurements to complete (- latency of the slm),
-                                          # and then triggers the slm
-                    f1 = cam1.trigger()   # waits for the image on the slm to stabilize, then triggers the measurement
-                    f2 = cam2.trigger()   # directly triggers cam2, since we already are in the 'measuring' state
-                    fields[n] += (f2.result() - f1.result()) * np.exp(-j * phase)   # blocks until frames are read
+    OpenWFS synchronizes detectors and actuators using the `ready`->`busy`
+    state transition.  If a device needs to switch from `ready` to `busy`, it internally calls `_start`.
+    `start` _blocks_ until all devices of the other type are `ready` (up to latency).
 
-        Pipelined implementation::
+    For example, when a detector is triggered, `trigger()` internally calls `_start`,
+    which calls `wait(up_to=latency)` on all actuators,
+    where `latency` is given by the shortest latency of _all_ detectors.
 
-            f1 = np.zeros((N, P, *cam1.data_shape))
-            f2 = np.zeros((N, P, *cam2.data_shape))
-            for n in range(N):
-                for p in range(P)
-                    phase = 2 * np.pi * p / P
+    For efficiency, Device keeps a global state to synchronize detectors and actuators. This state can be
+    - `moving`. Actuators may be active (`busy`). No measurements can be made (all detectors are `ready`)
+    - `measuring` Detectors may be active (`busy`). All actuators must remain static (`ready`).
+    The `_start` function checks if OpenWFS is already in the correct global state for measuring or moving.
+    Only if a state switch is needed, `wait` is called on all objects of the other type, as described above.
 
-                    # wait for all measurements to complete (up to the latency of the slm), and trigger the slm.
-                    slm.set_phases(phase)
+    Example:
+        f1 = np.zeros((N, P, *cam1.data_shape))
+        f2 = np.zeros((N, P, *cam2.data_shape))
+        for n in range(N):
+            for p in range(P)
+                phase = 2 * np.pi * p / P
 
-                    # wait for the image on the slm to stabilize, then trigger the measurement.
-                    cam1.trigger(out = f1[n, p, ...])
+                # wait for all measurements to complete (up to the latency of the slm), and trigger the slm.
+                slm.set_phases(phase)
 
-                    # directly trigger cam2, since we already are in the 'measuring' state.
-                    cam2.trigger(out = f2[n, p, ...])
+                # wait for the image on the slm to stabilize, then trigger the measurement.
+                cam1.trigger(out = f1[n, p, ...])
 
-            cam1.wait() # wait until camera 1 is done grabbing frames
-            cam2.wait() # wait until camera 2 is done grabbing frames
-            fields = (f2 - f1) * np.exp(-j * phase)
+                # directly trigger cam2, since we already are in the 'measuring' state.
+                cam2.trigger(out = f2[n, p, ...])
 
-    Note:
-        When setting a public attributes or property of the device, the Device first waits until all actions
-        of that detector are finished (wait_finished()).
-        For example, if we change the ROI or shutter time of a camera after a call to trigger, the thread blocks
-        until the frame grab is complete, and then changes the ROI or shutter time.
+        cam1.wait() # wait until camera 1 is done grabbing frames
+        cam2.wait() # wait until camera 2 is done grabbing frames
+        fields = (f2 - f1) * np.exp(-j * phase)
     """
 
     # A thread pool for awaiting detector input, actuator stabilization,
@@ -110,13 +116,11 @@ class Device:
     # Global state: 'moving'=True or 'measuring'=False
     _moving = False
 
+    # Lock for switching global state (_start)
+    _state_lock = threading.Lock()
+
     # List of all Device objects
     _devices: "Set[Device]" = WeakSet()
-
-    # Main thread id. All operations on detectors should be performed from the main thread only
-    # The only exception is the _fetch function, which is running on a worker thread, unless
-    # `immediate=True` is specified in `trigger()`.
-    _main_thread = threading.current_thread().ident
 
     def __init__(self, *, latency=0.0 * u.ms, duration=0.0 * u.ms):
         """Constructs a new Device object
@@ -127,31 +131,42 @@ class Device:
 
             duration: time it takes to perform the measurement or for the actuator to stabilize.
         """
-        assert Device._on_main_thread()
         self._start_time_ns = 0
         self._latency = latency
         self._duration = duration
+        self._timeout_margin = 5 * u.s
+        self._lock = threading.Lock()
+        self._locking_thread = None
+        self._error = None
         Device._devices.add(self)
 
     def __del__(self):
         self.wait()
 
     def __setattr__(self, key, value):
-        """Prevents modification of public attributes and properties while the device is busy."""
-        assert Device._on_main_thread()
+        """Prevents modification of public attributes and properties while the device is busy.
+
+        Private attributes can be set without locking.
+        Note that this is not thread-safe and should be done with care!!
+        """
         if not key.startswith('_'):
-            self._wait_finished()
-        super().__setattr__(key, value)
+            logging.debug("acquiring lock to set attribute `%s` %s (tid: %i). ", key, self, threading.get_ident())
+            new_lock = self._lock_acquire()
+            try:
+                logging.debug("setting attribute `%s` %s (tid: %i). ", key, self, threading.get_ident())
+                super().__setattr__(key, value)
+                logging.debug("releasing lock %s (tid: %i).", self, threading.get_ident())
+            finally:
+                if new_lock:
+                    self._lock_release()
+        else:
+            super().__setattr__(key, value)
 
     @property
     @abstractmethod
     def is_actuator(self):
         """True for actuators, False for detectors"""
         ...
-
-    @staticmethod
-    def _on_main_thread() -> bool:
-        return True  # threading.current_thread().ident == Device._main_thread
 
     def _start(self):
         """Switches the state to 'moving' (for actuators) or 'measuring' (for detectors).
@@ -161,13 +176,16 @@ class Device:
 
         After switching, stores the current time in the _start_time_ns field.
         """
-        assert Device._on_main_thread()
+
+        # acquire a global lock, to prevent multiple threads to switch moving/measuring state simultaneously
+
+        # check if transition from moving/measuring or vice versa is needed
         if Device._moving != self.is_actuator():
             if Device._moving:
                 logging.debug("switch to MEASURING requested by %s.", self)
             else:
                 logging.debug("switch to MOVING requested by %s.", self)
-            # a transition from moving/measuring or vice versa is needed
+
             same_type = [device for device in Device._devices if device.is_actuator == self.is_actuator]
             other_type = [device for device in Device._devices if device.is_actuator != self.is_actuator]
 
@@ -178,14 +196,11 @@ class Device:
             # stabilized.
             latency = min((device.latency for device in same_type), default=0.0 * u.ns)
 
-            # wait until all devices of the same kind are ready to be triggered or receive new commands
-            for device in same_type:
-                device._wait_ready()
-
             # wait until all devices of the other type have (almost) finished
             for device in other_type:
-                device._wait_finished(latency)
+                device.wait(up_to=latency, await_data=False)
 
+            # changes the state from moving to measuring and vice versa
             Device._moving = not Device._moving
             if Device._moving:
                 logging.debug("state is now MOVING.")
@@ -215,49 +230,83 @@ class Device:
         """
         return self._duration
 
-    def _wait_ready(self):
-        """Waits until the device is ready to be triggered or take new commands.
+    def wait(self, up_to: Quantity[u.ms] = 0 * u.ns, await_data=True):
+        """Waits until the device is (almost) in the `ready` state, i.e. has finished measuring or moving.
 
-        By default, this is the same as wait_finished(self.latency).
-        However, some devices may take new commands before they are finished.
-        For example, a stage may accept move commands while still moving, updating the target position.
-        """
-        self._wait_finished(self.latency)
+        Devices that don't have a fixed duration (_duration = None) should override `busy` to poll for finalization.
 
-    def _wait_finished(self, up_to: Quantity[u.ms] = 0 * u.ns):
-        """Waits until the device has (almost) finished measuring or 'moving'.
-
-        This function uses the specified _duration.
-        If _duration is np.inf, the wait() function is called instead.
+        Note:
+            In a multi-threading environment,
+            there is no guarantee that the device is in the `ready`
+            state when this function returns, since some other thread may have activated it again.
 
         Args:
             up_to(Quantity[u.ms]): when non-zero, specifies that this function may return 'up_to' milliseconds
                 *before* the device is finished.
+            await_data(bool):
+                If False: waits until the device is no longer busy
+                If True (default): waits until the device is no longer locked.
+                For detectors, this means waiting until all acquisition and processing of previously triggered frames is completed.
+                If an `out` parameter was specified in `trigger()`, this
+                guarantees that the data is stored in the `out` array.
+                Since actuators are usually not locked, this flag has no effect.
         """
-        if not np.isfinite(self._duration):
-            return self.wait()
+        if self._error is not None:
+            e = self._error
+            self._error = None
+            raise e
 
-        end_time = self._start_time_ns + (self._duration + self.latency).to_value(u.ns)
-        time_to_wait = end_time - up_to.to_value(u.ns) - time.time_ns()
-        if time_to_wait > 0:
-            time.sleep(time_to_wait / 1.0E9)
+        if self._duration is None or not np.isfinite(self._duration):
+            while self.busy():
+                time.sleep(0.001)
+        elif self._duration > 0:
+            end_time = self._start_time_ns + (self._duration + self.latency).to_value(u.ns)
+            time_to_wait = end_time - up_to.to_value(u.ns) - time.time_ns()
+            if time_to_wait > 0:
+                time.sleep(time_to_wait / 1.0E9)
+        # else: duration <= 0, no need to wait
 
-    def wait(self):
-        """Waits until the device is completely done with all actions (i.e. busy == False).
+        if await_data:
+            # locks the device, for detectors this waits until all pending measurements are processed.
+            if not self._lock_acquire():
+                raise RuntimeError(
+                    "Cannot call `wait` from inside a setter or from inside _fetch as it will cause a deadlock.")
+            self._lock_release()
 
-        By default, this function just calls self._wait_finished().
-        `Detector` overrides this function to wait for the final acquisition to finish.
-        `Actuator` objects that do not specify a finite _duration must override this function
-            to check if the actuator has finished moving.
-        """
-        assert np.isfinite(self._duration)
-        return self._wait_finished()
+    def _lock_acquire(self) -> bool:
+        """Acquires a non-persistent lock using the timeout of the device"""
+        tid = threading.get_ident()
+        if self._locking_thread == tid:
+            return False  # already locked, this could happen if we call a setter from _fetch or from another setter
+        if not self._lock.acquire(timeout=self.timeout.to_value(u.s)):
+            raise TimeoutError("Timeout in %s (tid %i)", self, threading.get_ident())
+        self._locking_thread = tid
+        return True
+
+    def _lock_release(self):
+        """Releases a non-persistent lock"""
+        self._locking_thread = None
+        self._lock.release()
 
     def busy(self) -> bool:
         """Returns true if the device is measuring or moving (see `wait()`)"""
         assert np.isfinite(self._duration)
         end_time = self._start_time_ns + (self._duration + self.latency).to_value(u.ns)
         return end_time > time.time_ns()
+
+    @property
+    def timeout(self) -> Quantity[u.ms]:
+        if self._duration is not None and np.isfinite(self._duration):
+            return self._timeout_margin + self._duration
+        else:
+            return self._timeout_margin
+
+    @timeout.setter
+    def timeout(self, value):
+        if self._duration is not None and np.isfinite(self._duration):
+            self._timeout_margin = value - self._duration
+        else:
+            self._timeout_margin = value.to(u.ms)
 
 
 class Actuator(Device, ABC):
@@ -278,27 +327,42 @@ class Detector(Device, ABC):
         ndim = len(data_shape)
         self._pixel_size = pixel_size if pixel_size.size == ndim else np.tile(pixel_size, (ndim,))
         self._data_shape = data_shape
-        self._measurements_pending = atomics.atomic(width=4, atype=atomics.INT)
+        self._measurements_pending = 0
+        self._pending_count_lock = threading.Lock()
         self._error = None
 
     @final
     def is_actuator(self):
         return False
 
-    def wait(self):
-        """Waits until all measurements are completed.
+    def _lock_persistent(self):
+        """Places a persistent lock on the detector.
 
-        Example:
-            for i in range(10):
-                detector.trigger(out = data[i, ...])
-            detector.wait() # wait for the measurements to complete and be stored in `data`
+        A persistent lock is a lock that is only released after all measurements have finished.
+
+        If the detector was not locked, it is locked, and the `measurements_pending` counter is incremented.
+        Only when the measurements_pending counter drops to zero, the lock is released (see `_unlock_persistent()`).
+
+        If the detector was already locked, either wait for the lock to be released (if the existing lock was not persistent),
+        or just increment the `measurements_pending` counter (if the existing lock was persistent).
         """
-        while self._measurements_pending.load() != 0:
-            time.sleep(0.0)
-        if self._error is not None:
-            e = self._error
-            self._error = None
-            raise e
+        logging.debug("entering persistent lock %s (tid %i).", self, threading.get_ident())
+        with self._pending_count_lock:
+            if self._measurements_pending == 0:
+                if not self._lock_acquire():  # we don't have a persistent lock yet, acquire the object lock
+                    raise RuntimeError("Cannot call `trigger` from a setter or from _fetch")
+                self._locking_thread = None
+                logging.debug("first persistent lock set %s (tid %i).", self, threading.get_ident())
+            self._measurements_pending += 1
+
+    def _unlock_persistent(self):
+        """Decrement the `measurements_pending` counter, and release the persistent lock if it reached 0."""
+        logging.debug("leaving persistent lock %s (tid %i).", self, threading.get_ident())
+        with self._pending_count_lock:
+            self._measurements_pending -= 1
+            if self._measurements_pending == 0:  # we released the last persistent lock
+                self._lock_release()
+                logging.debug("last persistent lock cleared %s (tid %i).", self, threading.get_ident())
 
     def trigger(self, *args, out=None, immediate=False, **kwargs) -> Future:
         """Triggers the detector to start acquisition of the data.
@@ -312,10 +376,22 @@ class Detector(Device, ABC):
 
         Child classes may override trigger() to add additional parameters.
         """
-        self._start()
-        self._do_trigger()
-        self._measurements_pending.inc()
-        logging.debug("triggering %s.", self)
+
+        self._lock_persistent()
+
+        # if the detector is not locked yet,
+        # lock it now (this is a persistent lock,
+        # which is released in _do_fetch if the number of pending measurements reaches zero
+        # does nothing if the lock is already locked.
+        try:
+            self._start()
+            assert not Device._moving
+            self._do_trigger()
+        except:
+            self._unlock_persistent()
+            raise
+
+        logging.debug("triggering %s (tid: %i).", self, threading.get_ident())
         if immediate:
             result = Future()
             result.set_result(self._do_fetch(out, *args, **kwargs))  # noqa
@@ -327,11 +403,11 @@ class Detector(Device, ABC):
         """Helper function that awaits all futures in the keyword argument list, and then calls _fetch"""
         try:
             if len(args_) > 0 or len(kwargs_) > 0:
-                logging.debug("awaiting inputs for %s.", self)
+                logging.debug("awaiting inputs for %s (tid: %i).", self, threading.get_ident())
             awaited_args = [(arg.result() if isinstance(arg, Future) else arg) for arg in args_]
             awaited_kwargs = {key: (arg.result() if isinstance(arg, Future) else arg) for (key, arg) in
                               kwargs_.items()}
-            logging.debug("fetching data of %s.", self)
+            logging.debug("fetching data of %s ((tid: %i)).", self, threading.get_ident())
             data = set_pixel_size(self._fetch(out_, *awaited_args, **awaited_kwargs), self.pixel_size)
             assert data.shape == self.data_shape
             return data
@@ -344,7 +420,7 @@ class Detector(Device, ABC):
                 self._error = e
             raise e
         finally:
-            self._measurements_pending.dec()
+            self._unlock_persistent()
 
     def _do_trigger(self):
         """Override to perform the actual hardware trigger"""
@@ -369,12 +445,12 @@ class Detector(Device, ABC):
         ...
 
     @final
-    def read(self, *args, **kwargs):
+    def read(self, *args, immediate=True, **kwargs):
         """Triggers the detector and waits for the data to arrive.
 
         Shortcut for trigger().result().
         """
-        return self.trigger(*args, **kwargs).result()
+        return self.trigger(*args, immediate=immediate, **kwargs).result()
 
     @property
     def data_shape(self):

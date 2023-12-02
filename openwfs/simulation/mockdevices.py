@@ -52,21 +52,6 @@ class Generator(Detector):
     def data_shape(self, value):
         self._data_shape = value
 
-    def trigger(self, *args, out=None, immediate=None, **kwargs) -> Future:
-        """In the special case that the measurement time is zero, perform the 'measurement' directly.
-        """
-        if immediate is None:
-            if self._duration <= 0.0 * u.ms:
-                if self._latency < 0.0 * u.ms:
-                    raise RuntimeError("""It is not possible to specify a non-zero latency together with a zero duration,
-                    as this would result in timing inconsistencies: the jitter on when the measurement starts will be
-                    larger than the (zero) duration of the measurement.""")
-                immediate = True
-            else:
-                immediate = False  # run in separate thread
-
-        return super().trigger(*args, out=out, immediate=immediate, **kwargs)
-
     def _fetch(self, out: Union[np.ndarray, None]) -> np.ndarray:  # noqa
         latency_s = self.latency.to_value(u.s)
         if latency_s > 0.0:
@@ -100,13 +85,12 @@ class Generator(Detector):
 class MockSource(Generator):
     """Detector that returns pre-set data.
     Also simulates latency and measurement duration.
-    Note: `data` is stored unmodified, so any changes made to the array are reflected in the returned data.
     """
 
     def __init__(self, data, pixel_size: Quantity[u.um] = None, **kwargs):
         def generator(data_shape):
             assert data_shape == self._data.shape
-            return self._data
+            return self._data.copy()
 
         super().__init__(generator=generator, data_shape=data.shape,
                          pixel_size=pixel_size if pixel_size is not None else get_pixel_size(data),
@@ -119,7 +103,6 @@ class MockSource(Generator):
 
     @data.setter
     def data(self, value):
-        self.wait()
         self._data = value
         self._data_shape = value.shape
 
@@ -319,12 +302,11 @@ class MockSLM(PhaseSLM):
             raise ValueError("Shape of the SLM should be 2-dimensional.")
 
         self._back_buffer = np.zeros(shape, 'float32')
-        self._front_buffer = np.zeros(shape, 'float32')
-        self._monitor = MockSource(self._front_buffer, pixel_size=2.0 / np.min(shape) * u.dimensionless_unscaled)
+        self._monitor = MockSource(self._back_buffer, pixel_size=2.0 / np.min(shape) * u.dimensionless_unscaled)
 
     def update(self):
         self._start()  # wait for detectors to finish
-        np.copyto(self._front_buffer, self._back_buffer)
+        self._monitor.data = self._back_buffer.copy()
         self._back_buffer[:] = 0.0
 
     def set_phases(self, values: Union[np.ndarray, float], update=True):
@@ -336,7 +318,7 @@ class MockSLM(PhaseSLM):
 
     @property
     def phases(self):
-        return self._front_buffer
+        return self._monitor.data
 
     def pixels(self) -> Detector:
         """Returns a `camera` that returns the current phase on the SLM.

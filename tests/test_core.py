@@ -1,3 +1,4 @@
+import logging
 import time
 import pytest
 from ..openwfs.simulation.mockdevices import MockSource, Generator, MockSLM
@@ -32,7 +33,8 @@ def test_mock_detector(pixel_size):
 
 
 @pytest.mark.parametrize("duration", [0.0 * u.s, 0.5 * u.s])
-def test_timing_detector(duration):
+def test_timing_detector(caplog, duration):
+    caplog.set_level(logging.DEBUG)
     image0 = np.zeros((4, 5))
     image1 = np.ones((4, 5))
     source = MockSource(image0, pixel_size=4 * u.um, duration=duration)
