@@ -3,16 +3,19 @@ from typing import Annotated
 import astropy.units as u
 from astropy.units import Quantity
 from enum import Enum
+from concurrent.futures import Future
+
 
 class NoiseType(Enum):
     UNIFORM = 1
     EXPONENTIAL = 2
     GAUSSIAN = 3
 
+
 class RandomGenerator:
     """Demo device, used to test building device graphs. It generates random numbers for use in the Camera"""
 
-    def __init__(self, min=0, max=1000, noise_type = NoiseType.UNIFORM):
+    def __init__(self, min=0, max=1000, noise_type=NoiseType.UNIFORM):
         self._min = min
         self._max = max
         self._noise_type = noise_type
@@ -46,11 +49,13 @@ class RandomGenerator:
             raise ValueError("Noise types other than uniform are not supported yet.")
         self._noise_type = value
 
+
 class Camera:
     """Demo camera implementation that returns noise images. To test building device graphs, the random number
     generator is implemented as a separate object with its own properties."""
 
-    def __init__(self, left=0, top=0, width=100, height=100, measurement_time: Quantity[u.ms]=100 * u.ms, random_generator=None):
+    def __init__(self, left=0, top=0, width=100, height=100, duration: Quantity[u.ms] = 100 * u.ms,
+                 random_generator=None):
         if random_generator is None:
             random_generator = RandomGenerator()
 
@@ -60,7 +65,7 @@ class Camera:
         self._top = top
         self._width = width
         self._height = height
-        self._measurement_time = measurement_time.to(u.ms)
+        self._duration = duration.to(u.ms)
         self._random_generator = random_generator
 
     def trigger(self):
@@ -68,9 +73,9 @@ class Camera:
             self._image = np.zeros(self.data_shape, dtype=np.uint16)
             self._resized = False
         self.random_generator.generate_into(self._image)
-
-    def read(self):
-        return self._image
+        result = Future()
+        result.set_result(self._image)  # noqa
+        return result
 
     @property
     def data_shape(self):
@@ -111,12 +116,12 @@ class Camera:
         self._resized = True
 
     @property
-    def measurement_time(self) -> Quantity[u.ms]:
-        return self._measurement_time
+    def duration(self) -> Quantity[u.ms]:
+        return self._duration
 
-    @measurement_time.setter
-    def measurement_time(self, value):
-        self._measurement_time = value.to(u.ms)
+    @duration.setter
+    def duration(self, value):
+        self._duration = value.to(u.ms)
 
     @property
     def random_generator(self) -> object:
@@ -125,6 +130,7 @@ class Camera:
     @random_generator.setter
     def random_generator(self, value):
         self._random_generator = value
+
 
 r = RandomGenerator()
 devices = {'cam': Camera(random_generator=r), 'rng': r}
