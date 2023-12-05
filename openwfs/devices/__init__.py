@@ -1,5 +1,4 @@
-from . import gain
-from . import Pyscanner
+from . import nidaq_gain
 from . import galvo_scanner
 
 
