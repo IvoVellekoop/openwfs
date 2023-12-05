@@ -71,8 +71,8 @@ class CharacterisingFDR(FourierDualRef):
         self.high_phase_steps = high_phase_steps
         self.t_left = None
         self.t_right = None
-        self.k_left = None
-        self.k_right = None
+        self.k_x = None
+        self.k_y = None
         self.t_slm = None
         self.intermediates = intermediates
         if self.intermediates:
@@ -89,7 +89,6 @@ class CharacterisingFDR(FourierDualRef):
         """
 
         # measure the response before correction
-
 
         if self.intermediates:
             self.record_intermediate_enhancement([0], [0], [0], 0)

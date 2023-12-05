@@ -62,23 +62,24 @@ def r2_range(shape: ShapeType, extent: ExtentType):
     return c0 ** 2 + c1 ** 2
 
 
-def tilt(shape: ShapeType, g: ExtentType, extent: ExtentType = (2.0, 2.0)):
-    """Constructs a linear gradient pattern φ=2π g·r
+def tilt(shape: ShapeType, g: ExtentType, extent: ExtentType = (2.0, 2.0), phase_offset: float = 0.0):
+    """Constructs a linear gradient pattern φ=2 g·r
 
     Args:
         shape: see module documentation
-        extent: see module documentation
         g(tuple of two floats): gradient vector.
           This has the unit: 1 / extent.unit.
           For the default extent of (2.0, 2.0), a value of g=(1,0)
-          corresponds to having a 4π ramp over the height of the pattern (from -2π to +2π)
+          corresponds to having a ramp from -2 to +2 over the height of the pattern
           When this pattern is used as a phase in a pupil-conjugate configuration,
-          this corresponds to exactly -1 wavelength displacement in the focal plane
+          this corresponds to a displacement of -2/π times the Abbe diffraction limit
           (e.g. a positive x-gradient g causes the focal point to move in the _negative_ x-direction)
+        extent: see module documentation
+        phase_offset: optional additional phase offset to be added to the pattern
     """
     g = Quantity(g)
-    c0, c1 = coordinate_range(shape, extent * (Quantity(g) * 2 * np.pi))
-    return c0 + c1
+    c0, c1 = coordinate_range(shape, extent * (Quantity(g) * 2))
+    return c0 + (c1 + phase_offset)
 
 
 def lens(shape: ShapeType, f: ScalarType, wavelength: ScalarType, extent: ExtentType):

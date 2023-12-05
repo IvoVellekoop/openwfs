@@ -12,7 +12,8 @@ from abc import ABC, abstractmethod
 
 
 def set_pixel_size(data: np.ndarray, pixel_size: Quantity) -> np.ndarray:
-    data.dtype = np.dtype(data.dtype, metadata={'pixel_size': pixel_size})
+    if data.ndim > 0:
+        data.dtype = np.dtype(data.dtype, metadata={'pixel_size': pixel_size})
     return data
 
 
@@ -408,7 +409,8 @@ class Detector(Device, ABC):
             awaited_kwargs = {key: (arg.result() if isinstance(arg, Future) else arg) for (key, arg) in
                               kwargs_.items()}
             logging.debug("fetching data of %s ((tid: %i)).", self, threading.get_ident())
-            data = set_pixel_size(self._fetch(out_, *awaited_args, **awaited_kwargs), self.pixel_size)
+            data = self._fetch(out_, *awaited_args, **awaited_kwargs)
+            data = set_pixel_size(data, self.pixel_size)
             assert data.shape == self.data_shape
             return data
         except Exception as e:
@@ -554,7 +556,21 @@ class Processor(Detector, ABC):
                    default=latency) - latency
 
 
+"""Base class for phase-only SLMs
+
+Attributes:
+    extent(Sequence[float]): in a pupil-conjugate configuration, this attribute can be used to 
+        indicate how the pattern shown in `set_phases` is mapped to the back pupil of the microscope objective.
+        The default extent of (2.0, 2.0) corresponds to exactly filling the back pupil (i.e. the full NA)
+        with the phase pattern.
+        A higher value can be used to introduce some `bleed`/overfilling to allow for alignment inaccuracies.
+"""
+
+
 class PhaseSLM(Actuator, ABC):
+    def __init__(self, extent=np.array((2.0, 2.0))):
+        super().__init__()
+        self.extent = extent
 
     @abstractmethod
     def update(self):

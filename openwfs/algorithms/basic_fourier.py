@@ -8,8 +8,6 @@ class BasicFDR(FourierDualRef):
     The k-space initializer is set to None because for custom k-spaces, you should use FourierDualRef directly.
 
     Attributes:
-        k_x (numpy.ndarray): Array of k_x angles.
-        k_y (numpy.ndarray): Array of k_y angles.
         k_left (numpy.ndarray): Left k-space matrix.
         k_right (numpy.ndarray): Right k-space matrix.
 
@@ -35,7 +33,8 @@ class BasicFDR(FourierDualRef):
             k_angles_max (int): The maximum k-angle.
             overlap (float): The overlap value.
         """
-        super().__init__(feedback, slm, slm_shape, None, None, phase_steps=phase_steps, overlap=overlap)
+        super().__init__(feedback, slm, slm_shape, np.array((0, 0)), np.array((0, 0)), phase_steps=phase_steps,
+                         overlap=overlap)
         self._k_angles_min = k_angles_min
         self._k_angles_max = k_angles_max
 
@@ -52,10 +51,10 @@ class BasicFDR(FourierDualRef):
         ky_angles = np.arange(self._k_angles_min, self._k_angles_max + 1, 1)
         # Make  the carthesian product of kx_angles and ky_angles to make a square kspace
 
-        self.k_x = np.repeat(np.array(kx_angles)[np.newaxis, :], len(ky_angles), axis=0).flatten()
-        self.k_y = np.repeat(np.array(kx_angles)[:, np.newaxis], len(ky_angles), axis=1).flatten()
-        self.k_left = np.vstack((self.k_x, self.k_y))
-        self.k_right = np.vstack((self.k_x, self.k_y))
+        k_x = np.repeat(np.array(kx_angles)[np.newaxis, :], len(ky_angles), axis=0).flatten()
+        k_y = np.repeat(np.array(ky_angles)[:, np.newaxis], len(ky_angles), axis=1).flatten()
+        self.k_left = np.vstack((k_x, k_y))
+        self.k_right = np.vstack((k_x, k_y))
 
     @property
     def k_angles_min(self) -> int:

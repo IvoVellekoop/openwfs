@@ -112,13 +112,14 @@ def test_SLM_tilt():
 
     slm = MockSLM(shape=(1000, 1000))
 
-    sim = Microscope(source=src, slm=slm.pixels(), magnification=1, numerical_aperture=1, wavelength=wavelength)
+    na = 1.0
+    sim = Microscope(source=src, slm=slm.pixels(), magnification=1, numerical_aperture=na, wavelength=wavelength)
 
     # introduce a tilted pupil plane
-    # the input parameter to `tilt` corresponds to a shift in wavelengths.
-    # so we need to multiply by pixel_size / λ
+    # the input parameter to `tilt` corresponds to a shift 2.0/π the Abbe diffraction limit.
     shift = np.array((-24, 40))  # to get the
-    slm.set_phases(tilt(1000, - shift * pixel_size / wavelength))
+    step = wavelength / (np.pi * na)
+    slm.set_phases(tilt(1000, - shift * pixel_size / step))
 
     new_location = signal_location + shift
 
