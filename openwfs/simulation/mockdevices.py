@@ -307,6 +307,7 @@ class MockSLM(PhaseSLM):
     def update(self):
         self._start()  # wait for detectors to finish
         self._monitor.data = self._back_buffer.copy()
+        print("Phases updated\n")
         self._back_buffer[:] = 0.0
 
     def set_phases(self, values: Union[np.ndarray, float], update=True):

@@ -212,7 +212,7 @@ class Microscope(Processor):
         # apply magnification by just adjusting the pixel size
         # note, this is not needed as it happens automatically in the _do_fetch function
         source = set_pixel_size(source, self.pixel_size)
-
+        print("Microscope image fetched\n")
         if out is None:
             out = source
         else:

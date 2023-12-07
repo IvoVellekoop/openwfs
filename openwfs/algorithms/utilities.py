@@ -1,5 +1,6 @@
 import numpy as np
 from types import SimpleNamespace
+from enum import Enum
 
 
 def analyze_phase_stepping(measurements: np.ndarray, axis: int):
@@ -36,101 +37,39 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int):
     AB = np.tensordot(measurements, np.exp(-1.0j * phases) / P, ((axis,), (0,)))
     return SimpleNamespace(field=AB)
 
-def get_dense_matrix(k_set, t_set):
-    """
-    Create a dense matrix visualization for given x, y coordinates and complex data.
-    Grid points not in the provided data are set to NaN.
-
-    Parameters:
-    - k_set: Arrays of x and y coordinates.
-    - t_set: Array of complex data corresponding to x, y coordinates.
-
-    Returns:
-    - dense_matrix: A 2D numpy array with data filled in the corresponding x, y locations and NaN elsewhere.
-    """
-    x = k_set[0, :]
-    y = k_set[1, :]
-
-    # Find the unique sorted coordinates
-    unique_x = np.unique(x)
-    unique_y = np.unique(y)
-
-    # Create a mapping from coordinate to index
-    x_to_index = {x_val: idx for idx, x_val in enumerate(unique_x)}
-    y_to_index = {y_val: idx for idx, y_val in enumerate(unique_y)}
-
-    # Initialize a dense matrix full of NaNs
-    dense_matrix = np.full((len(unique_y), len(unique_x)), np.nan, dtype=complex)
-
-    # Place the data into the dense matrix using the mapping
-    for (x_val, y_val), val in zip(zip(x, y), t_set):
-        x_idx = x_to_index[x_val]
-        y_idx = y_to_index[y_val]
-        dense_matrix[y_idx, x_idx] = val
-
-    return dense_matrix
-
-
 
 class WFSController:
+    class State(Enum):
+        FLAT_WAVEFRONT = 0
+        SHAPED_WAVEFRONT = 1
+
     def __init__(self, algorithm):
-        """
-        Initializes the WFSController with an algorithm object.
-
-        Args:
-            algorithm: An instance of an algorithm class. (e.g. StepwiseSequential, BasicFDR, CharacterisingFDR)
-        """
-        self.algorithm = algorithm
-        self._show_flat_wavefront = False
-        self._show_optimized_wavefront = False
-        self.transmission_matrix = None
+        self._algorithm = algorithm
+        self._slm = algorithm._slm
+        self._wavefront = WFSController.State.FLAT_WAVEFRONT
+        self._optimized_wavefront = None
+        self._recompute_wavefront = False
 
     @property
-    def execute_button(self) -> bool:
-        """
-        Property to trigger the execution of the BasicFDR instance's method.
+    def wavefront(self) -> State:
+        return self._wavefront
 
-        Returns:
-            bool: The state of the execution.
-        """
-        return self.algorithm.execute_button
-
-    @execute_button.setter
-    def execute_button(self, value):
-        self.transmission_matrix = self.algorithm.execute()
-        self.algorithm.execute_button = value
-
-    @property
-    def show_flat_wavefront(self) -> bool:
-        """
-        Property to show a flat wavefront.
-
-        Returns:
-            bool: The state of the flat wavefront display.
-        """
-        return self._show_flat_wavefront
-
-    @show_flat_wavefront.setter
-    def show_flat_wavefront(self, value):
-        if value:
-            self.algorithm._slm.set_phases(0)  # Assuming there's a method in BasicFDR to set all phases to 0
-        self._show_flat_wavefront = value
+    @wavefront.setter
+    def wavefront(self, value):
+        self._wavefront = value
+        if value == WFSController.State.FLAT_WAVEFRONT:
+            self._slm.set_phases(0.0)
+        else:
+            if self._recompute_wavefront or self._optimized_wavefront is None:
+                t = self._algorithm.execute()
+                t = t.reshape((*t.shape[0:2], -1))
+                self._optimized_wavefront = -np.angle(t[:, :, 0])
+            self._slm.set_phases(self._optimized_wavefront)
 
     @property
-    def show_optimized_wavefront(self) -> bool:
-        """
-        Property to show the optimized wavefront.
+    def recompute_wavefront(self) -> bool:
+        return self._recompute_wavefront
 
-        Returns:
-            bool: The state of the optimized wavefront display.
-        """
-        return self._show_optimized_wavefront
-
-    @show_optimized_wavefront.setter
-    def show_optimized_wavefront(self, value):
-        if value:
-            if len(self.transmission_matrix.shape) == 3:
-                self.algorithm._slm.set_phases(-np.angle(self.transmission_matrix[...,0]))
-            else:
-                self.algorithm._slm.set_phases(np.angle(self.transmission_matrix))
-        self._show_optimized_wavefront = value
+    @recompute_wavefront.setter
+    def recompute_wavefront(self, value):
+        self._recompute_wavefront = value

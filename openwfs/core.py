@@ -38,6 +38,20 @@ def get_pixel_size(data: Union[np.ndarray, Quantity], may_fail: bool = False) ->
             raise KeyError("data does not have pixel size metadata.")
 
 
+def unitless(data):
+    """Converts data to a unitless numpy array.
+
+    Args:
+        data: If data is a Quantity, convert it to unitless_unscaled (this will raise an error if data has
+            a unit attached).
+            Otherwise, data is just returned as is.
+    """
+    if isinstance(data, Quantity):
+        return data.to_value(u.dimensionless_unscaled)
+    else:
+        return data
+
+
 class Device:
     """Base class for detectors and actuators
 
@@ -260,12 +274,11 @@ class Device:
         if self._duration is None or not np.isfinite(self._duration):
             while self.busy():
                 time.sleep(0.001)
-        elif self._duration > 0:
+        else:
             end_time = self._start_time_ns + (self._duration + self.latency).to_value(u.ns)
             time_to_wait = end_time - up_to.to_value(u.ns) - time.time_ns()
             if time_to_wait > 0:
                 time.sleep(time_to_wait / 1.0E9)
-        # else: duration <= 0, no need to wait
 
         if await_data:
             # locks the device, for detectors this waits until all pending measurements are processed.

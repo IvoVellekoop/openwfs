@@ -161,12 +161,3 @@ class FourierDualRef:
     @phase_steps.setter
     def phase_steps(self, value):
         self._phase_steps = value
-
-    @property
-    def execute_button(self) -> bool:
-        return self._execute_button
-
-    @execute_button.setter
-    def execute_button(self, value):
-        self.execute()
-        self._execute_button = value
