@@ -60,7 +60,7 @@ Stage, XYStage, Camera, Generic device
 
 # How it works
 
-PyDevice is an adapter that enables seamless integration of Python objects with MicroManager, a versatile platform for microscope image acquisition. This integration facilitates the use and development of microscope devices, making it accessible even for those with minimal Python experience.
+PyDevice is an adapter that enables seamless integration of Python objects with MicroManager. This integration facilitates the use and development of microscope devices, making it accessible even for those with minimal Python experience.
 
 The adapter operates by running its own Python instance, within which it identifies and interprets specific structures in your Python code. These structures are then transformed into compatible MicroManager objects. Essentially, PyDevice acts as a translator, allowing Python-developed class objects, that control hardware such as cameras or stages, to be recognized and controlled by MicroManager.
 
