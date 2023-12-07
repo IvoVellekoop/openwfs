@@ -188,10 +188,9 @@ class Microscope(Processor):
                                             truncation_radius=self.numerical_aperture, extent=pupil_extent)
 
         if aberrations is not None and slm is not None:
-            pupil_field = pupil_field * np.exp(1.0j *
-                                               project(pupil_shape, pupil_pixel_size, aberrations,
-                                                       self.aberration_transform) +
-                                               project(pupil_shape, pupil_pixel_size, slm, self.slm_transform))
+            pupil_field = pupil_field * np.exp(1.0j * (
+                    project(pupil_shape, pupil_pixel_size, aberrations, self.aberration_transform) +
+                    project(pupil_shape, pupil_pixel_size, slm, self.slm_transform)))
         elif slm is not None:
             pupil_field = pupil_field * np.exp(1.0j * project(pupil_shape, pupil_pixel_size, slm, self.slm_transform))
         elif aberrations is not None:
@@ -212,7 +211,6 @@ class Microscope(Processor):
         # apply magnification by just adjusting the pixel size
         # note, this is not needed as it happens automatically in the _do_fetch function
         source = set_pixel_size(source, self.pixel_size)
-        print("Microscope image fetched\n")
         if out is None:
             out = source
         else:
