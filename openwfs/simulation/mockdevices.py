@@ -87,10 +87,14 @@ class MockSource(Generator):
     Also simulates latency and measurement duration.
     """
 
-    def __init__(self, data, pixel_size: Quantity[u.um] = None, **kwargs):
+    def __init__(self, data, pixel_size: Quantity = None, extent: Union[Quantity, float, Sequence[float], None] = None,
+                 **kwargs):
         def generator(data_shape):
             assert data_shape == self._data.shape
             return self._data.copy()
+
+        if pixel_size is None and extent is not None:
+            pixel_size = Quantity(extent) / data.shape
 
         super().__init__(generator=generator, data_shape=data.shape,
                          pixel_size=pixel_size if pixel_size is not None else get_pixel_size(data),
@@ -307,7 +311,6 @@ class MockSLM(PhaseSLM):
     def update(self):
         self._start()  # wait for detectors to finish
         self._monitor.data = self._back_buffer.copy()
-        print("Phases updated\n")
         self._back_buffer[:] = 0.0
 
     def set_phases(self, values: Union[np.ndarray, float], update=True):

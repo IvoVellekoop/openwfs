@@ -137,6 +137,10 @@ class Device:
     # List of all Device objects
     _devices: "Set[Device]" = WeakSet()
 
+    # Option to globally disable multi-threading
+    # This is particularly useful for debugging
+    multi_threading: bool = True  # False
+
     def __init__(self, *, latency=0.0 * u.ms, duration=0.0 * u.ms):
         """Constructs a new Device object
 
@@ -406,7 +410,7 @@ class Detector(Device, ABC):
             raise
 
         logging.debug("triggering %s (tid: %i).", self, threading.get_ident())
-        if immediate:
+        if immediate or not Device.multi_threading:
             result = Future()
             result.set_result(self._do_fetch(out, *args, **kwargs))  # noqa
             return result
@@ -551,9 +555,10 @@ class Processor(Detector, ABC):
 
         super().__init__(data_shape=data_shape, pixel_size=pixel_size, latency=0 * u.ms)
 
-    def trigger(self, *args, **kwargs):
+    def trigger(self, *args, immediate=False, **kwargs):
         """Triggers all sources at the same time (regardless of latency), and schedules a call to `_fetch()`"""
-        future_data = [(source.trigger() if source is not None else None) for source in self._sources]
+        future_data = [(source.trigger(immediate=immediate) if source is not None else None) for source in
+                       self._sources]
         return super().trigger(*future_data, *args, **kwargs)
 
     @property

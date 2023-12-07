@@ -10,9 +10,9 @@ from openwfs.utilities import grab_and_show, imshow
 import skimage
 import astropy.units as u
 
+numerical_aperture = 1.0
 aberration_phase = skimage.data.camera() * ((2 * np.pi) / 255.0) + np.pi
-
-aberration = MockSource(aberration_phase, pixel_size=1.0 / (512) * u.dimensionless_unscaled)
+aberration = MockSource(aberration_phase, extent=2 * numerical_aperture)
 
 img = np.zeros((1000, 1000), dtype=np.int16)
 signal_location = (256, 256)
@@ -22,7 +22,8 @@ src = MockSource(img, 400 * u.nm)
 
 slm = MockSLM(shape=(1000, 1000))
 
-sim = Microscope(source=src, slm=slm.pixels(), magnification=1, numerical_aperture=1, aberrations=aberration,
+sim = Microscope(source=src, slm=slm.pixels(), magnification=1, numerical_aperture=numerical_aperture,
+                 aberrations=aberration,
                  wavelength=800 * u.nm)
 
 cam = sim.get_camera(analog_max=100)
