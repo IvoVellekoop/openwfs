@@ -77,27 +77,21 @@ class FourierDualRef:
         # calculate transmission matrix of the SLM plane from the Fourier transmission matrices:
         return self.compute_t(t_left, t_right, self.k_left, self.k_right)
 
-    def get_phase_pattern(self, k_x, k_y, phase_offset, side):
-        start = 0 if side == 0 else 0.5 - self._overlap / 2
-        end = 0.5 + self._overlap / 2 if side == 0 else 1
-
+    def get_phase_pattern(self, k, phase_offset, side):
         # tilt generates a pattern from -2 to 2 (The convention for Zernike modes normalized to an RMS of 1).
         # The natural step to take is the Abbe diffraction limit, which corresponds to a gradient from
         # -π to π.
-        k_scale = 0.5 * np.pi
-        tilted_front = tilt(self.slm_shape, (k_x * k_scale, k_y * k_scale), phase_offset=phase_offset,
-                            extent=self._slm.extent)
+        tilted_front = tilt(self.slm_shape, k * (0.5 * np.pi), phase_offset=phase_offset, extent=self._slm.extent)
 
-        # Apply phase offset and handle side-dependent pattern
-        final_pattern = np.zeros(self.slm_shape)
-        num_columns = int((end - start) * self.slm_shape[1])
+        # Handle side-dependent pattern
+        # end - start = 0.5 + 0.5 * self._overlap
+        num_columns = int((0.5 + 0.5 * self._overlap) * self.slm_shape[1])
 
         if side == 0:
-            final_pattern[:, :num_columns] = tilted_front[:, :num_columns]
+            tilted_front[:, num_columns:] = 0.0
         else:
-            final_pattern[:, -num_columns:] = tilted_front[:, -num_columns:]
-
-        return final_pattern
+            tilted_front[:, :-num_columns] = 0.0
+        return tilted_front
 
     def single_side_experiment(self, k_set, side):
         """
@@ -108,10 +102,10 @@ class FourierDualRef:
         """
         measurements = np.zeros((k_set.shape[1], self.phase_steps, *self._feedback.data_shape))
 
-        for i, (k_x, k_y) in enumerate(zip(k_set[0], k_set[1])):
+        for i in range(k_set.shape[1]):
             for p in range(self.phase_steps):
                 phase_offset = p * 2 * np.pi / self.phase_steps
-                phase_pattern = self.get_phase_pattern(k_x, k_y, phase_offset, side)
+                phase_pattern = self.get_phase_pattern(k_set[:, i], phase_offset, side)
                 self._slm.set_phases(phase_pattern)
                 self._feedback.trigger(out=measurements[i, p, ...])
 
@@ -137,11 +131,11 @@ class FourierDualRef:
 
         # TODO: why is there a - sign in the np.exp below?
         for n, t in enumerate(t_fourier_left):
-            phi = self.get_phase_pattern(k_left[0, n], k_left[1, n], 0, 0)
+            phi = self.get_phase_pattern(k_left[:, n], 0, 0)
             t1 += np.tensordot(np.exp(-1j * phi), t, 0)
 
         for n, t in enumerate(t_fourier_right):
-            phi = self.get_phase_pattern(k_right[0, n], k_right[1, n], 0, 1)
+            phi = self.get_phase_pattern(k_right[:, n], 0, 1)
             t2 += np.tensordot(np.exp(-1j * phi), t, 0)
 
         overlap_len = int(self._overlap * self.slm_shape[0])
@@ -167,12 +161,3 @@ class FourierDualRef:
     @phase_steps.setter
     def phase_steps(self, value):
         self._phase_steps = value
-
-    @property
-    def execute_button(self) -> bool:
-        return self._execute_button
-
-    @execute_button.setter
-    def execute_button(self, value):
-        self.execute()
-        self._execute_button = value

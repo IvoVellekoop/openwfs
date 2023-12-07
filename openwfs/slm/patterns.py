@@ -2,6 +2,7 @@ import numpy as np
 from typing import Union, Sequence
 import astropy.units as u
 from astropy.units import Quantity
+from ..core import unitless
 
 """
 Library of functions to create commonly used patterns
@@ -77,9 +78,8 @@ def tilt(shape: ShapeType, g: ExtentType, extent: ExtentType = (2.0, 2.0), phase
         extent: see module documentation
         phase_offset: optional additional phase offset to be added to the pattern
     """
-    g = Quantity(g)
-    c0, c1 = coordinate_range(shape, extent * (Quantity(g) * 2))
-    return c0 + (c1 + phase_offset)
+    c0, c1 = coordinate_range(shape, extent * (Quantity(g) * 2.0))
+    return unitless(c0 + (c1 + phase_offset))
 
 
 def lens(shape: ShapeType, f: ScalarType, wavelength: ScalarType, extent: ExtentType):
@@ -94,8 +94,7 @@ def lens(shape: ShapeType, f: ScalarType, wavelength: ScalarType, extent: Extent
         extent(ExtentType): physical extent of the SLM, same units as `f` and `wavelength`
     """
     r_sqr = r2_range(shape, extent)
-    return Quantity((f - np.sqrt(np.maximum(f ** 2 - r_sqr, 0.0))) * (2 * np.pi / wavelength)).to_value(
-        u.dimensionless_unscaled)
+    return unitless((f - np.sqrt(np.maximum(f ** 2 - r_sqr, 0.0))) * (2 * np.pi / wavelength))
 
 
 def disk(shape: ShapeType, radius: ScalarType = 1.0, extent: ExtentType = (2.0, 2.0)):
@@ -128,7 +127,7 @@ def gaussian(shape: ShapeType, waist: ScalarType,
     """
     r_sqr = r2_range(shape, extent)
     w2inv = -1.0 / waist ** 2
-    gauss = np.exp(r_sqr * w2inv)
+    gauss = np.exp(unitless(r_sqr * w2inv))
     if truncation_radius is not None:
         gauss = gauss * disk(shape, truncation_radius, extent=extent)
-    return gauss
+    return unitless(gauss)

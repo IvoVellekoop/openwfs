@@ -42,14 +42,14 @@ class BasicFDR(FourierDualRef):
 
     def build_kspace(self):
         """Constructs the k-space by creating Cartesian products of k_x and k_y angles.
-        Filles the k_left and k_right matrices with the same k-space.
+        Fills the k_left and k_right matrices with the same k-space.
 
         Returns:
             None: The function updates the instance attributes.
         """
         kx_angles = np.arange(self._k_angles_min, self._k_angles_max + 1, 1)
         ky_angles = np.arange(self._k_angles_min, self._k_angles_max + 1, 1)
-        # Make  the carthesian product of kx_angles and ky_angles to make a square kspace
+        # Make the carthesian product of kx_angles and ky_angles to make a square kspace
 
         k_x = np.repeat(np.array(kx_angles)[np.newaxis, :], len(ky_angles), axis=0).flatten()
         k_y = np.repeat(np.array(ky_angles)[:, np.newaxis], len(ky_angles), axis=1).flatten()

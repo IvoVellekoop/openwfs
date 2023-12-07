@@ -38,6 +38,20 @@ def get_pixel_size(data: Union[np.ndarray, Quantity], may_fail: bool = False) ->
             raise KeyError("data does not have pixel size metadata.")
 
 
+def unitless(data):
+    """Converts data to a unitless numpy array.
+
+    Args:
+        data: If data is a Quantity, convert it to unitless_unscaled (this will raise an error if data has
+            a unit attached).
+            Otherwise, data is just returned as is.
+    """
+    if isinstance(data, Quantity):
+        return data.to_value(u.dimensionless_unscaled)
+    else:
+        return data
+
+
 class Device:
     """Base class for detectors and actuators
 
@@ -122,6 +136,10 @@ class Device:
 
     # List of all Device objects
     _devices: "Set[Device]" = WeakSet()
+
+    # Option to globally disable multi-threading
+    # This is particularly useful for debugging
+    multi_threading: bool = True  # False
 
     def __init__(self, *, latency=0.0 * u.ms, duration=0.0 * u.ms):
         """Constructs a new Device object
@@ -260,12 +278,11 @@ class Device:
         if self._duration is None or not np.isfinite(self._duration):
             while self.busy():
                 time.sleep(0.001)
-        elif self._duration > 0:
+        else:
             end_time = self._start_time_ns + (self._duration + self.latency).to_value(u.ns)
             time_to_wait = end_time - up_to.to_value(u.ns) - time.time_ns()
             if time_to_wait > 0:
                 time.sleep(time_to_wait / 1.0E9)
-        # else: duration <= 0, no need to wait
 
         if await_data:
             # locks the device, for detectors this waits until all pending measurements are processed.
@@ -393,7 +410,7 @@ class Detector(Device, ABC):
             raise
 
         logging.debug("triggering %s (tid: %i).", self, threading.get_ident())
-        if immediate:
+        if immediate or not Device.multi_threading:
             result = Future()
             result.set_result(self._do_fetch(out, *args, **kwargs))  # noqa
             return result
@@ -538,9 +555,10 @@ class Processor(Detector, ABC):
 
         super().__init__(data_shape=data_shape, pixel_size=pixel_size, latency=0 * u.ms)
 
-    def trigger(self, *args, **kwargs):
+    def trigger(self, *args, immediate=False, **kwargs):
         """Triggers all sources at the same time (regardless of latency), and schedules a call to `_fetch()`"""
-        future_data = [(source.trigger() if source is not None else None) for source in self._sources]
+        future_data = [(source.trigger(immediate=immediate) if source is not None else None) for source in
+                       self._sources]
         return super().trigger(*future_data, *args, **kwargs)
 
     @property

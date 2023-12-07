@@ -2,8 +2,7 @@ import matplotlib.pyplot as plt
 
 from ..openwfs.simulation import SimulatedWFS, MockSource, MockSLM, Microscope
 import numpy as np
-from ..openwfs.algorithms import StepwiseSequential, BasicFDR, CharacterisingFDR
-from ..openwfs.algorithms.utilities import get_dense_matrix
+from ..openwfs.algorithms import StepwiseSequential, BasicFDR, CharacterisingFDR, WFSController
 from ..openwfs.processors import SingleRoi, CropProcessor
 import skimage
 from ..openwfs.utilities import imshow
@@ -74,6 +73,48 @@ def test_fourier():
 
     assert enhancement >= 3.0, f"""The Fourier algorithm did not enhance focus as much as expected.
         Expected at least 3.0, got {enhancement}"""
+
+
+def test_fourier2():
+    """Test to reproduce a bug observed in microscope_simulation_micromanager.py
+    and reduced to simplest code to reproduce it."""
+
+    aberration_phase = skimage.data.camera() * ((2 * np.pi) / 255.0)  # + np.pi
+    roi_detector = SimulatedWFS(aberration_phase)
+    alg = BasicFDR(feedback=roi_detector, slm=roi_detector.slm, slm_shape=(1000, 1000), k_angles_min=-3, k_angles_max=3,
+                   phase_steps=3)
+    controller = WFSController(alg)
+    controller.wavefront = WFSController.State.FLAT_WAVEFRONT
+    before = roi_detector.read()
+    controller.wavefront = WFSController.State.SHAPED_WAVEFRONT
+    after = roi_detector.read()
+    # imshow(controller._optimized_wavefront)
+    print(after / before)
+    assert after > 3.0 * before
+
+
+def test_fourier_microscope():
+    aberration_phase = skimage.data.camera() * ((2 * np.pi) / 255.0) + np.pi
+    aberration = MockSource(aberration_phase, pixel_size=2.0 / np.array(aberration_phase.shape))
+    img = np.zeros((1000, 1000), dtype=np.int16)
+    signal_location = (256, 256)
+    img[signal_location] = 100
+    src = MockSource(img, 400 * u.nm)
+    slm = MockSLM(shape=(1000, 1000))
+    sim = Microscope(source=src, slm=slm.pixels(), magnification=1, numerical_aperture=1, aberrations=aberration,
+                     wavelength=800 * u.nm)
+    cam = sim.get_camera(analog_max=100)
+    roi_detector = SingleRoi(cam, x=256, y=256, radius=0)  # Only measure that specific point
+    alg = BasicFDR(feedback=roi_detector, slm=slm, slm_shape=(1000, 1000), k_angles_min=-2, k_angles_max=2,
+                   phase_steps=3)
+    controller = WFSController(alg)
+    controller.wavefront = WFSController.State.FLAT_WAVEFRONT
+    before = roi_detector.read()
+    controller.wavefront = WFSController.State.SHAPED_WAVEFRONT
+    after = roi_detector.read()
+    # imshow(controller._optimized_wavefront)
+    print(after / before)
+    assert after > 3.0 * before
 
 
 def test_fourier_correction_field():
