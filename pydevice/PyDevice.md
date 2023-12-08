@@ -189,6 +189,30 @@ Type hints in Python are not just annotations but are crucial for ensuring that 
 
   The `-> float` type hint indicates that the `floating_point` property is a floating-point number. It ensures that any value assigned to this property in MicroManager is a valid float, preventing type mismatch errors.
 
+- **Astropy Unit Type Hint:**
+    ```
+    import astropy.units as u
+    
+    @property
+    def distance(self) -> u.Quantity[u.mm]:
+        return self._distance
+
+    @distance.setter
+    def distance(self, value):
+        self._distance = value.to(u.mm)
+    ```
+    
+    The unit type hint enforces a unit to your property. Especially recommended during development of devices. The enforcement of units avoids confusion, and setting this property with a differently prefixed units will automatically set the internal to the right prefix. The astropy unit package also handles unit multiplication, e.g.
+    
+    ```
+    a = 3 * u.m / u.s
+    b = 2 * u.s
+    print(a*b)
+    ```
+    will correctly output `6.0 m`. 
+    
+    Additionally, PyDevice recognises this unit, and sets it in the property name in MicroManager, as the suffix `_{unit}`. Highly recommended if possible.
+    
 - **Boolean Type Hint:**
 
   ```python
@@ -201,7 +225,7 @@ Type hints in Python are not just annotations but are crucial for ensuring that 
       self._boolean = value
   ```
 
-  Here, `-> bool` enforces that the `boolean` property is a boolean value. This clarity is vital for properties that are meant to represent binary states (true/false), ensuring correct and expected behavior.
+  Here, `-> bool` enforces that the `boolean` property is a boolean value. This clarity is vital for properties that are meant to represent binary states (true/false).
 
 - **Annotated Integer Type Hint:**
 
@@ -218,39 +242,20 @@ Type hints in Python are not just annotations but are crucial for ensuring that 
   ```
 
   `Annotated[int, {'min': 0, 'max': 42}]` goes beyond a simple integer type hint by specifying a range. This annotation tells MicroManager that `integer` is not just any integer but must fall within the specified range (0 to 42). It's particularly useful for setting safety limits on device properties to prevent hardware damage or other errors.
+  
+  `Annotated` can be used for integers, floats and units. `int` can also be used without `Annotated`.
 
     Combining these property in an example device, produces this in MicroManager:
 
-    ![example device full](example_device_full.png)
+  ![example device full](example_device_full.png)
 
-- **Astropy Unit Type Hint:**
-
-  Using astropy's `Quantity` type hint allows for precise management of physical quantities in Python, which is especially useful for devices requiring accurate unit measurements. For example:
-
-  ```
-  from astropy.units import Quantity, Unit
-  import astropy.units as u
-
-  class SomeDevice:
-      def __init__(self):
-          self._measurement_time = 100 * u.ms
-
-      @property
-      def measurement_time(self) -> Quantity[u.ms]:
-          return self._measurement_time
-
-      @measurement_time.setter
-      def measurement_time(self, value: Unit):
-          self._measurement_time = value.to(u.ms)
-    ```
-    In this example, the measurement_time property is defined with an astropy unit, Quantity[u.ms], ensuring that this property is always treated as a time quantity in milliseconds. Using value.to(u.ms) for the setter method converts any compatible unit to milliseconds, maintaining unit consistency and accuracy.
 
 - **Initialisation:**
 
     Setting default values in the Python class in the `__init__` declaration will set the default during the initialisation of the MicroManager device.
    MicroManager does not support `None` values, but they may be useful to indicate that a parameter is not set. As a workaround for floating point properties, a `None` in Python is converted to a `nan` in MicroManager, and vice-versa.
 
-In summary, these type hints, along with the Python structures used (like `Enum` and `Annotated`), provide a powerful way to control and validate the data that flows between Python objects and MicroManager. This level of detail in specifying property types is critical for creating robust, reliable, and easy-to-use devices in the MicroManager ecosystem.
+In summary, these type hints, along with the Python structures used (like `astropy`, `Enum` and `Annotated`), provide a powerful way to control and validate the data that flows between Python objects and MicroManager. This level of detail in specifying property types is critical for creating robust, reliable, and easy-to-use devices in the MicroManager ecosystem.
 
 ## **4.** *Specific device templates*
 
