@@ -1,6 +1,6 @@
 from typing import Annotated
 from enum import Enum
-
+import astropy.units as u
 
 class SomeOptions(Enum):
     Orange = 1
@@ -10,9 +10,10 @@ class SomeOptions(Enum):
 
 class GenericDevice:
 
-    def __init__(self, options, floating_point, boolean, integer):
+    def __init__(self, options, floating_point, distance, boolean, integer):
         self._options = options
         self._floating_point = floating_point
+        self._distance = distance
         self._boolean = boolean
         self._integer = integer
 
@@ -33,6 +34,15 @@ class GenericDevice:
         self._floating_point = value
 
     @property
+    def distance(self) -> u.Quantity[u.mm]:
+        return self._distance
+
+    @distance.setter
+    def distance(self, value):
+        self._distance = value.to(u.mm)
+
+
+    @property
     def boolean(self) -> bool:
         return self._boolean
 
@@ -51,5 +61,5 @@ class GenericDevice:
         self._integer = value
 
 
-device = GenericDevice(SomeOptions.Blue, 23.7, True, 4)
-devices = {'some_name': device}
+device = GenericDevice(SomeOptions.Blue, 23.7, 0.039 * u.m, True, 4)
+devices = {'some_device': device}
