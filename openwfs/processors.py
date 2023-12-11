@@ -136,7 +136,7 @@ class CropProcessor(Processor):
             shape = source.data_shape
 
         self._data_shape = shape or source.data_shape
-        self._pos = pos if pos is not None else np.zeros((len(source.data_shape),))
+        self._pos = pos if pos is not None else np.zeros((len(source.data_shape),),dtype=int)
         self._padding_value = padding_value
 
     @property
