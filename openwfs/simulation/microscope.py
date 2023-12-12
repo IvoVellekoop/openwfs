@@ -8,7 +8,7 @@ from ..slm import patterns
 from ..core import Processor, Detector, get_pixel_size, set_pixel_size
 from ..utilities import project, place, Transform, imshow
 from ..processors import TransformProcessor
-
+import warnings
 
 class Microscope(Processor):
     """A simulated microscope with pupil-conjugate SLM.
@@ -145,7 +145,7 @@ class Microscope(Processor):
         source_pixel_size = get_pixel_size(source)
         target_pixel_size = self.pixel_size / self.magnification
         if np.any(source_pixel_size > target_pixel_size):
-            raise Exception("The resolution of the specimen image is worse than that of the output.")
+            warnings.warn("The resolution of the specimen image is worse than that of the output.")
 
         # construct matrix for translation of the specimen
         # Note: there seems to be a bug (feature?) in fftconvolve that shifts the image by one pixel
