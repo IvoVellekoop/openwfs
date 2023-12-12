@@ -109,7 +109,7 @@ class CharacterisingFDR(FourierDualRef):
                 # do measurement for current k_x and k_y
                 measurements = self.single_side_experiment(np.vstack((self.k_x, self.k_y)), side)
                 # calculate their transmission elements
-                t_fourier = np.append(t_fourier, analyze_phase_stepping(measurements, axis=1).field)
+                t_fourier = np.append(t_fourier, measurements)
                 # store which k_x and k_y we just measured
                 kx_total = np.append(kx_total, self.k_x)
                 ky_total = np.append(ky_total, self.k_y)

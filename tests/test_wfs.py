@@ -143,7 +143,7 @@ def test_pathfinding_fourier():
     t = alg.execute()
 
     # compute the phase pattern to optimize the intensity in target 0
-    optimised_wf = np.angle(t)
+    optimised_wf = -np.angle(t)
 
     # Calculate the enhancement factor
     # Note: technically this is not the enhancement, just the ratio after/before
