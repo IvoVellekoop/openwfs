@@ -13,8 +13,8 @@ scanner = LaserScanning(
     x_mirror_mapping='Dev4/ao2',
     y_mirror_mapping='Dev4/ao3',
     input_mapping='Dev4/ai24',
-    duration=400 * u.ms,
-    delay=62,           # Unit? Assertion? Determine automatically with autocorr?
+    duration=500 * u.ms,
+    delay=37,           # Unit? Assertion? Determine automatically with autocorr?
     height=256,
     width=256,
     zoom=4)
@@ -28,20 +28,20 @@ gain = Gain(
     port_do="Dev4/port0/line0")
 
 # Set gain
-gain.on_reset(1)
-gain.gain = 0.7    # PMT Gain in Volt
+# gain.on_reset(1)
+# gain.gain = 0.7    # PMT Gain in Volt
 
 # === SLM settings === #
 slm = SLM(2)
 
 # hardcode offset, because our calibrations don't work yet
 transform_scale_factor = 1.032
-transform_matrix = np.array(fill_transform(slm, type='short')) * transform_scale_factor
+transform_matrix = np.array(fill_transform(slm, fit='short')) * transform_scale_factor
 # transform_matrix[2, :] = [-0.0147/(0.4+0.5), 0.0036/0.5, 1] # from the old hardcoded offset, visually adjusted to be right
 transform_matrix[2, :] = [0.0, 0.0, 1]
 
 slm.lut_generator = lambda λ: np.arange(0, 0.2623 * λ.to(u.nm).value - 23.33) / 255     # again copied from earlier hardcodes
-slm.wavelength = 0.808 * u.um
+slm.wavelength = 0.730 * u.um
 
 slm.transform = transform_matrix
 
@@ -62,7 +62,6 @@ slmpatch.phases = 0
 slm.update()
 
 # Perform scan
-scanner.trigger()
 img_raw_flat = scanner.read().copy()
 
 # Random SLM pattern to destroy focus and prevent bleaching
@@ -77,7 +76,6 @@ slmpatch.phases = -patterndict['phase_SLM']
 slm.update()
 
 # Perform scan
-scanner.trigger()
 img_raw_modelwfs1 = scanner.read().copy()
 
 # Random SLM pattern to destroy focus and prevent bleaching
@@ -93,11 +91,18 @@ plt.title('Bottom of tube\nModel-based top correction, No FourierWFS')
 plt.colorbar()
 plt.show()
 
+pass
 
 # === FourierWFS === #
 # FourierWFS settings
-controller = Controller(detector=roi_detector, slm=slm)
-alg = BasicFDR(k_angles_min=-2, k_angles_max=2, overlap=0.1, phase_steps=6)
+alg = BasicFDR(
+    feedback=roi_detector,
+    slm=slm,
+    k_angles_min=-3,
+    k_angles_max=3,
+    overlap=0.1,
+    phase_steps=6,
+    slm_shape=(1152, 1152))
 
 # Put model-based pattern on SLM
 slmpatch.phases = -patterndict['phase_SLM']
@@ -110,7 +115,6 @@ slm.phases = optimised_wf
 slm.update()
 
 # Perform scan with model+fourier wfs
-scanner.trigger()
 img_raw_modelfourierwfs = scanner.read().copy()
 
 
@@ -120,7 +124,6 @@ slmpatch.phases = -patterndict['phase_SLM']
 slm.update()
 
 # Perform scan
-scanner.trigger()
 img_raw_modelwfs2 = scanner.read().copy()
 
 # Random SLM pattern to destroy focus and prevent bleaching
@@ -156,7 +159,7 @@ plt.ylabel('y (pix)')
 plt.title('Bottom of tube\nwith model-based SA correction, with FourierWFS')
 plt.colorbar()
 
-t_square = t[:, 384:1536]
+t_square = t[:, :]
 
 # Show patterns
 plt.figure()
