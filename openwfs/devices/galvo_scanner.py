@@ -8,6 +8,7 @@ from nidaqmx.constants import TaskMode
 
 from nidaqmx.constants import Edge, TerminalConfiguration
 from nidaqmx.stream_writers import AnalogMultiChannelWriter
+from nidaqmx.stream_readers import AnalogUnscaledReader
 
 
 # TODO: more descriptive names for 'input_mapping' 'x_mirror_mapping'->'x_channel'
@@ -125,8 +126,8 @@ class LaserScanning(Detector):
 
         # Configure the analog input task
         self._read_task.ai_channels.add_ai_voltage_chan(self._in_channel,
-                                                        min_val=self._in_v_min,
-                                                        max_val=self._in_v_max,
+                                                        min_val=self._in_v_min.to_value(u.V),
+                                                        max_val=self._in_v_max.to_value(u.V),
                                                         terminal_config=TerminalConfiguration.RSE)
         self._read_task.timing.cfg_samp_clk_timing(
             sample_rate, source=samp_clk_terminal,
@@ -134,7 +135,7 @@ class LaserScanning(Detector):
         )
 
         self._writer = AnalogMultiChannelWriter(self._write_task.out_stream)
-        self._reader = ni.stream_readers.AnalogUnscaledReader(self._read_task.in_stream)
+        self._reader = AnalogUnscaledReader(self._read_task.in_stream)
 
     def _generate_scan_pattern(self):
         """
@@ -225,8 +226,11 @@ class LaserScanning(Detector):
         sample_count = self.data_shape[0] * self.data_shape[1]
         if out is None:
             out = np.zeros(self.data_shape, dtype=np.int16)
-        self._reader.read_int16(out, number_of_samples_per_channel=sample_count,
+        self._reader.read_int16(out.reshape(1,sample_count), number_of_samples_per_channel=sample_count,
                                 timeout=ni.constants.WAIT_INFINITELY)
+
+        if self._bidirectional:
+            out[1::2, :] = out[1::2, ::-1]
         return out
 
     @property
