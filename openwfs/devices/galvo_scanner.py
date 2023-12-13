@@ -227,6 +227,8 @@ class LaserScanning(Detector):
             out = np.zeros(self.data_shape, dtype=np.int16)
         self._reader.read_int16(out, number_of_samples_per_channel=sample_count,
                                 timeout=ni.constants.WAIT_INFINITELY)
+        if self._bidirectional:
+            out[1::2, :] = out[1::2, ::-1]
         return out
 
     @property
