@@ -150,8 +150,8 @@ class LaserScanning(Detector):
         # y_step = (self._axis0_v_max - self._axis0_v_min) / self.data_shape[0]
         # x_step = (self._axis1_v_max - self._axis1_v_min) / self.data_shape[1]
 
-        y_range = np.linspace(self._axis0_v_max, self._axis0_v_min, self.data_shape[0])
-        x_range = np.linspace(self._axis1_v_max, self._axis1_v_min, self.data_shape[1])
+        y_range = np.linspace(self._axis0_v_max.to_value(u.V), self._axis0_v_min.to_value(u.V), self.data_shape[0])
+        x_range = np.linspace(self._axis1_v_max.to_value(u.V), self._axis1_v_min.to_value(u.V), self.data_shape[1])
 
         # Generate x and y steps using meshgrid
         x_grid, y_grid = np.meshgrid(x_range, y_range)
@@ -163,7 +163,7 @@ class LaserScanning(Detector):
         y_steps = y_grid.flatten()
 
         # Add delay at the end of the pattern
-        # todo, this is broken, it jumps back to 1 (volt?) instead of delaying the signal
+        # todo, this is broken, it jumps back to 1 volt instead of delaying the signal
         # delay_length = int(round(self._delay * self._sample_rate))
         # x_steps = np.concatenate((x_steps, np.ones(delay_length) * x_steps[-1]))
         # y_steps = np.concatenate((y_steps, np.ones(delay_length) * y_steps[-1]))
