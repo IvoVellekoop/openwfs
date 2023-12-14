@@ -47,6 +47,7 @@ class LaserScanning(Detector):
 
         self._sample_rate = self.calculate_sample_rate()
 
+
     def scanpattern(self):
         """This produces 2 numpy arrays which can be used as input for the Galvo scanners
 
@@ -55,8 +56,8 @@ class LaserScanning(Detector):
 
         # This is the linear signal. Everything after is padding & structuring. Adapt here for custom patterns.
         # don't use linspace
-        rangex = np.linspace(self._input_min, self._input_max, self.data_shape[1])
-        rangey = np.linspace(self._input_min, self._input_max, self.data_shape[0])
+        rangex = np.linspace(self._input_min / self._zoom, self._input_max / self._zoom, self.data_shape[1])
+        rangey = np.linspace(self._input_min / self._zoom, self._input_max / self._zoom, self.data_shape[0])
 
         xsteps = np.array([])
         ysteps = np.array([])
