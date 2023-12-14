@@ -94,7 +94,32 @@ def lens(shape: ShapeType, f: ScalarType, wavelength: ScalarType, extent: Extent
         extent(ExtentType): physical extent of the SLM, same units as `f` and `wavelength`
     """
     r_sqr = r2_range(shape, extent)
-    return unitless((f - np.sqrt(np.maximum(f ** 2 - r_sqr, 0.0))) * (2 * np.pi / wavelength))
+    return unitless((f - np.sqrt(f ** 2 + r_sqr)) * (2 * np.pi / wavelength))
+
+
+def propagation(shape: ShapeType, distance: ScalarType, numerical_aperture: ScalarType,
+                refractive_index: ScalarType, wavelength: ScalarType, extent: ExtentType = (2.0, 2.0)):
+    """Computes a wavefront that corresponds to digitally propagating the field in the object plane.
+
+    k_z = sqrt(n² k_0²-k_x²-k_y²)
+    φ = k_z · distance
+
+    Args:
+          shape: see module documentation
+          distance (ScalarType): physical distance to propagate axially.
+          numerical_aperture (Scalar):
+          refractive_index (Scalar):
+          wavelength (Scalar):
+            the numerical aperture, refractive index and wavelength are used to
+            to convert the `extent` from pupil coordinates to k-space (unit radians/meter),
+          extent: extent of the returned image, in pupil coordinates
+            (a disk of radius 1.0 corresponds to the full NA)
+    """
+    # convert pupil coordinates to absolute k_x, k_y coordinates
+    k_0 = 2.0 * np.pi / wavelength
+    extent_k = Quantity(extent) * numerical_aperture * k_0
+    k_z = np.sqrt(np.maximum((refractive_index * k_0) ** 2 - r2_range(shape, extent_k), 0.0))
+    return unitless(k_z * distance)
 
 
 def disk(shape: ShapeType, radius: ScalarType = 1.0, extent: ExtentType = (2.0, 2.0)):
