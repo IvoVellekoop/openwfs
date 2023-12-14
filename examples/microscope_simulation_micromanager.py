@@ -6,7 +6,7 @@ from openwfs.algorithms import BasicFDR
 from openwfs.algorithms.utilities import WFSController
 from openwfs.processors import SingleRoi
 from openwfs.simulation import Microscope, MockSource, MockSLM, SimulatedWFS
-from openwfs.utilities import grab_and_show, imshow
+from openwfs.utilities import imshow
 import skimage
 import astropy.units as u
 
