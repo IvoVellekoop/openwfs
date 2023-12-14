@@ -180,8 +180,7 @@ class LaserScanning(Detector):
         x_steps_with_padding = self.data_shape[1] + self._scan_padding
         y_steps = self.data_shape[0]
 
-        if self._input_min < 0:
-            data = data + (2 ** 16) / 2
+        data = data + (2 ** 16) / 2
         if self._invert:
             data = (2 ** 16) - data
 
