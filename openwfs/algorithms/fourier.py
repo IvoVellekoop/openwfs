@@ -81,17 +81,23 @@ class FourierDualRef:
         # tilt generates a pattern from -2 to 2 (The convention for Zernike modes normalized to an RMS of 1).
         # The natural step to take is the Abbe diffraction limit, which corresponds to a gradient from
         # -π to π.
-        tilted_front = tilt(self.slm_shape, k * (0.5 * np.pi), phase_offset=phase_offset, extent=self._slm.extent)
+        num_columns = int((0.5 + 0.5 * self._overlap) * self.slm_shape[1])
+        tilted_front = tilt([self.slm_shape[0],num_columns], [k[0] * (0.5 * np.pi), k[1] *(0.5 * np.pi)], phase_offset=phase_offset, extent=self._slm.extent)
+
 
         # Handle side-dependent pattern
-        # end - start = 0.5 + 0.5 * self._overlap
-        num_columns = int((0.5 + 0.5 * self._overlap) * self.slm_shape[1])
 
+        empty_part = np.zeros((self.slm_shape[0], self.slm_shape[1] - num_columns))
+
+        # Concatenate based on the side
         if side == 0:
-            tilted_front[:, num_columns:] = 0.0
+            # Place the pattern on the left
+            result = np.concatenate((tilted_front, empty_part), axis=1)
         else:
-            tilted_front[:, :-num_columns] = 0.0
-        return tilted_front
+            # Place the pattern on the right
+            result = np.concatenate((empty_part, tilted_front), axis=1)
+
+        return result
 
     def single_side_experiment(self, k_set, side):
         """
