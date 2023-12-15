@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 import numpy as np
 from ..core import Detector, PhaseSLM
 from .utilities import analyze_phase_stepping
@@ -69,13 +70,23 @@ class FourierDualRef:
             numpy.ndarray: The SLM transmission matrix.
         """
         # left side experiment
-        t_left = self.single_side_experiment(self.k_left, 0)
+        t_data_left = self.single_side_experiment(self.k_left, 0)
 
         # right side experiment
-        t_right = self.single_side_experiment(self.k_right, 1)
+        t_data_right = self.single_side_experiment(self.k_right, 1)
+
+        # Compute transmission matrix (=field at SLM)
+        t = self.compute_t(t_data_left.field, t_data_right.field, self.k_left, self.k_right)
+
+        # Compute Signal to Noise Ratio averaged over all measured modes
+        snr = (t_data_left.snr_per_mode.mean() + t_data_right.snr_per_mode.mean()) / 2
+
+        ### To Do: process/analyze SNR per mode (e.g. compare high vs low spatial frequencies)
+
+        t_info = SimpleNamespace(t=t, snr=snr)
 
         # calculate transmission matrix of the SLM plane from the Fourier transmission matrices:
-        return self.compute_t(t_left, t_right, self.k_left, self.k_right)
+        return t_info
 
     def get_phase_pattern(self, k, phase_offset, side):
         # tilt generates a pattern from -2 to 2 (The convention for Zernike modes normalized to an RMS of 1).
@@ -116,7 +127,7 @@ class FourierDualRef:
                 self._feedback.trigger(out=measurements[i, p, ...])
 
         self._feedback.wait()
-        return analyze_phase_stepping(measurements, axis=1).field
+        return analyze_phase_stepping(measurements, axis=1)
 
     def compute_t(self, t_fourier_left, t_fourier_right, k_left, k_right):
         """Computes the SLM transmission matrix from the Fourier transmission matrices.

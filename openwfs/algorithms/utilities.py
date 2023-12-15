@@ -35,7 +35,8 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int):
     P = measurements.shape[axis]
     phases = np.arange(P) * 2.0 * np.pi / P
     AB = np.tensordot(measurements, np.exp(-1.0j * phases) / P, ((axis,), (0,)))
-    return SimpleNamespace(field=AB)
+    snr_per_mode = 10 * np.ones(shape=AB.shape)  ### Mock SNR values. Compute SNR estimate for each mode separately. (Will be averaged in algorithm execute function, so additional processing/metrics can be performed if desired)
+    return SimpleNamespace(field=AB, snr_per_mode=snr_per_mode)
 
 
 class WFSController:
@@ -49,6 +50,7 @@ class WFSController:
         self._wavefront = WFSController.State.FLAT_WAVEFRONT
         self._optimized_wavefront = None
         self._recompute_wavefront = False
+        self._snr = None                    # Average SNR. Computed when wavefront is computed.
 
     @property
     def wavefront(self) -> State:
@@ -61,10 +63,16 @@ class WFSController:
             self._slm.set_phases(0.0)
         else:
             if self._recompute_wavefront or self._optimized_wavefront is None:
-                t = self._algorithm.execute()
-                t = t.reshape((*t.shape[0:2], -1))
+                t_info = self._algorithm.execute()
+                t_raw = t_info.t
+                t = t_raw.reshape((*t_raw.shape[0:2], -1))
                 self._optimized_wavefront = -np.angle(t[:, :, 0])
+                self._snr = float(t_info.snr)
             self._slm.set_phases(self._optimized_wavefront)
+
+    @property
+    def snr(self) -> float:
+        return self._snr
 
     @property
     def recompute_wavefront(self) -> bool:

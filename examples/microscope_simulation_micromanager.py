@@ -37,3 +37,14 @@ devices = {
     'stage': sim.xy_stage,
     'microscope': sim,
     'wfs': alg}
+
+controller.wavefront = WFSController.State.FLAT_WAVEFRONT
+before = roi_detector.read()
+controller.wavefront = WFSController.State.SHAPED_WAVEFRONT
+after = roi_detector.read()
+imshow(controller._optimized_wavefront)
+print(after / before)
+
+print(f'SNR: {controller.snr:.5f}')
+
+pass
