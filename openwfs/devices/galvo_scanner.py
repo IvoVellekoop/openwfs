@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Sequence
 import astropy.units as u
 import nidaqmx.system
 import numpy as np
@@ -54,14 +54,16 @@ class ScanningMicroscope(Detector):
     """
 
     # LaserScanner(input=("ai/8", -1.0 * u.V, 1.0 * u.V))
-    def __init__(self, data_shape,
+    def __init__(self,
+                 data_shape: Sequence[int],
                  input: tuple[str, Quantity[u.V], Quantity[u.V]],
                  axis0: tuple[str, Quantity[u.V], Quantity[u.V]],
                  axis1: tuple[str, Quantity[u.V], Quantity[u.V]],
                  scale: Quantity[u.um / u.V],
                  sample_rate: Quantity[u.Hz],
                  delay=0.0 * u.us,
-                 padding=0.05, bidirectional=True, invert=True):
+                 binning=64,
+                 padding=0.05, bidirectional=True):
         """
         Args:
             data_shape (tuple[int,int]): number of data points (height, width) of the full field of view.
@@ -86,36 +88,36 @@ class ScanningMicroscope(Detector):
             delay:
             padding:
             bidirectional:
-            invert:
         """
         # settings for input/output channels
         self._in_channel = input[0]
-        self._in_v_min = input[1]
-        self._in_v_max = input[2]
-
+        self._in_v_min = input[1].to(u.V)
+        self._in_v_max = input[2].to(u.V)
         self._axis0_channel = axis0[0]
         self._axis1_channel = axis1[0]
         self._out_v_min = Quantity((axis0[1], axis1[1])).to(u.V)
         self._out_v_max = Quantity((axis0[2], axis1[2])).to(u.V)
-
-        self._scale = scale.repeat(2) if scale.size == 1 else scale
-        self._full_data_shape = np.array(data_shape, 'float32')
         self._sample_rate = sample_rate
 
+        self._scale = scale.repeat(2) if scale.size == 1 else scale
+        self._full_resolution = np.array(data_shape) * binning
+
+        v_width = (self._out_v_max - self._out_v_min)
+        self._padding = np.array((0.0, padding))
+        self._v_origin = self._out_v_min + v_width * self._padding * 0.5  # Voltage corresponding to (top,left)=(0,0)
+        self._roi_start = Quantity((0.0, 0.0), u.V)  # ROI start position relative to origin
+        self._roi_end = v_width * (1.0 - self._padding)  # ROI end position relative to origin
+
         self._resized = True  # indicate that the output signals need to be recomputed
-        self._pos = (0, 0)  # left-top corner coordinates can be set through 'top' and 'left' to crop the ROI
         self._binning = 100
 
         # Scan settings
         self._delay = delay.to(u.us)
-        self._padding = (0.0, padding)
         self._padded_data_shape = (0, 0)
         self._bidirectional = bidirectional
 
-        self._invert = invert
         self._write_task = None
         self._read_task = None
-        self._clock_task = None
 
         self._valid = False  # indicates that `trigger()` should initialize the nidaq tasks and scan pattern
         self._scan_pattern = None
@@ -124,35 +126,37 @@ class ScanningMicroscope(Detector):
         self._update()
 
     def _update(self):
-        full_voltage_range = self._out_v_max - self._out_v_min
-        padding_voltage_range = full_voltage_range * self._padding
-        roi_voltage_range = (
-                                    full_voltage_range - padding_voltage_range) * self.data_shape * self._binning / self._full_data_shape / 100.0
-        voltage_range = roi_voltage_range + padding_voltage_range
+        v_extent = self._out_v_max - self._out_v_min
 
-        self._pixel_size = self._scale * roi_voltage_range / self._data_shape
-        voltage_start = self._out_v_min + self._pos * self.pixel_size / self._scale
-        self._padded_data_shape = np.ceil(unitless(voltage_range * self._scale / self.pixel_size)).astype('int32')
+        # round padding up to integer number of pixels on both sides
+        padding = 2 * np.ceil(self._data_shape * self._padding * 0.5).astype('int32')
+        self._padded_data_shape = self._data_shape + padding
 
-        voltages0 = (voltage_start[0] + voltage_range[0] * (np.arange(self._padded_data_shape[0]) + 0.5) /
-                     self._padded_data_shape[
-                         0])
-        voltages1a = (voltage_start[1] + voltage_range[1] * (np.arange(self._padded_data_shape[1]) + 0.5) /
-                      self._padded_data_shape[
-                          1])
+        # compute the scan range.
+        # first compute the padding voltage corresponding to the rounded padding (_padded_data_shape)
+        # then construct a voltage range from _v_origin + _roi_start - 0.5 * v_padding
+        # to _v_origin + _roi_end + 0.5 * v_padding
+        #
+        v_padding = v_extent * padding / self._data_shape
+        scan_start = self._v_origin + self._roi_start - 0.5 * v_padding
+        scan_range = self._roi_end - self._roi_start + v_padding
+        voltages0 = scan_start[0] + scan_range[0] * ((np.arange(self._padded_data_shape[0]) + 0.5) /
+                                                     self._padded_data_shape[0])
 
-        # for bidirectional scanning, compute the number of scan points taken per frame (including padding)
+        voltages1a = scan_start[1] + scan_range[1] * ((np.arange(self._padded_data_shape[1]) + 0.5) /
+                                                      self._padded_data_shape[1])
+
+        # crop to voltage limits to prevent possible damage
+        voltages0 = np.clip(voltages0, self._out_v_min[0], self._out_v_max[0])
+        voltages1a = np.clip(voltages1a, self._out_v_min[0], self._out_v_max[0])
+
+        # for bidirectional scanning, reverse the direction of the even scan lines
         if self._bidirectional:
             voltages1b = voltages1a[::-1]
         else:
             voltages1b = voltages1a
 
-        if np.min(voltages0) < self._out_v_min[0] or np.max(voltages0) > self._out_v_max[0] or \
-                np.min(voltages1a) < self._out_v_min[1] or np.max(voltages1a) > self._out_v_max[1] or \
-                np.min(voltages1b) < self._out_v_min[1] or np.max(voltages1b) > self._out_v_max[1]:
-            raise ValueError('Voltage out of maximum range')
-
-        # Generate x and y steps using meshgrid
+        # Generate output voltages
         self._scan_pattern = np.zeros((2, *self._padded_data_shape))
         self._scan_pattern[0, :, :] = voltages0.to_value(u.V).reshape((-1, 1))
         self._scan_pattern[1, 0::2, :] = voltages1a.to_value(u.V).reshape((1, -1))
@@ -160,41 +164,36 @@ class ScanningMicroscope(Detector):
         self._scan_pattern = self._scan_pattern.reshape(2, -1)
 
         sample_count = self._padded_data_shape[0] * self._padded_data_shape[1]
+        self._pixel_size = ((self._roi_end - self._roi_start) * self._scale / self._data_shape).to(u.um)
         self._duration = (sample_count / self._sample_rate).to(u.ms)
 
         # Sets up Nidaq task and i/o channels
         self._write_task = ni.Task()
         self._read_task = ni.Task()
-        self._clock_task = ni.Task()
 
         # Configure the sample clock task
         sample_rate = self._sample_rate.to_value(u.Hz)
-        device_name = self._in_channel.split('/')[0]
-        self._clock_task.co_channels.add_co_pulse_chan_freq(f"{device_name}/ctr0", freq=sample_rate)
-        self._clock_task.co_channels.add_co_pulse_chan_freq(f"{device_name}/ctr1", freq=sample_rate)
-        self._clock_task.timing.cfg_implicit_timing(samps_per_chan=sample_count)
-        write_clock = f"/{device_name}/Ctr0InternalOutput"
-        read_clock = f"/{device_name}/Ctr0InternalOutput"
 
-        # Configure the analog output task
+        # Configure the analog output task (two channels)
         self._write_task.ao_channels.add_ao_voltage_chan(self._axis0_channel,
                                                          min_val=self._out_v_min[0].to_value(u.V),
                                                          max_val=self._out_v_max[0].to_value(u.V))
         self._write_task.ao_channels.add_ao_voltage_chan(self._axis1_channel,
                                                          min_val=self._out_v_min[1].to_value(u.V),
                                                          max_val=self._out_v_max[1].to_value(u.V))
-        self._write_task.timing.cfg_samp_clk_timing(
-            sample_rate, source=write_clock, active_edge=Edge.RISING, samps_per_chan=sample_count
-        )
+        self._write_task.timing.cfg_samp_clk_timing(sample_rate, samps_per_chan=sample_count)
 
-        # Configure the analog input task
+        # Configure the analog input task (one channel)
         self._read_task.ai_channels.add_ai_voltage_chan(self._in_channel,
                                                         min_val=self._in_v_min.to_value(u.V),
                                                         max_val=self._in_v_max.to_value(u.V),
                                                         terminal_config=TerminalConfiguration.RSE)
-        self._read_task.timing.cfg_samp_clk_timing(
-            sample_rate, source=read_clock, active_edge=Edge.FALLING, samps_per_chan=sample_count
-        )
+        self._read_task.timing.cfg_samp_clk_timing(sample_rate, samps_per_chan=sample_count)
+        self._read_task.triggers.start_trigger.cfg_dig_edge_start_trig(self._write_task.triggers.start_trigger.term)
+        delay = self._delay.to_value(u.s)
+        if delay > 0.0:
+            self._read_task.triggers.start_trigger.delay = delay
+            self._read_task.triggers.start_trigger.delay_units = nidaqmx.constants.DigitalWidthUnits.SECONDS
 
         self._writer = AnalogMultiChannelWriter(self._write_task.out_stream)
         self._reader = AnalogUnscaledReader(self._read_task.in_stream)
@@ -208,9 +207,8 @@ class ScanningMicroscope(Detector):
         self._writer.write_many_sample(self._scan_pattern)
 
         # Start the tasks
-        self._read_task.start()
+        self._read_task.start()  # waits for trigger coming from the write task
         self._write_task.start()
-        self._clock_task.start()
 
     def _fetch(self, out: Union[np.ndarray, None]) -> np.ndarray:  # noqa
         """Reads the acquired data from the input task."""
@@ -218,7 +216,9 @@ class ScanningMicroscope(Detector):
         raw = np.zeros((1, sample_count), dtype=np.int16)
         self._reader.read_int16(raw, number_of_samples_per_channel=sample_count,
                                 timeout=ni.constants.WAIT_INFINITELY)
-        cropped = raw.reshape(self._padded_data_shape)[:self.data_shape[0], :self.data_shape[1]]
+        start = (self._padded_data_shape - self._data_shape) // 2
+        end = self._padded_data_shape - start
+        cropped = raw.reshape(self._padded_data_shape)[start[0]:end[0], start[1]:end[1]]
         if self._bidirectional:
             cropped[1::2, :] = cropped[1::2, ::-1]
 
@@ -231,19 +231,20 @@ class ScanningMicroscope(Detector):
 
     @property
     def left(self) -> int:
-        return self._pos[1]
+        return np.round(self._roi_start[1] * self._scale[1] / self._pixel_size[1]).astype('int32')
 
     @left.setter
     def left(self, value: int):
-        self._pos = (self._pos[0], value)
+        self._roi_start[0] = value * self._pixel_size[0] / self._scale[0]
+        self._valid = False
 
     @property
     def top(self) -> int:
-        return self._pos[0]
+        return np.round(self._roi_start[0] * self._scale[0] / self._pixel_size[0]).astype('int32')
 
     @top.setter
     def top(self, value: int):
-        self._pos = (value, self._pos[1])
+        self._roi_start[1] = value * self._pixel_size[1] / self._scale[1]
         self._valid = False
 
     @property
@@ -253,6 +254,7 @@ class ScanningMicroscope(Detector):
     @height.setter
     def height(self, value):
         self._data_shape = (value, self.data_shape[1])
+        self._roi_end = self._roi_start + self._pixel_size * self._data_shape / self._scale
         self._valid = False
 
     @property
@@ -261,16 +263,17 @@ class ScanningMicroscope(Detector):
 
     @width.setter
     def width(self, value):
-        self._data_shape = (self.data_shape[0], value)
+        self._data_shape = (value, self.data_shape[1])
+        self._roi_end = self._roi_start + self._pixel_size * self._data_shape / self._scale
         self._valid = False
 
     @property
     def dwell_time(self) -> Quantity[u.us]:
-        return self._duration.to(u.us) / (self.data_shape[0] * self.data_shape[1])
+        return 1.0 / self._sample_rate.to(u.us)
 
     @dwell_time.setter
     def dwell_time(self, value: Quantity[u.us]):
-        self._duration = value.to(u.us) * self.data_shape[0] * self.data_shape[1]
+        self._sample_rate = (1.0 / value).to(u.Hz)
         self._valid = False
 
     @property
@@ -297,16 +300,17 @@ class ScanningMicroscope(Detector):
     @binning.setter
     def binning(self, value: float):
         self._binning = value
-        self._valid = False
+        self._data_shape = tuple(np.round(self._full_resolution / self._binning).astype('int32'))
+        self._update()  # to recompute changed pixel size directly
 
-    # Check if this influences dwelltime
     @property
     def padding(self) -> float:
-        return self._padding
+        return self._padding[1]
 
     @padding.setter
     def padding(self, value: float):
-        self._padding = value
+        self._padding[1] = value
+        self._v_origin = self._out_v_min + (self._out_v_max - self._out_v_min) * self._padding * 0.5
         self._valid = False
 
     @property
@@ -316,15 +320,6 @@ class ScanningMicroscope(Detector):
     @bidirectional.setter
     def bidirectional(self, value: bool):
         self._bidirectional = value
-        self._valid = False
-
-    @property
-    def invert(self) -> bool:
-        return self._invert
-
-    @invert.setter
-    def invert(self, value: bool):
-        self._invert = value
         self._valid = False
 
     @staticmethod

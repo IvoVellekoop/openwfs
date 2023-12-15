@@ -9,6 +9,7 @@ from typing import Union, Set, final
 from concurrent.futures import Future, ThreadPoolExecutor
 from astropy.units import Quantity
 from abc import ABC, abstractmethod
+from typing import Sequence
 
 
 def set_pixel_size(data: np.ndarray, pixel_size: Quantity) -> np.ndarray:
@@ -340,7 +341,7 @@ class Detector(Device, ABC):
     """Base class for all detectors, cameras and other data sources with possible dynamic behavior.
     """
 
-    def __init__(self, *, data_shape, pixel_size: Quantity, **kwargs):
+    def __init__(self, *, data_shape: Sequence[int], pixel_size: Quantity, **kwargs):
         super().__init__(**kwargs)
         ndim = len(data_shape)
         self._pixel_size = pixel_size if pixel_size.size == ndim else np.tile(pixel_size, (ndim,))
