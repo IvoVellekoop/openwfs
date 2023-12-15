@@ -225,6 +225,7 @@ class MockCamera(ADCProcessor):
         self._crop = CropProcessor(source, shape=shape, pos=pos)
         super().__init__(source=self._crop, **kwargs)
 
+
     @property
     def left(self) -> int:
         return self._crop.pos[1]

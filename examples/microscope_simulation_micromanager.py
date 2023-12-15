@@ -31,6 +31,7 @@ roi_detector = SingleRoi(cam, x=256, y=256, radius=0)  # Only measure that speci
 alg = BasicFDR(feedback=roi_detector, slm=slm, slm_shape=(1000, 1000), k_angles_min=-1, k_angles_max=1, phase_steps=3)
 controller = WFSController(alg)
 
+
 devices = {
     'cam': cam,
     'wfs_controller': controller,
