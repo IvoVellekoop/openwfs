@@ -50,6 +50,8 @@ class WFSController:
         self._wavefront = WFSController.State.FLAT_WAVEFRONT
         self._optimized_wavefront = None
         self._recompute_wavefront = False
+        self._feedback_enhancement = None
+        self._test_wavefront = False
         self._snr = None                    # Average SNR. Computed when wavefront is computed.
 
     @property
@@ -81,3 +83,22 @@ class WFSController:
     @recompute_wavefront.setter
     def recompute_wavefront(self, value):
         self._recompute_wavefront = value
+
+    @property
+    def feedback_enhancement(self) -> float:
+        return self._feedback_enhancement
+
+    @property
+    def test_wavefront(self) -> bool:
+        return self._test_wavefront
+
+    @recompute_wavefront.setter
+    def test_wavefront(self, value):
+        if value:
+            self.wavefront = WFSController.State.FLAT_WAVEFRONT
+            feedback_flat = self._algorithm._feedback.read()
+            self.wavefront = WFSController.State.SHAPED_WAVEFRONT
+            feedback_shaped = self._algorithm._feedback.read()
+            self._feedback_enhancement = float(feedback_shaped.sum() / feedback_flat.sum())
+
+        self._test_wavefront = value

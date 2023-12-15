@@ -38,13 +38,16 @@ devices = {
     'microscope': sim,
     'wfs': alg}
 
-controller.wavefront = WFSController.State.FLAT_WAVEFRONT
-before = roi_detector.read()
-controller.wavefront = WFSController.State.SHAPED_WAVEFRONT
-after = roi_detector.read()
-imshow(controller._optimized_wavefront)
-print(after / before)
-
-print(f'SNR: {controller.snr:.5f}')
+# controller.wavefront = WFSController.State.FLAT_WAVEFRONT
+# before = roi_detector.read()
+# controller.wavefront = WFSController.State.SHAPED_WAVEFRONT
+# after = roi_detector.read()
+# imshow(controller._optimized_wavefront)
+# print(after / before)
+#
+# print(f'SNR: {controller.snr:.5f}')
+#
+# controller.test_wavefront = 1
+# print(f'Feedback enhancement: {controller.feedback_enhancement}')
 
 pass
