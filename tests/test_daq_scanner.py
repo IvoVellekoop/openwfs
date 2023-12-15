@@ -16,7 +16,8 @@ def test_scanpattern_delay():
 
 
 def test_daq_connection():
-    scanner = ScanningMicroscope(bidirectional=True, sample_rate=0.1 * u.MHz, axis0=('Dev1/ao0', -1.0 * u.V, 1.0 * u.V),
+    sample_rate = 0.1 * u.MHz
+    scanner = ScanningMicroscope(bidirectional=True, sample_rate=sample_rate, axis0=('Dev1/ao0', -1.0 * u.V, 1.0 * u.V),
                                  axis1=('Dev1/ao1', -1.0 * u.V, 1.0 * u.V), input=('Dev1/ai0', -1 * u.V, 1.0 * u.V),
                                  data_shape=(15, 12), scale=440 * u.um / u.V, delay=9.0 * u.us, padding=0.1)
 
@@ -29,7 +30,21 @@ def test_daq_connection():
     ps0 = 440 * u.um / u.V * 2.0 * u.V / scanner.data_shape[0]
     ps1 = 440 * u.um / u.V * 2.0 * u.V / scanner.data_shape[1] * (1.0 - scanner.padding)
     assert np.allclose(scanner.pixel_size, (ps0, ps1))
-    scanner.read()
+    assert np.allclose(scanner.dwell_time, 1.0 / sample_rate)
+    im1 = scanner.read()
+    assert im1.dtype == np.dtype('uint16')
+    assert im1.flags['C_CONTIGUOUS']
+    im2 = scanner.read()
+    scanner.width = 13
+    scanner.height = 8
+    scanner.left = 2
+    scanner.top = 3
+    assert scanner.width == 13
+    assert scanner.height == 8
+    assert scanner.left == 2
+    assert scanner.top == 3
+    time.sleep(1.09)
+    im3 = scanner.read()
     plt.imshow(scanner.read())
     plt.colorbar()
     plt.show()

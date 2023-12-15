@@ -97,7 +97,7 @@ class ScanningMicroscope(Detector):
         self._axis1_channel = axis1[0]
         self._out_v_min = Quantity((axis0[1], axis1[1])).to(u.V)
         self._out_v_max = Quantity((axis0[2], axis1[2])).to(u.V)
-        self._sample_rate = sample_rate
+        self._sample_rate = sample_rate.to(u.Hz)
 
         self._scale = scale.repeat(2) if scale.size == 1 else scale
         self._full_resolution = np.array(data_shape) * binning
@@ -168,6 +168,13 @@ class ScanningMicroscope(Detector):
         self._duration = (sample_count / self._sample_rate).to(u.ms)
 
         # Sets up Nidaq task and i/o channels
+        if self._read_task:
+            self._read_task.close()
+            self._read_task = None
+        if self._write_task:
+            self._write_task.close()
+            self._write_task = None
+
         self._write_task = ni.Task()
         self._read_task = ni.Task()
 
@@ -203,7 +210,11 @@ class ScanningMicroscope(Detector):
             self._update()
             self._valid = True
 
+        self._read_task.wait_until_done()
+        self._write_task.wait_until_done()
+
         # write the samples to output in the x-y channels
+        print(self._scan_pattern.size)
         self._writer.write_many_sample(self._scan_pattern)
 
         # Start the tasks
@@ -216,9 +227,11 @@ class ScanningMicroscope(Detector):
         raw = np.zeros((1, sample_count), dtype=np.int16)
         self._reader.read_int16(raw, number_of_samples_per_channel=sample_count,
                                 timeout=ni.constants.WAIT_INFINITELY)
+        self._read_task.stop()
+        self._write_task.stop()
         start = (self._padded_data_shape - self._data_shape) // 2
         end = self._padded_data_shape - start
-        cropped = raw.reshape(self._padded_data_shape)[start[0]:end[0], start[1]:end[1]]
+        cropped = raw.reshape(self._padded_data_shape).view(dtype='uint16')[start[0]:end[0], start[1]:end[1]] + 0x7FFF
         if self._bidirectional:
             cropped[1::2, :] = cropped[1::2, ::-1]
 
@@ -235,7 +248,7 @@ class ScanningMicroscope(Detector):
 
     @left.setter
     def left(self, value: int):
-        self._roi_start[0] = value * self._pixel_size[0] / self._scale[0]
+        self._roi_start[1] = value * self._pixel_size[1] / self._scale[1]
         self._valid = False
 
     @property
@@ -244,7 +257,7 @@ class ScanningMicroscope(Detector):
 
     @top.setter
     def top(self, value: int):
-        self._roi_start[1] = value * self._pixel_size[1] / self._scale[1]
+        self._roi_start[0] = value * self._pixel_size[0] / self._scale[0]
         self._valid = False
 
     @property
@@ -263,13 +276,13 @@ class ScanningMicroscope(Detector):
 
     @width.setter
     def width(self, value):
-        self._data_shape = (value, self.data_shape[1])
+        self._data_shape = (self.data_shape[0], value)
         self._roi_end = self._roi_start + self._pixel_size * self._data_shape / self._scale
         self._valid = False
 
     @property
     def dwell_time(self) -> Quantity[u.us]:
-        return 1.0 / self._sample_rate.to(u.us)
+        return (1.0 / self._sample_rate).to(u.us)
 
     @dwell_time.setter
     def dwell_time(self, value: Quantity[u.us]):
