@@ -29,6 +29,7 @@ def test_daq_connection():
     ps0 = 440 * u.um / u.V * 2.0 * u.V / scanner.data_shape[0]
     ps1 = 440 * u.um / u.V * 2.0 * u.V / scanner.data_shape[1] * (1.0 - scanner.padding)
     assert np.allclose(scanner.pixel_size, (ps0, ps1))
+    scanner.read()
     plt.imshow(scanner.read())
     plt.colorbar()
     plt.show()

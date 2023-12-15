@@ -1,5 +1,3 @@
-import matplotlib.pyplot as plt
-
 import set_path
 import numpy as np
 from openwfs.algorithms import BasicFDR
@@ -39,10 +37,3 @@ devices = {
     'stage': sim.xy_stage,
     'microscope': sim,
     'wfs': alg}
-
-controller.wavefront = WFSController.State.FLAT_WAVEFRONT
-before = roi_detector.read()
-controller.wavefront = WFSController.State.SHAPED_WAVEFRONT
-after = roi_detector.read()
-imshow(controller._optimized_wavefront)
-print(after / before)
