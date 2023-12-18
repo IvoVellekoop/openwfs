@@ -194,7 +194,7 @@ class ScanningMicroscope(Detector):
         self._read_task.ai_channels.add_ai_voltage_chan(self._in_channel,
                                                         min_val=self._in_v_min.to_value(u.V),
                                                         max_val=self._in_v_max.to_value(u.V),
-                                                        terminal_config=TerminalConfiguration.RSE)
+                                                        terminal_config=TerminalConfiguration.DIFF)
         self._read_task.timing.cfg_samp_clk_timing(sample_rate, samps_per_chan=sample_count)
         self._read_task.triggers.start_trigger.cfg_dig_edge_start_trig(self._write_task.triggers.start_trigger.term)
         delay = self._delay.to_value(u.s)
@@ -203,7 +203,6 @@ class ScanningMicroscope(Detector):
             self._read_task.triggers.start_trigger.delay_units = nidaqmx.constants.DigitalWidthUnits.SECONDS
 
         self._writer = AnalogMultiChannelWriter(self._write_task.out_stream)
-        self._reader = AnalogUnscaledReader(self._read_task.in_stream)
 
     def _do_trigger(self):
         if not self._valid:
@@ -221,19 +220,31 @@ class ScanningMicroscope(Detector):
         self._read_task.start()  # waits for trigger coming from the write task
         self._write_task.start()
 
-    def _fetch(self, out: Union[np.ndarray, None]) -> np.ndarray:  # noqa
-        """Reads the acquired data from the input task."""
-        sample_count = self._padded_data_shape[0] * self._padded_data_shape[1]
-        raw = np.zeros((1, sample_count), dtype=np.int16)
-        self._reader.read_int16(raw, number_of_samples_per_channel=sample_count,
-                                timeout=ni.constants.WAIT_INFINITELY)
-        self._read_task.stop()
-        self._write_task.stop()
+    def _raw_to_cropped(self, raw):
         start = (self._padded_data_shape - self._data_shape) // 2
         end = self._padded_data_shape - start
-        cropped = raw.reshape(self._padded_data_shape).view(dtype='uint16')[start[0]:end[0], start[1]:end[1]] + 0x7FFF
+
+        # Change data type into uint16 if necessary
+        if type(raw[0]) == np.int16:
+            cropped = raw.reshape(self._padded_data_shape).view(dtype='uint16')[start[0]:end[0],
+                      start[1]:end[1]] + 0x8000     # add 32768 to go from -32768-32767 to 0-65535
+        elif type(raw[0]) == np.uint16:
+            cropped = raw.reshape(self._padded_data_shape)[start[0]:end[0], start[1]:end[1]]
+
         if self._bidirectional:
             cropped[1::2, :] = cropped[1::2, ::-1]
+
+        return cropped
+
+    def _fetch(self, out: Union[np.ndarray, None]) -> np.ndarray:  # noqa
+        """Reads the acquired data from the input task."""
+
+        raw = self._read_task.in_stream.read()
+        assert len(raw) == self._padded_data_shape[0] * self._padded_data_shape[1]
+        self._read_task.stop()
+        self._write_task.stop()
+
+        cropped = self._raw_to_cropped(raw)
 
         if out is not None:
             out[...] = cropped
