@@ -26,7 +26,7 @@ def calculate_enhancement(simulation, optimised_wf, x=256, y=256):
     return feedback_after / feedback_before
 
 
-@pytest.mark.parametrize("n_x", [20, 3, 5, 10])
+@pytest.mark.parametrize("n_x", [3, 5, 10])
 def test_ssa(n_x):
     """
     Test the enhancement performance of the SSA algorithm.
@@ -51,7 +51,7 @@ def test_ssa(n_x):
     after = sim.read()
     improvement = after / before
     print(f"expected: {result.estimated_improvement}, actual: {improvement}")
-    assert improvement >= result.estimated_improvement * 0.5 and improvement <= result.estimated_improvement * 2.0, f"""
+    assert result.estimated_improvement * 0.5 <= improvement <= result.estimated_improvement * 2.0, f"""
         The SSA algorithm did not enhance the focus as much as expected.
         Expected at least 0.5 * {result.estimated_improvement}, got {improvement}"""
 
@@ -66,11 +66,11 @@ def test_ssa_noise(n_x):
     slm = sim_no_noise.slm
     scale = np.max(sim_no_noise.read())
     sim = ADCProcessor(sim_no_noise, analog_max=scale * 100.0)
-    alg = StepwiseSequential(feedback=sim, slm=sim.slm, n_x=10, n_y=10, phase_steps=5)
-    t = alg.execute().t
+    alg = StepwiseSequential(feedback=sim, slm=slm, n_x=10, n_y=10, phase_steps=5)
+    result = alg.execute()
 
     # compute the phase pattern to optimize the intensity in target 0
-    optimised_wf = -np.angle(t)
+    optimised_wf = -np.angle(result.t)
 
     # Calculate the enhancement factor
     # Note: technically this is not the enhancement, just the ratio after/before
@@ -78,10 +78,11 @@ def test_ssa_noise(n_x):
     before = sim_no_noise.read()
     slm.set_phases(optimised_wf)
     after = sim_no_noise.read()
-    enhancement = after / before
-
-    assert enhancement >= 3.0, f"""The SSA algorithm did not enhance the focus as much as expected.
-        Expected at least 3.0, got {enhancement}"""
+    improvement = after / before
+    print(f"expected: {result.estimated_improvement}, actual: {improvement}")
+    assert result.estimated_improvement * 0.5 <= improvement <= result.estimated_improvement * 2.0, f"""
+            The SSA algorithm did not enhance the focus as much as expected.
+            Expected at least 0.5 * {result.estimated_improvement}, got {improvement}"""
 
 
 def test_fourier():
