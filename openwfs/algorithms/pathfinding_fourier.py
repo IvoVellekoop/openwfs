@@ -163,17 +163,19 @@ class CharacterisingFDR(FourierDualRef):
             if self.high_modes != 0 and self.intermediates:
                 self.record_intermediate_enhancement(t_fourier, kx_total, ky_total, side)
 
+            n = len(t_fourier)
             if side == 0:
-                self.t_left = t_fourier
+                self.t_left = WFSResult(t_fourier, np.inf, np.pi / 4, np.pi / 4 * n, n)
                 self.k_left = np.vstack((kx_total, ky_total))
 
             else:
-                self.t_right = t_fourier
+                self.t_right = WFSResult(t_fourier, np.inf, np.pi / 4, np.pi / 4 * n, n)
                 self.k_right = np.vstack((kx_total, ky_total))
 
         # Compute the transmission matrix with respect to the SLM plane from the transmission matrices in k-space
-        self.t_slm = self.compute_t(self.t_left, self.t_right, self.k_left, self.k_right)
-        return WFSResult(t=self.t_slm)
+        results = self.compute_t(self.t_left, self.t_right, self.k_left, self.k_right)
+        self.t_slm = results.t
+        return results
 
     def measure_high_modes(self, t_fourier, kx_total, ky_total, side):
         """Measure the high-order modes of the system.

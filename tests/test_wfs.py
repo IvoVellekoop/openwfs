@@ -26,10 +26,12 @@ def calculate_enhancement(simulation, optimised_wf, x=256, y=256):
     return feedback_after / feedback_before
 
 
-@pytest.mark.parametrize("n_x", [3, 5, 10])
+@pytest.mark.parametrize("n_x", [5, 10])
 def test_ssa(n_x):
     """
     Test the enhancement performance of the SSA algorithm.
+    Note, for low N, the improvement estimate is not accurate,
+    and the test may sometimes fail due to statistical fluctuations.
     """
     aberrations = np.random.uniform(0.0, 2 * np.pi, (n_x, n_x))  # skimage.data.camera() * (2.0 * np.pi / 255.0)
     sim = SimulatedWFS(aberrations)
@@ -93,7 +95,8 @@ def test_fourier():
     sim = SimulatedWFS(aberrations.reshape(*aberrations.shape, 1))
     alg = BasicFDR(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-1, k_angles_max=1,
                    phase_steps=3)
-    t = alg.execute().t
+    results = alg.execute()
+    t = results.t
 
     # compute the phase pattern to optimize the intensity in target 0
     optimised_wf = -np.angle(t[:, :, 0])

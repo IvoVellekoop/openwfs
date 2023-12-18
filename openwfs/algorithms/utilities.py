@@ -3,18 +3,51 @@ from enum import Enum
 
 
 class WFSResult:
-    def __init__(self, t, snr=None, noise_factor=None, amplitude_factor=None, estimated_improvement=None):
+    """
+    Data structure for holding wavefront shaping results and statistics.
+
+    Attributes:
+        t: measured transmission matrix.
+            if multiple targets were used, the first dimension(s) of t denote the columns of the transmission matrix (`a` indices)
+            and the last dimensions(s) denote the targets, i.e., the rows of the transmission matrix (`b` indices).
+        n: number of degrees of freedom (columns of the transmission matrix)
+        snr: estimated signal-to-noise ratio for each of the targets.
+        noise_factor: the estimated loss in fidelity caused by the the limited snr.
+        amplitude_factor: estimated reduction of the fidelity due to phase-only modulation (≈ π/4 for fully developed speckle)
+        estimated_improvement: estimated ratio after/before
+        estimated_enhancement: estimated ratio <after>/<before>  (with <> denoting ensemble average)
+    """
+
+    def __init__(self, t, snr, amplitude_factor, estimated_improvement, n=None):
+        """
+        Args:
+            t: measured transmission matrix.
+            snr: estimated signal-to-noise ratio for each of the targets.
+                Used to compute the noise factor.
+            amplitude_factor:
+                estimated reduction of the fidelity due to phase-only modulation (≈ π/4 for fully developed speckle)
+            estimated_improvement: estimated ratio before/after
+        """
         self.t = t
-        self.snr = snr
-        self.noise_factor = noise_factor
-        self.amplitude_factor = amplitude_factor
-        self.estimated_improvement = estimated_improvement
+        self.n = t.size / snr.size if n is None else n
+        self.snr = np.atleast_1d(snr)
+        self.noise_factor = np.atleast_1d(snr / (snr + 1.0))
+        self.amplitude_factor = np.atleast_1d(amplitude_factor)
+        self.estimated_improvement = np.atleast_1d(estimated_improvement)
+        self.estimated_enhancement = np.atleast_1d(1.0 + (self.n - 1) * self.amplitude_factor * self.noise_factor)
 
     def select_target(self, b) -> 'WFSResult':
+        """
+        Returns the wavefront shaping results for a single target
+        Args:
+            b(int): target to select, as integer index.
+                If the target array is multi-dimensional, it is flattened before selecting the `b`-th component.
+
+        Returns: WFSResults data for the specified target
+        """
         return WFSResult(t=self.t.reshape((*self.t.shape[0:2], -1))[:, :, b],
-                         snr=None if self.snr is None else self.snr[:][b],
-                         noise_factor=None if self.noise_factor is None else self.noise_factor[:][b],
-                         amplitude_factor=None if self.amplitude_factor is None else self.amplitude_factor[:][b],
+                         snr=self.snr[:][b],
+                         amplitude_factor=self.amplitude_factor[:][b],
                          estimated_improvement=self.estimated_improvement[:][b]
                          )
 
@@ -90,14 +123,12 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int):
     before = a2_est
     after = noise_energy + np.sum(np.abs(t), axis=dims) ** 2
     estimated_improvement = after / before
-    noise_factor = np.maximum(signal_energy - noise_energy, 0.0) / (signal_energy + noise_energy)
 
     # compute the effect of amplitude variations.
     # for perfectly developed speckle, and homogeneous illumination, this factor will be pi/4
     amplitude_factor = np.mean(np.abs(t), axis=dims) ** 2 / np.mean(np.abs(t) ** 2, axis=dims)
 
-    return WFSResult(t, snr, noise_factor, amplitude_factor=amplitude_factor,
-                     estimated_improvement=estimated_improvement)
+    return WFSResult(t, snr, amplitude_factor=amplitude_factor, estimated_improvement=estimated_improvement)
 
 
 class WFSController:

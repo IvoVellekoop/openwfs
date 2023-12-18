@@ -1,4 +1,3 @@
-from types import SimpleNamespace
 import numpy as np
 from ..core import Detector, PhaseSLM
 from .utilities import analyze_phase_stepping, WFSResult
@@ -75,7 +74,7 @@ class FourierDualRef:
         t_data_right = self.single_side_experiment(self.k_right, 1)
 
         # Compute transmission matrix (=field at SLM), as well as noise statistics
-        return WFSResult(t=self.compute_t(t_data_left.t, t_data_right.t, self.k_left, self.k_right))
+        return self.compute_t(t_data_left, t_data_right, self.k_left, self.k_right)
 
     def get_phase_pattern(self, k, phase_offset, side):
         # tilt generates a pattern from -2 to 2 (The convention for Zernike modes normalized to an RMS of 1).
@@ -118,12 +117,12 @@ class FourierDualRef:
         self._feedback.wait()
         return analyze_phase_stepping(measurements, axis=1)
 
-    def compute_t(self, t_fourier_left, t_fourier_right, k_left, k_right):
+    def compute_t(self, left: WFSResult, right: WFSResult, k_left, k_right) -> WFSResult:
         """Computes the SLM transmission matrix from the Fourier transmission matrices.
 
         Args:
-            t_fourier_left (numpy.ndarray): Fourier transmission matrix for the left side.
-            t_fourier_right (numpy.ndarray): Fourier transmission matrix for the right side.
+            left (numpy.ndarray): wavefront shaping result data for the left side.
+            right (numpy.ndarray): wavefront shaping result data right side.
             k_left (numpy.ndarray): [k_x, k_y] matrix for the left side of shape (2, n).
             k_right (numpy.ndarray): [k_x, k_y] matrix for the right side of shape (2, n).
 
@@ -135,12 +134,15 @@ class FourierDualRef:
         t1 = np.zeros((*self.slm_shape, *self._feedback.data_shape), dtype='complex128')
         t2 = np.zeros((*self.slm_shape, *self._feedback.data_shape), dtype='complex128')
 
+        # compose all plane waves.
+        # For each k-vector (the leading dimension of left), compute the corresponding field,
+        # multiply it by the measured t coefficient, and add together.
         # TODO: why is there a - sign in the np.exp below?
-        for n, t in enumerate(t_fourier_left):
+        for n, t in enumerate(left.t):
             phi = self.get_phase_pattern(k_left[:, n], 0, 0)
             t1 += np.tensordot(np.exp(-1j * phi), t, 0)
 
-        for n, t in enumerate(t_fourier_right):
+        for n, t in enumerate(right.t):
             phi = self.get_phase_pattern(k_right[:, n], 0, 1)
             t2 += np.tensordot(np.exp(-1j * phi), t, 0)
 
@@ -158,7 +160,15 @@ class FourierDualRef:
         overlap = 0.5 * (t1[:, overlap_begin:overlap_end, ...] + t2[:, overlap_begin:overlap_end, ...])
         t_full = np.concatenate([t1[:, 0:overlap_begin, ...], overlap, t2[:, overlap_end:, ...]], axis=1)
 
-        return t_full
+        # return combined result, along with a course estimate of the snr and expected enhancement
+        # TODO: not accurate yet
+        # for the estimated_improvement, first convert to field improvement, then back to intensity improvement
+        return WFSResult(t=t_full,
+                         n=left.n + right.n,
+                         snr=0.5 * (left.snr + right.snr),
+                         amplitude_factor=0.5 * (left.amplitude_factor + right.amplitude_factor),
+                         estimated_improvement=(0.5 * (
+                                 np.sqrt(left.estimated_improvement) + np.sqrt(right.estimated_improvement))) ** 2)
 
     @property
     def phase_steps(self) -> int:
