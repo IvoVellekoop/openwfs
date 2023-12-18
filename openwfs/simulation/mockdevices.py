@@ -316,6 +316,7 @@ class MockSLM(PhaseSLM):
     def set_phases(self, values: Union[np.ndarray, float], update=True):
         values = np.atleast_2d(values)
         scale = np.array(self._back_buffer.shape) / np.array(values.shape)
+        # TODO: replace by cv2, with area interpolation
         zoom(values, scale, output=self._back_buffer, order=0)
         if update:
             self.update()

@@ -1,13 +1,13 @@
 import matplotlib.pyplot as plt
 
-from ..openwfs.simulation import SimulatedWFS, MockSource, MockSLM, Microscope
+from ..openwfs.simulation import SimulatedWFS, MockSource, MockSLM, Microscope, ADCProcessor
 import numpy as np
 from ..openwfs.algorithms import StepwiseSequential, BasicFDR, CharacterisingFDR, WFSController
-from ..openwfs.processors import SingleRoi, CropProcessor
+from ..openwfs.processors import SingleRoi
 import skimage
 from ..openwfs.utilities import imshow
 import astropy.units as u
-import cv2
+import pytest
 
 
 def calculate_enhancement(simulation, optimised_wf, x=256, y=256):
@@ -26,17 +26,22 @@ def calculate_enhancement(simulation, optimised_wf, x=256, y=256):
     return feedback_after / feedback_before
 
 
-def test_ssa():
+@pytest.mark.parametrize("n_x", [20, 3, 5, 10])
+def test_ssa(n_x):
     """
     Test the enhancement performance of the SSA algorithm.
     """
-    aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
+    aberrations = np.random.uniform(0.0, 2 * np.pi, (n_x, n_x))  # skimage.data.camera() * (2.0 * np.pi / 255.0)
     sim = SimulatedWFS(aberrations)
-    alg = StepwiseSequential(feedback=sim, slm=sim.slm, n_x=10, n_y=10, phase_steps=3)
-    t = alg.execute()
+    alg = StepwiseSequential(feedback=sim, slm=sim.slm, n_x=n_x, n_y=n_x, phase_steps=10)
+    result = alg.execute()
 
+    t = result.t[:]
+    t_correct = np.exp(1j * aberrations)[:]
+    corr = np.abs(np.vdot(t_correct, t) / np.sqrt(np.vdot(t_correct, t_correct) * np.vdot(t, t)))
+    print(corr)
     # compute the phase pattern to optimize the intensity in target 0
-    optimised_wf = -np.angle(t)
+    optimised_wf = -np.angle(result.t)
 
     # Calculate the enhancement factor
     # Note: technically this is not the enhancement, just the ratio after/before
@@ -44,6 +49,35 @@ def test_ssa():
     before = sim.read()
     sim.slm.set_phases(optimised_wf)
     after = sim.read()
+    improvement = after / before
+    print(f"expected: {result.estimated_improvement}, actual: {improvement}")
+    assert improvement >= result.estimated_improvement * 0.5 and improvement <= result.estimated_improvement * 2.0, f"""
+        The SSA algorithm did not enhance the focus as much as expected.
+        Expected at least 0.5 * {result.estimated_improvement}, got {improvement}"""
+
+
+@pytest.mark.parametrize("n_x", [3, 5, 10])
+def test_ssa_noise(n_x):
+    """
+    Test the enhancement performance of the SSA algorithm.
+    """
+    aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
+    sim_no_noise = SimulatedWFS(aberrations)
+    slm = sim_no_noise.slm
+    scale = np.max(sim_no_noise.read())
+    sim = ADCProcessor(sim_no_noise, analog_max=scale * 100.0)
+    alg = StepwiseSequential(feedback=sim, slm=sim.slm, n_x=10, n_y=10, phase_steps=5)
+    t = alg.execute().t
+
+    # compute the phase pattern to optimize the intensity in target 0
+    optimised_wf = -np.angle(t)
+
+    # Calculate the enhancement factor
+    # Note: technically this is not the enhancement, just the ratio after/before
+    slm.set_phases(0.0)
+    before = sim_no_noise.read()
+    slm.set_phases(optimised_wf)
+    after = sim_no_noise.read()
     enhancement = after / before
 
     assert enhancement >= 3.0, f"""The SSA algorithm did not enhance the focus as much as expected.
@@ -58,7 +92,7 @@ def test_fourier():
     sim = SimulatedWFS(aberrations.reshape(*aberrations.shape, 1))
     alg = BasicFDR(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-1, k_angles_max=1,
                    phase_steps=3)
-    t = alg.execute()
+    t = alg.execute().t
 
     # compute the phase pattern to optimize the intensity in target 0
     optimised_wf = -np.angle(t[:, :, 0])
@@ -125,7 +159,7 @@ def test_fourier_correction_field():
     sim = SimulatedWFS(aberrations)
     alg = BasicFDR(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-2, k_angles_max=2,
                    phase_steps=3)
-    t = alg.execute()
+    t = alg.execute().t
 
     t_correct = np.exp(1j * aberrations)
     correlation = np.vdot(t, t_correct) / np.sqrt(np.vdot(t, t) * np.vdot(t_correct, t_correct))
@@ -140,7 +174,7 @@ def test_pathfinding_fourier():
     aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
     sim = SimulatedWFS(aberrations)
     alg = CharacterisingFDR(feedback=sim, slm=sim.slm, phase_steps=3, overlap=0.1, max_modes=12)
-    t = alg.execute()
+    t = alg.execute().t
 
     # compute the phase pattern to optimize the intensity in target 0
     optimised_wf = -np.angle(t)
@@ -166,10 +200,10 @@ def test_phaseshift_correction():
     sim = SimulatedWFS(aberrations)
     alg = BasicFDR(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-1, k_angles_max=1,
                    phase_steps=3)
-    t = alg.execute()
+    t = alg.execute().t
 
     # compute the phase pattern to optimize the intensity in target 0
-    optimised_wf = np.angle(t)
+    optimised_wf = -np.angle(t)
     sim.slm.set_phases(0)
     before = sim.read()
 
@@ -202,7 +236,7 @@ def test_flat_wf_response_fourier():
     alg = BasicFDR(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-1, k_angles_max=1,
                    phase_steps=3)
 
-    t = alg.execute()
+    t = alg.execute().t
     optimised_wf = np.angle(t)
 
     # test the optimised wavefront by checking if it has irregularities. Since a flat wavefront at 0 or pi
@@ -219,7 +253,7 @@ def test_flat_wf_response_ssa():
     alg = StepwiseSequential(feedback=sim, slm=sim.slm, n_x=4, n_y=4, phase_steps=3)
 
     # Execute the SSA algorithm to get the optimized wavefront
-    t = alg.execute()
+    t = alg.execute().t
     optimised_wf = np.angle(t)
 
     # Assert that the standard deviation of the optimized wavefront is below the threshold,
@@ -240,7 +274,7 @@ def test_flat_wf_response_pathfinding_fourier():
     alg = CharacterisingFDR(feedback=sim, slm=sim.slm, phase_steps=3, overlap=0.1, max_modes=12)
 
     # Execute the SSA algorithm to get the optimized wavefront
-    t = alg.execute()
+    t = alg.execute().t
     optimised_wf = np.angle(t)
 
     # Assert that the standard deviation of the optimized wavefront is below the threshold,
@@ -253,7 +287,7 @@ def test_multidimensional_feedback_ssa():
     sim = SimulatedWFS(aberrations)
 
     alg = StepwiseSequential(feedback=sim, slm=sim.slm)
-    t = alg.execute()
+    t = alg.execute().t
 
     # compute the phase pattern to optimize the intensity in target 2,1
     target = (2, 1)
@@ -277,10 +311,10 @@ def test_multidimensional_feedback_fourier():
 
     # input the camera as a feedback object, such that it is multidimensional
     alg = BasicFDR(feedback=sim, slm=sim.slm, k_angles_min=-1, k_angles_max=1, phase_steps=3)
-    t = alg.execute()
+    t = alg.execute().t
 
     # compute the phase pattern to optimize the intensity in target 0
-    optimised_wf = np.angle(t[:, :, 2, 1])
+    optimised_wf = -np.angle(t[:, :, 2, 1])
 
     # Calculate the enhancement factor
     # Note: technically this is not the enhancement, just the ratio after/before

@@ -29,7 +29,7 @@ slm.transform = transform_matrix
 # alg = StepwiseSequential(n_x=1, n_y=1, phase_steps=3, controller=controller)
 alg = CharacterisingFDR(feedback=roi_detector, slm=slm, max_modes=10)
 
-t = alg.execute()
+t = alg.execute().t
 optimised_wf = np.angle(t)
 slm.phases = optimised_wf
 optimised_wf[optimised_wf < 0] += 2 * np.pi  # because the slm shows 0 to 2pi instead of -pi to pi

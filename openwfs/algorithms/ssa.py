@@ -1,7 +1,7 @@
 import numpy as np
 from typing import Any, Annotated
 from ..core import Detector, PhaseSLM
-from .utilities import analyze_phase_stepping
+from .utilities import analyze_phase_stepping, WFSResult
 
 
 class StepwiseSequential:
@@ -26,7 +26,7 @@ class StepwiseSequential:
         self._phase_steps = phase_steps
         self._execute_button = False
 
-    def execute(self):
+    def execute(self) -> WFSResult:
         phase_pattern = np.zeros((self.n_y, self.n_x), 'float32')
         measurements = np.zeros((self.n_y, self.n_x, self._phase_steps, *self._feedback.data_shape))
 
@@ -39,7 +39,7 @@ class StepwiseSequential:
                 phase_pattern[n_y, n_x] = 0
 
         self._feedback.wait()
-        return analyze_phase_stepping(measurements, axis=2).field
+        return analyze_phase_stepping(measurements, axis=2)
 
     @property
     def n_x(self) -> int:

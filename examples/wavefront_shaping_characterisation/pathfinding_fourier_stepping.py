@@ -31,7 +31,7 @@ def show_pathfinding_fourier_stepping():
     controller = Controller(detector=roi_detector, slm=sim)
     alg_char = CharacterisingFDR(phase_steps=3, overlap=0.1, max_modes=50, high_modes=0, high_phase_steps=17,
                                  intermediates=True, controller=controller)
-    alg_char.execute()
+    alg_char.execute().t
 
     pass
 

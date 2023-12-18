@@ -2,6 +2,7 @@ import numpy as np
 from typing import Union
 from ..slm.patterns import gaussian
 import astropy.units as u
+from ..utilities import imshow
 from .mockdevices import MockSLM, Processor
 
 
@@ -28,7 +29,7 @@ class SimulatedWFS(Processor):
         """
         slm = MockSLM(aberrations.shape[0:2])
         super().__init__(slm.pixels(), data_shape=aberrations.shape[2:], pixel_size=1 * u.dimensionless_unscaled)
-        self.E_input_slm = np.exp(1.0j * aberrations)
+        self.E_input_slm = np.exp(1.0j * aberrations) / np.sqrt(np.prod(slm.pixels().data_shape))
         if beam_profile_waist is not None:
             self.E_input_slm *= gaussian(aberrations.shape, waist=beam_profile_waist)
 
@@ -38,7 +39,7 @@ class SimulatedWFS(Processor):
         """This is where the intensity in the focus is computed."""
         correction = np.exp(1.0j * slm_phases)
         field = np.tensordot(correction, self.E_input_slm, 2)
-        intensity = abs(field) ** 2
+        intensity = np.abs(field) ** 2
         if out is not None:
             out[...] = intensity
         return intensity

@@ -1,8 +1,7 @@
 from types import SimpleNamespace
 import numpy as np
 from ..core import Detector, PhaseSLM
-from .utilities import analyze_phase_stepping
-from ..utilities import imshow
+from .utilities import analyze_phase_stepping, WFSResult
 from ..slm.patterns import tilt
 
 
@@ -63,7 +62,7 @@ class FourierDualRef:
         self.k_right = k_right
         self.slm_shape = slm_shape
 
-    def execute(self):
+    def execute(self) -> WFSResult:
         """Execute the FourierDualRef algorithm. This computes the SLM transmission matrix.
 
         Returns:
@@ -75,26 +74,16 @@ class FourierDualRef:
         # right side experiment
         t_data_right = self.single_side_experiment(self.k_right, 1)
 
-        # Compute transmission matrix (=field at SLM)
-        t = self.compute_t(t_data_left.field, t_data_right.field, self.k_left, self.k_right)
-
-        # Compute Signal to Noise Ratio averaged over all measured modes
-        snr = (t_data_left.snr_per_mode.mean() + t_data_right.snr_per_mode.mean()) / 2
-
-        ### To Do: process/analyze SNR per mode (e.g. compare high vs low spatial frequencies)
-
-        t_info = SimpleNamespace(t=t, snr=snr)
-
-        # calculate transmission matrix of the SLM plane from the Fourier transmission matrices:
-        return t_info
+        # Compute transmission matrix (=field at SLM), as well as noise statistics
+        return WFSResult(t=self.compute_t(t_data_left.t, t_data_right.t, self.k_left, self.k_right))
 
     def get_phase_pattern(self, k, phase_offset, side):
         # tilt generates a pattern from -2 to 2 (The convention for Zernike modes normalized to an RMS of 1).
         # The natural step to take is the Abbe diffraction limit, which corresponds to a gradient from
         # -π to π.
         num_columns = int((0.5 + 0.5 * self._overlap) * self.slm_shape[1])
-        tilted_front = tilt([self.slm_shape[0],num_columns], [k[0] * (0.5 * np.pi), k[1] *(0.5 * np.pi)], phase_offset=phase_offset, extent=self._slm.extent)
-
+        tilted_front = tilt([self.slm_shape[0], num_columns], [k[0] * (0.5 * np.pi), k[1] * (0.5 * np.pi)],
+                            phase_offset=phase_offset, extent=self._slm.extent)
 
         # Handle side-dependent pattern
 

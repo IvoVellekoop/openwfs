@@ -1,7 +1,7 @@
 from .fourier import FourierDualRef
 import numpy as np
 from ..core import Detector, PhaseSLM
-from .utilities import analyze_phase_stepping
+from .utilities import analyze_phase_stepping, WFSResult
 import os
 import pickle
 
@@ -81,7 +81,7 @@ class CharacterisingFDR(FourierDualRef):
         self.added_modes = [['Uncorrected enhancement']]
         self.feedback_target = []  # Pathfinding only works for 1-dimensional feedback.
 
-    def execute(self):
+    def execute(self) -> WFSResult:
         """Execute the algorithm.
 
         Returns:
@@ -96,8 +96,10 @@ class CharacterisingFDR(FourierDualRef):
         for side in range(2):  # for the left or right side of the SLM:
 
             n = 0  # number of measured modes
+            # TODO: should not be 'int'
             self.k_x = self.k_y = np.array(0, dtype=int)  # we begin in K[0,0]
-            t_fourier = kx_total = ky_total = np.array([])  # arrays in which to store the results
+            kx_total = ky_total = np.array([])  # arrays in which to store the results
+            t_fourier = None
 
             # the centers are the point around which the modes are measured. We store them to avoid duplicates
             centers = np.array([[], []], dtype=int)
@@ -107,9 +109,9 @@ class CharacterisingFDR(FourierDualRef):
             while n < self.max_modes:
 
                 # do measurement for current k_x and k_y
-                measurements = self.single_side_experiment(np.vstack((self.k_x, self.k_y)), side)
+                measurements = self.single_side_experiment(np.vstack((self.k_x, self.k_y)), side).t
                 # calculate their transmission elements
-                t_fourier = np.append(t_fourier, measurements)
+                t_fourier = measurements if t_fourier is None else np.append(t_fourier, measurements)
                 # store which k_x and k_y we just measured
                 kx_total = np.append(kx_total, self.k_x)
                 ky_total = np.append(ky_total, self.k_y)
@@ -171,7 +173,7 @@ class CharacterisingFDR(FourierDualRef):
 
         # Compute the transmission matrix with respect to the SLM plane from the transmission matrices in k-space
         self.t_slm = self.compute_t(self.t_left, self.t_right, self.k_left, self.k_right)
-        return self.t_slm
+        return WFSResult(t=self.t_slm)
 
     def measure_high_modes(self, t_fourier, kx_total, ky_total, side):
         """Measure the high-order modes of the system.

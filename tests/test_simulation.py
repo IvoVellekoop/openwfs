@@ -155,7 +155,7 @@ def test_microscope_wavefrontshaping(caplog):
     roi_detector = SingleRoi(cam, x=256, y=256, radius=0)  # Only measure that specific point
 
     alg = StepwiseSequential(feedback=roi_detector, slm=slm, phase_steps=3, n_x=3, n_y=3)
-    t = alg.execute()
+    t = alg.execute().t
 
     # test if the modes differ. The error causes them not to differ
     assert np.std(t[:][1:]) > 0

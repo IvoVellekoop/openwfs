@@ -2,7 +2,7 @@ from . import microscope
 from . import mockdevices
 
 from .microscope import Microscope
-from .mockdevices import MockXYStage, MockSource, MockCamera, MockSLM
+from .mockdevices import MockXYStage, MockSource, MockCamera, MockSLM, ADCProcessor
 from . import slm_patterns
 from .slm_patterns import *
 from . import simulation

@@ -3,9 +3,11 @@ import numpy as np
 from openwfs.algorithms import CharacterisingFDR
 from openwfs.feedback import Controller, SingleRoi
 import sys
+
 sys.path.append('..//')
 import matplotlib.pyplot as plt
 from skimage import data
+
 
 def enhancement_characterising_fourier():
     """
@@ -26,23 +28,25 @@ def enhancement_characterising_fourier():
     controller = Controller(detector=roi_detector, slm=sim)
     alg = CharacterisingFDR(phase_steps=3, overlap=0.1, max_modes=40, high_modes=0, high_phase_steps=17,
                             intermediates=intermediate, controller=controller)
-    t = alg.execute()
+    t = alg.execute().t
 
     print(alg.t_left)
 
     print(alg.k_left)
     plt.figure()
     k = alg.k_left
-    plt.imshow(abs(alg.get_dense_matrix(alg.k_left,alg.t_left)),extent=(min(k[0,:])-0.5,max(k[0,:])+0.5,min(k[1,:])-0.5,max(k[1,:])+0.5))
+    plt.imshow(abs(alg.get_dense_matrix(alg.k_left, alg.t_left)),
+               extent=(min(k[0, :]) - 0.5, max(k[0, :]) + 0.5, min(k[1, :]) - 0.5, max(k[1, :]) + 0.5))
     plt.colorbar(label='t_abs')
 
     plt.figure()
     k = alg.k_right
-    plt.imshow(abs(alg.get_dense_matrix(alg.k_right,alg.t_right)),extent=(min(k[0,:])-0.5,max(k[0,:])+0.5,min(-k[1,:])-0.5,max(-k[1,:])+0.5))
+    plt.imshow(abs(alg.get_dense_matrix(alg.k_right, alg.t_right)),
+               extent=(min(k[0, :]) - 0.5, max(k[0, :]) + 0.5, min(-k[1, :]) - 0.5, max(-k[1, :]) + 0.5))
     plt.colorbar(label='t_abs')
-    print(min(alg.k_right[0,:]))
+    print(min(alg.k_right[0, :]))
     print(max(alg.k_right[0, :]))
-    print(min(alg.k_right[1,:]))
+    print(min(alg.k_right[1, :]))
     print(max(alg.k_right[1, :]))
     optimised_wf = np.angle(t)
 
@@ -58,13 +62,11 @@ def enhancement_characterising_fourier():
     plt.colorbar()
     plt.clim([-np.pi, np.pi])
 
-
     predicted_enhancement = [0]
 
     ncount = 0
     modenumbers = [0]
     combined_t = np.append(alg.t_left, alg.t_right)
-
 
     for n, modes in enumerate(alg.added_modes[1:]):
         nmodes = len(modes)
@@ -107,5 +109,6 @@ def enhancement_characterising_fourier():
     plt.show()
     return True
 
-if __name__=="__main__":
+
+if __name__ == "__main__":
     print(enhancement_characterising_fourier())
