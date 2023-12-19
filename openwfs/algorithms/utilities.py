@@ -173,6 +173,7 @@ class WFSController:
         self._feedback_enhancement = None
         self._test_wavefront = False
         self._snr = None  # Average SNR. Computed when wavefront is computed.
+        self._estimated_enhancement = None  # Expected enhancement from phase stepping measurements
 
     @property
     def wavefront(self) -> State:
@@ -201,6 +202,7 @@ class WFSController:
                 result = self.algorithm.execute().select_target(0)
                 self._optimized_wavefront = -np.angle(result.t)
                 self._snr = result.snr
+                self._estimated_enhancement = result.estimated_enhancement
             self.algorithm._slm.set_phases(self._optimized_wavefront)
 
     @property
@@ -227,6 +229,10 @@ class WFSController:
     def feedback_enhancement(self) -> float:
         """Returns: the average enhancement of the feedback, returns none if no such enhancement was measured."""
         return self._feedback_enhancement
+
+    @property
+    def estimated_enhancement(self) -> float:
+        return self._estimated_enhancement
 
     @property
     def test_wavefront(self) -> bool:
