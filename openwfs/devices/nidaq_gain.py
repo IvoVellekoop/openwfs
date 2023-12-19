@@ -82,6 +82,7 @@ class Gain:
 
     @property
     def reset(self) -> bool:
+        """Triggers the reset process if set to True."""
         return self._reset
 
     @reset.setter
@@ -91,6 +92,7 @@ class Gain:
 
     @property
     def gain(self) -> Annotated[Quantity[u.ms], {'min': 0 * u.V, 'max': 0.9 * u.V}]:
+        """Sets or gets the current gain value. Range: 0 to 0.9 volts."""
         # The range of values is the hardware supplier's defined voltage range. Setting the range here for safety
         return self._gain
 

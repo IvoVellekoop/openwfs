@@ -38,6 +38,7 @@ class GenericXYStage:
 
     @property
     def x(self) -> Quantity[u.um]:
+        """Current X position of the stage in micrometers."""
         return self._x
 
     @x.setter
@@ -47,6 +48,7 @@ class GenericXYStage:
 
     @property
     def y(self) -> Quantity[u.um]:
+        """Current Y position of the stage in micrometers."""
         return self._y
 
     @y.setter
@@ -56,6 +58,7 @@ class GenericXYStage:
 
     @property
     def step_size_x(self) -> Quantity[u.um]:
+        """Step size in the X direction in micrometers."""
         return self._step_size_x
 
     @step_size_x.setter
@@ -64,6 +67,7 @@ class GenericXYStage:
 
     @property
     def step_size_y(self) -> Quantity[u.um]:
+        """Step size in the Y direction in micrometers."""
         return self._step_size_y
 
     @step_size_y.setter

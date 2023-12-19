@@ -34,6 +34,7 @@ class GenericZStage:
 
     @property
     def position(self) -> Quantity[u.um]:
+        """Current vertical position of the stage in micrometers."""
         return self._position
 
     @position.setter
@@ -43,6 +44,7 @@ class GenericZStage:
 
     @property
     def step_size(self) -> Quantity[u.um]:
+        """Step size for vertical movements in micrometers."""
         return self._step_size
 
     @step_size.setter
