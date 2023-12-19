@@ -34,23 +34,24 @@ class FourierDualRef:
         """
 
         Args:
-          slm (PhaseSLM): slm object.
-            The slm may have the `extent` property set to indicate the extent of the back pupil of the microscope
-            objective in slm coordinates.
-            By default, a value of 2.0,
-            2.0 is used (indicating that the pupil corresponds to a circle of radius 1.0 on the SLM).
-            However, to prevent artefacts at the edges of the SLM, it may be overfilled, such that the `phases` image
-            is mapped to an extent of e.g. (2.2, 2.2), i.e. 10% larger than the back pupil.
-          k_left (numpy.ndarray): 2-row matrix containing the y, and x components of the spatial frequencies
-            used as basis for the left-hand side of the SLM.
-            The frequencies are defined such that a frequency of (1,0) or (0,1) corresponds to
-            a phase gradient of -π to π over the back pupil of the microscope objective, which results in
-            a displacement in the focal plane of exactly a distance corresponding to the Abbe diffraction limit.
-          k_right (numpy.ndarray): 2-row matrix containing the y and x components of the spatial frequencies
-            for the right-hand side of the SLM.
-            The number of frequencies need not be equal for k_left and k_right.
-          phase_steps (int): The number of phase steps for each mode (default is 4).
-          overlap (float): The overlap between the reference and measurement part of the SLM (default is 0.1).
+            feedback (Detector): The feedback source, usually a detector that provides measurement data.
+            slm (PhaseSLM): slm object.
+              The slm may have the `extent` property set to indicate the extent of the back pupil of the microscope
+              objective in slm coordinates. By default, a value of 2.0, 2.0 is used (indicating that the pupil
+              corresponds to a circle of radius 1.0 on the SLM). However, to prevent artefacts at the edges of the SLM,
+              it may be overfilled, such that the `phases` image is mapped to an extent of e.g. (2.2, 2.2), i.e.
+              10% larger than the back pupil.
+            slm_shape (tuple[int, int]): The shape of the SLM patterns and transmission matrices.
+            k_left (numpy.ndarray): 2-row matrix containing the y, and x components of the spatial frequencies
+              used as basis for the left-hand side of the SLM.
+              The frequencies are defined such that a frequency of (1,0) or (0,1) corresponds to
+              a phase gradient of -π to π over the back pupil of the microscope objective, which results in
+              a displacement in the focal plane of exactly a distance corresponding to the Abbe diffraction limit.
+            k_right (numpy.ndarray): 2-row matrix containing the y and x components of the spatial frequencies
+              for the right-hand side of the SLM.
+              The number of frequencies need not be equal for k_left and k_right.
+            phase_steps (int): The number of phase steps for each mode (default is 4).
+            overlap (float): The overlap between the reference and measurement part of the SLM (default is 0.1).
         """
         self._execute_button = False
         self._phase_steps = phase_steps
@@ -62,10 +63,11 @@ class FourierDualRef:
         self.slm_shape = slm_shape
 
     def execute(self) -> WFSResult:
-        """Execute the FourierDualRef algorithm. This computes the SLM transmission matrix.
+        """
+        Executes the FourierDualRef algorithm, computing the SLM transmission matrix.
 
         Returns:
-            numpy.ndarray: The SLM transmission matrix.
+            WFSResult: An object containing the computed SLM transmission matrix and related data.
         """
         # left side experiment
         t_data_left = self.single_side_experiment(self.k_left, 0)
@@ -77,6 +79,17 @@ class FourierDualRef:
         return self.compute_t(t_data_left, t_data_right, self.k_left, self.k_right)
 
     def get_phase_pattern(self, k, phase_offset, side):
+        """
+        Generates a phase pattern for the SLM based on the given spatial frequency, phase offset, and side.
+
+        Args:
+            k (np.ndarray): A 2-element array representing the spatial frequency.
+            phase_offset (float): The phase offset to apply to the pattern.
+            side (int): Indicates the side of the SLM for the pattern (0 for left, 1 for right).
+
+        Returns:
+            np.ndarray: The generated phase pattern.
+        """
         # tilt generates a pattern from -2 to 2 (The convention for Zernike modes normalized to an RMS of 1).
         # The natural step to take is the Abbe diffraction limit, which corresponds to a gradient from
         # -π to π.
@@ -100,10 +113,14 @@ class FourierDualRef:
 
     def single_side_experiment(self, k_set, side):
         """
-        Conducts the experiment on one side of the SLM and analyzes the result.
+        Conducts experiments on one side of the SLM, generating measurements for each spatial frequency and phase step.
 
         Args:
-            side (int): 0 for left, 1 for right side of the SLM.
+            k_set (np.ndarray): An array of spatial frequencies to use in the experiment.
+            side (int): Indicates which side of the SLM to use (0 for left, 1 for right).
+
+        Returns:
+            WFSResult: An object containing the computed SLM transmission matrix and related data.
         """
         measurements = np.zeros((k_set.shape[1], self.phase_steps, *self._feedback.data_shape))
 
@@ -118,16 +135,17 @@ class FourierDualRef:
         return analyze_phase_stepping(measurements, axis=1)
 
     def compute_t(self, left: WFSResult, right: WFSResult, k_left, k_right) -> WFSResult:
-        """Computes the SLM transmission matrix from the Fourier transmission matrices.
+        """
+        Computes the SLM transmission matrix by combining the Fourier transmission matrices from both sides of the SLM.
 
         Args:
-            left (numpy.ndarray): wavefront shaping result data for the left side.
-            right (numpy.ndarray): wavefront shaping result data right side.
-            k_left (numpy.ndarray): [k_x, k_y] matrix for the left side of shape (2, n).
-            k_right (numpy.ndarray): [k_x, k_y] matrix for the right side of shape (2, n).
+            left (WFSResult): The wavefront shaping result for the left side.
+            right (WFSResult): The wavefront shaping result for the right side.
+            k_left (np.ndarray): The spatial frequency matrix for the left side.
+            k_right (np.ndarray): The spatial frequency matrix for the right side.
 
         Returns:
-            numpy.ndarray: The SLM transmission matrix.
+            WFSResult: An object containing the combined transmission matrix and related statistics.
         """
 
         # TODO: determine noise

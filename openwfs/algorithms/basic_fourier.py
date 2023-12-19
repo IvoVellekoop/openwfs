@@ -22,7 +22,6 @@ class BasicFDR(FourierDualRef):
     def __init__(self, feedback: Detector, slm: PhaseSLM, slm_shape=(500, 500), phase_steps=4, k_angles_min=-3,
                  k_angles_max=3, overlap=0.1):
         """
-
         Args:
             feedback (Detector): Source of feedback
             slm (PhaseSLM): The spatial light modulator
@@ -38,9 +37,9 @@ class BasicFDR(FourierDualRef):
         self._k_angles_min = k_angles_min
         self._k_angles_max = k_angles_max
 
-        self.build_kspace()
+        self._build_kspace()
 
-    def build_kspace(self):
+    def _build_kspace(self):
         """Constructs the k-space by creating Cartesian products of k_x and k_y angles.
         Fills the k_left and k_right matrices with the same k-space.
 
@@ -63,7 +62,7 @@ class BasicFDR(FourierDualRef):
     @k_angles_min.setter
     def k_angles_min(self, value):
         self._k_angles_min = value
-        self.build_kspace()
+        self._build_kspace()
 
     @property
     def k_angles_max(self) -> int:
@@ -72,4 +71,4 @@ class BasicFDR(FourierDualRef):
     @k_angles_max.setter
     def k_angles_max(self, value):
         self._k_angles_max = value
-        self.build_kspace()
+        self._build_kspace()

@@ -24,9 +24,12 @@ class StepwiseSequential:
         self._slm = slm
         self._feedback = feedback
         self._phase_steps = phase_steps
-        self._execute_button = False
 
     def execute(self) -> WFSResult:
+        """
+        Returns:
+            WFSResult: An object containing the computed SLM transmission matrix and related data.
+        """
         phase_pattern = np.zeros((self.n_y, self.n_x), 'float32')
         measurements = np.zeros((self.n_y, self.n_x, self._phase_steps, *self._feedback.data_shape))
 
@@ -64,12 +67,3 @@ class StepwiseSequential:
     @phase_steps.setter
     def phase_steps(self, value):
         self._phase_steps = value
-
-    @property
-    def execute_button(self) -> bool:
-        return self._execute_button
-
-    @execute_button.setter
-    def execute_button(self, value):
-        self.execute()
-        self._execute_button = value

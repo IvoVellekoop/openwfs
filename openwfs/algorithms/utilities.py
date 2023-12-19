@@ -39,6 +39,7 @@ class WFSResult:
     def select_target(self, b) -> 'WFSResult':
         """
         Returns the wavefront shaping results for a single target
+
         Args:
             b(int): target to select, as integer index.
                 If the target array is multi-dimensional, it is flattened before selecting the `b`-th component.
@@ -132,11 +133,21 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int):
 
 
 class WFSController:
+    """
+    Controller for Wavefront Shaping (WFS) operations using a specified algorithm in the MicroManager environment.
+    Manages the state of the wavefront and executes the algorithm to optimize and apply wavefront corrections, while
+    exposing all these parameters to MicroManager.
+    """
     class State(Enum):
         FLAT_WAVEFRONT = 0
         SHAPED_WAVEFRONT = 1
 
     def __init__(self, algorithm):
+        """
+
+        Args:
+            algorithm: An instance of a wavefront shaping algorithm.
+        """
         self._algorithm = algorithm
         self._slm = algorithm._slm
         self._wavefront = WFSController.State.FLAT_WAVEFRONT
@@ -148,10 +159,22 @@ class WFSController:
 
     @property
     def wavefront(self) -> State:
+        """
+        Gets the current wavefront state.
+
+        Returns:
+            State: The current state of the wavefront, either FLAT_WAVEFRONT or SHAPED_WAVEFRONT.
+        """
         return self._wavefront
 
     @wavefront.setter
     def wavefront(self, value):
+        """
+        Sets the wavefront state and applies the corresponding phases to the SLM.
+
+        Args:
+            value (State): The desired state of the wavefront to set.
+        """
         self._wavefront = value
         if value == WFSController.State.FLAT_WAVEFRONT:
             self._slm.set_phases(0.0)
@@ -165,6 +188,12 @@ class WFSController:
 
     @property
     def snr(self) -> float:
+        """
+        Gets the signal-to-noise ratio (SNR) of the optimized wavefront.
+
+        Returns:
+            float: The average SNR computed during wavefront optimization.
+        """
         return self._snr
 
     @property
@@ -185,6 +214,13 @@ class WFSController:
 
     @test_wavefront.setter
     def test_wavefront(self, value):
+        """
+        Calculates the feedback enhancement between the flat and shaped wavefronts by measuring feedback for both
+        cases.
+
+        Args:
+            value (bool): True to enable test mode, False to disable.
+        """
         if value:
             self.wavefront = WFSController.State.FLAT_WAVEFRONT
             feedback_flat = self._algorithm._feedback.read()
