@@ -72,11 +72,16 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int):
         axis(int): indicates which axis holds the phase steps.
 
     With `phase_steps` phase steps, the measurements are given by
-    .. math::
-        I_p = \lvert A + B exp(i 2\pi p / phase_steps)\rvert^2,
 
-    This function computes the Fourier transform. math::
-        \frac{1}{phase_steps} \sum I_p exp(-i 2\pi p / phase_steps) = A^* B
+    .. math::
+
+        I_p = \lvert A + B \\exp(i 2\pi p / phase_{steps})\\rvert^2,
+
+    This function computes the Fourier transform.
+
+    .. math::
+
+        \\frac{1}{phase_{steps}} \\sum I_p  \\exp(-i 2\\pi p / phase_{steps}) = A^* B
 
     The value of A^* B for each set of measurements is stored in the `field` attribute of the return
     value.
