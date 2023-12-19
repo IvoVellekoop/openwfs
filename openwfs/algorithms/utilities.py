@@ -8,12 +8,14 @@ class WFSResult:
 
     Attributes:
         t: measured transmission matrix.
-            if multiple targets were used, the first dimension(s) of t denote the columns of the transmission matrix (`a` indices)
-            and the last dimensions(s) denote the targets, i.e., the rows of the transmission matrix (`b` indices).
+            if multiple targets were used, the first dimension(s) of t denote the columns of the transmission matrix
+            (`a` indices) and the last dimensions(s) denote the targets, i.e., the rows of the transmission matrix
+            (`b` indices).
         n: number of degrees of freedom (columns of the transmission matrix)
         snr: estimated signal-to-noise ratio for each of the targets.
         noise_factor: the estimated loss in fidelity caused by the the limited snr.
-        amplitude_factor: estimated reduction of the fidelity due to phase-only modulation (≈ π/4 for fully developed speckle)
+        amplitude_factor: estimated reduction of the fidelity due to phase-only modulation (≈ π/4 for fully developed
+            speckle)
         estimated_improvement: estimated ratio after/before
         estimated_enhancement: estimated ratio <after>/<before>  (with <> denoting ensemble average)
     """
@@ -137,6 +139,18 @@ class WFSController:
     Controller for Wavefront Shaping (WFS) operations using a specified algorithm in the MicroManager environment.
     Manages the state of the wavefront and executes the algorithm to optimize and apply wavefront corrections, while
     exposing all these parameters to MicroManager.
+
+    Attributes:
+        Public:
+            wavefront (State): Current state of the wavefront.
+            recompute_wavefront (bool): Flag to indicate if the wavefront needs to be recomputed.
+            feedback_enhancement (float): Measured feedback enhancement.
+            test_wavefront (bool): Flag indicating if the wavefront is in test mode.
+            snr (float): Average signal-to-noise ratio computed during wavefront optimization.
+            algorithm: The wavefront shaping algorithm instance.
+
+        Private:
+            _optimized_wavefront (numpy.ndarray): Optimized wavefront data.
     """
     class State(Enum):
         FLAT_WAVEFRONT = 0
@@ -144,12 +158,10 @@ class WFSController:
 
     def __init__(self, algorithm):
         """
-
         Args:
             algorithm: An instance of a wavefront shaping algorithm.
         """
-        self._algorithm = algorithm
-        self._slm = algorithm._slm
+        self.algorithm = algorithm
         self._wavefront = WFSController.State.FLAT_WAVEFRONT
         self._optimized_wavefront = None
         self._recompute_wavefront = False
@@ -177,14 +189,14 @@ class WFSController:
         """
         self._wavefront = value
         if value == WFSController.State.FLAT_WAVEFRONT:
-            self._slm.set_phases(0.0)
+            self.algorithm._slm.set_phases(0.0)
         else:
             if self._recompute_wavefront or self._optimized_wavefront is None:
                 # select only the wavefront and statistics for the first target
-                result = self._algorithm.execute().select_target(0)
+                result = self.algorithm.execute().select_target(0)
                 self._optimized_wavefront = -np.angle(result.t)
                 self._snr = result.snr
-            self._slm.set_phases(self._optimized_wavefront)
+            self.algorithm._slm.set_phases(self._optimized_wavefront)
 
     @property
     def snr(self) -> float:
@@ -198,18 +210,22 @@ class WFSController:
 
     @property
     def recompute_wavefront(self) -> bool:
+        """Returns: bool that indicates whether the wavefront needs to be recomputed. """
         return self._recompute_wavefront
 
     @recompute_wavefront.setter
     def recompute_wavefront(self, value):
+        """Sets the bool that indicates whether the wavefront needs to be recomputed. """
         self._recompute_wavefront = value
 
     @property
     def feedback_enhancement(self) -> float:
+        """Returns: the average enhancement of the feedback, returns none if no such enhancement was measured."""
         return self._feedback_enhancement
 
     @property
     def test_wavefront(self) -> bool:
+        """Returns: bool that indicates whether test_wavefront will be performed if set."""
         return self._test_wavefront
 
     @test_wavefront.setter
@@ -223,9 +239,9 @@ class WFSController:
         """
         if value:
             self.wavefront = WFSController.State.FLAT_WAVEFRONT
-            feedback_flat = self._algorithm._feedback.read()
+            feedback_flat = self.algorithm._feedback.read()
             self.wavefront = WFSController.State.SHAPED_WAVEFRONT
-            feedback_shaped = self._algorithm._feedback.read()
+            feedback_shaped = self.algorithm._feedback.read()
             self._feedback_enhancement = float(feedback_shaped.sum() / feedback_flat.sum())
 
         self._test_wavefront = value

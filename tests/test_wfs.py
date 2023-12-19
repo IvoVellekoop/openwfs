@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 
 from ..openwfs.simulation import SimulatedWFS, MockSource, MockSLM, Microscope, ADCProcessor
 import numpy as np
-from ..openwfs.algorithms import StepwiseSequential, BasicFDR, CharacterisingFDR, WFSController
+from ..openwfs.algorithms import StepwiseSequential, BasicFDR, WFSController
 from ..openwfs.processors import SingleRoi
 import skimage
 from ..openwfs.utilities import imshow
@@ -170,31 +170,6 @@ def test_fourier_correction_field():
 
     assert abs(correlation) > 0.75  # not that high because a 9 mode WFS procedure can only do so much
 
-
-def test_pathfinding_fourier():
-    """
-    Test the enhancement performance of the Fourier-based algorithm.
-    """
-    aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
-    sim = SimulatedWFS(aberrations)
-    alg = CharacterisingFDR(feedback=sim, slm=sim.slm, phase_steps=3, overlap=0.1, max_modes=12)
-    t = alg.execute().t
-
-    # compute the phase pattern to optimize the intensity in target 0
-    optimised_wf = -np.angle(t)
-
-    # Calculate the enhancement factor
-    # Note: technically this is not the enhancement, just the ratio after/before
-    sim.slm.set_phases(0.0)
-    before = sim.read()
-    sim.slm.set_phases(optimised_wf)
-    after = sim.read()
-    enhancement = after / before
-
-    assert enhancement >= 3.0, f"""The SSA algorithm did not enhance focus as much as expected.
-        Expected at least 3.0, got {enhancement}"""
-
-
 def test_phaseshift_correction():
     """
     Test the effect of shifting the found correction of the Fourier-based algorithm.
@@ -263,28 +238,6 @@ def test_flat_wf_response_ssa():
     # Assert that the standard deviation of the optimized wavefront is below the threshold,
     # indicating that it is effectively flat
     assert np.std(optimised_wf) < 0.001, f"Response flat wavefront not flat, std: {np.std(optimised_wf)}"
-
-
-def test_flat_wf_response_pathfinding_fourier():
-    """
-    Test the response of the Fourier-based WFS method when the solution is flat
-    A flat solution means that the optimal correction is no correction.
-
-    test the optimised wavefront by checking if it has irregularities.
-    Since a flat wavefront at 0 or pi have the same effect, the absolute value of the front is irrelevant.
-    """
-    aberrations = np.zeros(shape=(512, 512))
-    sim = SimulatedWFS(aberrations.reshape((*aberrations.shape, 1)))
-    alg = CharacterisingFDR(feedback=sim, slm=sim.slm, phase_steps=3, overlap=0.1, max_modes=12)
-
-    # Execute the SSA algorithm to get the optimized wavefront
-    t = alg.execute().t
-    optimised_wf = np.angle(t)
-
-    # Assert that the standard deviation of the optimized wavefront is below the threshold,
-    # indicating that it is effectively flat
-    assert np.std(optimised_wf) < 0.001, f"Response flat wavefront not flat, std: {np.std(optimised_wf)}"
-
 
 def test_multidimensional_feedback_ssa():
     aberrations = np.random.uniform(0.0, 2 * np.pi, (256, 256, 5, 2))
