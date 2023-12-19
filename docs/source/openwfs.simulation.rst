@@ -28,14 +28,6 @@ openwfs.simulation.simulation module
    :undoc-members:
    :show-inheritance:
 
-openwfs.simulation.slm\_patterns module
----------------------------------------
-
-.. automodule:: openwfs.simulation.slm_patterns
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 Module contents
 ---------------
 

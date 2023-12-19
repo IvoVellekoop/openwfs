@@ -10,11 +10,8 @@ Welcome to OpenWFS's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-   readme
-   examples_readme
-   openwfs_readme
-   how_to_make_a_device
-   specific_device_requirements
+   ../readme.md
+
    
    
 Getting started
@@ -31,8 +28,29 @@ PyDevices: Specific Device Requirements
 ----------------------------
 .. include:: ../openwfs/devices/SPECIFIC_DEVICE_REQUIREMENTS.md
 	:parser: markdown
-.. automodule:: source
-   :members:
+	
+API Reference
+-------------
+	
+.. automodule:: openwfs
+   :members: 
+   :undoc-members:
+   :show-inheritance:
+  
+Examples
+--------
+Link to examples or include them directly here
+
+
+
+Contributing
+------------
+Guidelines for contributing to the project.
+
+Changelog
+---------
+Information about the version history.
+
 
 Indices and tables
 ==================

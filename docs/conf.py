@@ -8,7 +8,9 @@
 import os
 import sys
 sys.path.append(os.path.abspath('myst_parser'))
-sys.path.insert(0, os.path.abspath('../'))
+sys.path.insert(0, os.path.abspath('../../openwfs'))
+p = os.path.dirname(os.path.dirname(__file__))
+sys.path.append(p)
 
 project = 'OpenWFS'
 copyright = '2023, Ivo Vellekoop and Jeroen Doornbos'
@@ -18,7 +20,7 @@ release = '0.0.1'
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
-extensions = ['sphinx.ext.autodoc','sphinx.ext.napoleon','recommonmark']
+extensions = ['sphinx.ext.napoleon','sphinx.ext.autodoc','recommonmark']
 
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
