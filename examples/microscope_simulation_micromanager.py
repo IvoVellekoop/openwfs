@@ -38,6 +38,7 @@ devices = {
     'microscope': sim,
     'wfs': alg}
 
+# === Uncomment for debugging === #
 # controller.wavefront = WFSController.State.FLAT_WAVEFRONT
 # before = roi_detector.read()
 # controller.wavefront = WFSController.State.SHAPED_WAVEFRONT
