@@ -16,6 +16,14 @@ class Generator(Detector):
     """
 
     def __init__(self, generator, *, duration=0 * u.ms, **kwargs):
+        """
+        Initializes the Generator class, a subclass of Detector, that generates synthetic data.
+
+        Args:
+            generator (callable): A function that takes the data shape as input and returns the generated data.
+            duration (Quantity[u.ms]): Duration for which the generator simulates the data acquisition.
+            **kwargs: Additional keyword arguments to be passed to the Detector base class.
+        """
         super().__init__(**kwargs)
         self._duration = duration
         self._generator = generator
@@ -89,6 +97,15 @@ class MockSource(Generator):
 
     def __init__(self, data, pixel_size: Quantity = None, extent: Union[Quantity, float, Sequence[float], None] = None,
                  **kwargs):
+        """
+        Initializes the MockSource class, a subclass of Generator, that returns pre-set data.
+
+        Args:
+            data (np.ndarray): The pre-set data to be returned by the mock source.
+            pixel_size (Quantity, optional): The size of each pixel in the data.
+            extent (Union[Quantity, float, Sequence[float], None], optional): The physical extent of the data array.
+            **kwargs: Additional keyword arguments.
+        """
         def generator(data_shape):
             assert data_shape == self._data.shape
             return self._data.copy()
@@ -132,6 +149,18 @@ class ADCProcessor(Processor):
 
     def __init__(self, source: Detector, analog_max: float = 0.0, digital_max: int = 0xFFFF,
                  shot_noise: bool = False):
+        """
+        Initializes the ADCProcessor class, which mimics an analog-digital converter.
+
+        Args:
+            source (Detector): The source detector providing analog data.
+            analog_max (float): The maximum analog value that can be handled by the ADC. If set to 0, the maximum
+            value will be set to the maximum value in the data passed by source. Note that this means 2 measurements
+            are no longer proportional to each other, if they would be in the source.
+
+            digital_max (int): The maximum digital value that the ADC can output, default is unsigned 16-bit maximum.
+            shot_noise (bool): Flag to determine if Poisson noise should be applied instead of rounding.
+        """
         super().__init__(source)
         self._analog_max = None
         self._digital_max = None
@@ -209,6 +238,13 @@ class MockCamera(ADCProcessor):
 
     def __init__(self, source: Detector, shape: Union[Sequence[int], None] = None,
                  pos: Union[Sequence[int], None] = None, **kwargs):
+        """
+        Args:
+            source (Detector): The source detector to be wrapped.
+            shape (Union[Sequence[int], None], optional): The shape of the image data to be captured.
+            pos (Union[Sequence[int], None], optional): The position on the source from where the image is captured.
+            **kwargs: Additional keyword arguments to be passed to the Detector base class.
+        """
         self._crop = CropProcessor(source, shape=shape, pos=pos)
         super().__init__(source=self._crop, **kwargs)
 
@@ -271,7 +307,16 @@ class MockCamera(ADCProcessor):
 
 
 class MockXYStage(Actuator):
+    """
+    Mimics an XY stage actuator
+    """
     def __init__(self, step_size_x: Quantity[u.um], step_size_y: Quantity[u.um]):
+        """
+
+        Args:
+            step_size_x (Quantity[u.um]): The step size in the x-direction.
+            step_size_y (Quantity[u.um]): The step size in the y-direction.
+        """
         super().__init__()
         self.step_size_x = step_size_x.to(u.um)
         self.step_size_y = step_size_y.to(u.um)
@@ -300,7 +345,15 @@ class MockXYStage(Actuator):
 
 
 class MockSLM(PhaseSLM):
+    """
+    A mock version of a phase-only spatial light modulator
+    """
     def __init__(self, shape):
+        """
+
+        Args:
+            shape (Sequence[int]): The 2D shape of the SLM.
+        """
         super().__init__()
         if len(shape) != 2:
             raise ValueError("Shape of the SLM should be 2-dimensional.")
@@ -314,6 +367,15 @@ class MockSLM(PhaseSLM):
         self._back_buffer[:] = 0.0
 
     def set_phases(self, values: Union[np.ndarray, float], update=True):
+        """
+
+        Args:
+            values ():
+            update ():
+
+        Returns:
+
+        """
         values = np.atleast_2d(values)
         scale = np.array(self._back_buffer.shape) / np.array(values.shape)
         # TODO: replace by cv2, with area interpolation
