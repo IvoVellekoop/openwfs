@@ -50,7 +50,18 @@ class ScanningMicroscope(Detector):
     Note: the padding affects the physical size of the ROI, and hence the pixel_size
     The padding does not affect the number of pixels (`data_shape`) in the returned image.
 
-    Delay
+    Attributes:
+        left (int): The leftmost pixel of the Region of Interest (ROI) in the scan range.
+        top (int): The topmost pixel of the ROI in the scan range.
+        height (int): The number of pixels in the vertical dimension of the ROI.
+        width (int): The number of pixels in the horizontal dimension of the ROI.
+        dwell_time (Quantity[u.us]): The time spent on each pixel during scanning.
+        duration (Quantity[u.ms]): Total duration of scanning for one frame.
+        delay (Quantity[u.us]): Delay between the control signal to the mirrors and the start of data acquisition.
+        binning (int): Factor by which the resolution is reduced; lower binning increases resolution.
+        padding (float): Fraction of the scan range at the edges to discard to reduce edge artifacts.
+        bidirectional (bool): Whether scanning is bidirectional along the fast axis.
+
     """
 
     # LaserScanner(input=("ai/8", -1.0 * u.V, 1.0 * u.V))
@@ -85,9 +96,14 @@ class ScanningMicroscope(Detector):
                 Sample rate of the NiDaq input channel.
                 The sample rate affects the total time needed to scan a single frame.
                 Setting the ROI, padding, or binning does not affect the sample rate.
-            delay:
-            padding:
-            bidirectional:
+            delay (Quantity[u.us]): Delay between mirror control and data acquisition.
+            binning (int): Binning can be used to change the pixel size without changing the ROI. By decreasing the
+                `binning` property, more points are measured for the same ROI, thereby increasing the resolution.
+                For compatibility with micromanager, the `binning` property should be an integer. A binning of 100
+                corresponds to the `data_shape` passed in the initializer of the object.
+            padding (float): Padding fraction at the sides of the scan. The scanner will scan a larger area than will be
+                reconstructed, to make sure the reconstructed image is within the linear scan range of the mirrors.
+            bidirectional (bool): If true, enables bidirectional scanning along the fast axis.
         """
         # settings for input/output channels
         self._in_channel = input[0]
@@ -221,6 +237,11 @@ class ScanningMicroscope(Detector):
         self._write_task.start()
 
     def _raw_to_cropped(self, raw):
+        """Converts the raw scanner data back into a 2-Dimensional image.
+
+        Because the scanner can return both signed and unsigned integers, both cases are accounted for. Crops the data
+        if padding was added. Flips the even rows back if scanned in bidirectional mode.
+        """
         start = (self._padded_data_shape - self._data_shape) // 2
         end = self._padded_data_shape - start
 

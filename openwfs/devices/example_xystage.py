@@ -3,7 +3,26 @@ import astropy.units as u
 
 
 class GenericXYStage:
+    """
+    Represents a generic XY stage device with configurable step sizes and positions. This class demonstrates
+    the use of astropy units for handling measurements in micrometers (um).
+
+    Attributes:
+        x (Quantity[u.um]): Current X position of the stage in micrometers.
+        y (Quantity[u.um]): Current Y position of the stage in micrometers.
+        step_size_x (Quantity[u.um]): Step size in the X direction in micrometers.
+        step_size_y (Quantity[u.um]): Step size in the Y direction in micrometers.
+
+    The class provides methods to control the position of the stage and adjust its step sizes.
+    """
     def __init__(self, step_size_x: Quantity[u.um], step_size_y: Quantity[u.um]):
+        """
+        Initializes a new instance of the GenericXYStage class with specified step sizes.
+
+        Args:
+            step_size_x (Quantity[u.um]): The step size for movements in the X direction.
+            step_size_y (Quantity[u.um]): The step size for movements in the Y direction.
+        """
         super().__init__()
         self._step_size_x = step_size_x.to(u.um)
         self._step_size_y = step_size_y.to(u.um)

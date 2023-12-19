@@ -10,8 +10,34 @@ class SomeOptions(Enum):
 
 
 class GenericDevice:
+    """
+    Represents a generic device with various configurable options. This device serves as a demonstration
+    of different data types and their handling.
+
+    Attributes:
+        options (SomeOptions): Enumerated options for the device. Possible values are from the SomeOptions enum.
+        floating_point (float): A floating-point value representing some parameter of the device.
+        distance (u.Quantity[u.mm]): A distance measurement with astropy units, in millimeters.
+        boolean (bool): A boolean value representing a binary state or choice for the device.
+        integer (int): An integer value, constrained within a specified range (0 to 42).
+        command (str): A string representing a command or message for the device.
+
+    The class allows setting and retrieving these attributes, demonstrating the use of properties
+    and type annotations in Python.
+    """
 
     def __init__(self, options, floating_point, distance, boolean, integer, command):
+        """
+        Initializes a new instance of the GenericDevice class with specified configurations.
+
+        Args:
+            options (SomeOptions): The initial setting for the device options.
+            floating_point (float): The initial floating-point value.
+            distance (u.Quantity[u.mm]): The initial distance measurement.
+            boolean (bool): The initial boolean state.
+            integer (int): The initial integer value.
+            command (str): The initial command for the device.
+        """
         self._options = options
         self._floating_point = floating_point
         self._distance = distance
