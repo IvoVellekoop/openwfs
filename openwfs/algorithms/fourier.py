@@ -13,14 +13,12 @@ class FourierDualRef:
           feedback (Detector): Source of feedback
           slm (PhaseSLM): The spatial light modulator
           slm_shape (tuple of two ints): The shape that the SLM patterns & transmission matrices are calculated for,
-                                        does not necessarily have to be the actual pixel dimensions as the SLM.
-          phase_steps (int): The number of phase steps per mode.
-            Default = 4
+            does not necessarily have to be the actual pixel dimensions as the SLM.
+          phase_steps (int): The number of phase steps per mode. Default = 4
           overlap (float): A value between 0 and 1 that indicates the fraction of overlap between the reference
-           and measurement part of the SLM.
-           A larger overlap reduces the uncertainty in matching the phase of the two halves of the solution,
-           but reduces the overall efficiency of the algorithm.
-           Default = 0.1
+            and measurement part of the SLM.
+            A larger overlap reduces the uncertainty in matching the phase of the two halves of the solution,
+            but reduces the overall efficiency of the algorithm. Default = 0.1
 
       Returns:
           None

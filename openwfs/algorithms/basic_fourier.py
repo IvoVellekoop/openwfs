@@ -4,7 +4,8 @@ import numpy as np
 
 
 class BasicFDR(FourierDualRef):
-    """The most simple implementation of the FourierDualRef algorithm. It constructs a symmetric k-space for the algorithm.
+    """
+    The most simple implementation of the FourierDualRef algorithm. It constructs a symmetric k-space for the algorithm.
     The k-space initializer is set to None because for custom k-spaces, you should use FourierDualRef directly.
 
     Attributes:
@@ -26,7 +27,7 @@ class BasicFDR(FourierDualRef):
             feedback (Detector): Source of feedback
             slm (PhaseSLM): The spatial light modulator
             slm_shape (tuple of two ints): The shape that the SLM patterns & transmission matrices are calculated for,
-                            does not necessarily have to be the actual pixel dimensions as the SLM.
+                does not necessarily have to be the actual pixel dimensions as the SLM.
             phase_steps (int): The number of phase steps.
             k_angles_min (int): The minimum k-angle.
             k_angles_max (int): The maximum k-angle.
@@ -40,7 +41,8 @@ class BasicFDR(FourierDualRef):
         self._build_kspace()
 
     def _build_kspace(self):
-        """Constructs the k-space by creating Cartesian products of k_x and k_y angles.
+        """
+        Constructs the k-space by creating Cartesian products of k_x and k_y angles.
         Fills the k_left and k_right matrices with the same k-space.
 
         Returns:
