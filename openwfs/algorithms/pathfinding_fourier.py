@@ -7,26 +7,6 @@ import pickle
 from typing import List
 
 
-def get_neighbors(n, m):
-    """Get the neighbors of a point in a 2D grid.
-
-    Args:
-        n (int): x-coordinate of the point.
-        m (int): y-coordinate of the point.
-
-    Returns:
-        numpy.ndarray: Array containing the coordinates of the neighbors.
-    """
-    directions = [
-        (-1, -1), (-1, 0), (-1, 1),
-        (0, -1), (0, 1),
-        (1, -1), (1, 0), (1, 1)
-    ]
-
-    neighbors = [(n + dx, m + dy) for dx, dy in directions]
-    return np.array(neighbors)
-
-
 class PathfindingFourier(FourierBase):
     """FourierDualRef algorithm with additional features for characterizing modes.
 
@@ -79,72 +59,100 @@ class PathfindingFourier(FourierBase):
         self.feedback_target = []  # Pathfinding only works for 1-dimensional feedback.
 
     def execute(self) -> WFSResult:
-        """Execute the algorithm.
-
-        Returns:
-            WFSResult: Final calculated transmission matrix for the SLM.
-        """
-        left_results: List[WFSResult] = []
-        right_results: List[WFSResult] = []
 
         for side in range(2):
-            n: int = 0
-            self.k_x = self.k_y = np.array(0, dtype=int)
-            kx_total: np.ndarray = np.array([])
-            ky_total: np.ndarray = np.array([])
-            centers: np.ndarray = np.array([[], []], dtype=int)
-
-            while n < self.max_modes:
-                wfs_result: WFSResult = self.single_side_experiment(np.vstack((self.k_x, self.k_y)), side)
-                if side == 0:
-                    left_results.append(wfs_result)
-                else:
-                    right_results.append(wfs_result)
-
-                kx_total = np.append(kx_total, self.k_x)
-                ky_total = np.append(ky_total, self.k_y)
-
-                # Combine results up to the current point
-                combined_result: WFSResult = self.combine_results(left_results if side == 0 else right_results)
-                # Find next center for measurements
-                found_next_center: bool = False
-                ind: int = 1
-                while not found_next_center:
-                    nth_highest_index: int = np.argsort(np.abs(combined_result.t))[-ind]
-                    in_x = np.isin(centers[0, :], kx_total[nth_highest_index])
-                    in_y = np.isin(centers[1, :], ky_total[nth_highest_index])
-
-                    if not any(in_x & in_y):
-                        center = np.array([[kx_total[nth_highest_index]], [ky_total[nth_highest_index]]])
-                        next_points: np.ndarray = get_neighbors(center[0, 0], center[1, 0])
-                        unique_next_points: List[np.ndarray] = [
-                            point for point in next_points if
-                            tuple(point) not in set(zip(kx_total, ky_total))
-                        ]
-                        centers = np.concatenate((centers, center), axis=1)
-
-                        if unique_next_points:
-                            found_next_center = True
-                    ind += 1
-
-                if unique_next_points:
-                    self.k_x = np.array(unique_next_points)[:, 0]
-                    self.k_y = np.array(unique_next_points)[:, 1]
-                else:
-                    break  # Exit if no new points are found
-
-                n += len(self.k_x)
+            results = self.single_side_pathfinding(side)
 
             if side == 0:
-                self.k_left = np.vstack((kx_total, ky_total))
+                self.results_left = self.combine_results(results)
             else:
-                self.k_right = np.vstack((kx_total, ky_total))
-
-        self.results_left = self.combine_results(left_results)
-        self.results_right = self.combine_results(right_results)
+                self.results_right = self.combine_results(results)
 
         results_slm = self._compute_t(self.results_left, self.results_right, self.k_left, self.k_right)
         return results_slm
+
+    def single_side_pathfinding(self, side: int) -> List[WFSResult]:
+        """
+        Performs the pathfinding experiment for a single side. It works by performing small (1 to 8 modes at a time)
+        experiments and choosing the next modes by finding the highest current modes.
+
+        The algorithm works as such: First it measures the modes it has in its self.k_x and self.k_y parameters.
+        Then, the algorithm looks at the whole set of measurements including earlier ones, and finds the highest
+        measured mode that has available unmeasured modes directly around it.
+
+        Then, it selects these modes as the next measurement. This is iteratively repeated until the algorithm would
+        be going over the maximum number of modes. If that's the case, the next modes are not measured, and the list
+        of WFSResults is returned.
+
+        Args:
+            side (bool): 0 for left, 1 for the right SLM pupil
+
+        Returns: a list of WFSResults. One for each step in the pathfinding algorithm
+
+        """
+        results = []
+        centers = np.array([[], []], dtype=int)
+        kx_total = np.array([])
+        ky_total = np.array([])
+        self.k_x = self.k_y = np.array(0, dtype=int)
+        current_mode_count = 0
+
+        while current_mode_count < self.max_modes:
+            wfs_result = self.single_side_experiment(np.vstack((self.k_x, self.k_y)), side)     # do the measurements
+
+            results.append(wfs_result)
+            kx_total, ky_total = np.append(kx_total, self.k_x), np.append(ky_total, self.k_y)
+
+            combined_result = self.combine_results(results) # combine all previous results to find the new center
+            unique_next_points = self.find_next_center(combined_result, centers, kx_total, ky_total)
+
+            self.k_x, self.k_y = np.array(unique_next_points)[:, 0], np.array(unique_next_points)[:, 1]
+            current_mode_count += len(self.k_x)
+
+        if side == 0:
+            self.k_left = np.vstack((kx_total, ky_total))
+        else:
+            self.k_right = np.vstack((kx_total, ky_total))
+
+        return results
+
+    def find_next_center(self, combined_result: WFSResult, centers: np.ndarray, kx_total: np.ndarray,
+                          ky_total: np.ndarray) -> List[np.ndarray]:
+        """
+        Looks at the currently measured modes and selects the highest mode that has measurable modes around it.
+        Because previously measured modes never have measurable modes around it, we keep track of them as well.
+        This is unnecessary, but a bit more efficient.
+
+        Args:
+            combined_result (WFSResult): combined WFSResult object of all previously measured modes.
+            centers (np.ndarray): Array containing the previously measured centers.
+            kx_total (np.ndarray): Array containing the k-space X coordinates in order.
+            ky_total (np.ndarray): Array containing the k-space Y coordinates in order.
+
+        Returns:
+
+        """
+        found_next_center = False
+        ind = 1
+        unique_next_points = []
+
+        while not found_next_center:
+            nth_highest_index = np.argsort(np.abs(combined_result.t))[-ind]
+            in_x = np.isin(centers[0, :], kx_total[nth_highest_index])
+            in_y = np.isin(centers[1, :], ky_total[nth_highest_index])
+
+            if not any(in_x & in_y):
+                center = np.array([[kx_total[nth_highest_index]], [ky_total[nth_highest_index]]])
+                next_points = self.get_neighbors(center[0, 0], center[1, 0])
+                unique_next_points = [point for point in next_points if
+                                      tuple(point) not in set(zip(kx_total, ky_total))]
+                centers = np.concatenate((centers, center), axis=1)
+
+                if unique_next_points:
+                    found_next_center = True
+            ind += 1
+
+        return unique_next_points
 
     def combine_results(self, results: List[WFSResult]) -> WFSResult:
         """Combine multiple WFSResult objects into a single WFSResult.
@@ -155,19 +163,43 @@ class PathfindingFourier(FourierBase):
         Returns:
             WFSResult: Combined result.
 
-        ToDo: i am not sure if the snr properties get passed through well. look into this.
+        ToDo: I really don't like averaging them. It's great to concatenate them! that would be really nice to see the
+            results step-by-step. Unfortunately we have do it because _compute_t assumes k-space symmetry.
         """
         t_combined = np.concatenate([result.t for result in results], axis=0)
-        snr_combined = np.concatenate([result.snr for result in results])
-        amplitude_factor_combined = np.concatenate([result.amplitude_factor for result in results])
-        estimated_improvement_combined = np.concatenate([result.estimated_improvement for result in results])
-        n_combined = np.sum([result.n for result in results])
+        snr_combined = np.mean([result.snr for result in results])
+        amplitude_factor_combined = np.mean([result.amplitude_factor for result in results])
+        estimated_improvement_combined = np.mean([result.estimated_improvement for result in results])
+
+        # snr_combined = np.concatenate([result.snr for result in results])
+        # amplitude_factor_combined = np.concatenate([result.amplitude_factor for result in results])
+        # estimated_improvement_combined = np.concatenate([result.estimated_improvement for result in results])
+        # n_combined = np.sum([result.n for result in results])
 
         return WFSResult(t=t_combined,
                          snr=snr_combined,
                          amplitude_factor=amplitude_factor_combined,
                          estimated_improvement=estimated_improvement_combined,
-                         n=n_combined)
+                         n=None)
+
+    def get_neighbors(self, n, m):
+        """Get the neighbors of a point in a 2D grid.
+
+        Args:
+            n (int): x-coordinate of the point.
+            m (int): y-coordinate of the point.
+
+        Returns:
+            numpy.ndarray: Array containing the coordinates of the neighbors.
+        """
+        directions = [
+            (-1, -1), (-1, 0), (-1, 1),
+            (0, -1), (0, 1),
+            (1, -1), (1, 0), (1, 1)
+        ]
+
+        neighbors = [(n + dx, m + dy) for dx, dy in directions]
+        return np.array(neighbors)
 
     @property
     def execute_button(self) -> bool:
