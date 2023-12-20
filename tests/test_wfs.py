@@ -135,14 +135,14 @@ def test_fourier_microscope():
     aberration_phase = skimage.data.camera() * ((2 * np.pi) / 255.0) + np.pi
     aberration = MockSource(aberration_phase, pixel_size=2.0 / np.array(aberration_phase.shape))
     img = np.zeros((1000, 1000), dtype=np.int16)
-    signal_location = (256, 256)
+    signal_location = (250, 250)
     img[signal_location] = 100
     src = MockSource(img, 400 * u.nm)
     slm = MockSLM(shape=(1000, 1000))
     sim = Microscope(source=src, slm=slm.pixels(), magnification=1, numerical_aperture=1, aberrations=aberration,
                      wavelength=800 * u.nm)
     cam = sim.get_camera(analog_max=100)
-    roi_detector = SingleRoi(cam, x=256, y=256, radius=0)  # Only measure that specific point
+    roi_detector = SingleRoi(cam, x=-249, y=-249, radius=0)  # Only measure that specific point
     alg = BasicFDR(feedback=roi_detector, slm=slm, slm_shape=(1000, 1000), k_angles_min=-1, k_angles_max=1,
                    phase_steps=3)
     controller = WFSController(alg)
