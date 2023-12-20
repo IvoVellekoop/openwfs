@@ -20,14 +20,6 @@ openwfs.algorithms.fourier module
    :undoc-members:
    :show-inheritance:
 
-openwfs.algorithms.pathfinding\_fourier module
-----------------------------------------------
-
-.. automodule:: openwfs.algorithms.pathfinding_fourier
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 openwfs.algorithms.ssa module
 -----------------------------
 
