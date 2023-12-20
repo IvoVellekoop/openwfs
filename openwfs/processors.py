@@ -12,6 +12,16 @@ class SingleRoi(Processor):
     """
 
     def __init__(self, source, x, y, radius=0.1, mask_type='disk', waist=0.5):
+        """
+
+        Args:
+            source (Detector): Source detector object to process the data from.
+            x (int): X-coordinate of the center of the region of interest (ROI).
+            y (int): Y-coordinate of the center of the ROI.
+            radius (float): Radius of the ROI. Default is 0.1.
+            mask_type (str): Type of the mask to use over the ROI. Options are 'disk', 'gaussian', or 'square'. Default is 'disk'.
+            waist (float): Parameter for the Gaussian mask, defining the width of the Gaussian distribution. Default is 0.5.
+        """
         super().__init__(source, data_shape=(1,))
         self._source = source
         self._x = x
@@ -103,6 +113,7 @@ class SingleRoi(Processor):
 
     @property
     def waist(self):
+        """Parameter for the Gaussian mask, defining the width of the Gaussian distribution."""
         return self._waist
 
     @waist.setter
@@ -117,20 +128,22 @@ class CropProcessor(Processor):
     Works on any number of dimensions.
     If the cropped area extends beyond the size of the source data,
     the data is padded with 'padding_value'
-
-    Args:
-        source (object): The data source to process.
-        shape (tuple): Size of the cropped region (this is data_shape property)
-            default is None: use the full size of the source.
-            may be a tuple holding one or more None values.
-            These values are then replaced by the size of the source in that dimension.
-        pos (tuple): Coordinates of the start of the cropped region.
-            For 2-D data, this is the top-left corner.
-        padding_value (float): Value to use if the cropped area extends beyond the original data.
     """
 
     def __init__(self, source: Detector, shape: Union[Sequence[int], None] = None,
                  pos: Union[Sequence[int], None] = None, padding_value=0.0):
+        """
+
+        Args:
+            source (object): The data source to process.
+            shape (tuple): Size of the cropped region (this is data_shape property)
+                default is None: use the full size of the source.
+                may be a tuple holding one or more None values.
+                These values are then replaced by the size of the source in that dimension.
+            pos (tuple): Coordinates of the start of the cropped region.
+                For 2-D data, this is the top-left corner.
+            padding_value (float): Value to use if the cropped area extends beyond the original data.
+        """
         super().__init__(source)
         if shape is None:
             shape = source.data_shape
@@ -157,6 +170,15 @@ class CropProcessor(Processor):
         self._data_shape = tuple(np.array(value, ndmin=1))
 
     def _fetch(self, out: Union[np.ndarray, None], image: np.ndarray) -> np.ndarray:  # noqa
+        """
+        Args:
+            out(ndarray) optional numpy array or view of an array that will receive the data
+                when present, the data will be stored in `out`, and `out` is returned.
+            image (ndarray): source image
+
+        Returns: the out array containing the cropped image.
+
+        """
         src_start = np.maximum(self._pos, 0).astype('int32')
         src_end = np.minimum(self._pos + self._data_shape, image.shape).astype('int32')
         dst_start = np.maximum(-self._pos, 0).astype('int32')
@@ -181,16 +203,13 @@ class CropProcessor(Processor):
 class SelectRoi(SingleRoi):
     """
     A detector that allows the user to draw a square using the mouse. Inherits from SingleRoiSquare implementation.
-
-    Args:
-        source (object): The data source to process.
-
-    Methods:
-        draw_square(): Select a rectangular region of interest (ROI) using the mouse.
-
     """
-
     def __init__(self, source):
+        """
+
+        Args:
+            source (Detector): Detector object to process the data from.
+        """
 
         super().__init__(source, x=0, y=0, mask_type='square')
         source.trigger()
@@ -263,15 +282,18 @@ class SelectRoiCircle(SingleRoi):
     """
     A detector that allows the user to draw a circle using the mouse. Inherits from SingleRoi implementation.
 
-    Args:
-        source (object): The data source to process.
-
     Methods:
         draw_circle(): Select a circular region of interest (ROI) using the mouse.
 
     """
 
     def __init__(self, source):
+        """
+        Initialising triggers the draw_circle method.
+
+        Args:
+            source (Detector): Source detector object to process the data from.
+        """
         super().__init__(source, x=0, y=0)
         source.trigger()
         self.draw_circle()
@@ -281,7 +303,7 @@ class SelectRoiCircle(SingleRoi):
         Select a circular region of interest (ROI) using the mouse.
         Returns the ROI coordinates (center and radius).
         """
-        image = self.source.read()
+        image = self._source.read()
 
         circle_params = []
         win_name = "Select Circle and press c, to redraw press r"
@@ -333,9 +355,11 @@ class SelectRoiCircle(SingleRoi):
 
 
 class TransformProcessor(Processor):
+    """
+    Performs a 2-D transform of the input data (including shifting, padding, cropping, resampling).
+    """
     def __init__(self, source, transform, **kwargs):
         """
-        Performs a 2-D transform of the input data (including shifting, padding, cropping, resampling).
 
         Args:
             transform: Transform object that describes the transformation from the source
@@ -349,4 +373,12 @@ class TransformProcessor(Processor):
         self.transform = transform
 
     def _fetch(self, out: Union[np.ndarray, None], source) -> np.ndarray:
+        """
+        Args:
+            out(ndarray) optional numpy array or view of an array that will receive the data
+                when present, the data will be stored in `out`, and `out` is returned.
+            source (Detector): A Dectector object as described in openwfs.core.Detector
+
+        Returns: ndarray that has been transformed
+        """
         return project(self.data_shape, self.pixel_size, source, self.transform, out)
