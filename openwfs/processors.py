@@ -37,7 +37,7 @@ class SingleRoi(Processor):
         # triggering and before fetching
         if self._mask is None:
             d = np.floor(self.radius) * 2.0 + 1.0  # make sure the number of pixels is odd, so (0,0) is the center pixel
-            r = np.maximum(2.0 * self.radius / d, 0.1)  # always include at least one pixel
+            r = (2.0 * self.radius / d) + 0.0001 # always include at least one pixel, and avoid floating point errors.
             if self._mask_type == 'disk':
                 self._mask = disk(d, r)
             elif self._mask_type == 'gaussian':
