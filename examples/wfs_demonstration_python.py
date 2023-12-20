@@ -1,5 +1,5 @@
 import numpy as np
-from openwfs.algorithms import StepwiseSequential, FourierDualReference, CharacterisingFDR
+from openwfs.algorithms import StepwiseSequential, FourierDualReference, PathfindingFourier
 from openwfs.processors import SingleRoi
 from openwfs.devices import ScanningMicroscope
 from openwfs.slm import SLM
@@ -27,7 +27,7 @@ transform_matrix[2, :] = [-0.0147 / (0.4 + 0.5), 0.0036 / 0.5,
 slm.transform = transform_matrix
 
 # alg = StepwiseSequential(n_x=1, n_y=1, phase_steps=3, controller=controller)
-alg = CharacterisingFDR(feedback=roi_detector, slm=slm, max_modes=10)
+alg = PathfindingFourier(feedback=roi_detector, slm=slm, max_modes=10)
 
 t = alg.execute().t
 optimised_wf = np.angle(t)

@@ -1,9 +1,10 @@
-from .fourier import FourierDualRef
+from .fourier import FourierBase
 import numpy as np
 from ..core import Detector, PhaseSLM
 from .utilities import analyze_phase_stepping, WFSResult
 import os
 import pickle
+from typing import List
 
 
 def get_neighbors(n, m):
@@ -26,7 +27,7 @@ def get_neighbors(n, m):
     return np.array(neighbors)
 
 
-class CharacterisingFDR(FourierDualRef):
+class PathfindingFourier(FourierBase):
     """FourierDualRef algorithm with additional features for characterizing modes.
 
     Attributes:
@@ -74,191 +75,99 @@ class CharacterisingFDR(FourierDualRef):
         self.k_x = None
         self.k_y = None
         self.t_slm = None
-        self.intermediates = intermediates
-        if self.intermediates:
-            self.intermediate_enhancements = []
-            self.intermediate_t = []
-        self.added_modes = [['Uncorrected enhancement']]
+
         self.feedback_target = []  # Pathfinding only works for 1-dimensional feedback.
 
     def execute(self) -> WFSResult:
         """Execute the algorithm.
 
         Returns:
-            numpy.ndarray: Final calculated transmission matrix for the SLM.
+            WFSResult: Final calculated transmission matrix for the SLM.
         """
+        left_results: List[WFSResult] = []
+        right_results: List[WFSResult] = []
 
-        # measure the response before correction
+        for side in range(2):
+            n: int = 0
+            self.k_x = self.k_y = np.array(0, dtype=int)
+            kx_total: np.ndarray = np.array([])
+            ky_total: np.ndarray = np.array([])
+            centers: np.ndarray = np.array([[], []], dtype=int)
 
-        if self.intermediates:
-            self.record_intermediate_enhancement([0], [0], [0], 0)
-
-        for side in range(2):  # for the left or right side of the SLM:
-
-            n = 0  # number of measured modes
-            # TODO: should not be 'int'
-            self.k_x = self.k_y = np.array(0, dtype=int)  # we begin in K[0,0]
-            kx_total = ky_total = np.array([])  # arrays in which to store the results
-            t_fourier = None
-
-            # the centers are the point around which the modes are measured. We store them to avoid duplicates
-            centers = np.array([[], []], dtype=int)
-
-            # Current implementation is to measure a certain number of modes, possibly, this can be
-            # replaced by another metric, like the SNR of the measured modes.
             while n < self.max_modes:
+                wfs_result: WFSResult = self.single_side_experiment(np.vstack((self.k_x, self.k_y)), side)
+                if side == 0:
+                    left_results.append(wfs_result)
+                else:
+                    right_results.append(wfs_result)
 
-                # do measurement for current k_x and k_y
-                measurements = self.single_side_experiment(np.vstack((self.k_x, self.k_y)), side).t
-                # calculate their transmission elements
-                t_fourier = measurements if t_fourier is None else np.append(t_fourier, measurements)
-                # store which k_x and k_y we just measured
                 kx_total = np.append(kx_total, self.k_x)
                 ky_total = np.append(ky_total, self.k_y)
 
-                # This section decides which point is the next centre of measurement. We want the k-space element
-                # that has the highest contribution, that has not been a centre yet.
-                found_next_center = False
-                ind = 1
-
-                # go down the list of k-space elements until we've found one that has not been the centre yet:
-                while found_next_center is False:
-                    nth_highest_index = np.argsort(abs(t_fourier))[-ind]
+                # Combine results up to the current point
+                combined_result: WFSResult = self.combine_results(left_results if side == 0 else right_results)
+                # Find next center for measurements
+                found_next_center: bool = False
+                ind: int = 1
+                while not found_next_center:
+                    nth_highest_index: int = np.argsort(np.abs(combined_result.t))[-ind]
                     in_x = np.isin(centers[0, :], kx_total[nth_highest_index])
                     in_y = np.isin(centers[1, :], ky_total[nth_highest_index])
 
-                    if not any(in_x & in_y) is True:  # if it has not been a centre element yet:
+                    if not any(in_x & in_y):
                         center = np.array([[kx_total[nth_highest_index]], [ky_total[nth_highest_index]]])
-                        next_points = get_neighbors(center[0], center[1])
-
-                        # don't measure the same k-space elements twice:
-                        unique_next_points = np.array([point for point in next_points[:, :, 0] if not any(
-                            (np.array(np.vstack((kx_total, ky_total))).T == point).all(1))])
+                        next_points: np.ndarray = get_neighbors(center[0, 0], center[1, 0])
+                        unique_next_points: List[np.ndarray] = [
+                            point for point in next_points if
+                            tuple(point) not in set(zip(kx_total, ky_total))
+                        ]
                         centers = np.concatenate((centers, center), axis=1)
 
-                        # If all point around this one have already been measured: Find a new centre
-                        if len(unique_next_points) > 0:
+                        if unique_next_points:
                             found_next_center = True
-
                     ind += 1
 
-                # set the next measurements in the right property
-                self.k_x = unique_next_points[:, 0]
-                self.k_y = unique_next_points[:, 1]
-
-                # don't put the next measurements in the array if this was the last iteration:
-                if (n + len(self.k_x)) < self.max_modes:
-                    self.added_modes.append(unique_next_points.tolist())
-
-                if n > 0 and self.intermediates:
-                    self.record_intermediate_enhancement(t_fourier, kx_total, ky_total, side)
+                if unique_next_points:
+                    self.k_x = np.array(unique_next_points)[:, 0]
+                    self.k_y = np.array(unique_next_points)[:, 1]
+                else:
+                    break  # Exit if no new points are found
 
                 n += len(self.k_x)
 
-            # Re-measuring highest modes
-            if self.high_modes == True:
-                self.measure_high_modes(t_fourier, kx_total, ky_total, side)
-
-            # Measure the effect of remeasuring highest modes
-            if self.high_modes != 0 and self.intermediates:
-                self.record_intermediate_enhancement(t_fourier, kx_total, ky_total, side)
-
             if side == 0:
-                self.t_left = t_fourier
                 self.k_left = np.vstack((kx_total, ky_total))
-
             else:
-                self.t_right = t_fourier
                 self.k_right = np.vstack((kx_total, ky_total))
 
-        # Compute the transmission matrix with respect to the SLM plane from the transmission matrices in k-space
-        self.t_slm = self.compute_t(self.t_left, self.t_right, self.k_left, self.k_right)
-        return WFSResult(t=self.t_slm)
+        self.results_left = self.combine_results(left_results)
+        self.results_right = self.combine_results(right_results)
 
-    def measure_high_modes(self, t_fourier, kx_total, ky_total, side):
-        """Measure the high-order modes of the system.
+        results_slm = self._compute_t(self.results_left, self.results_right, self.k_left, self.k_right)
+        return results_slm
 
-        Args:
-            t_fourier (numpy.ndarray): Existing transmission coefficients.
-            kx_total (numpy.ndarray): Total kx angles that have been measured.
-            ky_total (numpy.ndarray): Total ky angles that have been measured.
-            side (int): Which side (left or right) the measurements are taken from.
-        """
-
-        # Get indices of the n highest modes
-        high_mode_indices = np.argsort(np.abs(t_fourier))[-self.high_modes:]
-
-        # Store the original phase_steps
-        original_phase_steps = self.phase_steps
-
-        # Update phase_steps for high mode measurements
-        self.phase_steps = self.high_phase_steps
-
-        # Remeasure the highest modes
-        for idx in high_mode_indices:
-            self.k_x = np.array([kx_total[idx]])
-            self.k_y = np.array([ky_total[idx]])
-            measurements = self.single_side_experiment(np.vstack((self.k_x, self.k_y)), side)
-            t_fourier[idx] = analyze_phase_stepping(measurements, axis=1).field
-
-        # Restore the original phase_steps for subsequent measurements
-        self.phase_steps = original_phase_steps
-        self.added_modes.append([f'Remeasuring {self.high_modes} highest modes'])
-
-    def record_intermediate_enhancement(self, t_fourier, kx_total, ky_total, side):
-        """Record intermediate enhancement data for later analysis.
+    def combine_results(self, results: List[WFSResult]) -> WFSResult:
+        """Combine multiple WFSResult objects into a single WFSResult.
 
         Args:
-            t_fourier (numpy.ndarray): Existing transmission coefficients.
-            kx_total (numpy.ndarray): Total kx angles that have been measured.
-            ky_total (numpy.ndarray): Total ky angles that have been measured.
-            side (int): Which side (left or right) the measurements are taken from.
+            results (List[WFSResult]): List of WFSResult objects to combine.
+
+        Returns:
+            WFSResult: Combined result.
+
+        ToDo: i am not sure if the snr properties get passed through well. look into this.
         """
-        k = np.vstack((kx_total, ky_total))
+        t_combined = np.concatenate([result.t for result in results], axis=0)
+        snr_combined = np.concatenate([result.snr for result in results])
+        amplitude_factor_combined = np.concatenate([result.amplitude_factor for result in results])
+        estimated_improvement_combined = np.concatenate([result.estimated_improvement for result in results])
+        n_combined = np.sum([result.n for result in results])
 
-        if side == 0:
-            t_left = t_fourier
-            k_left = k
-            # Use the class-level attributes for the right side, if they're set; otherwise, initialize to zeros
-            t_right = np.zeros_like(t_fourier)
-            k_right = k
-
-        else:
-            t_right = t_fourier
-            k_right = k
-
-            t_left = self.t_left  # Since side == 0 is always processed first, self.t_left should always be set by this point
-            k_left = self.k_left
-
-        t_slm = self.compute_t(t_left, t_right, k_left, k_right)
-        self.intermediate_t.append(t_slm)
-        self._slm.set_phases(np.angle(t_slm))
-
-        self.intermediate_enhancements.append(self._feedback.read())
-
-    def save_experiment(self, filename="experimental_data", directory=None):
-        """Save the experimental data to a specified directory.
-
-        Args:
-            filename (str): Name of the file to save the data.
-            directory (str): Directory to save the file in. If None, uses the current directory.
-        """
-
-        if directory is None:
-            directory = os.getcwd()  # Get current directory
-
-        data_to_save = {
-            "t_left": self.t_left,
-            "t_right": self.t_right,
-            "k_left": self.k_left,
-            "k_right": self.k_right,
-            "t_slm": self.t_slm,
-            "intermediate_enhancement": self.intermediate_enhancements,
-            "added_modes": self.added_modes
-        }
-
-        with open(os.path.join(directory, f'{filename}.pkl'), 'wb') as f:
-            pickle.dump(data_to_save, f)
+        return WFSResult(t=t_combined,
+                         snr=snr_combined,
+                         amplitude_factor=amplitude_factor_combined,
+                         estimated_improvement=estimated_improvement_combined,
+                         n=n_combined)
 
     @property
     def execute_button(self) -> bool:

@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 
 from ..openwfs.simulation import SimulatedWFS, MockSource, MockSLM, Microscope, ADCProcessor
 import numpy as np
-from ..openwfs.algorithms import StepwiseSequential, FourierDualReference, CharacterisingFDR, WFSController, FourierDualReference_new
+from ..openwfs.algorithms import StepwiseSequential, FourierDualReference, PathfindingFourier, WFSController, FourierDualReference_new
 from ..openwfs.processors import SingleRoi
 import skimage
 from ..openwfs.utilities import imshow
@@ -177,11 +177,12 @@ def test_pathfinding_fourier():
     """
     aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
     sim = SimulatedWFS(aberrations)
-    alg = CharacterisingFDR(feedback=sim, slm=sim.slm, phase_steps=3, overlap=0.1, max_modes=12)
-    t = alg.execute().t
+    alg = PathfindingFourier(feedback=sim, slm=sim.slm, phase_steps=3, overlap=0.1, max_modes=21)
+    result = alg.execute()
+
 
     # compute the phase pattern to optimize the intensity in target 0
-    optimised_wf = -np.angle(t)
+    optimised_wf = -np.angle(result.t)
 
     # Calculate the enhancement factor
     # Note: technically this is not the enhancement, just the ratio after/before
@@ -191,6 +192,8 @@ def test_pathfinding_fourier():
     after = sim.read()
     enhancement = after / before
 
+    plt.imshow(optimised_wf)
+    plt.show()
     assert enhancement >= 3.0, f"""The SSA algorithm did not enhance focus as much as expected.
         Expected at least 3.0, got {enhancement}"""
 
@@ -275,7 +278,7 @@ def test_flat_wf_response_pathfinding_fourier():
     """
     aberrations = np.zeros(shape=(512, 512))
     sim = SimulatedWFS(aberrations.reshape((*aberrations.shape, 1)))
-    alg = CharacterisingFDR(feedback=sim, slm=sim.slm, phase_steps=3, overlap=0.1, max_modes=12)
+    alg = PathfindingFourier(feedback=sim, slm=sim.slm, phase_steps=3, overlap=0.1, max_modes=12)
 
     # Execute the SSA algorithm to get the optimized wavefront
     t = alg.execute().t
