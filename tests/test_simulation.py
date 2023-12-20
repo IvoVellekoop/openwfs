@@ -1,14 +1,11 @@
 import logging
-
-import matplotlib.pyplot as plt
 import pytest
 import numpy as np
-from ..openwfs.algorithms import StepwiseSequential, BasicFDR, CharacterisingFDR
+from ..openwfs.algorithms import StepwiseSequential
 from ..openwfs.processors import SingleRoi
-from ..openwfs.simulation import SimulatedWFS, Microscope, MockCamera, MockSource, MockXYStage, MockSLM
+from ..openwfs.simulation import Microscope, MockCamera, MockSource, MockSLM
 import skimage
-from ..openwfs.slm import SLM
-from ..openwfs.slm.patterns import tilt, disk
+from ..openwfs.slm.patterns import tilt
 import astropy.units as u
 from ..openwfs.utilities import imshow
 

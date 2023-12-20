@@ -119,7 +119,7 @@ def test_fourier2():
 
     aberration_phase = skimage.data.camera() * ((2 * np.pi) / 255.0)  # + np.pi
     roi_detector = SimulatedWFS(aberration_phase)
-    alg = BasicFDR(feedback=roi_detector, slm=roi_detector.slm, slm_shape=(1000, 1000), k_angles_min=-3, k_angles_max=3,
+    alg = BasicFDR(feedback=roi_detector, slm=roi_detector.slm, slm_shape=(1000, 1000), k_angles_min=-1, k_angles_max=1,
                    phase_steps=3)
     controller = WFSController(alg)
     controller.wavefront = WFSController.State.FLAT_WAVEFRONT
@@ -143,7 +143,7 @@ def test_fourier_microscope():
                      wavelength=800 * u.nm)
     cam = sim.get_camera(analog_max=100)
     roi_detector = SingleRoi(cam, x=256, y=256, radius=0)  # Only measure that specific point
-    alg = BasicFDR(feedback=roi_detector, slm=slm, slm_shape=(1000, 1000), k_angles_min=-2, k_angles_max=2,
+    alg = BasicFDR(feedback=roi_detector, slm=slm, slm_shape=(1000, 1000), k_angles_min=-1, k_angles_max=1,
                    phase_steps=3)
     controller = WFSController(alg)
     controller.wavefront = WFSController.State.FLAT_WAVEFRONT
