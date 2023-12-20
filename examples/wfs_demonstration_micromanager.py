@@ -1,7 +1,7 @@
 import set_path
 from openwfs.devices import ScanningMicroscope
 from openwfs.slm import SLM
-from openwfs.algorithms import BasicFDR
+from openwfs.algorithms import FourierDualReference
 import astropy.units as u
 import numpy as np
 from openwfs.slm.geometry import fill_transform
@@ -31,7 +31,7 @@ slm.lut_generator = lambda λ: np.arange(0, 0.2623 * λ.to(u.nm).value - 23.33) 
 slm.wavelength = 804 * u.nm
 im = scanner.read()
 fdbk = SelectRoi(source=scanner)
-wfs = BasicFDR(slm=slm, feedback=fdbk)
+wfs = FourierDualReference(slm=slm, feedback=fdbk)
 
 devices = {
     'cam': scanner,

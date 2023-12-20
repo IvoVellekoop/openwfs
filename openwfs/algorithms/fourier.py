@@ -4,7 +4,7 @@ from .utilities import analyze_phase_stepping, WFSResult
 from ..slm.patterns import tilt
 
 
-class FourierDualRef:
+class FourierBase:
     """Base class definition for the Fourier algorithm as described by Mastiani et al. [1].
 
       Can run natively, provided you input the kspace for the reference and measurement part of the SLM.
