@@ -128,7 +128,8 @@ class Microscope(Processor):
 
     def _fetch(self, out: Union[np.ndarray, None], source: np.ndarray, aberrations: np.ndarray,  # noqa
                slm: np.ndarray) -> np.ndarray:
-        """Updates the image on the camera sensor
+        """
+        Updates the image on the camera sensor
 
         To compute the image:
         * First trigger the source, slm, and aberration sources
@@ -137,6 +138,15 @@ class Microscope(Processor):
         * Crop the source image (not implemented yet) and upsample if needed (not implemented yet)
         * Convolve the source image with the PSF.
         * Compute the magnified and cropped image on the camera.
+
+        Args:
+            out ():
+            source ():
+            aberrations ():
+            slm ():
+
+        Returns:
+
         """
 
         # First crop and downscale the source image to have the same size as the output
@@ -219,10 +229,14 @@ class Microscope(Processor):
 
     @property
     def magnification(self) -> float:
-        """Magnification from object plane to image plane.
+        """
+        Magnification from object plane to image plane.
 
         Note that, as in a real microscope, the magnification does not affect the effective resolution of the image.
         The resolution is determined by the Abbe diffraction limit λ/2NA.
+
+        Returns:
+
         """
         return self._magnification
 
@@ -236,12 +250,20 @@ class Microscope(Processor):
         return 0.5 * self.wavelength / self.numerical_aperture
 
     def get_camera(self, *, transform: Union[Transform, None] = None, **kwargs) -> Detector:
-        """Returns a simulated camera that observes the microscope image.
+        """
+        Returns a simulated camera that observes the microscope image.
 
         The camera is a MockCamera object that simulates an AD-converter with optional noise.
         shot noise and readout noise (see MockCamera for options).
         In addition to the inputs accepted by the MockCamera constructor (data_shape, analog_max, shot_noise, etc.),
         it is also possible to specify a transform, to mimic the (mis)alignment of the camera.
+
+        Args:
+            transform ():
+            **kwargs ():
+
+        Returns:
+
         """
         if transform is None:
             src = self

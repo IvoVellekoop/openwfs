@@ -1,6 +1,6 @@
 import set_path
 import numpy as np
-from openwfs.algorithms import BasicFDR
+from openwfs.algorithms import FourierDualReference
 from openwfs.algorithms.utilities import WFSController
 from openwfs.processors import SingleRoi
 from openwfs.simulation import Microscope, MockSource, MockSLM, SimulatedWFS
@@ -26,7 +26,7 @@ sim = Microscope(source=src, slm=slm.pixels(), magnification=1, numerical_apertu
 
 cam = sim.get_camera(analog_max=100)
 roi_detector = SingleRoi(cam, x=256, y=256, radius=0)  # Only measure that specific point
-alg = BasicFDR(feedback=roi_detector, slm=slm, slm_shape=(1000, 1000), k_angles_min=-3, k_angles_max=3, phase_steps=3)
+alg = FourierDualReference(feedback=roi_detector, slm=slm, slm_shape=(1000, 1000), k_angles_min=-3, k_angles_max=3, phase_steps=3)
 controller = WFSController(alg)
 f = roi_detector.read()
 
@@ -38,6 +38,7 @@ devices = {
     'microscope': sim,
     'wfs': alg}
 
+# === Uncomment for debugging === #
 # controller.wavefront = WFSController.State.FLAT_WAVEFRONT
 # before = roi_detector.read()
 # controller.wavefront = WFSController.State.SHAPED_WAVEFRONT

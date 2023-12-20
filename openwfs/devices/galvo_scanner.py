@@ -50,7 +50,18 @@ class ScanningMicroscope(Detector):
     Note: the padding affects the physical size of the ROI, and hence the pixel_size
     The padding does not affect the number of pixels (`data_shape`) in the returned image.
 
-    Delay
+    Attributes:
+        left (int): The leftmost pixel of the Region of Interest (ROI) in the scan range.
+        top (int): The topmost pixel of the ROI in the scan range.
+        height (int): The number of pixels in the vertical dimension of the ROI.
+        width (int): The number of pixels in the horizontal dimension of the ROI.
+        dwell_time (Quantity[u.us]): The time spent on each pixel during scanning.
+        duration (Quantity[u.ms]): Total duration of scanning for one frame.
+        delay (Quantity[u.us]): Delay between the control signal to the mirrors and the start of data acquisition.
+        binning (int): Factor by which the resolution is reduced; lower binning increases resolution.
+        padding (float): Fraction of the scan range at the edges to discard to reduce edge artifacts.
+        bidirectional (bool): Whether scanning is bidirectional along the fast axis.
+
     """
 
     # LaserScanner(input=("ai/8", -1.0 * u.V, 1.0 * u.V))
@@ -85,9 +96,14 @@ class ScanningMicroscope(Detector):
                 Sample rate of the NiDaq input channel.
                 The sample rate affects the total time needed to scan a single frame.
                 Setting the ROI, padding, or binning does not affect the sample rate.
-            delay:
-            padding:
-            bidirectional:
+            delay (Quantity[u.us]): Delay between mirror control and data acquisition.
+            binning (int): Binning can be used to change the pixel size without changing the ROI. By decreasing the
+                `binning` property, more points are measured for the same ROI, thereby increasing the resolution.
+                For compatibility with micromanager, the `binning` property should be an integer. A binning of 100
+                corresponds to the `data_shape` passed in the initializer of the object.
+            padding (float): Padding fraction at the sides of the scan. The scanner will scan a larger area than will be
+                reconstructed, to make sure the reconstructed image is within the linear scan range of the mirrors.
+            bidirectional (bool): If true, enables bidirectional scanning along the fast axis.
         """
         # settings for input/output channels
         self._in_channel = input[0]
@@ -194,7 +210,7 @@ class ScanningMicroscope(Detector):
         self._read_task.ai_channels.add_ai_voltage_chan(self._in_channel,
                                                         min_val=self._in_v_min.to_value(u.V),
                                                         max_val=self._in_v_max.to_value(u.V),
-                                                        terminal_config=TerminalConfiguration.RSE)
+                                                        terminal_config=TerminalConfiguration.DIFF)
         self._read_task.timing.cfg_samp_clk_timing(sample_rate, samps_per_chan=sample_count)
         self._read_task.triggers.start_trigger.cfg_dig_edge_start_trig(self._write_task.triggers.start_trigger.term)
         delay = self._delay.to_value(u.s)
@@ -203,7 +219,6 @@ class ScanningMicroscope(Detector):
             self._read_task.triggers.start_trigger.delay_units = nidaqmx.constants.DigitalWidthUnits.SECONDS
 
         self._writer = AnalogMultiChannelWriter(self._write_task.out_stream)
-        self._reader = AnalogUnscaledReader(self._read_task.in_stream)
 
     def _do_trigger(self):
         if not self._valid:
@@ -221,19 +236,36 @@ class ScanningMicroscope(Detector):
         self._read_task.start()  # waits for trigger coming from the write task
         self._write_task.start()
 
-    def _fetch(self, out: Union[np.ndarray, None]) -> np.ndarray:  # noqa
-        """Reads the acquired data from the input task."""
-        sample_count = self._padded_data_shape[0] * self._padded_data_shape[1]
-        raw = np.zeros((1, sample_count), dtype=np.int16)
-        self._reader.read_int16(raw, number_of_samples_per_channel=sample_count,
-                                timeout=ni.constants.WAIT_INFINITELY)
-        self._read_task.stop()
-        self._write_task.stop()
+    def _raw_to_cropped(self, raw):
+        """Converts the raw scanner data back into a 2-Dimensional image.
+
+        Because the scanner can return both signed and unsigned integers, both cases are accounted for. Crops the data
+        if padding was added. Flips the even rows back if scanned in bidirectional mode.
+        """
         start = (self._padded_data_shape - self._data_shape) // 2
         end = self._padded_data_shape - start
-        cropped = raw.reshape(self._padded_data_shape).view(dtype='uint16')[start[0]:end[0], start[1]:end[1]] + 0x7FFF
+
+        # Change data type into uint16 if necessary
+        if type(raw[0]) == np.int16:
+            cropped = raw.reshape(self._padded_data_shape).view(dtype='uint16')[start[0]:end[0],
+                      start[1]:end[1]] + 0x8000     # add 32768 to go from -32768-32767 to 0-65535
+        elif type(raw[0]) == np.uint16:
+            cropped = raw.reshape(self._padded_data_shape)[start[0]:end[0], start[1]:end[1]]
+
         if self._bidirectional:
             cropped[1::2, :] = cropped[1::2, ::-1]
+
+        return cropped
+
+    def _fetch(self, out: Union[np.ndarray, None]) -> np.ndarray:  # noqa
+        """Reads the acquired data from the input task."""
+
+        raw = self._read_task.in_stream.read()
+        assert len(raw) == self._padded_data_shape[0] * self._padded_data_shape[1]
+        self._read_task.stop()
+        self._write_task.stop()
+
+        cropped = self._raw_to_cropped(raw)
 
         if out is not None:
             out[...] = cropped
@@ -244,6 +276,7 @@ class ScanningMicroscope(Detector):
 
     @property
     def left(self) -> int:
+        """The leftmost pixel of the Region of Interest (ROI) in the scan range."""
         return np.round(self._roi_start[1] * self._scale[1] / self._pixel_size[1]).astype('int32')
 
     @left.setter
@@ -253,6 +286,7 @@ class ScanningMicroscope(Detector):
 
     @property
     def top(self) -> int:
+        """The topmost pixel of the ROI in the scan range."""
         return np.round(self._roi_start[0] * self._scale[0] / self._pixel_size[0]).astype('int32')
 
     @top.setter
@@ -262,6 +296,7 @@ class ScanningMicroscope(Detector):
 
     @property
     def height(self) -> int:
+        """The number of pixels in the vertical dimension of the ROI."""
         return self.data_shape[0]
 
     @height.setter
@@ -272,6 +307,7 @@ class ScanningMicroscope(Detector):
 
     @property
     def width(self) -> int:
+        """The number of pixels in the horizontal dimension of the ROI."""
         return self.data_shape[1]
 
     @width.setter
@@ -282,6 +318,7 @@ class ScanningMicroscope(Detector):
 
     @property
     def dwell_time(self) -> Quantity[u.us]:
+        """The time spent on each pixel during scanning."""
         return (1.0 / self._sample_rate).to(u.us)
 
     @dwell_time.setter
@@ -291,6 +328,7 @@ class ScanningMicroscope(Detector):
 
     @property
     def duration(self) -> Quantity[u.ms]:
+        """Total duration of scanning for one frame."""
         return self._duration.to(u.ms)
 
     @duration.setter
@@ -299,6 +337,7 @@ class ScanningMicroscope(Detector):
 
     @property
     def delay(self) -> Quantity[u.us]:
+        """Delay between the control signal to the mirrors and the start of data acquisition."""
         return self._delay  # add unit
 
     @delay.setter
@@ -308,6 +347,7 @@ class ScanningMicroscope(Detector):
 
     @property
     def binning(self) -> int:
+        """Factor by which the resolution is reduced; lower binning increases resolution."""
         return self._binning
 
     @binning.setter
@@ -318,6 +358,7 @@ class ScanningMicroscope(Detector):
 
     @property
     def padding(self) -> float:
+        """Fraction of the scan range at the edges to discard to reduce edge artifacts."""
         return self._padding[1]
 
     @padding.setter
@@ -328,6 +369,7 @@ class ScanningMicroscope(Detector):
 
     @property
     def bidirectional(self) -> bool:
+        """Whether scanning is bidirectional along the fast axis."""
         return self._bidirectional
 
     @bidirectional.setter

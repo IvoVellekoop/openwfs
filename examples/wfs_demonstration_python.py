@@ -1,5 +1,5 @@
 import numpy as np
-from openwfs.algorithms import StepwiseSequential, BasicFDR, CharacterisingFDR
+from openwfs.algorithms import StepwiseSequential, FourierDualReference, CharacterisingFDR
 from openwfs.processors import SingleRoi
 from openwfs.devices import ScanningMicroscope
 from openwfs.slm import SLM

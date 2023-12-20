@@ -20,12 +20,22 @@ class SimulatedWFS(Processor):
 
     def __init__(self, aberrations, beam_profile_waist=None):
         """
+        Initializes the optical system with specified aberrations and optionally a Gaussian beam profile.
+
+        This constructor sets up an optical system by specifying the aberrations across the SLM (Spatial Light
+        Modulator) and, optionally, defining a Gaussian beam profile. The aberrations array defines phase shifts at
+        each point of the SLM. If a beam profile waist is provided, the input electric field is shaped into a
+        Gaussian beam.
+
         Args:
-            aberrations: array containing the aberrations in radians.
-                The first two dimensions represent the y-x coordinates in the slm pattern.
-                If `aberrations` has more than two dimensions, the feedback signal will be multi-dimensional
-                and have the dimension `aberrations.shape[2:]
-            beam_profile_waist:
+            aberrations (np.ndarray): An array containing the aberrations in radians.
+
+            beam_profile_waist (float, optional): The waist size of the Gaussian beam profile. If provided, the electric
+            field at the SLM is shaped into a Gaussian beam with this waist size.
+
+        The constructor creates a MockSLM instance based on the shape of the aberrations, calculates the electric
+        field at the SLM considering the aberrations and optionally the Gaussian beam profile, and initializes the
+        system with these parameters.
         """
         slm = MockSLM(aberrations.shape[0:2])
         super().__init__(slm.pixels(), data_shape=aberrations.shape[2:], pixel_size=1 * u.dimensionless_unscaled)
@@ -36,7 +46,24 @@ class SimulatedWFS(Processor):
         self.slm = slm
 
     def _fetch(self, out: Union[np.ndarray, None], slm_phases):
-        """This is where the intensity in the focus is computed."""
+        """
+        Computes the intensity in the focus by applying phase corrections to the input electric field.
+
+        This method adjusts the phase of the input electric field using the SLM (Spatial Light Modulator) phases,
+        computes the tensor product with the electric field at the SLM, and then calculates the intensity of the
+        resulting field.
+
+        Args:
+            out (Union[np.ndarray, None]): An optional numpy array to store the calculated intensity. If provided, the
+            intensity is stored in this array.
+
+            slm_phases (np.ndarray): The phase corrections to apply, typically provided as a numpy array representing
+            the phases set on the SLM.
+
+        Returns:
+            np.ndarray: A numpy array containing the calculated intensity in the focus.
+
+        """
         correction = np.exp(1.0j * slm_phases)
         field = np.tensordot(correction, self.E_input_slm, 2)
         intensity = np.abs(field) ** 2

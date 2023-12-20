@@ -62,8 +62,13 @@ class TestSLM:
         slm.settle_time = 0
         refresh_rate = slm.refresh_rate
         slm.update()
-        start = time.time_ns() * u.ns
         frame_count = 100
+
+        # warm up
+        for i in range(frame_count):
+            slm.set_phases(0.0 if (i % 2) else np.pi)
+
+        start = time.time_ns() * u.ns
         for i in range(frame_count):
             slm.set_phases(0.0 if (i % 2) else np.pi)
         stop = time.time_ns() * u.ns

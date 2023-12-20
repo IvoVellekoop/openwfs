@@ -1,7 +1,7 @@
 import set_path
 from openwfs.devices import ScanningMicroscope
 from openwfs.slm import SLM
-from openwfs.algorithms import BasicFDR
+from openwfs.algorithms import FourierDualReference
 import astropy.units as u
 import numpy as np
 from openwfs.slm.geometry import fill_transform

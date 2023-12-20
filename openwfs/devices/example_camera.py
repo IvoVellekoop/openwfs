@@ -13,18 +13,37 @@ class NoiseType(Enum):
 
 
 class RandomGenerator:
-    """Demo device, used to test building device graphs. It generates random numbers for use in the Camera"""
+    """
+    Generates random numbers to simulate noise images, primarily for testing device graphs.
 
+    Attributes:
+        min (int): Minimum value for random number generation, default is 0. Range: 0 to 0xFFFF.
+        max (int): Maximum value for random number generation, default is 1000. Range: 0 to 0xFFFF.
+        noise_type (NoiseType): Type of noise to generate. Currently, only uniform noise is supported.
+    """
     def __init__(self, min=0, max=1000, noise_type=NoiseType.UNIFORM):
+        """
+        Args:
+            min (int): Minimum value for random number generation.
+            max (int): Maximum value for random number generation.
+            noise_type (NoiseType): Type of noise to generate.
+        """
         self._min = min
         self._max = max
         self._noise_type = noise_type
 
     def generate_into(self, buffer):
+        """
+        Generates random numbers into the provided buffer based on the current settings.
+
+        Args:
+            buffer (numpy.ndarray): The buffer where random numbers will be generated.
+        """
         buffer[:, :] = np.random.randint(self._min, self._max, buffer.shape, dtype=np.uint16)
 
     @property
     def min(self) -> Annotated[int, {'min': 0, 'max': 0xFFFF}]:
+        """Minimum value for random number generation, default is 0. Range: 0 to 0xFFFF."""
         return self._min
 
     @min.setter
@@ -33,6 +52,7 @@ class RandomGenerator:
 
     @property
     def max(self) -> Annotated[int, {'min': 0, 'max': 0xFFFF}]:
+        """Maximum value for random number generation, default is 1000. Range: 0 to 0xFFFF."""
         return self._max
 
     @max.setter
@@ -41,6 +61,7 @@ class RandomGenerator:
 
     @property
     def noise_type(self) -> NoiseType:
+        """Type of noise to generate. Currently, only uniform noise is supported."""
         return self._noise_type
 
     @noise_type.setter
@@ -51,11 +72,31 @@ class RandomGenerator:
 
 
 class Camera:
-    """Demo camera implementation that returns noise images. To test building device graphs, the random number
-    generator is implemented as a separate object with its own properties."""
+    """
+    Simulates a camera that returns noise images, used for testing device graphs.
+    Utilizes an external random number generator to produce these images.
 
+    Attributes:
+        left (int): The left coordinate of the camera's view. Default is 0.
+        top (int): The top coordinate of the camera's view. Default is 0.
+        width (int): The width of the camera's view. Default is 100. Range: 1 to 1200.
+        height (int): The height of the camera's view. Default is 100. Range: 1 to 960.
+        duration (Quantity[u.ms]): Duration of the camera exposure. Default is 100 milliseconds.
+        random_generator (RandomGenerator): External random number generator used by the camera.
+    """
     def __init__(self, left=0, top=0, width=100, height=100, duration: Quantity[u.ms] = 100 * u.ms,
                  random_generator=None):
+        """
+        Initializes the Camera with specified view dimensions, exposure duration, and random generator.
+
+        Args:
+            left (int): The left coordinate of the camera's view.
+            top (int): The top coordinate of the camera's view.
+            width (int): The width of the camera's view.
+            height (int): The height of the camera's view.
+            duration (Quantity[u.ms]): The exposure duration.
+            random_generator (RandomGenerator): External random number generator to use.
+        """
         if random_generator is None:
             random_generator = RandomGenerator()
 

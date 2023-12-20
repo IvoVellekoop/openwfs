@@ -5,5 +5,9 @@
 ::This folder contains:
 - example_camera: A camera object returning noise. Also shows how object inheritance works.
 - example_device: A simple device showing all the available types of properties.
-- example_stage: A stage object that is registered as a stage. For simulated stage-microscope-camera interactions,
-    check out the OpenWFS repository on github.com/IvoVellekoop/openwfs.
+- example_xystage: A XYstage object that is registered as an XYstage. For simulated stage-microscope-camera interactions,
+    look at openwfs.simulation.microscope for more examples.
+- example_zstage: A Zstage object that is registered as a Zstage
+- galvo_scanner: Controller for a laser-scanning microscope with two galvo mirrors controlled by a National Instruments
+    data acquisition card (nidaq).
+- nidaq_gain: A device that controls the voltage of a PMT gain using a NI data acquisition card.
