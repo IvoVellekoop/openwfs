@@ -56,13 +56,12 @@ class SingleRoi(Processor):
                mask: np.ndarray) -> np.ndarray:  # noqa
         # Implement the logic to fetch the data for this processor
         # crop top/left
-        mask_start = np.maximum(0, -pos)
-        image_start = np.maximum(0, pos)
-        image_end = np.minimum(image.shape, pos + np.array(mask.shape, dtype='int32'))
-        mask_end = image_end - image_start
-        mask_cropped = mask[mask_start[0]:mask_end[0], mask_start[1]:mask_end[1]]
+        image_start = np.array(((image.shape[0] - 1) / 2 ) + pos,dtype='int32')
+        image_end = np.minimum(image.shape, image_start + np.array(mask.shape, dtype='int32'))
+
+
         image_cropped = image[image_start[0]:image_end[0], image_start[1]:image_end[1]]
-        value = np.sum(image_cropped * mask_cropped) / np.sum(mask_cropped)
+        value = np.sum(image_cropped * mask) / np.sum(mask)
 
         if out is None:
             out = np.empty((1,))

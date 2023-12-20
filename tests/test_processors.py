@@ -25,7 +25,7 @@ def test_single_roi_simple_case():
                      [7, 8, 9]])
     pixel_size = 1 * np.ones(2)
     mock_source = MockSource(data, pixel_size=pixel_size)
-    roi_processor = SingleRoi(mock_source, x=1, y=1, radius=1)
+    roi_processor = SingleRoi(mock_source, x=0, y=0, radius=np.sqrt(2))
     roi_processor.trigger()
     result = roi_processor.read()
 
@@ -34,3 +34,19 @@ def test_single_roi_simple_case():
 
     expected_value = np.mean(data[0:3, 0:3])  # Assuming this is how the ROI is defined
     assert np.isclose(result, expected_value), f"ROI average value is incorrect. Expected: {expected_value}, Got: {result}"
+
+def create_mock_source_with_data():
+    data = np.arange(25).reshape(5, 5)
+    return MockSource(data, pixel_size=1 * u.um)
+
+@pytest.mark.parametrize("x, y, radius, expected_avg", [
+    (0, 0, 1, 12),  # Center ROI in 5x5 matrix
+    (-2, -2, 0, 0)  # Top-left corner ROI in 5x5 matrix
+])
+def test_single_roi(x, y, radius, expected_avg):
+    mock_source = create_mock_source_with_data()
+    roi_processor = SingleRoi(mock_source, x, y, radius)
+    roi_processor.trigger()
+    result = roi_processor.read()
+
+    assert np.isclose(result, expected_avg), f"ROI average value is incorrect. Expected: {expected_avg}, Got: {result}"
