@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 
 from ..openwfs.simulation import SimulatedWFS, MockSource, MockSLM, Microscope, ADCProcessor
 import numpy as np
-from ..openwfs.algorithms import StepwiseSequential, BasicFDR, CharacterisingFDR, WFSController
+from ..openwfs.algorithms import StepwiseSequential, FourierDualReference, CharacterisingFDR, WFSController, FourierDualReference_new
 from ..openwfs.processors import SingleRoi
 import skimage
 from ..openwfs.utilities import imshow
@@ -330,3 +330,30 @@ def test_multidimensional_feedback_fourier():
 
     assert enhancement[2, 1] >= 3.0, f"""The algorithm did not enhance the focus as much as expected.
             Expected at least 3.0, got {enhancement}"""
+
+
+def test_new_fourier():
+    """
+    Test the enhancement performance of the Fourier-based algorithm.
+    """
+    aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
+    sim = SimulatedWFS(aberrations.reshape(*aberrations.shape, 1))
+    alg = FourierDualReference_new(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), number_modes=50,
+                               phase_steps=3, overlap=0.1)
+    results = alg.execute()
+    t = results.t
+
+    # compute the phase pattern to optimize the intensity in target 0
+    optimised_wf = -np.angle(t[:, :, 0])
+
+    # Calculate the enhancement factor
+    # Note: technically this is not the enhancement, just the ratio after/before
+    sim.slm.set_phases(0.0)
+    before = sim.read()
+    sim.slm.set_phases(optimised_wf)
+    after = sim.read()
+    enhancement = after / before
+
+    assert enhancement >= 3.0, f"""The Fourier algorithm did not enhance focus as much as expected.
+        Expected at least 3.0, got {enhancement}"""
+
