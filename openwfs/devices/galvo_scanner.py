@@ -1,9 +1,10 @@
-from typing import Union, Sequence
+from typing import Union, Sequence, Optional
 import astropy.units as u
 import nidaqmx.system
 import numpy as np
 from astropy.units import Quantity
 from ..core import Detector, unitless
+from ..slm.patterns import coordinate_range
 import nidaqmx as ni
 from nidaqmx.constants import TaskMode
 
@@ -72,9 +73,11 @@ class ScanningMicroscope(Detector):
                  axis1: tuple[str, Quantity[u.V], Quantity[u.V]],
                  scale: Quantity[u.um / u.V],
                  sample_rate: Quantity[u.Hz],
-                 delay=0.0 * u.us,
-                 binning=64,
-                 padding=0.05, bidirectional=True):
+                 delay: Quantity[u.us] = 0.0 * u.us,
+                 binning: int = 64,
+                 padding: float = 0.05,
+                 bidirectional: bool = True,
+                 simulation: Optional[str] = None):
         """
         Args:
             data_shape (tuple[int,int]): number of data points (height, width) of the full field of view.
@@ -137,6 +140,7 @@ class ScanningMicroscope(Detector):
 
         self._valid = False  # indicates that `trigger()` should initialize the nidaq tasks and scan pattern
         self._scan_pattern = None
+        self._simulation = simulation
 
         super().__init__(data_shape=data_shape, pixel_size=np.array((0.0, 0.0)) * u.um, duration=0.0 * u.ms)
         self._update()
@@ -154,17 +158,13 @@ class ScanningMicroscope(Detector):
         # to _v_origin + _roi_end + 0.5 * v_padding
         #
         v_padding = v_extent * padding / self._data_shape
-        scan_start = self._v_origin + self._roi_start - 0.5 * v_padding
         scan_range = self._roi_end - self._roi_start + v_padding
-        voltages0 = scan_start[0] + scan_range[0] * ((np.arange(self._padded_data_shape[0]) + 0.5) /
-                                                     self._padded_data_shape[0])
+        center = 0.5 * (self._roi_start + self._roi_end) + self._v_origin
+        (voltages0, voltages1a) = coordinate_range(self._padded_data_shape, scan_range, offset=center)
 
-        voltages1a = scan_start[1] + scan_range[1] * ((np.arange(self._padded_data_shape[1]) + 0.5) /
-                                                      self._padded_data_shape[1])
-
-        # crop to voltage limits to prevent possible damage
-        voltages0 = np.clip(voltages0, self._out_v_min[0], self._out_v_max[0])
-        voltages1a = np.clip(voltages1a, self._out_v_min[0], self._out_v_max[0])
+        # clip to voltage limits to prevent possible damage
+        voltages0 = np.clip(voltages0.ravel(), self._out_v_min[0], self._out_v_max[0])
+        voltages1a = np.clip(voltages1a.ravel(), self._out_v_min[0], self._out_v_max[0])
 
         # for bidirectional scanning, reverse the direction of the even scan lines
         if self._bidirectional:
@@ -183,6 +183,8 @@ class ScanningMicroscope(Detector):
         self._pixel_size = ((self._roi_end - self._roi_start) * self._scale / self._data_shape).to(u.um)
         self._duration = (sample_count / self._sample_rate).to(u.ms)
 
+        if self._simulation is not None:
+            return
         # Sets up Nidaq task and i/o channels
         if self._read_task:
             self._read_task.close()
@@ -225,6 +227,9 @@ class ScanningMicroscope(Detector):
             self._update()
             self._valid = True
 
+        if self._simulation is not None:
+            return
+
         self._read_task.wait_until_done()
         self._write_task.wait_until_done()
 
@@ -248,7 +253,7 @@ class ScanningMicroscope(Detector):
         # Change data type into uint16 if necessary
         if type(raw[0]) == np.int16:
             cropped = raw.reshape(self._padded_data_shape).view(dtype='uint16')[start[0]:end[0],
-                      start[1]:end[1]] + 0x8000     # add 32768 to go from -32768-32767 to 0-65535
+                      start[1]:end[1]] + 0x8000  # add 32768 to go from -32768-32767 to 0-65535
         elif type(raw[0]) == np.uint16:
             cropped = raw.reshape(self._padded_data_shape)[start[0]:end[0], start[1]:end[1]]
 
@@ -259,11 +264,17 @@ class ScanningMicroscope(Detector):
 
     def _fetch(self, out: Union[np.ndarray, None]) -> np.ndarray:  # noqa
         """Reads the acquired data from the input task."""
-
-        raw = self._read_task.in_stream.read()
-        assert len(raw) == self._padded_data_shape[0] * self._padded_data_shape[1]
-        self._read_task.stop()
-        self._write_task.stop()
+        if self._simulation is None:
+            raw = self._read_task.in_stream.read()
+            self._read_task.stop()
+            self._write_task.stop()
+        elif self._simulation == 'horizontal':
+            raw = (self._scan_pattern[1, :] * 1000.0).round().astype('int16')  # in mV
+        elif self._simulation == 'vertical':
+            raw = (self._scan_pattern[0, :] * 1000.0).round().astype('int16')
+        else:
+            raise ValueError(
+                f"Invalid simulation option {self._simulation}. Should be 'horizontal', 'vertical', or 'None'")
 
         cropped = self._raw_to_cropped(raw)
 
@@ -277,7 +288,7 @@ class ScanningMicroscope(Detector):
     @property
     def left(self) -> int:
         """The leftmost pixel of the Region of Interest (ROI) in the scan range."""
-        return np.round(self._roi_start[1] * self._scale[1] / self._pixel_size[1]).astype('int32')
+        return int(np.round(self._roi_start[1] * self._scale[1] / self._pixel_size[1]))
 
     @left.setter
     def left(self, value: int):
@@ -287,7 +298,7 @@ class ScanningMicroscope(Detector):
     @property
     def top(self) -> int:
         """The topmost pixel of the ROI in the scan range."""
-        return np.round(self._roi_start[0] * self._scale[0] / self._pixel_size[0]).astype('int32')
+        return int(np.round(self._roi_start[0] * self._scale[0] / self._pixel_size[0]))
 
     @top.setter
     def top(self, value: int):
