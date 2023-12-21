@@ -5,7 +5,7 @@ from ..slm.patterns import tilt
 
 
 class FourierDualRef:
-    """Base class definition for the Fourier algorithm as described by Mastiani et al. [1].
+    """Base class definition for the Fourier algorithms.
 
       Can run natively, provided you input the kspace for the reference and measurement part of the SLM.
 
@@ -19,9 +19,6 @@ class FourierDualRef:
             and measurement part of the SLM.
             A larger overlap reduces the uncertainty in matching the phase of the two halves of the solution,
             but reduces the overall efficiency of the algorithm. Default = 0.1
-
-      [1]: Bahareh Mastiani, Gerwin Osnabrugge, and Ivo M. Vellekoop,
-      "Wavefront shaping for forward scattering," Opt. Express 30, 37436-37445 (2022)
       """
 
     def __init__(self, feedback: Detector, slm: PhaseSLM, slm_shape, k_left, k_right, phase_steps=4,

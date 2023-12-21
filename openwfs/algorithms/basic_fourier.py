@@ -4,7 +4,7 @@ import numpy as np
 
 
 class BasicFDR(FourierDualRef):
-    """The most simple implementation of the FourierDualRef algorithm.
+    """Fourier double reference algorithm, based on Mastiani et al. [1].
 
     It constructs a symmetric k-space for the algorithm.
     The k-space initializer is set to None because for custom k-spaces, you should use FourierDualRef directly.
@@ -15,6 +15,9 @@ class BasicFDR(FourierDualRef):
 
     Methods:
         build_kspace(): Constructs the k-space arrays used in the algorithm.
+
+    [1]: Bahareh Mastiani, Gerwin Osnabrugge, and Ivo M. Vellekoop,
+    "Wavefront shaping for forward scattering," Opt. Express 30, 37436-37445 (2022)
     """
 
     def __init__(self, feedback: Detector, slm: PhaseSLM, slm_shape=(500, 500), phase_steps=4, k_angles_min=-3,

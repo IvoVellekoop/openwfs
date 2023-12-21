@@ -3,7 +3,7 @@ import logging
 import matplotlib.pyplot as plt
 import pytest
 import numpy as np
-from ..openwfs.algorithms import StepwiseSequential, BasicFDR, CharacterisingFDR
+from ..openwfs.algorithms import StepwiseSequential, BasicFDR
 from ..openwfs.processors import SingleRoi
 from ..openwfs.simulation import SimulatedWFS, Microscope, MockCamera, MockSource, MockXYStage, MockSLM
 import skimage
