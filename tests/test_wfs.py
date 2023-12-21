@@ -315,7 +315,7 @@ def test_new_fourier():
     aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
     sim = SimulatedWFS(aberrations.reshape(*aberrations.shape, 1))
     alg = FourierDualReference_new(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), number_modes=50,
-                               phase_steps=3, overlap=0.1)
+                               phase_steps=3)
     results = alg.execute()
     t = results.t
 
@@ -329,7 +329,7 @@ def test_new_fourier():
     sim.slm.set_phases(optimised_wf)
     after = sim.read()
     enhancement = after / before
-
+    imshow(optimised_wf)
     assert enhancement >= 3.0, f"""The Fourier algorithm did not enhance focus as much as expected.
         Expected at least 3.0, got {enhancement}"""
 

@@ -1,16 +1,15 @@
-from .fourier import FourierBase
+from .no_overlap_fourier_base import FourierBase2
 from ..core import Detector, PhaseSLM
 import numpy as np
 
 
-class FourierDualReference_new(FourierBase):
+class FourierDualReference_new(FourierBase2):
     """
     Implementation of the FourierDualRef algorithm with dynamic k-space based on overlap and number of modes.
     Ensures that the number of modes is always an odd number of integers and centered around 0.
     """
 
-    def __init__(self, feedback: Detector, slm: PhaseSLM, slm_shape=(500, 500), phase_steps=4, overlap=0.1,
-                 number_modes=9):
+    def __init__(self, feedback: Detector, slm: PhaseSLM, slm_shape=(500, 500), phase_steps=4, number_modes=9):
         """
         Args:
             feedback (Detector): Source of feedback
@@ -20,8 +19,7 @@ class FourierDualReference_new(FourierBase):
             overlap (float): The overlap value.
             number_modes (int): Total number of modes to be used for generating k-space.
         """
-        super().__init__(feedback, slm, slm_shape, np.array((0, 0)), np.array((0, 0)), phase_steps=phase_steps,
-                         overlap=overlap)
+        super().__init__(feedback, slm, slm_shape, np.array((0, 0)), np.array((0, 0)), phase_steps=phase_steps)
         self._number_modes = max(number_modes, 9)  # Ensure a minimum of 9 modes
 
         self._build_kspace()
@@ -43,7 +41,7 @@ class FourierDualReference_new(FourierBase):
 
         # Adjust if total exceeds max allowed modes
         while x_modes * y_modes > self._number_modes:
-            if x_modes > y_modes * ratio:
+            if x_modes > y_modes * ratio or y_modes <= 3:
                 x_modes -= 2  # Reduce by 2 to keep it odd
             else:
                 y_modes -= 2  # Reduce by 2 to keep it odd
