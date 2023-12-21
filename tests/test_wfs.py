@@ -51,6 +51,10 @@ def test_ssa(n_y, n_x):
 def test_ssa_noise(n_y, n_x):
     """
     Test the enhancement prediction with noisy SSA.
+
+    Note: this test sometimes fails,
+    it seems that the effect of noise is underestimated,
+    especially when the number of segments is high (and thus the SNR is low)
     """
     aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
     sim_no_noise = SimulatedWFS(aberrations)

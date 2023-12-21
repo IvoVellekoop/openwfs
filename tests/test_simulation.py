@@ -1,7 +1,7 @@
 import logging
 import pytest
 import numpy as np
-from ..openwfs.algorithms import StepwiseSequential, BasicFDR
+from ..openwfs.algorithms import StepwiseSequential
 from ..openwfs.processors import SingleRoi
 from ..openwfs.simulation import Microscope, MockCamera, MockSource, MockSLM
 import skimage

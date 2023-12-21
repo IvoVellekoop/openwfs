@@ -36,8 +36,8 @@ class WFSResult:
         self.n = t.size / self.noise_factor.size if n is None else n
         self.amplitude_factor = np.atleast_1d(amplitude_factor)
         self.estimated_enhancement = np.atleast_1d(1.0 + (self.n - 1) * self.amplitude_factor * self.noise_factor)
-        self.I_offset = I_offset
-        self.non_linearity = non_linearity
+        self.I_offset = np.atleast_1d(I_offset)
+        self.non_linearity = np.atleast_1d(non_linearity)
         after = np.sum(np.abs(t), tuple(range(self.axis))) ** 2 * self.noise_factor + I_offset
         self.estimated_optimized_intensity = np.atleast_1d(after)
 
@@ -220,7 +220,7 @@ class WFSController:
                 # select only the wavefront and statistics for the first target
                 result = self.algorithm.execute().select_target(0)
                 self._optimized_wavefront = -np.angle(result.t)
-                self._snr = result.snr
+                self._snr = 1.0 / (1.0 / result.noise_factor - 1.0)
                 self._estimated_enhancement = result.estimated_enhancement
             self.algorithm._slm.set_phases(self._optimized_wavefront)
 
