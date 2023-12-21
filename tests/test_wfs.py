@@ -10,114 +10,77 @@ import astropy.units as u
 import pytest
 
 
-def calculate_enhancement(simulation, optimised_wf, x=256, y=256):
-    simulation.set_data(0)
-    simulation.update()
-    simulation.trigger()
-    simulation.wait()
-    feedback_before = np.mean(simulation.read()[x, y])
+def assert_enhancement(slm, feedback, wfs_results, t_correct=None):
+    """Helper function to check if the intensity in the target focus increases as much as expected"""
 
-    simulation.set_data(optimised_wf)
-    simulation.update()
-    simulation.trigger()
-    simulation.wait()
-    feedback_after = np.mean(simulation.read()[x, y])
+    if t_correct is not None:
+        # check if we correctly measured the t-matrix
+        # the correlation will be less for fewer segments, hence the (ad-hoc) factor 2/sqrt(n)
+        t = wfs_results.t[:]
+        corr = np.abs(np.vdot(t_correct, t) / np.sqrt(np.vdot(t_correct, t_correct) * np.vdot(t, t)))
+        assert corr > 1.0 - 2.0 / np.sqrt(wfs_results.n)
 
-    return feedback_after / feedback_before
+    optimised_wf = -np.angle(wfs_results.t)
+    slm.set_phases(0.0)
+    before = feedback.read()
+    slm.set_phases(optimised_wf)
+    after = feedback.read()
+    estimated_after = wfs_results.estimated_optimized_intensity
+    print(f"expected: {estimated_after}, actual: {after}")
+    assert estimated_after * 0.5 <= after <= estimated_after * 2.0, f"""
+        The SSA algorithm did not enhance the focus as much as expected.
+        Expected at least 0.5 * {estimated_after}, got {after}"""
 
 
-@pytest.mark.parametrize("n_x", [5, 10])
-def test_ssa(n_x):
+@pytest.mark.parametrize("n_y, n_x", [(5, 5), (7, 11), (6, 4)])
+def test_ssa(n_y, n_x):
     """
     Test the enhancement performance of the SSA algorithm.
     Note, for low N, the improvement estimate is not accurate,
     and the test may sometimes fail due to statistical fluctuations.
     """
-    aberrations = np.random.uniform(0.0, 2 * np.pi, (n_x, n_x))  # skimage.data.camera() * (2.0 * np.pi / 255.0)
+    aberrations = np.random.uniform(0.0, 2 * np.pi, (n_y, n_x))
     sim = SimulatedWFS(aberrations)
-    alg = StepwiseSequential(feedback=sim, slm=sim.slm, n_x=n_x, n_y=n_x, phase_steps=10)
+    alg = StepwiseSequential(feedback=sim, slm=sim.slm, n_x=n_x, n_y=n_y, phase_steps=4)
     result = alg.execute()
-
-    t = result.t[:]
-    t_correct = np.exp(1j * aberrations)[:]
-    corr = np.abs(np.vdot(t_correct, t) / np.sqrt(np.vdot(t_correct, t_correct) * np.vdot(t, t)))
-    print(corr)
-    # compute the phase pattern to optimize the intensity in target 0
-    optimised_wf = -np.angle(result.t)
-
-    # Calculate the enhancement factor
-    # Note: technically this is not the enhancement, just the ratio after/before
-    sim.slm.set_phases(0.0)
-    before = sim.read()
-    sim.slm.set_phases(optimised_wf)
-    after = sim.read()
-    improvement = after / before
-    print(f"expected: {result.estimated_improvement}, actual: {improvement}")
-    assert result.estimated_improvement * 0.5 <= improvement <= result.estimated_improvement * 2.0, f"""
-        The SSA algorithm did not enhance the focus as much as expected.
-        Expected at least 0.5 * {result.estimated_improvement}, got {improvement}"""
+    print(np.mean(np.abs(result.t)))
+    assert_enhancement(sim.slm, sim, result, np.exp(1j * aberrations))
 
 
-@pytest.mark.parametrize("n_x", [3, 5, 10])
-def test_ssa_noise(n_x):
+@pytest.mark.parametrize("n_y, n_x", [(5, 5), (7, 11), (6, 4)])
+def test_ssa_noise(n_y, n_x):
     """
-    Test the enhancement performance of the SSA algorithm.
+    Test the enhancement prediction with noisy SSA.
     """
     aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
     sim_no_noise = SimulatedWFS(aberrations)
     slm = sim_no_noise.slm
     scale = np.max(sim_no_noise.read())
-    sim = ADCProcessor(sim_no_noise, analog_max=scale * 100.0)
-    alg = StepwiseSequential(feedback=sim, slm=slm, n_x=10, n_y=10, phase_steps=5)
+    sim = ADCProcessor(sim_no_noise, analog_max=scale * 200.0, digital_max=1000, shot_noise=True)
+    alg = StepwiseSequential(feedback=sim, slm=slm, n_x=n_x, n_y=n_y, phase_steps=4)
     result = alg.execute()
 
-    # compute the phase pattern to optimize the intensity in target 0
-    optimised_wf = -np.angle(result.t)
-
-    # Calculate the enhancement factor
-    # Note: technically this is not the enhancement, just the ratio after/before
-    slm.set_phases(0.0)
-    before = sim_no_noise.read()
-    slm.set_phases(optimised_wf)
-    after = sim_no_noise.read()
-    improvement = after / before
-    print(f"expected: {result.estimated_improvement}, actual: {improvement}")
-    assert result.estimated_improvement * 0.5 <= improvement <= result.estimated_improvement * 2.0, f"""
-            The SSA algorithm did not enhance the focus as much as expected.
-            Expected at least 0.5 * {result.estimated_improvement}, got {improvement}"""
+    assert_enhancement(slm, sim, result)
 
 
-def test_fourier():
+@pytest.mark.parametrize("n_x", [2, 3])
+def test_fourier(n_x):
     """
     Test the enhancement performance of the Fourier-based algorithm.
+    Use the 'cameraman' test image since it is relatively smooth.
     """
     aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
-    sim = SimulatedWFS(aberrations.reshape(*aberrations.shape, 1))
-    alg = BasicFDR(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-1, k_angles_max=1,
-                   phase_steps=3)
+    sim = SimulatedWFS(aberrations)
+    alg = BasicFDR(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-n_x, k_angles_max=n_x,
+                   phase_steps=4)
     results = alg.execute()
-    t = results.t
-
-    # compute the phase pattern to optimize the intensity in target 0
-    optimised_wf = -np.angle(t[:, :, 0])
-
-    # Calculate the enhancement factor
-    # Note: technically this is not the enhancement, just the ratio after/before
-    sim.slm.set_phases(0.0)
-    before = sim.read()
-    sim.slm.set_phases(optimised_wf)
-    after = sim.read()
-    enhancement = after / before
-
-    assert enhancement >= 3.0, f"""The Fourier algorithm did not enhance focus as much as expected.
-        Expected at least 3.0, got {enhancement}"""
+    assert_enhancement(sim.slm, sim, results, np.exp(1j * aberrations))
 
 
 def test_fourier2():
-    """Test to reproduce a bug observed in microscope_simulation_micromanager.py
-    and reduced to simplest code to reproduce it."""
+    """Test the Fourier dual reference algorithm using WFSController."""
 
-    aberration_phase = skimage.data.camera() * ((2 * np.pi) / 255.0)  # + np.pi
+    aberration_phase = skimage.data.camera() * ((2 * np.pi) / 255.0)
     roi_detector = SimulatedWFS(aberration_phase)
     alg = BasicFDR(feedback=roi_detector, slm=roi_detector.slm, slm_shape=(1000, 1000), k_angles_min=-3, k_angles_max=3,
                    phase_steps=3)
@@ -169,6 +132,7 @@ def test_fourier_correction_field():
     correlation = np.vdot(t, t_correct) / np.sqrt(np.vdot(t, t) * np.vdot(t_correct, t_correct))
 
     assert abs(correlation) > 0.75  # not that high because a 9 mode WFS procedure can only do so much
+
 
 def test_phaseshift_correction():
     """
@@ -238,6 +202,7 @@ def test_flat_wf_response_ssa():
     # Assert that the standard deviation of the optimized wavefront is below the threshold,
     # indicating that it is effectively flat
     assert np.std(optimised_wf) < 0.001, f"Response flat wavefront not flat, std: {np.std(optimised_wf)}"
+
 
 def test_multidimensional_feedback_ssa():
     aberrations = np.random.uniform(0.0, 2 * np.pi, (256, 256, 5, 2))
