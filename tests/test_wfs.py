@@ -56,9 +56,10 @@ def test_ssa_noise(n_y, n_x):
     sim_no_noise = SimulatedWFS(aberrations)
     slm = sim_no_noise.slm
     scale = np.max(sim_no_noise.read())
-    sim = ADCProcessor(sim_no_noise, analog_max=scale * 200.0, digital_max=1000, shot_noise=True)
-    alg = StepwiseSequential(feedback=sim, slm=slm, n_x=n_x, n_y=n_y, phase_steps=4)
+    sim = ADCProcessor(sim_no_noise, analog_max=scale * 200.0, digital_max=10000, shot_noise=True)
+    alg = StepwiseSequential(feedback=sim, slm=slm, n_x=n_x, n_y=n_y, phase_steps=10)
     result = alg.execute()
+    print(result.noise_factor)
 
     assert_enhancement(slm, sim, result)
 
@@ -71,8 +72,9 @@ def test_fourier(n_x):
     """
     aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
     sim = SimulatedWFS(aberrations)
-    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-n_x, k_angles_max=n_x,
-                   phase_steps=4)
+    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-n_x,
+                               k_angles_max=n_x,
+                               phase_steps=4)
     results = alg.execute()
     assert_enhancement(sim.slm, sim, results, np.exp(1j * aberrations))
 
@@ -82,7 +84,8 @@ def test_fourier2():
 
     aberration_phase = skimage.data.camera() * ((2 * np.pi) / 255.0)
     roi_detector = SimulatedWFS(aberration_phase)
-    alg = FourierDualReference(feedback=roi_detector, slm=roi_detector.slm, slm_shape=(1000, 1000), k_angles_min=-1, k_angles_max=1,
+    alg = FourierDualReference(feedback=roi_detector, slm=roi_detector.slm, slm_shape=(1000, 1000), k_angles_min=-1,
+                               k_angles_max=1,
                                phase_steps=3)
     controller = WFSController(alg)
     controller.wavefront = WFSController.State.FLAT_WAVEFRONT
@@ -124,7 +127,8 @@ def test_fourier_correction_field():
     """
     aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
     sim = SimulatedWFS(aberrations)
-    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-2, k_angles_max=2,
+    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-2,
+                               k_angles_max=2,
                                phase_steps=3)
     t = alg.execute().t
 
@@ -141,7 +145,8 @@ def test_phaseshift_correction():
     """
     aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
     sim = SimulatedWFS(aberrations)
-    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-1, k_angles_max=1,
+    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-1,
+                               k_angles_max=1,
                                phase_steps=3)
     t = alg.execute().t
 
@@ -176,7 +181,8 @@ def test_flat_wf_response_fourier():
     aberrations = np.zeros(shape=(512, 512))
     sim = SimulatedWFS(aberrations.reshape((*aberrations.shape, 1)))
 
-    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-1, k_angles_max=1,
+    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-1,
+                               k_angles_max=1,
                                phase_steps=3)
 
     t = alg.execute().t

@@ -61,7 +61,7 @@ class WFSResult:
                          )
 
 
-def analyze_phase_stepping(measurements: np.ndarray, axis: int, I_flat):
+def analyze_phase_stepping(measurements: np.ndarray, axis: int, A=None):
     """Analyzes the result of phase stepping measurements, returning matrix `t` and noise statitics
 
     This function assumes that all measurements were made using the same reference field `A`
@@ -140,7 +140,14 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int, I_flat):
     # I_offset = 0.0  # (d - alpha * b) / N - I_A
     # # print(f"residual {np.linalg.norm(x * alpha + I_offset + I_A - y)}")
 
-    t = np.take(t_f, 1, axis=axis) / np.sqrt(I_flat)
+    if A is None:  # reference field strength not known: estimate from data
+        t_abs = np.abs(np.take(t_f, 1, axis=axis))
+        offset = np.take(t_f, 0, axis=axis)
+        a_plus_b = np.sqrt(offset + 2.0 * t_abs)
+        a_minus_b = np.sqrt(offset - 2.0 * t_abs)
+        A = 0.5 * np.mean(a_plus_b + a_minus_b)
+
+    t = np.take(t_f, 1, axis=axis) / A
 
     # compute the effect of amplitude variations.
     # for perfectly developed speckle, and homogeneous illumination, this factor will be pi/4

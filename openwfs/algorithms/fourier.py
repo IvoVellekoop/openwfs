@@ -151,24 +151,26 @@ class FourierBase:
         # For each k-vector (the leading dimension of left), compute the corresponding field,
         # multiply it by the measured t coefficient, and add together.
         # TODO: why is there a - sign in the np.exp below?
-        for n, t in enumerate(left.t):
-            phi = self._get_phase_pattern(k_left[:, n], 0, 0)
-            t1 += np.tensordot(np.exp(-1j * phi), t, 0)
-
-        for n, t in enumerate(right.t):
-            phi = self._get_phase_pattern(k_right[:, n], 0, 1)
-            t2 += np.tensordot(np.exp(-1j * phi), t, 0)
-
         overlap_len = int(self._overlap * self.slm_shape[0])
         overlap_begin = self.slm_shape[0] // 2 - int(overlap_len / 2)
         overlap_end = self.slm_shape[0] // 2 + int(overlap_len / 2)
+        normalisation = 1.0 / (overlap_end * self.slm_shape[0])
+        for n, t in enumerate(left.t):
+            phi = self._get_phase_pattern(k_left[:, n], 0, 0)
+            t1 += np.tensordot(np.exp(-1j * phi), t * normalisation, 0)
+
+        for n, t in enumerate(right.t):
+            phi = self._get_phase_pattern(k_right[:, n], 0, 1)
+            t2 += np.tensordot(np.exp(-1j * phi), t * normalisation, 0)
 
         c = np.sum(t2[:, overlap_begin:overlap_end, ...].conj() * t1[:, overlap_begin:overlap_end, ...], (0, 1))
         factor = c / abs(c) * np.linalg.norm(t1[:, overlap_begin:overlap_end]) / np.linalg.norm(
             t2[:, overlap_begin:overlap_end])
         if np.linalg.norm(t2[:, overlap_begin:overlap_end]) == 0:
             factor = 1
-        t2 = t2 * factor
+        # keep total norm the same
+        t2 = t2 * factor / np.sqrt(np.abs(factor))
+        t1 = t1 / np.sqrt(np.abs(factor))
 
         overlap = 0.5 * (t1[:, overlap_begin:overlap_end, ...] + t2[:, overlap_begin:overlap_end, ...])
         t_full = np.concatenate([t1[:, 0:overlap_begin, ...], overlap, t2[:, overlap_end:, ...]], axis=1)
@@ -176,9 +178,12 @@ class FourierBase:
         # return combined result, along with a course estimate of the snr and expected enhancement
         # TODO: not accurate yet
         # for the estimated_improvement, first convert to field improvement, then back to intensity improvement
+        def weighted_average(x_left, x_right):
+            return (left.n * x_left + right.n * x_right) / (left.n + right.n)
+
         return WFSResult(t=t_full,
                          n=left.n + right.n,
-                         snr=0.5 * (left.snr + right.snr),
-                         amplitude_factor=0.5 * (left.amplitude_factor + right.amplitude_factor),
-                         estimated_improvement=(0.5 * (
-                                 np.sqrt(left.estimated_improvement) + np.sqrt(right.estimated_improvement))) ** 2)
+                         axis=2,
+                         noise_factor=weighted_average(left.noise_factor, right.noise_factor),
+                         amplitude_factor=weighted_average(left.amplitude_factor, right.amplitude_factor),
+                         non_linearity=weighted_average(left.non_linearity, right.non_linearity))

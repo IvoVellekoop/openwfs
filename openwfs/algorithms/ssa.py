@@ -48,7 +48,7 @@ class StepwiseSequential:
 
         self._feedback.wait()
         I_0 = np.mean(measurements[:, :, 0])  # flat wavefront intensity
-        return analyze_phase_stepping(measurements, axis=2, I_flat=I_0)
+        return analyze_phase_stepping(measurements, axis=2, A=np.sqrt(I_0))
 
     @property
     def n_x(self) -> int:
