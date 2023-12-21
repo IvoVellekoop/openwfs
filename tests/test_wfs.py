@@ -314,10 +314,24 @@ def test_new_fourier():
     """
     aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
     sim = SimulatedWFS(aberrations.reshape(*aberrations.shape, 1))
-    alg = FourierDualReference_new(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), number_modes=10,
+    alg = FourierDualReference_new(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_space_radius=6,
                                phase_steps=3)
+
+
     results = alg.execute()
     t = results.t
+
+    k_left = alg.k_left
+
+    # Scatter plot
+    plt.figure(figsize=(8, 8))
+    plt.scatter(k_left[0], k_left[1], marker='o')
+    plt.title('k-space Visualization (k_left)')
+    plt.xlabel('kx')
+    plt.ylabel('ky')
+    plt.grid(True)
+    plt.axis('equal')  # Ensures equal aspect ratio
+    plt.show()
 
     # compute the phase pattern to optimize the intensity in target 0
     optimised_wf = -np.angle(t[:, :, 0])
