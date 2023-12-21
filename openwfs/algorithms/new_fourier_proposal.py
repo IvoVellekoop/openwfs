@@ -1,9 +1,9 @@
-from .no_overlap_fourier_base import FourierBase2
+from .fourier import FourierBase
 from ..core import Detector, PhaseSLM
 import numpy as np
 
 
-class FourierDualReference_new(FourierBase2):
+class FourierDualReference_new(FourierBase):
     """
     Implementation of the FourierDualRef algorithm with dynamic k-space based on overlap and number of modes.
     Ensures that the number of modes is always an odd number of integers and centered around 0.
@@ -31,8 +31,10 @@ class FourierDualReference_new(FourierBase2):
         ToDo: we now always make our k-space symmetric. We could forfeit that requirement and have a better fitting
             k-space. That would mean entering max modes = 12 would produce kx = [-1, 0, 1, 2] & ky = [-1, 0, 1].
             Whether to add positive modes or negative ones first is arbitrary.
+
+        kspace radius opgeven --> meten welke modes er meedoen
         """
-        ratio = 2 - self._overlap
+        ratio = 2
         y_modes = int(np.round(np.sqrt(self._number_modes / ratio)))
 
         # Ensure y_modes is odd and at least 3

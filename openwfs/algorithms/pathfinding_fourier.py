@@ -46,7 +46,7 @@ class PathfindingFourier(FourierBase):
             high_phase_steps (int): The number of phase steps for high mode measurements.
             intermediates (bool): Flag to enable recording intermediate enhancements.
         """
-        super().__init__(feedback, slm, slm_shape, None, None, phase_steps=phase_steps, overlap=overlap)
+        super().__init__(feedback, slm, slm_shape, None, None, phase_steps=phase_steps)
         self.max_modes = max_modes
         self.high_modes = high_modes
         self.high_phase_steps = high_phase_steps
