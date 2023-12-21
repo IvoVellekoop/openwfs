@@ -47,6 +47,7 @@ class GenericDevice:
 
     @property
     def options(self) -> SomeOptions:
+        """Enumerated options for the device. Possible values are from the SomeOptions enum."""
         return self._options
 
     @options.setter
@@ -55,6 +56,7 @@ class GenericDevice:
 
     @property
     def floating_point(self) -> float:
+        """A floating-point value representing some parameter of the device."""
         return self._floating_point
 
     @floating_point.setter
@@ -63,6 +65,7 @@ class GenericDevice:
 
     @property
     def distance(self) -> u.Quantity[u.mm]:
+        """A distance measurement with astropy units, in millimeters."""
         return self._distance
 
     @distance.setter
@@ -71,6 +74,7 @@ class GenericDevice:
 
     @property
     def boolean(self) -> bool:
+        """A boolean value representing a binary state or choice for the device."""
         return self._boolean
 
     @boolean.setter
@@ -81,6 +85,7 @@ class GenericDevice:
     @property
     # setting a range, also sets this range in MicroManager, also optional.
     def integer(self) -> Annotated[int, {'min': 0, 'max': 42}]:
+        """An integer value, constrained within a specified range (0 to 42)."""
         return self._integer
 
     @integer.setter
@@ -89,6 +94,7 @@ class GenericDevice:
 
     @property
     def command(self) -> str:
+        """command (str): The initial command for the device."""
         return self._command
 
     @command.setter

@@ -78,11 +78,16 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int, I_flat):
         axis(int): indicates which axis holds the phase steps.
 
     With `phase_steps` phase steps, the measurements are given by
-    .. math::
-        I_p = \lvert A + B exp(i 2\pi p / phase_steps)\rvert^2,
 
-    This function computes the Fourier transform. math::
-        \frac{1}{phase_steps} \sum I_p exp(-i 2\pi p / phase_steps) = A^* B
+    .. math::
+
+        I_p = \lvert A + B \\exp(i 2\pi p / phase_{steps})\\rvert^2,
+
+    This function computes the Fourier transform.
+
+    .. math::
+
+        \\frac{1}{phase_{steps}} \\sum I_p  \\exp(-i 2\\pi p / phase_{steps}) = A^* B
 
     The value of A^* B for each set of measurements is stored in the `field` attribute of the return
     value.
@@ -180,6 +185,7 @@ class WFSController:
         self._feedback_enhancement = None
         self._test_wavefront = False
         self._snr = None  # Average SNR. Computed when wavefront is computed.
+        self._estimated_enhancement = None  # Expected enhancement from phase stepping measurements
 
     @property
     def wavefront(self) -> State:
@@ -208,6 +214,7 @@ class WFSController:
                 result = self.algorithm.execute().select_target(0)
                 self._optimized_wavefront = -np.angle(result.t)
                 self._snr = result.snr
+                self._estimated_enhancement = result.estimated_enhancement
             self.algorithm._slm.set_phases(self._optimized_wavefront)
 
     @property
@@ -234,6 +241,10 @@ class WFSController:
     def feedback_enhancement(self) -> float:
         """Returns: the average enhancement of the feedback, returns none if no such enhancement was measured."""
         return self._feedback_enhancement
+
+    @property
+    def estimated_enhancement(self) -> float:
+        return self._estimated_enhancement
 
     @property
     def test_wavefront(self) -> bool:

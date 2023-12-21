@@ -43,6 +43,7 @@ class RandomGenerator:
 
     @property
     def min(self) -> Annotated[int, {'min': 0, 'max': 0xFFFF}]:
+        """Minimum value for random number generation, default is 0. Range: 0 to 0xFFFF."""
         return self._min
 
     @min.setter
@@ -51,6 +52,7 @@ class RandomGenerator:
 
     @property
     def max(self) -> Annotated[int, {'min': 0, 'max': 0xFFFF}]:
+        """Maximum value for random number generation, default is 1000. Range: 0 to 0xFFFF."""
         return self._max
 
     @max.setter
@@ -59,6 +61,7 @@ class RandomGenerator:
 
     @property
     def noise_type(self) -> NoiseType:
+        """Type of noise to generate. Currently, only uniform noise is supported."""
         return self._noise_type
 
     @noise_type.setter

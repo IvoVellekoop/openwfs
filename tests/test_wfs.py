@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 
 from ..openwfs.simulation import SimulatedWFS, MockSource, MockSLM, Microscope, ADCProcessor
 import numpy as np
-from ..openwfs.algorithms import StepwiseSequential, BasicFDR, WFSController
+from ..openwfs.algorithms import StepwiseSequential, FourierDualReference, WFSController
 from ..openwfs.processors import SingleRoi
 import skimage
 from ..openwfs.utilities import imshow
@@ -71,7 +71,7 @@ def test_fourier(n_x):
     """
     aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
     sim = SimulatedWFS(aberrations)
-    alg = BasicFDR(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-n_x, k_angles_max=n_x,
+    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-n_x, k_angles_max=n_x,
                    phase_steps=4)
     results = alg.execute()
     assert_enhancement(sim.slm, sim, results, np.exp(1j * aberrations))
@@ -82,8 +82,8 @@ def test_fourier2():
 
     aberration_phase = skimage.data.camera() * ((2 * np.pi) / 255.0)
     roi_detector = SimulatedWFS(aberration_phase)
-    alg = BasicFDR(feedback=roi_detector, slm=roi_detector.slm, slm_shape=(1000, 1000), k_angles_min=-3, k_angles_max=3,
-                   phase_steps=3)
+    alg = FourierDualReference(feedback=roi_detector, slm=roi_detector.slm, slm_shape=(1000, 1000), k_angles_min=-1, k_angles_max=1,
+                               phase_steps=3)
     controller = WFSController(alg)
     controller.wavefront = WFSController.State.FLAT_WAVEFRONT
     before = roi_detector.read()
@@ -98,16 +98,16 @@ def test_fourier_microscope():
     aberration_phase = skimage.data.camera() * ((2 * np.pi) / 255.0) + np.pi
     aberration = MockSource(aberration_phase, pixel_size=2.0 / np.array(aberration_phase.shape))
     img = np.zeros((1000, 1000), dtype=np.int16)
-    signal_location = (256, 256)
+    signal_location = (250, 250)
     img[signal_location] = 100
     src = MockSource(img, 400 * u.nm)
     slm = MockSLM(shape=(1000, 1000))
     sim = Microscope(source=src, slm=slm.pixels(), magnification=1, numerical_aperture=1, aberrations=aberration,
                      wavelength=800 * u.nm)
     cam = sim.get_camera(analog_max=100)
-    roi_detector = SingleRoi(cam, x=256, y=256, radius=0)  # Only measure that specific point
-    alg = BasicFDR(feedback=roi_detector, slm=slm, slm_shape=(1000, 1000), k_angles_min=-2, k_angles_max=2,
-                   phase_steps=3)
+    roi_detector = SingleRoi(cam, x=-249, y=-249, radius=0)  # Only measure that specific point
+    alg = FourierDualReference(feedback=roi_detector, slm=slm, slm_shape=(1000, 1000), k_angles_min=-1, k_angles_max=1,
+                               phase_steps=3)
     controller = WFSController(alg)
     controller.wavefront = WFSController.State.FLAT_WAVEFRONT
     before = roi_detector.read()
@@ -124,8 +124,8 @@ def test_fourier_correction_field():
     """
     aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
     sim = SimulatedWFS(aberrations)
-    alg = BasicFDR(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-2, k_angles_max=2,
-                   phase_steps=3)
+    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-2, k_angles_max=2,
+                               phase_steps=3)
     t = alg.execute().t
 
     t_correct = np.exp(1j * aberrations)
@@ -141,8 +141,8 @@ def test_phaseshift_correction():
     """
     aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
     sim = SimulatedWFS(aberrations)
-    alg = BasicFDR(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-1, k_angles_max=1,
-                   phase_steps=3)
+    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-1, k_angles_max=1,
+                               phase_steps=3)
     t = alg.execute().t
 
     # compute the phase pattern to optimize the intensity in target 0
@@ -176,8 +176,8 @@ def test_flat_wf_response_fourier():
     aberrations = np.zeros(shape=(512, 512))
     sim = SimulatedWFS(aberrations.reshape((*aberrations.shape, 1)))
 
-    alg = BasicFDR(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-1, k_angles_max=1,
-                   phase_steps=3)
+    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-1, k_angles_max=1,
+                               phase_steps=3)
 
     t = alg.execute().t
     optimised_wf = np.angle(t)
@@ -232,7 +232,7 @@ def test_multidimensional_feedback_fourier():
     sim = SimulatedWFS(aberrations)
 
     # input the camera as a feedback object, such that it is multidimensional
-    alg = BasicFDR(feedback=sim, slm=sim.slm, k_angles_min=-1, k_angles_max=1, phase_steps=3)
+    alg = FourierDualReference(feedback=sim, slm=sim.slm, k_angles_min=-1, k_angles_max=1, phase_steps=3)
     t = alg.execute().t
 
     # compute the phase pattern to optimize the intensity in target 0

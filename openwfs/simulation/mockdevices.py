@@ -11,8 +11,15 @@ from ..core import Detector, Processor, PhaseSLM, Actuator, get_pixel_size
 
 
 class Generator(Detector):
-    """Detector that returns synthetic data.
-    Also simulates latency and measurement duration.
+    """A detector that returns synthetic data, simulating latency and measurement duration.
+
+    Attributes:
+        duration (Quantity[u.ms]): Duration for which the generator simulates data acquisition.
+        latency (Quantity[u.ms]): Simulated delay before data acquisition begins.
+
+    Methods:
+        uniform_noise: Static method to create a generator with uniform noise.
+        gaussian_noise: Static method to create a generator with Gaussian noise.
     """
 
     def __init__(self, generator, *, duration=0 * u.ms, **kwargs):
@@ -91,8 +98,13 @@ class Generator(Detector):
 
 
 class MockSource(Generator):
-    """Detector that returns pre-set data.
-    Also simulates latency and measurement duration.
+    """
+    Detector that returns pre-set data. Also simulates latency and measurement duration.
+
+    Attributes:
+        data (np.ndarray): Pre-set data to be returned by the mock source.
+        pixel_size (Quantity, optional): Size of each pixel in the data.
+        extent (Union[Quantity, float, Sequence[float], None], optional): Physical extent of the data array.
     """
 
     def __init__(self, data, pixel_size: Quantity = None, extent: Union[Quantity, float, Sequence[float], None] = None,
@@ -224,13 +236,14 @@ class MockCamera(ADCProcessor):
     """Wraps any 2-d image source as a camera.
 
     To implement the camera interface (see bootstrap.py), in addition to the Detector interface,
-    we must implement the following functions:
-        top: int
-        left: int
-        height: int
-        width: int
+    we must implement the following:
 
-    These properties are forwarded to a CropProcessor held internally.
+    Attributes:
+        left (int): Left position of the ROI in the source data.
+        top (int): Top position of the ROI in the source data.
+        height (int): Height of the ROI.
+        width (int): Width of the ROI.
+        data_shape (tuple): Shape of the image data to be captured.
 
     In addition, the data should be returned as uint16.
     Conversion to uint16 is implemented in the ADCProcessor base class.
@@ -346,7 +359,14 @@ class MockXYStage(Actuator):
 
 class MockSLM(PhaseSLM):
     """
-    A mock version of a phase-only spatial light modulator
+    A mock version of a phase-only spatial light modulator.
+
+    Attributes:
+        phases (np.ndarray): Current phase pattern on the SLM.
+
+    Methods:
+        set_phases(values: Union[np.ndarray, float], update=True): Set the phase pattern on the SLM.
+        pixels() -> Detector: Returns a `camera` that mimics the current phase on the SLM.
     """
     def __init__(self, shape):
         """
@@ -368,13 +388,16 @@ class MockSLM(PhaseSLM):
 
     def set_phases(self, values: Union[np.ndarray, float], update=True):
         """
+        Set the phase pattern on the SLM. The values are scaled to fit the SLM's shape.
+
+        This method sets a new phase pattern on the SLM. If the input values have a different shape than the SLM,
+        they are scaled to fit.
 
         Args:
-            values ():
-            update ():
-
-        Returns:
-
+            values (Union[np.ndarray, float]): The new phase values to be set on the SLM. This can be a 2D array of
+                values or a single float value. If it's a 2D array, it should represent the phase pattern to be
+                displayed on the SLM. If it's a single float value, this value is broadcasted over the entire SLM.
+            update (bool, optional): If True, the SLM is updated with the new values immediately. Defaults to True.
         """
         values = np.atleast_2d(values)
         scale = np.array(self._back_buffer.shape) / np.array(values.shape)

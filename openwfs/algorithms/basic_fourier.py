@@ -1,9 +1,9 @@
-from .fourier import FourierDualRef
+from .fourier import FourierBase
 from ..core import Detector, PhaseSLM
 import numpy as np
 
 
-class BasicFDR(FourierDualRef):
+class FourierDualReference(FourierBase):
     """Fourier double reference algorithm, based on Mastiani et al. [1].
 
     It constructs a symmetric k-space for the algorithm.

@@ -105,7 +105,7 @@ class Device:
     Only if a state switch is needed, `wait` is called on all objects of the other type, as described above.
 
     Example:
-        f1 = np.zeros((N, P, *cam1.data_shape))
+        ``f1 = np.zeros((N, P, *cam1.data_shape))
         f2 = np.zeros((N, P, *cam2.data_shape))
         for n in range(N):
             for p in range(P)
@@ -122,7 +122,7 @@ class Device:
 
         cam1.wait() # wait until camera 1 is done grabbing frames
         cam2.wait() # wait until camera 2 is done grabbing frames
-        fields = (f2 - f1) * np.exp(-j * phase)
+        fields = (f2 - f1) * np.exp(-j * phase)``
     """
 
     # A thread pool for awaiting detector input, actuator stabilization,
@@ -478,10 +478,10 @@ class Detector(Device, ABC):
 
         May be overridden by a child class.
         Note:
-            * This value matches the `shape` property of the array returned when calling `trigger` followed by `read`.
-            * The property may change, for example, when the ROI of a camera is changed.
-              In any case, the value of `data_shape`
-              just before calling `trigger` will match the size of the data returned by the corresponding `result` call.
+            This value matches the `shape` property of the array returned when calling `trigger` followed by `read`.
+            The property may change, for example, when the ROI of a camera is changed.
+            In any case, the value of `data_shape`
+            just before calling `trigger` will match the size of the data returned by the corresponding `result` call.
         """
         return self._data_shape
 
@@ -496,7 +496,7 @@ class Detector(Device, ABC):
 
         By default, the pixel size cannot be set.
         However, in some cases (such as when the `pixel_size` is actually a sampling interval),
-              it makes sense for the child class to implement a setter.
+            it makes sense for the child class to implement a setter.
         """
         return self._pixel_size
 
@@ -511,7 +511,7 @@ class Detector(Device, ABC):
         The coordinates are returned as an array with the same number of dimensions as the returned data,
         with the d-th dimension holding the coordinates.
         This faclilitates meshgrid-like computations, e.g.
-         `cam.coordinates(0) + cam.coordinates(1)` gives a 2-dimensional array of coordinates.
+        `cam.coordinates(0) + cam.coordinates(1)` gives a 2-dimensional array of coordinates.
 
         Args:
             dim: Dimension for which to return the coordinates.

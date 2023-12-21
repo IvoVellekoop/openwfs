@@ -276,6 +276,7 @@ class ScanningMicroscope(Detector):
 
     @property
     def left(self) -> int:
+        """The leftmost pixel of the Region of Interest (ROI) in the scan range."""
         return np.round(self._roi_start[1] * self._scale[1] / self._pixel_size[1]).astype('int32')
 
     @left.setter
@@ -285,6 +286,7 @@ class ScanningMicroscope(Detector):
 
     @property
     def top(self) -> int:
+        """The topmost pixel of the ROI in the scan range."""
         return np.round(self._roi_start[0] * self._scale[0] / self._pixel_size[0]).astype('int32')
 
     @top.setter
@@ -294,6 +296,7 @@ class ScanningMicroscope(Detector):
 
     @property
     def height(self) -> int:
+        """The number of pixels in the vertical dimension of the ROI."""
         return self.data_shape[0]
 
     @height.setter
@@ -304,6 +307,7 @@ class ScanningMicroscope(Detector):
 
     @property
     def width(self) -> int:
+        """The number of pixels in the horizontal dimension of the ROI."""
         return self.data_shape[1]
 
     @width.setter
@@ -314,6 +318,7 @@ class ScanningMicroscope(Detector):
 
     @property
     def dwell_time(self) -> Quantity[u.us]:
+        """The time spent on each pixel during scanning."""
         return (1.0 / self._sample_rate).to(u.us)
 
     @dwell_time.setter
@@ -323,6 +328,7 @@ class ScanningMicroscope(Detector):
 
     @property
     def duration(self) -> Quantity[u.ms]:
+        """Total duration of scanning for one frame."""
         return self._duration.to(u.ms)
 
     @duration.setter
@@ -331,6 +337,7 @@ class ScanningMicroscope(Detector):
 
     @property
     def delay(self) -> Quantity[u.us]:
+        """Delay between the control signal to the mirrors and the start of data acquisition."""
         return self._delay  # add unit
 
     @delay.setter
@@ -340,6 +347,7 @@ class ScanningMicroscope(Detector):
 
     @property
     def binning(self) -> int:
+        """Factor by which the resolution is reduced; lower binning increases resolution."""
         return self._binning
 
     @binning.setter
@@ -350,6 +358,7 @@ class ScanningMicroscope(Detector):
 
     @property
     def padding(self) -> float:
+        """Fraction of the scan range at the edges to discard to reduce edge artifacts."""
         return self._padding[1]
 
     @padding.setter
@@ -360,6 +369,7 @@ class ScanningMicroscope(Detector):
 
     @property
     def bidirectional(self) -> bool:
+        """Whether scanning is bidirectional along the fast axis."""
         return self._bidirectional
 
     @bidirectional.setter
