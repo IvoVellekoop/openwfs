@@ -20,7 +20,7 @@ class WFSResult:
         estimated_enhancement: estimated ratio <after>/<before>  (with <> denoting ensemble average)
     """
 
-    def __init__(self, t, snr, amplitude_factor, estimated_improvement, n=None):
+    def __init__(self, t, axis, noise_factor, amplitude_factor, non_linearity, n=None, I_offset=0.0):
         """
         Args:
             t: measured transmission matrix.
@@ -31,12 +31,15 @@ class WFSResult:
             estimated_improvement: estimated ratio before/after
         """
         self.t = t
-        self.n = t.size / snr.size if n is None else n
-        self.snr = np.atleast_1d(snr)
-        self.noise_factor = np.atleast_1d(snr / (snr + 1.0))
+        self.axis = axis
+        self.noise_factor = np.atleast_1d(noise_factor)
+        self.n = t.size / self.noise_factor.size if n is None else n
         self.amplitude_factor = np.atleast_1d(amplitude_factor)
-        self.estimated_improvement = np.atleast_1d(estimated_improvement)
         self.estimated_enhancement = np.atleast_1d(1.0 + (self.n - 1) * self.amplitude_factor * self.noise_factor)
+        self.I_offset = np.atleast_1d(I_offset)
+        self.non_linearity = np.atleast_1d(non_linearity)
+        after = np.sum(np.abs(t), tuple(range(self.axis))) ** 2 * self.noise_factor + I_offset
+        self.estimated_optimized_intensity = np.atleast_1d(after)
 
     def select_target(self, b) -> 'WFSResult':
         """
@@ -49,17 +52,20 @@ class WFSResult:
         Returns: WFSResults data for the specified target
         """
         return WFSResult(t=self.t.reshape((*self.t.shape[0:2], -1))[:, :, b],
-                         snr=self.snr[:][b],
+                         axis=self.axis,
+                         I_offset=self.I_offset[:][b],
+                         noise_factor=self.noise_factor[:][b],
                          amplitude_factor=self.amplitude_factor[:][b],
-                         estimated_improvement=self.estimated_improvement[:][b]
+                         non_linearity=self.non_linearity[:][b],
+                         n=self.n
                          )
 
 
-def analyze_phase_stepping(measurements: np.ndarray, axis: int):
-    """Takes phase stepping measurements and reconstructs the relative field.
+def analyze_phase_stepping(measurements: np.ndarray, axis: int, A=None):
+    """Analyzes the result of phase stepping measurements, returning matrix `t` and noise statitics
 
-    This function assumes that there were two fields interfering at the detector,
-    and that the phase of one of these fields is phase-stepped in equally spaced steps
+    This function assumes that all measurements were made using the same reference field `A`
+    and that the phase of the modulated segment/mode is phase-stepped in equally spaced steps
     between 0 and 2π.
 
     Args:
@@ -90,53 +96,65 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int):
     if these measurements are used for wavefront shaping.
     """
     phase_steps = measurements.shape[axis]
-    dims = tuple(range(axis))
-    n = np.sum(measurements.shape[:axis])
+    N = np.prod(measurements.shape[:axis])
+    M = np.prod(measurements.shape[axis + 1:])
+    segments = tuple(range(axis))
 
-    # put the phase axis at 0, then do a Fourier transform
-    t_f = np.fft.fft(np.moveaxis(measurements, axis, 0), axis=0)
+    # Fourier transform the phase stepping measurements
+    t_f = np.fft.fft(measurements, axis=axis) / phase_steps
 
+    # the offset is the 0-th Fourier component
     # the signal is the first Fourier component (lowest non-zero frequency)
-    t = t_f[1, ...]
-    signal_energy = np.sum(np.abs(t) ** 2, axis=dims)
-    offset_energy = np.sum(np.abs(t_f[0, ...]) ** 2, axis=dims)
-    total_energy = np.sum(np.abs(t_f) ** 2, axis=(*dims, axis))
+    # the -1 Fourier component is just the conjugate of the first Fourier component since the signal is real.
+    # all other components should be 0. If they are not, they are considered to be noise
+
+    I_f = np.sum(np.abs(t_f) ** 2, segments)  # total intensity per Fourier component per target
+    signal_energy = I_f[1, ...]
+    offset_energy = I_f[0, ...]
+    total_energy = np.sum(I_f, axis=0)
     if phase_steps > 3:
         noise_energy = (total_energy - 2.0 * signal_energy - offset_energy) / (phase_steps - 3)
+        noise_factor = np.maximum(signal_energy - noise_energy, 0.0) / signal_energy
     else:
-        noise_energy = 0.0  # cannot estimate reliably
+        noise_factor = 1.0  # cannot estimate reliably
 
-    # estimate the signal improvement that we expect (needs at least four phase steps)
-    # t_m = measured t
-    # ξ = measurement error
-    # Σ = sum over 'a'
-    # before:
-    # <|Σ(t_m - ξ) · 1|²> = |Σ t_m|² + <|Σ ξ|²> = |Σ t_m|² + Σ<|ξ|²>
+    if phase_steps > 6 and (I_f[2, ...] + I_f[3, ...]) != 0.0:
+        non_linearity = (I_f[2, ...] - I_f[3, ...]) / (I_f[2, ...] + I_f[3, ...])
+    else:
+        non_linearity = 0.0  # cannot estimate reliably, or I_f[2] + I_f[3] == 0 (happens in simulation)
+
+    # # determine scaling and offset of t
+    # y = np.take(t_f, 0, axis=axis)  # this is |A|^2 + |B_i|^2 + C
+    # # for SSA only:
+    # y = y - 2 * np.real(np.take(t_f, 1, axis=axis))
+    # x = np.abs(np.take(t_f, 1, axis=axis)) ** 2  # this is |A|^2|B_i|^2
     #
-    # after:
-    # <|Σ(t_m - ξ) t_m^* / |t_m||²> = (Σ|t_m|)² + <|Σ ξ t_m^*/|t_m||²> = (Σ|t_m|)² + Σ<|ξ|²>
-    #
-    # compute the total energy in the signal, the offset, and the total measurement set. Sum over all segments
+    # # linear fit
+    # a = np.sum(x ** 2, segments)
+    # b = np.sum(x, segments)
+    # c = -np.sum(x * y, segments)
+    # d = np.sum(y, segments)
+    # alpha = -(b * d / N + c) / (a - b ** 2 / N)
+    # I_A = 1.0 / alpha
+    # I_A = np.mean(measurements, axis=segments)[0, ...]
+    # I_offset = 0.0  # (d - alpha * b) / N - I_A
+    # # print(f"residual {np.linalg.norm(x * alpha + I_offset + I_A - y)}")
 
-    snr = np.maximum(signal_energy - noise_energy, 0.0) / noise_energy
+    if A is None:  # reference field strength not known: estimate from data
+        t_abs = np.abs(np.take(t_f, 1, axis=axis))
+        offset = np.take(t_f, 0, axis=axis)
+        a_plus_b = np.sqrt(offset + 2.0 * t_abs)
+        a_minus_b = np.sqrt(offset - 2.0 * t_abs)
+        A = 0.5 * np.mean(a_plus_b + a_minus_b)
 
-    #    before = noise_energy + np.abs(np.sum(t, axis=dims)) ** 2
-    # a2_plus_b2 = np.mean(np.moveaxis(measurements, axis, 0)[0, ...], axis=dims) * (phase_steps ** 2)
-    # a2_times_b2 = signal_energy
-    # a2_est = 0.5 * (a2_plus_b2 + np.sqrt(a2_plus_b2 ** 2 - 4 * a2_times_b2))
-    # b2_est = a2_plus_b2 - a2_est
-    a2_plus_b2 = np.mean(np.moveaxis(measurements, axis, 0)[0, ...], axis=dims)
-    a2_est = a2_plus_b2 / (1.0 + 1.0 / n)
-    t = t / np.sqrt(a2_est) / phase_steps
-    before = a2_est
-    after = noise_energy + np.sum(np.abs(t), axis=dims) ** 2
-    estimated_improvement = after / before
+    t = np.take(t_f, 1, axis=axis) / A
 
     # compute the effect of amplitude variations.
     # for perfectly developed speckle, and homogeneous illumination, this factor will be pi/4
-    amplitude_factor = np.mean(np.abs(t), axis=dims) ** 2 / np.mean(np.abs(t) ** 2, axis=dims)
+    amplitude_factor = np.mean(np.abs(t), segments) ** 2 / np.mean(np.abs(t) ** 2, segments)
 
-    return WFSResult(t, snr, amplitude_factor=amplitude_factor, estimated_improvement=estimated_improvement)
+    return WFSResult(t, axis=axis, amplitude_factor=amplitude_factor, noise_factor=noise_factor,
+                     non_linearity=non_linearity)
 
 
 class WFSController:
@@ -157,6 +175,7 @@ class WFSController:
         Private:
             _optimized_wavefront (numpy.ndarray): Optimized wavefront data.
     """
+
     class State(Enum):
         FLAT_WAVEFRONT = 0
         SHAPED_WAVEFRONT = 1
@@ -201,7 +220,7 @@ class WFSController:
                 # select only the wavefront and statistics for the first target
                 result = self.algorithm.execute().select_target(0)
                 self._optimized_wavefront = -np.angle(result.t)
-                self._snr = result.snr
+                self._snr = 1.0 / (1.0 / result.noise_factor - 1.0)
                 self._estimated_enhancement = result.estimated_enhancement
             self.algorithm._slm.set_phases(self._optimized_wavefront)
 

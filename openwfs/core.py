@@ -13,8 +13,8 @@ from typing import Sequence
 
 
 def set_pixel_size(data: np.ndarray, pixel_size: Quantity) -> np.ndarray:
-    if data.ndim > 0:
-        data.dtype = np.dtype(data.dtype, metadata={'pixel_size': pixel_size})
+    data = np.array(data)
+    data.dtype = np.dtype(data.dtype, metadata={'pixel_size': pixel_size})
     return data
 
 

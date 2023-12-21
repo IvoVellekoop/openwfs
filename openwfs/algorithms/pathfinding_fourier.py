@@ -31,7 +31,7 @@ class PathfindingFourier(FourierBase):
     """
 
     def __init__(self, feedback: Detector, slm: PhaseSLM, slm_shape=(500, 500), phase_steps=4, overlap=0.1,
-                 max_modes=20, high_modes=0, high_phase_steps=16, intermediates=False):
+                 max_modes=20, high_modes=0, high_phase_steps=16):
         """
 
         Args:
@@ -91,7 +91,6 @@ class PathfindingFourier(FourierBase):
 
         """
         results = []
-        centers = np.array([[], []], dtype=int)
         kx_total = np.array([])
         ky_total = np.array([])
         self.k_x = self.k_y = np.array(0, dtype=int)
@@ -104,7 +103,7 @@ class PathfindingFourier(FourierBase):
             kx_total, ky_total = np.append(kx_total, self.k_x), np.append(ky_total, self.k_y)
 
             combined_result = self.combine_results(results) # combine all previous results to find the new center
-            unique_next_points = self.find_next_center(combined_result, centers, kx_total, ky_total)
+            unique_next_points = self.find_next_center(combined_result, kx_total, ky_total)
 
             self.k_x, self.k_y = np.array(unique_next_points)[:, 0], np.array(unique_next_points)[:, 1]
             current_mode_count += len(self.k_x)
@@ -116,16 +115,13 @@ class PathfindingFourier(FourierBase):
 
         return results
 
-    def find_next_center(self, combined_result: WFSResult, centers: np.ndarray, kx_total: np.ndarray,
+    def find_next_center(self, combined_result: WFSResult, kx_total: np.ndarray,
                           ky_total: np.ndarray) -> List[np.ndarray]:
         """
         Looks at the currently measured modes and selects the highest mode that has measurable modes around it.
-        Because previously measured modes never have measurable modes around it, we keep track of them as well.
-        This is unnecessary, but a bit more efficient.
 
         Args:
             combined_result (WFSResult): combined WFSResult object of all previously measured modes.
-            centers (np.ndarray): Array containing the previously measured centers.
             kx_total (np.ndarray): Array containing the k-space X coordinates in order.
             ky_total (np.ndarray): Array containing the k-space Y coordinates in order.
 
@@ -138,49 +134,33 @@ class PathfindingFourier(FourierBase):
 
         while not found_next_center:
             nth_highest_index = np.argsort(np.abs(combined_result.t))[-ind]
-            in_x = np.isin(centers[0, :], kx_total[nth_highest_index])
-            in_y = np.isin(centers[1, :], ky_total[nth_highest_index])
 
-            if not any(in_x & in_y):
-                center = np.array([[kx_total[nth_highest_index]], [ky_total[nth_highest_index]]])
-                next_points = self.get_neighbors(center[0, 0], center[1, 0])
-                unique_next_points = [point for point in next_points if
-                                      tuple(point) not in set(zip(kx_total, ky_total))]
-                centers = np.concatenate((centers, center), axis=1)
+            next_points = self.get_neighbors(kx_total[nth_highest_index], ky_total[nth_highest_index])
+            unique_next_points = [point for point in next_points if
+                                  tuple(point) not in set(zip(kx_total, ky_total))]
 
-                if unique_next_points:
-                    found_next_center = True
+            if unique_next_points:
+                found_next_center = True
+
             ind += 1
 
         return unique_next_points
 
     def combine_results(self, results: List[WFSResult]) -> WFSResult:
-        """Combine multiple WFSResult objects into a single WFSResult.
-
-        Args:
-            results (List[WFSResult]): List of WFSResult objects to combine.
-
-        Returns:
-            WFSResult: Combined result.
-
-        ToDo: I really don't like averaging them. It's great to concatenate them! that would be really nice to see the
-            results step-by-step. Unfortunately we have do it because _compute_t assumes k-space symmetry.
-        """
+        # Combine the new parameters from all results
         t_combined = np.concatenate([result.t for result in results], axis=0)
-        snr_combined = np.mean([result.snr for result in results])
+        noise_factor_combined = np.mean([result.noise_factor for result in results])
         amplitude_factor_combined = np.mean([result.amplitude_factor for result in results])
-        estimated_improvement_combined = np.mean([result.estimated_improvement for result in results])
-
-        # snr_combined = np.concatenate([result.snr for result in results])
-        # amplitude_factor_combined = np.concatenate([result.amplitude_factor for result in results])
-        # estimated_improvement_combined = np.concatenate([result.estimated_improvement for result in results])
-        # n_combined = np.sum([result.n for result in results])
+        non_linearity_combined = np.mean([result.non_linearity for result in results])
+        I_offset_combined = np.mean([result.I_offset for result in results])
 
         return WFSResult(t=t_combined,
-                         snr=snr_combined,
+                         axis=results[0].axis,  # assuming all results have the same axis
+                         noise_factor=noise_factor_combined,
                          amplitude_factor=amplitude_factor_combined,
-                         estimated_improvement=estimated_improvement_combined,
-                         n=None)
+                         non_linearity=non_linearity_combined,
+                         I_offset=I_offset_combined,
+                         n=None)  # or calculate as needed
 
     def get_neighbors(self, n, m):
         """Get the neighbors of a point in a 2D grid.
@@ -194,7 +174,7 @@ class PathfindingFourier(FourierBase):
         """
         directions = [
             (-1, -1), (-1, 0), (-1, 1),
-            (0, -1), (0, 1),
+            (0, -1),          (0, 1),
             (1, -1), (1, 0), (1, 1)
         ]
 
