@@ -187,6 +187,7 @@ class WFSController:
         """
         self.algorithm = algorithm
         self._wavefront = WFSController.State.FLAT_WAVEFRONT
+        self._result = None
         self._optimized_wavefront = None
         self._recompute_wavefront = False
         self._feedback_enhancement = None
@@ -222,6 +223,7 @@ class WFSController:
                 self._optimized_wavefront = -np.angle(result.t)
                 self._snr = 1.0 / (1.0 / result.noise_factor - 1.0)
                 self._estimated_enhancement = result.estimated_enhancement
+                self._result = result
             self.algorithm._slm.set_phases(self._optimized_wavefront)
 
     @property
