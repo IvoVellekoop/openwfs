@@ -9,11 +9,12 @@ from typing import Union, Set, final
 from concurrent.futures import Future, ThreadPoolExecutor
 from astropy.units import Quantity
 from abc import ABC, abstractmethod
+from typing import Sequence
 
 
 def set_pixel_size(data: np.ndarray, pixel_size: Quantity) -> np.ndarray:
-    if data.ndim > 0:
-        data.dtype = np.dtype(data.dtype, metadata={'pixel_size': pixel_size})
+    data = np.array(data)
+    data.dtype = np.dtype(data.dtype, metadata={'pixel_size': pixel_size})
     return data
 
 
@@ -36,6 +37,20 @@ def get_pixel_size(data: Union[np.ndarray, Quantity], may_fail: bool = False) ->
             return 1.0 * u.dimensionless_unscaled
         else:
             raise KeyError("data does not have pixel size metadata.")
+
+
+def unitless(data):
+    """Converts data to a unitless numpy array.
+
+    Args:
+        data: If data is a Quantity, convert it to unitless_unscaled (this will raise an error if data has
+            a unit attached).
+            Otherwise, data is just returned as is.
+    """
+    if isinstance(data, Quantity):
+        return data.to_value(u.dimensionless_unscaled)
+    else:
+        return data
 
 
 class Device:
@@ -90,7 +105,7 @@ class Device:
     Only if a state switch is needed, `wait` is called on all objects of the other type, as described above.
 
     Example:
-        f1 = np.zeros((N, P, *cam1.data_shape))
+        ``f1 = np.zeros((N, P, *cam1.data_shape))
         f2 = np.zeros((N, P, *cam2.data_shape))
         for n in range(N):
             for p in range(P)
@@ -107,7 +122,7 @@ class Device:
 
         cam1.wait() # wait until camera 1 is done grabbing frames
         cam2.wait() # wait until camera 2 is done grabbing frames
-        fields = (f2 - f1) * np.exp(-j * phase)
+        fields = (f2 - f1) * np.exp(-j * phase)``
     """
 
     # A thread pool for awaiting detector input, actuator stabilization,
@@ -122,6 +137,10 @@ class Device:
 
     # List of all Device objects
     _devices: "Set[Device]" = WeakSet()
+
+    # Option to globally disable multi-threading
+    # This is particularly useful for debugging
+    multi_threading: bool = True  # False
 
     def __init__(self, *, latency=0.0 * u.ms, duration=0.0 * u.ms):
         """Constructs a new Device object
@@ -260,12 +279,11 @@ class Device:
         if self._duration is None or not np.isfinite(self._duration):
             while self.busy():
                 time.sleep(0.001)
-        elif self._duration > 0:
+        else:
             end_time = self._start_time_ns + (self._duration + self.latency).to_value(u.ns)
             time_to_wait = end_time - up_to.to_value(u.ns) - time.time_ns()
             if time_to_wait > 0:
                 time.sleep(time_to_wait / 1.0E9)
-        # else: duration <= 0, no need to wait
 
         if await_data:
             # locks the device, for detectors this waits until all pending measurements are processed.
@@ -323,11 +341,11 @@ class Detector(Device, ABC):
     """Base class for all detectors, cameras and other data sources with possible dynamic behavior.
     """
 
-    def __init__(self, *, data_shape, pixel_size: Quantity, **kwargs):
+    def __init__(self, *, data_shape: Sequence[int], pixel_size: Quantity, **kwargs):
         super().__init__(**kwargs)
         ndim = len(data_shape)
         self._pixel_size = pixel_size if pixel_size.size == ndim else np.tile(pixel_size, (ndim,))
-        self._data_shape = data_shape
+        self._data_shape = tuple(int(x) for x in data_shape)
         self._measurements_pending = 0
         self._pending_count_lock = threading.Lock()
         self._error = None
@@ -393,7 +411,7 @@ class Detector(Device, ABC):
             raise
 
         logging.debug("triggering %s (tid: %i).", self, threading.get_ident())
-        if immediate:
+        if immediate or not Device.multi_threading:
             result = Future()
             result.set_result(self._do_fetch(out, *args, **kwargs))  # noqa
             return result
@@ -460,10 +478,10 @@ class Detector(Device, ABC):
 
         May be overridden by a child class.
         Note:
-            * This value matches the `shape` property of the array returned when calling `trigger` followed by `read`.
-            * The property may change, for example, when the ROI of a camera is changed.
-              In any case, the value of `data_shape`
-              just before calling `trigger` will match the size of the data returned by the corresponding `result` call.
+            This value matches the `shape` property of the array returned when calling `trigger` followed by `read`.
+            The property may change, for example, when the ROI of a camera is changed.
+            In any case, the value of `data_shape`
+            just before calling `trigger` will match the size of the data returned by the corresponding `result` call.
         """
         return self._data_shape
 
@@ -478,7 +496,7 @@ class Detector(Device, ABC):
 
         By default, the pixel size cannot be set.
         However, in some cases (such as when the `pixel_size` is actually a sampling interval),
-              it makes sense for the child class to implement a setter.
+            it makes sense for the child class to implement a setter.
         """
         return self._pixel_size
 
@@ -493,7 +511,7 @@ class Detector(Device, ABC):
         The coordinates are returned as an array with the same number of dimensions as the returned data,
         with the d-th dimension holding the coordinates.
         This faclilitates meshgrid-like computations, e.g.
-         `cam.coordinates(0) + cam.coordinates(1)` gives a 2-dimensional array of coordinates.
+        `cam.coordinates(0) + cam.coordinates(1)` gives a 2-dimensional array of coordinates.
 
         Args:
             dim: Dimension for which to return the coordinates.
@@ -538,9 +556,10 @@ class Processor(Detector, ABC):
 
         super().__init__(data_shape=data_shape, pixel_size=pixel_size, latency=0 * u.ms)
 
-    def trigger(self, *args, **kwargs):
+    def trigger(self, *args, immediate=False, **kwargs):
         """Triggers all sources at the same time (regardless of latency), and schedules a call to `_fetch()`"""
-        future_data = [(source.trigger() if source is not None else None) for source in self._sources]
+        future_data = [(source.trigger(immediate=immediate) if source is not None else None) for source in
+                       self._sources]
         return super().trigger(*future_data, *args, **kwargs)
 
     @property

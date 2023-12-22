@@ -1,7 +1,7 @@
 import numpy as np
-from typing import Union, Sequence
-import astropy.units as u
+from typing import Union, Sequence, Optional
 from astropy.units import Quantity
+from ..core import unitless
 
 """
 Library of functions to create commonly used patterns
@@ -34,24 +34,37 @@ The returned array has a pixel_size property attached.
 """
 
 ShapeType = Union[int, Sequence[int]]
-ExtentType = Union[Sequence[float], np.ndarray, Quantity]
+ExtentType = Union[float, Sequence[float], np.ndarray, Quantity]
 ScalarType = Union[float, np.ndarray, Quantity]
 
 
-def coordinate_range(shape: ShapeType, extent: ExtentType):
-    """Returns coordinate vectors for the two coordinates (y and x)"""
-    if isinstance(shape, Quantity):
-        shape = shape.to_value(u.dimensionless_unscaled)
+def coordinate_range(shape: ShapeType, extent: ExtentType, offset: Optional[ExtentType] = None) -> (Quantity, Quantity):
+    """Returns coordinate vectors for the two coordinates (y and x).
 
+    Given a range from `-extent/2` to `+extent/2`, uniformly divided into `shape` pixels,
+     the returned coordinates correspond to the centers of these cooordinates.
+
+    Arguments:
+        shape(Union[int, Sequence[int]]): size of the full grid (y, x) in pixels
+        extent(Union[float, Sequence[float], np.ndarray, Quantity]):
+    """
+    shape = unitless(shape)
     if np.size(shape) == 1:
-        shape = (shape, shape)
+        shape = np.array(shape).repeat(2)
 
-    def c_range(res, ex):
+    extent = Quantity(extent)
+    if extent.size == 1:
+        extent = extent.repeat(2)
+
+    if offset is None:
+        offset = 0.0 * extent  # by default, let center be (0,0) (in whatever unit)
+
+    def c_range(res, ex, cx):
         dx = ex / res
-        return np.arange(res) * dx + (0.5 * dx - 0.5 * ex)
+        return np.arange(res) * dx + (0.5 * dx - 0.5 * ex + cx)
 
-    return (c_range(shape[0], extent[0]).reshape((-1, 1)),
-            c_range(shape[1], extent[1]).reshape((1, -1)))
+    return (c_range(shape[0], extent[0], offset[0]).reshape((-1, 1)),
+            c_range(shape[1], extent[1], offset[1]).reshape((1, -1)))
 
 
 def r2_range(shape: ShapeType, extent: ExtentType):
@@ -77,9 +90,8 @@ def tilt(shape: ShapeType, g: ExtentType, extent: ExtentType = (2.0, 2.0), phase
         extent: see module documentation
         phase_offset: optional additional phase offset to be added to the pattern
     """
-    g = Quantity(g)
-    c0, c1 = coordinate_range(shape, extent * (Quantity(g) * 2))
-    return c0 + (c1 + phase_offset)
+    c0, c1 = coordinate_range(shape, extent * (Quantity(g) * 2.0))
+    return unitless(c0 + (c1 + phase_offset))
 
 
 def lens(shape: ShapeType, f: ScalarType, wavelength: ScalarType, extent: ExtentType):
@@ -94,8 +106,32 @@ def lens(shape: ShapeType, f: ScalarType, wavelength: ScalarType, extent: Extent
         extent(ExtentType): physical extent of the SLM, same units as `f` and `wavelength`
     """
     r_sqr = r2_range(shape, extent)
-    return Quantity((f - np.sqrt(np.maximum(f ** 2 - r_sqr, 0.0))) * (2 * np.pi / wavelength)).to_value(
-        u.dimensionless_unscaled)
+    return unitless((f - np.sqrt(f ** 2 + r_sqr)) * (2 * np.pi / wavelength))
+
+
+def propagation(shape: ShapeType, distance: ScalarType, numerical_aperture: ScalarType,
+                refractive_index: ScalarType, wavelength: ScalarType, extent: ExtentType = (2.0, 2.0)):
+    """Computes a wavefront that corresponds to digitally propagating the field in the object plane.
+
+    k_z = sqrt(n² k_0²-k_x²-k_y²)
+    φ = k_z · distance
+
+    Args:
+          shape: see module documentation
+          distance (ScalarType): physical distance to propagate axially.
+          numerical_aperture (Scalar):
+          refractive_index (Scalar):
+          wavelength (Scalar):
+            the numerical aperture, refractive index and wavelength are used to
+            to convert the `extent` from pupil coordinates to k-space (unit radians/meter),
+          extent: extent of the returned image, in pupil coordinates
+            (a disk of radius 1.0 corresponds to the full NA)
+    """
+    # convert pupil coordinates to absolute k_x, k_y coordinates
+    k_0 = 2.0 * np.pi / wavelength
+    extent_k = Quantity(extent) * numerical_aperture * k_0
+    k_z = np.sqrt(np.maximum((refractive_index * k_0) ** 2 - r2_range(shape, extent_k), 0.0))
+    return unitless(k_z * distance)
 
 
 def disk(shape: ShapeType, radius: ScalarType = 1.0, extent: ExtentType = (2.0, 2.0)):
@@ -128,7 +164,7 @@ def gaussian(shape: ShapeType, waist: ScalarType,
     """
     r_sqr = r2_range(shape, extent)
     w2inv = -1.0 / waist ** 2
-    gauss = np.exp(r_sqr * w2inv)
+    gauss = np.exp(unitless(r_sqr * w2inv))
     if truncation_radius is not None:
         gauss = gauss * disk(shape, truncation_radius, extent=extent)
-    return gauss
+    return unitless(gauss)

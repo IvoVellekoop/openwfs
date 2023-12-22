@@ -1,316 +1,332 @@
-from typing import Union
+from typing import Union, Sequence, Optional
 import astropy.units as u
+import nidaqmx.system
 import numpy as np
 from astropy.units import Quantity
 from ..core import Detector
+from ..slm.patterns import coordinate_range
 import nidaqmx as ni
 from nidaqmx.constants import TaskMode
 
-from nidaqmx.constants import Edge
-from nidaqmx.stream_readers import AnalogUnscaledReader
+from nidaqmx.constants import TerminalConfiguration
 from nidaqmx.stream_writers import AnalogMultiChannelWriter
 
 
-class LaserScanning(Detector):
+class ScanningMicroscope(Detector):
+    """Controller for a laser-scanning microscope with two galvo mirrors
+    controlled by a National Instruments data acquisition card (nidaq).
 
-    # TODO: left/right -> pos
-    # TODO: more descriptive names for 'input_mapping' 'x_mirror_mapping'->'x_channel'
-    # TODO: docstring
-    # TODO: full_scan_range -> pixel_size
-    # TODO: specify input with astropy voltage units
-    # TODO: enable working with volt and ampere units in pydevice
-    # TODO: don't use full-scan-range, use data_shape and pixel_size instead (you automatically get the extent property from the Detector base class)
-    def __init__(self, data_shape, pixel_size, input_mapping: str,
-                 x_mirror_mapping: str, y_mirror_mapping: str, pos=(0, 0), input_min=-1, input_max=1, delay=0,
-                 duration: Quantity[u.ms] = 600 * u.ms, zoom=1, scan_padding=0, bidirectional=True, invert=True):
-        super().__init__(data_shape=data_shape, pixel_size=1 * u.um, duration=duration)
+    Effectively, a `ScanningMicroscope` works like a camera, which can be triggered and returns 2-D images.
+    These images are obtained by raster-scanning a focus using two galvo mirrors, controlled by a nidaq card,
+    and recording a detector signal (typically from a photon multiplier tube (PMT)) with the same card.
 
-        self._resized = True
-        self._image = None
-        self._left = left
-        self._top = top
+    Upon construction, the maximum scan range (in volt) is set for both axes,
+    and a scale parameter should be specified to convert these voltages to positions in the object plane.
+    The number of pixels in the full scan range is specified with the `data_shape` parameter.
 
-        # NIDAQ device names
-        self._input_mapping = input_mapping
-        self._x_mirror_mapping = x_mirror_mapping
-        self._y_mirror_mapping = y_mirror_mapping
+    After construction, a sub-region of the scan range (i.e., a region of interest ROI) may be selected using
+    the `top`, `left`, `height` and `width` properties.
+    Note that changing the ROI does not change the pixel size.
+    Only the number of pixels in the returned image changes, as with a regular camera.
 
-        # Voltage limits scanning
-        self._input_min = input_min
-        self._input_max = input_max
-        self._full_scan_range = full_scan_range
+    The `binning` property can be used to change the pixel size without changing the ROI.
+    By decreasing the `binning` property, more points are measured for the same ROI,
+    thereby increasing the resolution.
+    For compatibility with micromanager, the `binning` property should be an integer.
+    A binning of 100 corresponds to the `data_shape` that is passed in the initializer of the object.
 
-        # Reader voltage limits
-        self._reader_min = -1
-        self._reader_max = 1
+    The image quality at the edge of the scan range is usually low due to the fact
+    that the mirror is rapidly changing the scan direction.
+    The `padding` attribute corresponds to a fraction of the full voltage range along the fast axis (axis 1).
+    This part of the data is discarded after the measurement.
+    Note: the padding affects the physical size of the ROI, and hence the pixel_size
+    The padding does not affect the number of pixels (`data_shape`) in the returned image.
+
+    Properties:
+        left (int): The leftmost pixel of the Region of Interest (ROI) in the scan range.
+        top (int): The topmost pixel of the ROI in the scan range.
+        height (int): The number of pixels in the vertical dimension of the ROI.
+        width (int): The number of pixels in the horizontal dimension of the ROI.
+        dwell_time (Quantity[u.us]): The time spent on each pixel during scanning.
+        duration (Quantity[u.ms]): Total duration of scanning for one frame.
+        delay (Quantity[u.us]): Delay between the control signal to the mirrors and the start of data acquisition.
+        binning (int): Factor by which the resolution is reduced; lower binning increases resolution.
+        padding (float): Fraction of the scan range at the edges to discard to reduce edge artifacts.
+        bidirectional (bool): Whether scanning is bidirectional along the fast axis.
+        zoom (float): Used to zoom in on the center of the ROI.
+
+    """
+
+    # LaserScanner(input=("ai/8", -1.0 * u.V, 1.0 * u.V))
+    def __init__(self,
+                 data_shape: Sequence[int],
+                 input: tuple[str, Quantity[u.V], Quantity[u.V]],  # noqa
+                 axis0: tuple[str, Quantity[u.V], Quantity[u.V]],
+                 axis1: tuple[str, Quantity[u.V], Quantity[u.V]],
+                 scale: Quantity[u.um / u.V],
+                 sample_rate: Quantity[u.Hz],
+                 delay: Quantity[u.us] = 0.0 * u.us,
+                 padding: float = 0.05,
+                 bidirectional: bool = True,
+                 simulation: Optional[str] = None):
+        """
+        Args:
+            data_shape (tuple[int, int]): number of data points (height, width) in the full field of view.
+                Note that the ROI can be reduced later by setting width, height, top and left,
+                and the resolution can be changed by modifying the `binning` property.
+            input: tuple[str, Quantity[u.V], Quantity[u.V]],
+                 Description of the Nidaq channel to use for the input.
+                 Tuple of: (name of the channel (e.g., 'ai/1'), minimum voltage, maximum voltage).
+            axis0: tuple[str, Quantity[u.V], Quantity[u.V], TerminalConfiguration],
+                 Description of the Nidaq channel to use for controlling the axis 0 galvo (slow axis).
+                 The TerminalConfiguration element is optional and defaults to TerminalConfiguration.DEFAULT.
+            axis1: tuple[str, Quantity[u.V], Quantity[u.V], TerminalConfiguration],
+                 Description of the Nidaq channel to use for controlling the axis 1 galvo (fast axis).
+                 The TerminalConfiguration element is optional and defaults to TerminalConfiguration.DEFAULT.
+            scale (u.um / u.V):
+                Conversion factor between voltage at the NiDaq card and displacement of the focus in the object plane.
+                This may be an array of (height, width) conversion factors if the factors differ for the different axes.
+                This factor is used to convert pixel positions `x_i, y_i` to voltages,
+                 using the equation `(pos + [y_i, x_i]) * pixel_size / scale.
+            sample_rate (u.Hz):
+                Sample rate of the NiDaq input channel.
+                The sample rate affects the total time needed to scan a single frame.
+                Setting the ROI, padding, or binning does not affect the sample rate.
+            delay (Quantity[u.us]): Delay between mirror control and data acquisition.
+            padding (float): Padding fraction at the sides of the scan. The scanner will scan a larger area than will be
+                reconstructed, to make sure the reconstructed image is within the linear scan range of the mirrors.
+            bidirectional (bool): If true, enables bidirectional scanning along the fast axis.
+        """
+        # settings for input/output channels
+        self._in_channel = input[0]
+        self._in_v_min = input[1].to(u.V)
+        self._in_v_max = input[2].to(u.V)
+        self._in_terminal_configuration = input[3] if len(input) > 3 else TerminalConfiguration.DEFAULT
+        self._axis0_channel = axis0[0]
+        self._axis1_channel = axis1[0]
+        self._out_v_min = Quantity((axis0[1], axis1[1])).to(u.V)
+        self._out_v_max = Quantity((axis0[2], axis1[2])).to(u.V)
+        self._sample_rate = sample_rate.to(u.Hz)
+
+        self._scale = scale.repeat(2) if scale.size == 1 else scale
+
+        v_width = (self._out_v_max - self._out_v_min)
+        self._padding = np.array((0.0, padding))
+        self._v_origin = self._out_v_min + v_width * self._padding * 0.5  # Voltage corresponding to (top,left)=(0,0)
+        self._roi_start = Quantity((0.0, 0.0), u.V)  # ROI start position relative to origin
+        self._roi_end = v_width * (1.0 - self._padding)  # ROI end position relative to origin
+
+        self._resized = True  # indicate that the output signals need to be recomputed
+        self._binning = 1
+        self._original_data_shape = data_shape
 
         # Scan settings
-        self._delay = delay
-        self._zoom = zoom
-        self._scan_padding = scan_padding
+        self._delay = delay.to(u.us)
+        self._padded_data_shape = np.array((0, 0))
+        self._zoom = 1.0
         self._bidirectional = bidirectional
 
-        # TODO: remove _invert this doesn't do anything
-        self._invert = invert
+        self._write_task = None
+        self._read_task = None
 
-        # TODO: no need to store this. Don't (to reduce bookkeeping)
-        self._sample_rate = self.calculate_sample_rate()
+        self._valid = False  # indicates that `trigger()` should initialize the nidaq tasks and scan pattern
+        self._scan_pattern = None
+        self._simulation = simulation
 
-    # TODO: this should be `_scan_pattern`  (1st underscore because it is a private method, second because of grammar)
-    def scanpattern(self):
-        """This produces 2 numpy arrays which can be used as input for the Galvo scanners
+        self._original_pixel_size = ((self._out_v_max - self._out_v_min) * self._scale / data_shape).to(u.um)
+        super().__init__(data_shape=data_shape, pixel_size=self._original_pixel_size, duration=0.0 * u.ms)
+        self._update()
 
-        Todo: make padding structured (sinusoid instead of flat line)
-        """
+    def _update(self):
+        # round padding up to integer number of pixels on both sides
+        padding = 2 * np.ceil(self._data_shape * self._padding * 0.5).astype('int32')
+        self._padded_data_shape = self._data_shape + padding
 
-        # This is the linear signal. Everything after is padding & structuring. Adapt here for custom patterns.
-        # don't use linspace
-        rangex = np.linspace(self._input_min, self._input_max, self.data_shape[1])
-        rangey = np.linspace(self._input_min, self._input_max, self.data_shape[0])
+        # compute the scan range.
+        scan_range = (self._roi_end - self._roi_start) * (1.0 + padding / self._data_shape)  # noqa
+        center = 0.5 * (self._roi_start + self._roi_end) + self._v_origin
+        (voltages0, voltages1a) = coordinate_range(self._padded_data_shape, scan_range, offset=center)
 
-        # TODO: consider replacing the code below by meshgrid followed by flatten
-        # flipping every second row could be done with:
-        # xsteps(1::2, :) = -xsteps(1, :)
-        #
-        # TODO: consider padding with some smooth transition, now the mirror is expected to stop instantaneously!
-        # TODO: for large pixels, the mirror will start 'stepping',
-        #  which is not what you want, because you will get extra jitter.
-        #  Not sure how to solve this.
-        #  We could ask NiDaq to low-pass filter the output, or let the output always run at a high sample rate
-        #  even when the input only needs low frequencies because of a long dwell time.
-        # TODO: put the delay in the output signal, not in the input signal.
-        #  This way you can have a fractional delay.
-        xsteps = np.array([])
-        ysteps = np.array([])
+        # clip to voltage limits to prevent possible damage
+        voltages0 = voltages0.ravel().clip(self._out_v_min[0], self._out_v_max[0])
+        voltages1a = voltages1a.ravel().clip(self._out_v_min[0], self._out_v_max[0])
 
-        for ind, y in enumerate(rangey):
-            if self._bidirectional:
-                if (ind % 2) == 0:
-                    # Add padding at the start of the row
-                    xsteps = np.append(xsteps, np.append(np.ones(self._scan_padding) * rangex[0], rangex))
-                else:
-                    # Add padding at the start of the row, then flip for odd rows
-                    xsteps = np.append(xsteps, np.append(np.ones(self._scan_padding) * rangex[-1], np.flip(rangex)))
-            else:
-                # Add padding for unidirectional scanning
-                xsteps = np.append(xsteps, np.append(np.ones(self._scan_padding) * rangex[0], rangex))
-
-        for y in rangey:
-            # Repeat each y-value for the length of a padded x-row
-            ysteps = np.append(ysteps, np.ones(len(rangex) + self._scan_padding) * y)
-
-        # Reading and writing timepoints lag by 1 point: This corrects it
-        xsteps = np.append(xsteps, xsteps[-1])
-        ysteps = np.append(ysteps, ysteps[-1])
-
-        return np.stack([xsteps, ysteps])
-
-    def setup_reader_writer(self, scanpattern):
-        """Function adapted from NI forum that has an electrical output signal and a electrical input signal.
-        Because it goes into the dac, the input for the galvos is called output (analog out)
-        and the output of the PMT is called input (analog in)
-
-        It can handle only 1 in- and 2 outputs
-
-        outdata: numpy array or list, will be output in analog out channel (V)
-
-        sr: signal rate (/second), default is 500.000, the maximum of the NI USB-6341.
-        Note; the NI PCIe-6363 in the lab has a maximum of 2.000.000, so this function can be overclocked.
-
-        returns indata: measured signal from analog in channel (V)
-        """
-        # TODO: Make the function robust for different channel numbers
-        # TODO: put read and write in a single task! This way you can do onw 'start' instead of two, and
-        #  we don't want rely on software synchronization
-        # in order to handle both singular and multiple channel output data:
-        self._number_of_samples = scanpattern[0].shape[0]
-
-        with ni.Task() as write_task, ni.Task() as read_task, ni.Task() as sample_clk_task:
-            # Use a counter output pulse train task as the sample clock source
-            # for both the AI and AO tasks.
-
-            # We're stealing the device identifier for the clock from the input mapping string, because of backward
-            # compatibility
-            sample_clk_task.co_channels.add_co_pulse_chan_freq(
-                f"{self._input_mapping.split('/')[0]}/ctr0", freq=self.calculate_sample_rate()
-            )
-            sample_clk_task.timing.cfg_implicit_timing(samps_per_chan=self._number_of_samples)
-
-            samp_clk_terminal = f"/{self._input_mapping.split('/')[0]}/Ctr0InternalOutput"
-
-            # perhaps remove
-            ao_args = {'min_val': self._input_min,
-                       'max_val': self._input_max}
-
-            write_task.ao_channels.add_ao_voltage_chan(self._x_mirror_mapping, **ao_args)
-            write_task.ao_channels.add_ao_voltage_chan(self._y_mirror_mapping, **ao_args)
-
-            ai_args = {'min_val': self._reader_min,
-                       'max_val': self._reader_max,
-                       'terminal_config': ni.constants.TerminalConfiguration.RSE}
-            write_task.timing.cfg_samp_clk_timing(
-                self.calculate_sample_rate(),
-                source=samp_clk_terminal,
-                active_edge=Edge.RISING,
-                samps_per_chan=self._number_of_samples,
-            )
-
-            read_task.ai_channels.add_ai_voltage_chan(self._input_mapping, **ai_args)
-
-            read_task.timing.cfg_samp_clk_timing(
-                self.calculate_sample_rate(),
-                source=samp_clk_terminal,
-                active_edge=Edge.FALLING,
-                samps_per_chan=self._number_of_samples,
-            )
-
-            writer = AnalogMultiChannelWriter(write_task.out_stream)
-            reader = AnalogUnscaledReader(read_task.in_stream)
-
-            # TODO: move to _do_trigger!
-            # TODO: is it possible to re-use the samples and just trigger them again?
-            writer.write_many_sample(scanpattern)
-            # Start the read and write tasks before starting the sample clock
-            # source task.
-            read_task.start()
-            write_task.start()
-            sample_clk_task.start()
-
-            # TODO: move to _fetch
-            # TODO: don't write to veriables in trigger or fetch because this is not thread safe.
-            #  In future versions this will cause a deadlock.
-            #  Just return the data.
-            # TODO: why is the array below 2-D? why not just (self._number_of_samples,)
-            self.raw_data = np.zeros([1, self._number_of_samples], dtype=np.int16)
-            reader.read_int16(
-                self.raw_data, number_of_samples_per_channel=self._number_of_samples,
-                timeout=ni.constants.WAIT_INFINITELY)
-
-    def pmt_to_image(self, data):
-        """
-        Converts 1D PMT signal to a 2D image.
-
-        Parameters:
-        data (numpy.ndarray): 1D array of PMT data.
-
-        Returns:
-        numpy.ndarray: 2D reconstructed image.
-        """
-
-        # Skip the first point if necessary and compensate for delay
-        data = data[1:]
-        delay = self._delay
-
-        # this will actually put zeros in the image, perhaps it is better to measure an extra row when using delay.
-        data = np.pad(data, (delay, 0), mode='constant')[:len(data)]
-
-        # Calculate the actual number of steps in x-direction accounting for padding
-        x_steps_with_padding = self.data_shape[1] + self._scan_padding
-        y_steps = self.data_shape[0]
-
-        if self._input_min < 0:
-            data = data + (2 ** 16) / 2
-        if self._invert:
-            data = (2 ** 16) - data
-
-        # Reshape data to 2D with padding
-        image_with_padding = np.reshape(data, (y_steps, x_steps_with_padding))
-        image = np.zeros((self.data_shape[0], self.data_shape[1]), dtype='uint16')
-
-        # Remove padding from the image
-        if self._scan_padding:
-            if self._bidirectional:
-                for i in range(y_steps):
-                    if i % 2 == 0:
-                        image[i] = image_with_padding[i][self._scan_padding:]
-                    else:
-                        image[i] = np.flip(image_with_padding[i][self._scan_padding:])
-            else:
-                image = image_with_padding[:, self._scan_padding:]
+        # for bidirectional scanning, reverse the direction of the even scan lines
+        if self._bidirectional:
+            voltages1b = voltages1a[::-1]
         else:
-            if self._bidirectional:
-                for i in range(y_steps):
-                    if i % 2 == 0:
-                        image[i] = image_with_padding[i]
-                    else:
-                        image[i] = np.flip(image_with_padding[i])
-            else:
-                image = image_with_padding
+            voltages1b = voltages1a
 
-        return image
+        # Generate output voltages
+        self._scan_pattern = np.zeros((2, *self._padded_data_shape))
+        self._scan_pattern[0, :, :] = voltages0.to_value(u.V).reshape((-1, 1))
+        self._scan_pattern[1, 0::2, :] = voltages1a.to_value(u.V).reshape((1, -1))
+        self._scan_pattern[1, 1::2, :] = voltages1b.to_value(u.V).reshape((1, -1))
+        self._scan_pattern = self._scan_pattern.reshape(2, -1)
 
-    def calculate_sample_rate(self):
+        sample_count = self._padded_data_shape[0] * self._padded_data_shape[1]
+        self._duration = (sample_count / self._sample_rate).to(u.ms)
 
-        # Example calculation
-        total_points = self._data_shape[0] * self._data_shape[1]
+        if self._simulation is not None:
+            return
+        # Sets up Nidaq task and i/o channels
+        if self._read_task:
+            self._read_task.close()
+            self._read_task = None
+        if self._write_task:
+            self._write_task.close()
+            self._write_task = None
 
-        return total_points / self._duration.to(u.s).value
+        self._write_task = ni.Task()
+        self._read_task = ni.Task()
+
+        # Configure the sample clock task
+        sample_rate = self._sample_rate.to_value(u.Hz)
+
+        # Configure the analog output task (two channels)
+        self._write_task.ao_channels.add_ao_voltage_chan(self._axis0_channel,
+                                                         min_val=self._out_v_min[0].to_value(u.V),
+                                                         max_val=self._out_v_max[0].to_value(u.V))
+        self._write_task.ao_channels.add_ao_voltage_chan(self._axis1_channel,
+                                                         min_val=self._out_v_min[1].to_value(u.V),
+                                                         max_val=self._out_v_max[1].to_value(u.V))
+        self._write_task.timing.cfg_samp_clk_timing(sample_rate, samps_per_chan=sample_count)
+
+        # Configure the analog input task (one channel)
+        self._read_task.ai_channels.add_ai_voltage_chan(self._in_channel,
+                                                        min_val=self._in_v_min.to_value(u.V),
+                                                        max_val=self._in_v_max.to_value(u.V),
+                                                        terminal_config=self._in_terminal_configuration)
+        self._read_task.timing.cfg_samp_clk_timing(sample_rate, samps_per_chan=sample_count)
+        self._read_task.triggers.start_trigger.cfg_dig_edge_start_trig(self._write_task.triggers.start_trigger.term)
+        delay = self._delay.to_value(u.s)
+        if delay > 0.0:
+            self._read_task.triggers.start_trigger.delay = delay
+            self._read_task.triggers.start_trigger.delay_units = nidaqmx.constants.DigitalWidthUnits.SECONDS
+
+        self._writer = AnalogMultiChannelWriter(self._write_task.out_stream)
+        self._valid = True
 
     def _do_trigger(self):
+        if not self._valid:
+            self._update()
 
-        pattern = self.scanpattern()
-        self.setup_reader_writer(pattern)
+        if self._simulation is not None:
+            return
 
-    def _fetch(self, out: Union[np.ndarray, None]) -> np.ndarray:
-        # ToDo: Do the actual reading here
-        if out is None:
-            out = self.pmt_to_image(self.raw_data.flatten())
+        self._read_task.wait_until_done()
+        self._write_task.wait_until_done()
+
+        # write the samples to output in the x-y channels
+        print(self._scan_pattern.size)
+        self._writer.write_many_sample(self._scan_pattern)
+
+        # Start the tasks
+        self._read_task.start()  # waits for trigger coming from the write task
+        self._write_task.start()
+
+    def _raw_to_cropped(self, raw):
+        """Converts the raw scanner data back into a 2-Dimensional image.
+
+        Because the scanner can return both signed and unsigned integers, both cases are accounted for.
+        This function crops the data if padding was added, and it
+        flips the even rows back if scanned in bidirectional mode.
+        """
+        start = (self._padded_data_shape - self._data_shape) // 2
+        end = self._padded_data_shape - start
+
+        # Change the data type into uint16 if necessary
+        if type(raw[0]) == np.int16:
+            # add 32768 to go from -32768-32767 to 0-65535
+            cropped = raw.reshape(self._padded_data_shape).view('uint16')[start[0]:end[0], start[1]:end[1]] + 0x8000
+        elif type(raw[0]) == np.uint16:
+            cropped = raw.reshape(self._padded_data_shape)[start[0]:end[0], start[1]:end[1]]
         else:
-            out[...] = self.pmt_to_image(self.raw_data.flatten())
-        return out
+            raise ValueError('Only int16 and uint16 data types are supported at the moment.')
 
-    def _update_pixel_size(self):
-        # TODO: remove, the pixel_size and data_shape should be leading.
-        # TODO: do we need a 'zoom'?
-        #  if so, do we want to implement it like this?
-        #  The implementation should be compatible with the MM pixel_size calibration! Perhaps just remove it?
-        # Calculate pixel size based on zoom, width, and height
-        # check this with tom
-        # perhaps make property of the magic number 800
-        self._pixel_size = (self._full_scan_range / (self._zoom * self.data_shape[0]))
+        if self._bidirectional:
+            cropped[1::2, :] = cropped[1::2, ::-1]
+
+        return cropped
+
+    def _fetch(self, out: Union[np.ndarray, None]) -> np.ndarray:  # noqa
+        """Reads the acquired data from the input task."""
+        if self._simulation is None:
+            raw = self._read_task.in_stream.read()
+            self._read_task.stop()
+            self._write_task.stop()
+        elif self._simulation == 'horizontal':
+            raw = (self._scan_pattern[1, :] * 1000.0).round().astype('int16')  # in mV
+        elif self._simulation == 'vertical':
+            raw = (self._scan_pattern[0, :] * 1000.0).round().astype('int16')
+        else:
+            raise ValueError(
+                f"Invalid simulation option {self._simulation}. Should be 'horizontal', 'vertical', or 'None'")
+
+        cropped = self._raw_to_cropped(raw)
+
+        if out is not None:
+            out[...] = cropped
+        else:
+            out = cropped
+
+        return out
 
     @property
     def left(self) -> int:
-        return self._top
+        """The leftmost pixel of the Region of Interest (ROI) in the scan range."""
+        return int(np.round(self._roi_start[1] * self._scale[1] / self._pixel_size[1]))
 
     @left.setter
     def left(self, value: int):
-        self._top = value
+        self._roi_start[1] = value * self._pixel_size[1] / self._scale[1]
+        self._valid = False
 
     @property
     def top(self) -> int:
-        return self._top
+        """The topmost pixel of the ROI in the scan range."""
+        return int(np.round(self._roi_start[0] * self._scale[0] / self._pixel_size[0]))
 
     @top.setter
     def top(self, value: int):
-        self._top = value
+        self._roi_start[0] = value * self._pixel_size[0] / self._scale[0]
+        self._valid = False
 
     @property
     def height(self) -> int:
+        """The number of pixels in the vertical dimension of the ROI."""
         return self.data_shape[0]
 
     @height.setter
     def height(self, value):
-        self._data_shape = (value, self.data_shape[1])
+        self._data_shape = (int(value), int(self.data_shape[1]))
+        self._roi_end = self._roi_start + self._pixel_size * self._data_shape / self._scale
+        self._valid = False
 
     @property
     def width(self) -> int:
+        """The number of pixels in the horizontal dimension of the ROI."""
         return self.data_shape[1]
 
     @width.setter
     def width(self, value):
-        self._data_shape = (self.data_shape[0], value)
+        self._data_shape = (self.data_shape[0], int(value))
+        self._roi_end = self._roi_start + self._pixel_size * self._data_shape / self._scale
+        self._valid = False
 
     @property
     def dwell_time(self) -> Quantity[u.us]:
-        return (self._duration / (self.data_shape[0] * self.data_shape[1])).to(u.us)
+        """The time spent on each pixel during scanning."""
+        return (1.0 / self._sample_rate).to(u.us)
 
     @dwell_time.setter
-    def dwell_time(self, value):
-        self._duration = (value * (self.data_shape[0] * self.data_shape[1])).to(u.us)
+    def dwell_time(self, value: Quantity[u.us]):
+        self._sample_rate = (1.0 / value).to(u.Hz)
+        self._valid = False
 
     @property
     def duration(self) -> Quantity[u.ms]:
+        """Total duration of scanning for one frame."""
         return self._duration.to(u.ms)
 
     @duration.setter
@@ -318,44 +334,81 @@ class LaserScanning(Detector):
         self._duration = value.to(u.ms)
 
     @property
-    def delay(self) -> int:
+    def delay(self) -> Quantity[u.us]:
+        """Delay between the control signal to the mirrors and the start of data acquisition."""
         return self._delay  # add unit
 
     @delay.setter
-    def delay(self, value: int):
+    def delay(self, value: Quantity[u.us]):
         self._delay = value
+        self._valid = False
 
     @property
-    def zoom(self) -> float:
-        return self._zoom
+    def padding(self) -> float:
+        """Fraction of the scan range at the edges to discard to reduce edge artifacts."""
+        return self._padding[1]
 
-    @zoom.setter
-    def zoom(self, value: float):
-        self._zoom = value
-        self._update_pixel_size()
-
-    # Check if this influences dwelltime
-    @property
-    def scan_padding(self) -> float:
-        return self._scan_padding
-
-    @scan_padding.setter
-    def scan_padding(self, value: float):
-        self._scan_padding = value
+    @padding.setter
+    def padding(self, value: float):
+        self._padding[1] = value
+        self._v_origin = self._out_v_min + (self._out_v_max - self._out_v_min) * self._padding * 0.5
+        self._valid = False
 
     @property
     def bidirectional(self) -> bool:
+        """Whether scanning is bidirectional along the fast axis."""
         return self._bidirectional
 
     @bidirectional.setter
     def bidirectional(self, value: bool):
         self._bidirectional = value
+        self._valid = False
 
     @property
-    def invert(self) -> bool:
-        return self._invert
+    def zoom(self) -> float:
+        """Zoom factor.
+        The zoom factor determines the pixel size relative to original pixel size.
+        The original pixel size is given by `_scale * (_out_v_max - _out_v_min) / _data_shape`
+        When the zoom factor is changed,
+        the center of the region of interest and the number of pixels in the data remain constant.
+        """
+        return self._zoom
 
-    @invert.setter
-    def invert(self, value: bool):
-        self._invert = value
+    @zoom.setter
+    def zoom(self, value: float):
+        roi_center = 0.5 * (self._roi_end + self._roi_start)
+        roi_width_old = self._roi_end - self._roi_start
+        roi_width_new = roi_width_old * self._zoom / value
+        self._roi_start = roi_center - 0.5 * roi_width_new
+        self._roi_end = roi_center + 0.5 * roi_width_new
+        self._zoom = float(value)
+        self._pixel_size = self._original_pixel_size * self._binning / self._zoom
+        self._valid = False
 
+    @property
+    def binning(self) -> int:
+        """Undersampling factor.
+
+        Increasing the binning reduces the number of pixels in the image while keeping dwell time the same.
+        As a result, the total duration of a scan decreases.
+        Note: this behavior is different than for a camera.
+            No actual binning is performed, the scanner just takes fewer steps in x and y
+
+        Note: pixel_size  the roi is kept the same as much as possible.
+            However, due to rounding, it may vary slightly.
+
+        """
+        return self._binning
+
+    @binning.setter
+    def binning(self, value: int):
+        ratio = self._binning / value
+        self._binning = value
+        self._data_shape = tuple(int(s) for s in np.round(np.array(self._data_shape) * ratio))
+        self._pixel_size = self._original_pixel_size * self._binning / self._zoom
+        self._roi_end = self._roi_start + self._pixel_size * self._data_shape / self._scale
+        self._valid = False
+
+    @staticmethod
+    def list_devices():
+        return [d.name for d in nidaqmx.system.System().devices]

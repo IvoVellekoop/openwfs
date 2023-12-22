@@ -8,7 +8,7 @@ from ..slm import patterns
 from ..core import Processor, Detector, get_pixel_size, set_pixel_size
 from ..utilities import project, place, Transform, imshow
 from ..processors import TransformProcessor
-
+import warnings
 
 class Microscope(Processor):
     """A simulated microscope with pupil-conjugate SLM.
@@ -128,7 +128,8 @@ class Microscope(Processor):
 
     def _fetch(self, out: Union[np.ndarray, None], source: np.ndarray, aberrations: np.ndarray,  # noqa
                slm: np.ndarray) -> np.ndarray:
-        """Updates the image on the camera sensor
+        """
+        Updates the image on the camera sensor
 
         To compute the image:
         * First trigger the source, slm, and aberration sources
@@ -137,6 +138,15 @@ class Microscope(Processor):
         * Crop the source image (not implemented yet) and upsample if needed (not implemented yet)
         * Convolve the source image with the PSF.
         * Compute the magnified and cropped image on the camera.
+
+        Args:
+            out ():
+            source ():
+            aberrations ():
+            slm ():
+
+        Returns:
+
         """
 
         # First crop and downscale the source image to have the same size as the output
@@ -145,7 +155,7 @@ class Microscope(Processor):
         source_pixel_size = get_pixel_size(source)
         target_pixel_size = self.pixel_size / self.magnification
         if np.any(source_pixel_size > target_pixel_size):
-            raise Exception("The resolution of the specimen image is worse than that of the output.")
+            warnings.warn("The resolution of the specimen image is worse than that of the output.")
 
         # construct matrix for translation of the specimen
         # Note: there seems to be a bug (feature?) in fftconvolve that shifts the image by one pixel
@@ -188,10 +198,9 @@ class Microscope(Processor):
                                             truncation_radius=self.numerical_aperture, extent=pupil_extent)
 
         if aberrations is not None and slm is not None:
-            pupil_field = pupil_field * np.exp(1.0j *
-                                               project(pupil_shape, pupil_pixel_size, aberrations,
-                                                       self.aberration_transform) +
-                                               project(pupil_shape, pupil_pixel_size, slm, self.slm_transform))
+            pupil_field = pupil_field * np.exp(1.0j * (
+                    project(pupil_shape, pupil_pixel_size, aberrations, self.aberration_transform) +
+                    project(pupil_shape, pupil_pixel_size, slm, self.slm_transform)))
         elif slm is not None:
             pupil_field = pupil_field * np.exp(1.0j * project(pupil_shape, pupil_pixel_size, slm, self.slm_transform))
         elif aberrations is not None:
@@ -212,7 +221,6 @@ class Microscope(Processor):
         # apply magnification by just adjusting the pixel size
         # note, this is not needed as it happens automatically in the _do_fetch function
         source = set_pixel_size(source, self.pixel_size)
-
         if out is None:
             out = source
         else:
@@ -221,10 +229,14 @@ class Microscope(Processor):
 
     @property
     def magnification(self) -> float:
-        """Magnification from object plane to image plane.
+        """
+        Magnification from object plane to image plane.
 
         Note that, as in a real microscope, the magnification does not affect the effective resolution of the image.
         The resolution is determined by the Abbe diffraction limit λ/2NA.
+
+        Returns:
+
         """
         return self._magnification
 
@@ -238,12 +250,20 @@ class Microscope(Processor):
         return 0.5 * self.wavelength / self.numerical_aperture
 
     def get_camera(self, *, transform: Union[Transform, None] = None, **kwargs) -> Detector:
-        """Returns a simulated camera that observes the microscope image.
+        """
+        Returns a simulated camera that observes the microscope image.
 
         The camera is a MockCamera object that simulates an AD-converter with optional noise.
         shot noise and readout noise (see MockCamera for options).
         In addition to the inputs accepted by the MockCamera constructor (data_shape, analog_max, shot_noise, etc.),
         it is also possible to specify a transform, to mimic the (mis)alignment of the camera.
+
+        Args:
+            transform ():
+            **kwargs ():
+
+        Returns:
+
         """
         if transform is None:
             src = self

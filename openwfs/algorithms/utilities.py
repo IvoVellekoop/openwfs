@@ -1,12 +1,71 @@
 import numpy as np
-from types import SimpleNamespace
+from enum import Enum
 
 
-def analyze_phase_stepping(measurements: np.ndarray, axis: int):
-    """Takes phase stepping measurements and reconstructs the relative field.
+class WFSResult:
+    """
+    Data structure for holding wavefront shaping results and statistics.
 
-    This function assumes that there were two fields interfering at the detector,
-    and that the phase of one of these fields is phase-stepped in equally spaced steps
+    Attributes:
+        t: measured transmission matrix.
+            if multiple targets were used, the first dimension(s) of t denote the columns of the transmission matrix
+            (`a` indices) and the last dimensions(s) denote the targets, i.e., the rows of the transmission matrix
+            (`b` indices).
+        n: number of degrees of freedom (columns of the transmission matrix)
+        snr: estimated signal-to-noise ratio for each of the targets.
+        noise_factor: the estimated loss in fidelity caused by the the limited snr.
+        amplitude_factor: estimated reduction of the fidelity due to phase-only modulation (≈ π/4 for fully developed
+            speckle)
+        estimated_improvement: estimated ratio after/before
+        estimated_enhancement: estimated ratio <after>/<before>  (with <> denoting ensemble average)
+    """
+
+    def __init__(self, t, axis, noise_factor, amplitude_factor, non_linearity, n=None, I_offset=0.0):
+        """
+        Args:
+            t: measured transmission matrix.
+            snr: estimated signal-to-noise ratio for each of the targets.
+                Used to compute the noise factor.
+            amplitude_factor:
+                estimated reduction of the fidelity due to phase-only modulation (≈ π/4 for fully developed speckle)
+            estimated_improvement: estimated ratio before/after
+        """
+        self.t = t
+        self.axis = axis
+        self.noise_factor = np.atleast_1d(noise_factor)
+        self.n = t.size / self.noise_factor.size if n is None else n
+        self.amplitude_factor = np.atleast_1d(amplitude_factor)
+        self.estimated_enhancement = np.atleast_1d(1.0 + (self.n - 1) * self.amplitude_factor * self.noise_factor)
+        self.I_offset = np.atleast_1d(I_offset)
+        self.non_linearity = np.atleast_1d(non_linearity)
+        after = np.sum(np.abs(t), tuple(range(self.axis))) ** 2 * self.noise_factor + I_offset
+        self.estimated_optimized_intensity = np.atleast_1d(after)
+
+    def select_target(self, b) -> 'WFSResult':
+        """
+        Returns the wavefront shaping results for a single target
+
+        Args:
+            b(int): target to select, as integer index.
+                If the target array is multi-dimensional, it is flattened before selecting the `b`-th component.
+
+        Returns: WFSResults data for the specified target
+        """
+        return WFSResult(t=self.t.reshape((*self.t.shape[0:2], -1))[:, :, b],
+                         axis=self.axis,
+                         I_offset=self.I_offset[:][b],
+                         noise_factor=self.noise_factor[:][b],
+                         amplitude_factor=self.amplitude_factor[:][b],
+                         non_linearity=self.non_linearity[:][b],
+                         n=self.n
+                         )
+
+
+def analyze_phase_stepping(measurements: np.ndarray, axis: int, A=None):
+    """Analyzes the result of phase stepping measurements, returning matrix `t` and noise statitics
+
+    This function assumes that all measurements were made using the same reference field `A`
+    and that the phase of the modulated segment/mode is phase-stepped in equally spaced steps
     between 0 and 2π.
 
     Args:
@@ -18,12 +77,17 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int):
             where the feedback was measured.
         axis(int): indicates which axis holds the phase steps.
 
-    With `P` phase steps, the measurements are given by
-    .. math::
-        I_p = \lvert A + B exp(i 2\pi p / P)\rvert^2,
+    With `phase_steps` phase steps, the measurements are given by
 
-    This function computes the Fourier transform. math::
-        \frac{1}{P} \sum I_p exp(-i 2\pi p / P) = A^* B
+    .. math::
+
+        I_p = \lvert A + B \\exp(i 2\pi p / phase_{steps})\\rvert^2,
+
+    This function computes the Fourier transform.
+
+    .. math::
+
+        \\frac{1}{phase_{steps}} \\sum I_p  \\exp(-i 2\\pi p / phase_{steps}) = A^* B
 
     The value of A^* B for each set of measurements is stored in the `field` attribute of the return
     value.
@@ -31,106 +95,185 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int):
     and an estimate of the maximum enhancement that can be expected
     if these measurements are used for wavefront shaping.
     """
-    P = measurements.shape[axis]
-    phases = np.arange(P) * 2.0 * np.pi / P
-    AB = np.tensordot(measurements, np.exp(-1.0j * phases) / P, ((axis,), (0,)))
-    return SimpleNamespace(field=AB)
+    phase_steps = measurements.shape[axis]
+    N = np.prod(measurements.shape[:axis])
+    M = np.prod(measurements.shape[axis + 1:])
+    segments = tuple(range(axis))
 
-def get_dense_matrix(k_set, t_set):
-    """
-    Create a dense matrix visualization for given x, y coordinates and complex data.
-    Grid points not in the provided data are set to NaN.
+    # Fourier transform the phase stepping measurements
+    t_f = np.fft.fft(measurements, axis=axis) / phase_steps
 
-    Parameters:
-    - k_set: Arrays of x and y coordinates.
-    - t_set: Array of complex data corresponding to x, y coordinates.
+    # the offset is the 0-th Fourier component
+    # the signal is the first Fourier component (lowest non-zero frequency)
+    # the -1 Fourier component is just the conjugate of the first Fourier component since the signal is real.
+    # all other components should be 0. If they are not, they are considered to be noise
 
-    Returns:
-    - dense_matrix: A 2D numpy array with data filled in the corresponding x, y locations and NaN elsewhere.
-    """
-    x = k_set[0, :]
-    y = k_set[1, :]
+    I_f = np.sum(np.abs(t_f) ** 2, segments)  # total intensity per Fourier component per target
+    signal_energy = I_f[1, ...]
+    offset_energy = I_f[0, ...]
+    total_energy = np.sum(I_f, axis=0)
+    if phase_steps > 3:
+        noise_energy = (total_energy - 2.0 * signal_energy - offset_energy) / (phase_steps - 3)
+        noise_factor = np.maximum(signal_energy - noise_energy, 0.0) / signal_energy
+    else:
+        noise_factor = 1.0  # cannot estimate reliably
 
-    # Find the unique sorted coordinates
-    unique_x = np.unique(x)
-    unique_y = np.unique(y)
+    if phase_steps > 6 and (I_f[2, ...] + I_f[3, ...]) != 0.0:
+        non_linearity = (I_f[2, ...] - I_f[3, ...]) / (I_f[2, ...] + I_f[3, ...])
+    else:
+        non_linearity = 0.0  # cannot estimate reliably, or I_f[2] + I_f[3] == 0 (happens in simulation)
 
-    # Create a mapping from coordinate to index
-    x_to_index = {x_val: idx for idx, x_val in enumerate(unique_x)}
-    y_to_index = {y_val: idx for idx, y_val in enumerate(unique_y)}
+    # # determine scaling and offset of t
+    # y = np.take(t_f, 0, axis=axis)  # this is |A|^2 + |B_i|^2 + C
+    # # for SSA only:
+    # y = y - 2 * np.real(np.take(t_f, 1, axis=axis))
+    # x = np.abs(np.take(t_f, 1, axis=axis)) ** 2  # this is |A|^2|B_i|^2
+    #
+    # # linear fit
+    # a = np.sum(x ** 2, segments)
+    # b = np.sum(x, segments)
+    # c = -np.sum(x * y, segments)
+    # d = np.sum(y, segments)
+    # alpha = -(b * d / N + c) / (a - b ** 2 / N)
+    # I_A = 1.0 / alpha
+    # I_A = np.mean(measurements, axis=segments)[0, ...]
+    # I_offset = 0.0  # (d - alpha * b) / N - I_A
+    # # print(f"residual {np.linalg.norm(x * alpha + I_offset + I_A - y)}")
 
-    # Initialize a dense matrix full of NaNs
-    dense_matrix = np.full((len(unique_y), len(unique_x)), np.nan, dtype=complex)
+    if A is None:  # reference field strength not known: estimate from data
+        t_abs = np.abs(np.take(t_f, 1, axis=axis))
+        offset = np.take(t_f, 0, axis=axis)
+        a_plus_b = np.sqrt(offset + 2.0 * t_abs)
+        a_minus_b = np.sqrt(offset - 2.0 * t_abs)
+        A = 0.5 * np.mean(a_plus_b + a_minus_b)
 
-    # Place the data into the dense matrix using the mapping
-    for (x_val, y_val), val in zip(zip(x, y), t_set):
-        x_idx = x_to_index[x_val]
-        y_idx = y_to_index[y_val]
-        dense_matrix[y_idx, x_idx] = val
+    t = np.take(t_f, 1, axis=axis) / A
 
-    return dense_matrix
+    # compute the effect of amplitude variations.
+    # for perfectly developed speckle, and homogeneous illumination, this factor will be pi/4
+    amplitude_factor = np.mean(np.abs(t), segments) ** 2 / np.mean(np.abs(t) ** 2, segments)
 
+    return WFSResult(t, axis=axis, amplitude_factor=amplitude_factor, noise_factor=noise_factor,
+                     non_linearity=non_linearity)
 
 
 class WFSController:
+    """
+    Controller for Wavefront Shaping (WFS) operations using a specified algorithm in the MicroManager environment.
+    Manages the state of the wavefront and executes the algorithm to optimize and apply wavefront corrections, while
+    exposing all these parameters to MicroManager.
+
+    Attributes:
+        Public:
+            wavefront (State): Current state of the wavefront.
+            recompute_wavefront (bool): Flag to indicate if the wavefront needs to be recomputed.
+            feedback_enhancement (float): Measured feedback enhancement.
+            test_wavefront (bool): Flag indicating if the wavefront is in test mode.
+            snr (float): Average signal-to-noise ratio computed during wavefront optimization.
+            algorithm: The wavefront shaping algorithm instance.
+
+        Private:
+            _optimized_wavefront (numpy.ndarray): Optimized wavefront data.
+    """
+
+    class State(Enum):
+        FLAT_WAVEFRONT = 0
+        SHAPED_WAVEFRONT = 1
+
     def __init__(self, algorithm):
         """
-        Initializes the WFSController with an algorithm object.
-
         Args:
-            algorithm: An instance of an algorithm class. (e.g. StepwiseSequential, BasicFDR, CharacterisingFDR)
+            algorithm: An instance of a wavefront shaping algorithm.
         """
         self.algorithm = algorithm
-        self._show_flat_wavefront = False
-        self._show_optimized_wavefront = False
-        self.transmission_matrix = None
+        self._wavefront = WFSController.State.FLAT_WAVEFRONT
+        self._result = None
+        self._optimized_wavefront = None
+        self._recompute_wavefront = False
+        self._feedback_enhancement = None
+        self._test_wavefront = False
+        self._snr = None  # Average SNR. Computed when wavefront is computed.
+        self._estimated_enhancement = None  # Expected enhancement from phase stepping measurements
 
     @property
-    def execute_button(self) -> bool:
+    def wavefront(self) -> State:
         """
-        Property to trigger the execution of the BasicFDR instance's method.
+        Gets the current wavefront state.
 
         Returns:
-            bool: The state of the execution.
+            State: The current state of the wavefront, either FLAT_WAVEFRONT or SHAPED_WAVEFRONT.
         """
-        return self.algorithm.execute_button
+        return self._wavefront
 
-    @execute_button.setter
-    def execute_button(self, value):
-        self.transmission_matrix = self.algorithm.execute()
-        self.algorithm.execute_button = value
+    @wavefront.setter
+    def wavefront(self, value):
+        """
+        Sets the wavefront state and applies the corresponding phases to the SLM.
+
+        Args:
+            value (State): The desired state of the wavefront to set.
+        """
+        self._wavefront = value
+        if value == WFSController.State.FLAT_WAVEFRONT:
+            self.algorithm._slm.set_phases(0.0)
+        else:
+            if self._recompute_wavefront or self._optimized_wavefront is None:
+                # select only the wavefront and statistics for the first target
+                result = self.algorithm.execute().select_target(0)
+                self._optimized_wavefront = -np.angle(result.t)
+                self._snr = 1.0 / (1.0 / result.noise_factor - 1.0)
+                self._estimated_enhancement = result.estimated_enhancement
+                self._result = result
+            self.algorithm._slm.set_phases(self._optimized_wavefront)
 
     @property
-    def show_flat_wavefront(self) -> bool:
+    def snr(self) -> float:
         """
-        Property to show a flat wavefront.
+        Gets the signal-to-noise ratio (SNR) of the optimized wavefront.
 
         Returns:
-            bool: The state of the flat wavefront display.
+            float: The average SNR computed during wavefront optimization.
         """
-        return self._show_flat_wavefront
+        return self._snr
 
-    @show_flat_wavefront.setter
-    def show_flat_wavefront(self, value):
+    @property
+    def recompute_wavefront(self) -> bool:
+        """Returns: bool that indicates whether the wavefront needs to be recomputed. """
+        return self._recompute_wavefront
+
+    @recompute_wavefront.setter
+    def recompute_wavefront(self, value):
+        """Sets the bool that indicates whether the wavefront needs to be recomputed. """
+        self._recompute_wavefront = value
+
+    @property
+    def feedback_enhancement(self) -> float:
+        """Returns: the average enhancement of the feedback, returns none if no such enhancement was measured."""
+        return self._feedback_enhancement
+
+    @property
+    def estimated_enhancement(self) -> float:
+        return self._estimated_enhancement
+
+    @property
+    def test_wavefront(self) -> bool:
+        """Returns: bool that indicates whether test_wavefront will be performed if set."""
+        return self._test_wavefront
+
+    @test_wavefront.setter
+    def test_wavefront(self, value):
+        """
+        Calculates the feedback enhancement between the flat and shaped wavefronts by measuring feedback for both
+        cases.
+
+        Args:
+            value (bool): True to enable test mode, False to disable.
+        """
         if value:
-            self.algorithm._slm.set_phases(0)  # Assuming there's a method in BasicFDR to set all phases to 0
-        self._show_flat_wavefront = value
+            self.wavefront = WFSController.State.FLAT_WAVEFRONT
+            feedback_flat = self.algorithm._feedback.read()
+            self.wavefront = WFSController.State.SHAPED_WAVEFRONT
+            feedback_shaped = self.algorithm._feedback.read()
+            self._feedback_enhancement = float(feedback_shaped.sum() / feedback_flat.sum())
 
-    @property
-    def show_optimized_wavefront(self) -> bool:
-        """
-        Property to show the optimized wavefront.
-
-        Returns:
-            bool: The state of the optimized wavefront display.
-        """
-        return self._show_optimized_wavefront
-
-    @show_optimized_wavefront.setter
-    def show_optimized_wavefront(self, value):
-        if value:
-            if len(self.transmission_matrix.shape) == 3:
-                self.algorithm._slm.set_phases(-np.angle(self.transmission_matrix[...,0]))
-            else:
-                self.algorithm._slm.set_phases(np.angle(self.transmission_matrix))
-        self._show_optimized_wavefront = value
+        self._test_wavefront = value

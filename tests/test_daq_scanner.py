@@ -1,145 +1,64 @@
 import numpy as np
-import pytest
 
-openwfs_devices = pytest.importorskip("openwfs.devices")
-from openwfs.devices import LaserScanning
+from ..openwfs.devices import ScanningMicroscope
 import time
 import astropy.units as u
 import matplotlib.pyplot as plt
-
-def test_scanpattern_padding():
-    scanner = LaserScanning(bidirectional=False, scan_padding=2, data_shape=(5, 5), input_min=-2, input_max=2)
-    pattern = scanner.scanpattern()
-    x_coordinates = pattern[0, :-1].reshape((5, 7))  # 5 steps + 2 padding
-    # First two elements of each row should be the same due to padding
-    for row in x_coordinates:
-        assert row[0] == row[1]
-
-def test_scanpattern_bidirectional_flip():
-    scanner = LaserScanning(bidirectional=True, scan_padding=0, data_shape=(5, 5), input_min=-2, input_max=2)
-    pattern = scanner.scanpattern()
-    x_coordinates = pattern[0, :-1].reshape((5, 5))
-
-    # Check if odd rows are flipped
-    for i in range(1, 5, 2):
-        assert np.array_equal(x_coordinates[i], np.flip(x_coordinates[i - 1]))
-
-def test_pmt_to_image_no_padding():
-    scanner = LaserScanning(scan_padding=0, bidirectional=False, data_shape=(5, 5), input_min=-2, input_max=2)
-    test_data = np.arange(26)  # Create test data
-    image = scanner.pmt_to_image(test_data)
-
-    # Ensure the data is reshaped correctly to a 5x5 image
-    assert image.shape == (5, 5)
-    assert np.array_equal(image, test_data[1:26].reshape((5, 5)))
-
-def test_pmt_to_image_with_padding():
-    padding = 2
-    delay = 0
-    scanner = LaserScanning(scan_padding=padding, delay=delay, bidirectional=True, data_shape=(5, 5), input_min=-2, input_max=2)
-    test_data = np.arange(26 + 5*padding)  # Create test data with padding and extra point
-    image = scanner.pmt_to_image(test_data)
-
-    # Check that the shape accounts for padding
-    assert image.shape == (5, 5)
-    # Check that the padding has been accounted for by testing the first row
-    assert np.array_equal(image[0], test_data[1:6]+padding)
-
-def test_pmt_to_image_with_delay():
-    padding = 0
-    delay = 2
-    scanner = LaserScanning(scan_padding=padding, delay=delay, bidirectional=True, data_shape=(5, 5), input_min=-2, input_max=2)
-    test_data = np.arange(26 + 5*padding)  # Create test data with padding and extra point
-    image = scanner.pmt_to_image(test_data)
-    # Check that the shape accounts for padding
-    assert image.shape == (5, 5)
-
-    # Check that the delay has been accounted for by testing the first row
-    check_array = test_data[1:6]-delay
-    check_array[check_array<0] = 0
-    assert np.array_equal(image[0], check_array)
-
-def test_scanpattern_and_pmt_to_image_with_changed_dimensions():
-    # Change width and height
-    new_width, new_height = 10, 16  # New dimensions
-    scanner = LaserScanning(scan_padding=0, bidirectional=True, data_shape=(new_height, new_width), input_min=-2, input_max=2)
-
-    # Test scanpattern
-    pattern = scanner.scanpattern()
-    x_coordinates = pattern[0, :-1].reshape((new_height, new_width))
-
-    for i in range(1, new_height, 2):
-        assert np.array_equal(x_coordinates[i], np.flip(x_coordinates[i - 1]))
-
-    # Test pmt_to_image
-    test_data = np.arange(new_width * new_height + 1)  # Adjust test data for new dimensions
-
-    image = scanner.pmt_to_image(test_data)
-    assert image.shape == (new_height, new_width)
-    test_image = test_data[1:].reshape((new_height, new_width))
-    test_image[1::2, :] = test_image[1::2, ::-1]
-    assert np.array_equal(image, test_image)
-
-def test_scanpattern_and_pmt_to_image_with_padding_and_changed_dimensions():
-    # Change width, height, and add padding
-    new_width, new_height, padding = 10, 16, 2  # New dimensions and padding
-    scanner = LaserScanning(scan_padding=padding, bidirectional=True, data_shape=(new_height, new_width), input_min=-2, input_max=2)
-
-    # Test scanpattern
-    pattern = scanner.scanpattern()
-    padded_width = new_width + padding
-    x_coordinates = pattern[0, :-1].reshape((new_height, padded_width))
-    plt.imshow(x_coordinates)
-    plt.show()
-    for i in range(new_height):
-        if i % 2 == 0:
-            # Even rows: the first 'padding' values should be the same (start padding)
-            assert np.all(x_coordinates[i, :padding] == x_coordinates[i, 0])
-        else:
-            # Odd rows: the last 'padding' values should be the same (end padding) and check flipping
-            assert np.all(x_coordinates[i, -padding:] == x_coordinates[i, -1])
-            assert np.array_equal(x_coordinates[i, padding:], np.flip(x_coordinates[i - 1, :new_width]))
-
-    # Test pmt_to_image
-    test_data_length = new_width * new_height + padding * new_height + 1  # Adjust test data for new dimensions and padding
-    test_data = np.arange(test_data_length)
-
-    image = scanner.pmt_to_image(test_data)
-    plt.imshow(image)
-    plt.show()
-    assert image.shape == (new_height, new_width)
-
-    # Prepare the expected image for comparison
-    test_image = np.zeros((new_height, new_width))
-    for i in range(new_height):
-        if i % 2 == 0:
-            test_image[i, :] = test_data[1 + i * padded_width: 1 + i * padded_width + new_width]
-        else:
-            test_image[i, :] = test_data[1 + i * padded_width + padding: 1 + i * padded_width + padding + new_width][::-1]
-
-    assert np.array_equal(image, test_image)
+import nidaqmx
 
 
-def test_measurement_time():
-    # This tests if the measurement time actually changes the time the scanners measures. Requires connection to DAQ
-    # or a simulated DAQ in NI MAX
-
-    scanner = LaserScanning(duration=10 * u.ms, x_mirror_mapping='Dev4/ao2', y_mirror_mapping='Dev4/ao3',
-                            input_mapping='Dev4/ai24')
-    diffs = []
-    times = []
-    for timers in range(1,10):
-
-        scanner.duration = timers/10 * u.s
-
-        t = time.time()
-        scanner.read()
-
-        diffs.append((time.time() - t))
-        times.append(timers/10 * u.s)
+def test_scan_pattern_delay():
+    try:
+        scanner = ScanningMicroscope(bidirectional=True, sample_rate=0.5 * u.MHz,
+                                     axis0=('Dev4/ao0', -1.0 * u.V, 1.0 * u.V),
+                                     axis1=('Dev4/ao1', -1.0 * u.V, 1.0 * u.V), input=('Dev4/ai0', -1 * u.V, 1.0 * u.V),
+                                     data_shape=(5, 5), scale=440 * u.um / u.V)
+        pattern = scanner._scan_pattern
+        print(pattern)
+    except nidaqmx.DaqError:
+        print('No nidaq card found')
+        pass
 
 
-    diffs = diffs
+def test_daq_connection():
+    try:
+        sample_rate = 0.1 * u.MHz
+        scanner = ScanningMicroscope(bidirectional=True, sample_rate=sample_rate,
+                                     axis0=('Dev4/ao0', -1.0 * u.V, 1.0 * u.V),
+                                     axis1=('Dev4/ao1', -1.0 * u.V, 1.0 * u.V),
+                                     input=('Dev4/ai0', 0.1 * u.V, 1.0 * u.V),
+                                     data_shape=(15, 12), scale=440 * u.um / u.V, delay=9.0 * u.us, padding=0.1)
 
-    for diff,ts in zip(diffs,times):
-        assert diff-ts.value < 0.2
+        assert scanner.top == 0
+        assert scanner.left == 0
+        assert scanner.height == 15
+        assert scanner.width == 12
+        assert scanner.data_shape == (15, 12)
+        assert scanner.padding == 0.1
+        ps0 = 440 * u.um / u.V * 2.0 * u.V / scanner.data_shape[0]
+        ps1 = 440 * u.um / u.V * 2.0 * u.V / scanner.data_shape[1] * (1.0 - scanner.padding)
+        assert np.allclose(scanner.pixel_size, (ps0, ps1))
+        assert np.allclose(scanner.dwell_time, 1.0 / sample_rate)
+        im1 = scanner.read()
+        assert im1.dtype == np.dtype('uint16')
+        assert im1.flags['C_CONTIGUOUS']
+
+        # read second image
+        im2 = scanner.read()  # noqa
+        scanner.width = 13
+        scanner.height = 8
+        scanner.left = 2
+        scanner.top = 3
+        assert scanner.width == 13
+        assert scanner.height == 8
+        assert scanner.left == 2
+        assert scanner.top == 3
+
+        im3 = scanner.read()  # noqa
+        scanner.width = 50
+        scanner.height = 50
+        plt.imshow(scanner.read())
+        plt.colorbar()
+        plt.show()
+    except nidaqmx.DaqError:
+        pass

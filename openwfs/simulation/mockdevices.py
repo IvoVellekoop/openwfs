@@ -11,11 +11,26 @@ from ..core import Detector, Processor, PhaseSLM, Actuator, get_pixel_size
 
 
 class Generator(Detector):
-    """Detector that returns synthetic data.
-    Also simulates latency and measurement duration.
+    """A detector that returns synthetic data, simulating latency and measurement duration.
+
+    Attributes:
+        duration (Quantity[u.ms]): Duration for which the generator simulates data acquisition.
+        latency (Quantity[u.ms]): Simulated delay before data acquisition begins.
+
+    Methods:
+        uniform_noise: Static method to create a generator with uniform noise.
+        gaussian_noise: Static method to create a generator with Gaussian noise.
     """
 
     def __init__(self, generator, *, duration=0 * u.ms, **kwargs):
+        """
+        Initializes the Generator class, a subclass of Detector, that generates synthetic data.
+
+        Args:
+            generator (callable): A function that takes the data shape as input and returns the generated data.
+            duration (Quantity[u.ms]): Duration for which the generator simulates the data acquisition.
+            **kwargs: Additional keyword arguments to be passed to the Detector base class.
+        """
         super().__init__(**kwargs)
         self._duration = duration
         self._generator = generator
@@ -83,14 +98,32 @@ class Generator(Detector):
 
 
 class MockSource(Generator):
-    """Detector that returns pre-set data.
-    Also simulates latency and measurement duration.
+    """
+    Detector that returns pre-set data. Also simulates latency and measurement duration.
+
+    Attributes:
+        data (np.ndarray): Pre-set data to be returned by the mock source.
+        pixel_size (Quantity, optional): Size of each pixel in the data.
+        extent (Union[Quantity, float, Sequence[float], None], optional): Physical extent of the data array.
     """
 
-    def __init__(self, data, pixel_size: Quantity[u.um] = None, **kwargs):
+    def __init__(self, data, pixel_size: Quantity = None, extent: Union[Quantity, float, Sequence[float], None] = None,
+                 **kwargs):
+        """
+        Initializes the MockSource class, a subclass of Generator, that returns pre-set data.
+
+        Args:
+            data (np.ndarray): The pre-set data to be returned by the mock source.
+            pixel_size (Quantity, optional): The size of each pixel in the data.
+            extent (Union[Quantity, float, Sequence[float], None], optional): The physical extent of the data array.
+            **kwargs: Additional keyword arguments.
+        """
         def generator(data_shape):
             assert data_shape == self._data.shape
             return self._data.copy()
+
+        if pixel_size is None and extent is not None:
+            pixel_size = Quantity(extent) / data.shape
 
         super().__init__(generator=generator, data_shape=data.shape,
                          pixel_size=pixel_size if pixel_size is not None else get_pixel_size(data),
@@ -128,6 +161,18 @@ class ADCProcessor(Processor):
 
     def __init__(self, source: Detector, analog_max: float = 0.0, digital_max: int = 0xFFFF,
                  shot_noise: bool = False):
+        """
+        Initializes the ADCProcessor class, which mimics an analog-digital converter.
+
+        Args:
+            source (Detector): The source detector providing analog data.
+            analog_max (float): The maximum analog value that can be handled by the ADC. If set to 0, the maximum
+            value will be set to the maximum value in the data passed by source. Note that this means 2 measurements
+            are no longer proportional to each other, if they would be in the source.
+
+            digital_max (int): The maximum digital value that the ADC can output, default is unsigned 16-bit maximum.
+            shot_noise (bool): Flag to determine if Poisson noise should be applied instead of rounding.
+        """
         super().__init__(source)
         self._analog_max = None
         self._digital_max = None
@@ -191,13 +236,14 @@ class MockCamera(ADCProcessor):
     """Wraps any 2-d image source as a camera.
 
     To implement the camera interface (see bootstrap.py), in addition to the Detector interface,
-    we must implement the following functions:
-        top: int
-        left: int
-        height: int
-        width: int
+    we must implement the following:
 
-    These properties are forwarded to a CropProcessor held internally.
+    Attributes:
+        left (int): Left position of the ROI in the source data.
+        top (int): Top position of the ROI in the source data.
+        height (int): Height of the ROI.
+        width (int): Width of the ROI.
+        data_shape (tuple): Shape of the image data to be captured.
 
     In addition, the data should be returned as uint16.
     Conversion to uint16 is implemented in the ADCProcessor base class.
@@ -205,6 +251,13 @@ class MockCamera(ADCProcessor):
 
     def __init__(self, source: Detector, shape: Union[Sequence[int], None] = None,
                  pos: Union[Sequence[int], None] = None, **kwargs):
+        """
+        Args:
+            source (Detector): The source detector to be wrapped.
+            shape (Union[Sequence[int], None], optional): The shape of the image data to be captured.
+            pos (Union[Sequence[int], None], optional): The position on the source from where the image is captured.
+            **kwargs: Additional keyword arguments to be passed to the Detector base class.
+        """
         self._crop = CropProcessor(source, shape=shape, pos=pos)
         super().__init__(source=self._crop, **kwargs)
 
@@ -267,7 +320,16 @@ class MockCamera(ADCProcessor):
 
 
 class MockXYStage(Actuator):
+    """
+    Mimics an XY stage actuator
+    """
     def __init__(self, step_size_x: Quantity[u.um], step_size_y: Quantity[u.um]):
+        """
+
+        Args:
+            step_size_x (Quantity[u.um]): The step size in the x-direction.
+            step_size_y (Quantity[u.um]): The step size in the y-direction.
+        """
         super().__init__()
         self.step_size_x = step_size_x.to(u.um)
         self.step_size_y = step_size_y.to(u.um)
@@ -296,7 +358,22 @@ class MockXYStage(Actuator):
 
 
 class MockSLM(PhaseSLM):
+    """
+    A mock version of a phase-only spatial light modulator.
+
+    Attributes:
+        phases (np.ndarray): Current phase pattern on the SLM.
+
+    Methods:
+        set_phases(values: Union[np.ndarray, float], update=True): Set the phase pattern on the SLM.
+        pixels() -> Detector: Returns a `camera` that mimics the current phase on the SLM.
+    """
     def __init__(self, shape):
+        """
+
+        Args:
+            shape (Sequence[int]): The 2D shape of the SLM.
+        """
         super().__init__()
         if len(shape) != 2:
             raise ValueError("Shape of the SLM should be 2-dimensional.")
@@ -310,8 +387,21 @@ class MockSLM(PhaseSLM):
         self._back_buffer[:] = 0.0
 
     def set_phases(self, values: Union[np.ndarray, float], update=True):
+        """
+        Set the phase pattern on the SLM. The values are scaled to fit the SLM's shape.
+
+        This method sets a new phase pattern on the SLM. If the input values have a different shape than the SLM,
+        they are scaled to fit.
+
+        Args:
+            values (Union[np.ndarray, float]): The new phase values to be set on the SLM. This can be a 2D array of
+                values or a single float value. If it's a 2D array, it should represent the phase pattern to be
+                displayed on the SLM. If it's a single float value, this value is broadcasted over the entire SLM.
+            update (bool, optional): If True, the SLM is updated with the new values immediately. Defaults to True.
+        """
         values = np.atleast_2d(values)
         scale = np.array(self._back_buffer.shape) / np.array(values.shape)
+        # TODO: replace by cv2, with area interpolation
         zoom(values, scale, output=self._back_buffer, order=0)
         if update:
             self.update()

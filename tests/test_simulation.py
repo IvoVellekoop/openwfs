@@ -1,34 +1,31 @@
-import logging
-
-import matplotlib.pyplot as plt
+import logging  # noqa
+from ..openwfs.utilities import imshow  # noqa
 import pytest
 import numpy as np
-from ..openwfs.algorithms import StepwiseSequential, BasicFDR, CharacterisingFDR
+from ..openwfs.algorithms import StepwiseSequential
 from ..openwfs.processors import SingleRoi
-from ..openwfs.simulation import SimulatedWFS, Microscope, MockCamera, MockSource, MockXYStage, MockSLM
+from ..openwfs.simulation import Microscope, MockCamera, MockSource, MockSLM
 import skimage
-from ..openwfs.slm import SLM
-from ..openwfs.slm.patterns import tilt, disk
+from ..openwfs.slm.patterns import tilt
 import astropy.units as u
-from ..openwfs.utilities import imshow
 
 
-def test_MockCamera_and_SingleRoi():
+def test_mock_camera_and_single_roi():
     """
     The MockCamera wraps a Detector producing 2-D data, so that the data can be read by MicroManager.
     The data is converted into a 16-bit int, and methods are added to set width, height, top and bottom.
     By default, the MockCamera scales the input image such that the maximum value is mapped to the unsigned integer
-    0xFFFF = 2 ** 16 - 1.
+    0xFFFF = (2 ** 16) - 1.
     """
     img = np.zeros((1000, 1000), dtype=np.int16)
-    img[256, 256] = 39.39  # some random float
+    img[200, 200] = 39.39  # some random float
     src = MockCamera(MockSource(img, 450 * u.nm))
-    roi_detector = SingleRoi(src, x=256, y=256, radius=0)  # Only measure that specific point
+    roi_detector = SingleRoi(src, x=-299, y=-299, radius=0)  # Only measure that specific point
     assert roi_detector.read() == int(2 ** 16 - 1)  # it should cast the array into some int
 
 
 @pytest.mark.parametrize("shape", [(1000, 1000), (999, 999)])
-def test_Microscope_without_magnification(shape):
+def test_microscope_without_magnification(shape):
     """
     Checks if the microscope can be constructed and read out without exceptions being thrown.
     Also checks if the microscope does not offset the image (for odd and even number of pixels)
@@ -46,10 +43,9 @@ def test_Microscope_without_magnification(shape):
     assert img[256, 256] == 2 ** 16 - 1
 
 
-def test_Microscope_and_aberration():
+def test_microscope_and_aberration():
     """
-    This test concerns the basic effect of casting an aberration or SLM pattern on the backpupil.
-    They should aberrate a point source in the image plane.
+    This test concerns the basic effect of casting an aberration or SLM pattern on the back pupil.
     """
     img = np.zeros((1000, 1000), dtype=np.int16)
     img[256, 256] = 100
@@ -67,7 +63,7 @@ def test_Microscope_and_aberration():
     assert with_aberration < without_aberration
 
 
-def test_SLM_and_aberration():
+def test_slm_and_aberration():
     """
     As mentioned in the previous test, casting a pattern on the pupil plane with an SLM and an aberration
     should produce the same effect. We will test that here by projecting two opposing patterns on the pupil plane.
@@ -87,7 +83,8 @@ def test_SLM_and_aberration():
                       wavelength=800 * u.nm)
     sim2 = Microscope(source=src, numerical_aperture=1.0, wavelength=800 * u.nm)
 
-    # We correlate the two. Any discrepency between the two matrices should throw an error
+    # We correlate the two.
+    # Any discrepancy between the two matrices should throw an error
     # try putting one of the wavelengths to 800
 
     a = sim1.read()
@@ -98,7 +95,7 @@ def test_SLM_and_aberration():
     assert abs(np.vdot(norm_a, norm_b)) >= 1
 
 
-def test_SLM_tilt():
+def test_slm_tilt():
     """
     Display a tilt on the SLM should result in an image plane shift. If the magnification is 1, this should
     correspond to a tilt of 1 pixel for a 2 pi phase shift.
@@ -117,7 +114,7 @@ def test_SLM_tilt():
 
     # introduce a tilted pupil plane
     # the input parameter to `tilt` corresponds to a shift 2.0/π the Abbe diffraction limit.
-    shift = np.array((-24, 40))  # to get the
+    shift = np.array((-24, 40))
     step = wavelength / (np.pi * na)
     slm.set_phases(tilt(1000, - shift * pixel_size / step))
 
@@ -129,20 +126,20 @@ def test_SLM_tilt():
     assert np.all(max_pos == new_location)
 
 
-def test_microscope_wavefrontshaping(caplog):
+def test_microscope_wavefront_shaping(caplog):
     """
     Reproduces a bug that occurs due to the location of the measurements.wait() command.
     """
-    caplog.set_level(logging.DEBUG)
+    # caplog.set_level(logging.DEBUG)
     aberrations = skimage.data.camera() * ((2 * np.pi) / 255.0) + np.pi
 
-    aberration = MockSource(aberrations, pixel_size=1.0 / (512) * u.dimensionless_unscaled)
+    aberration = MockSource(aberrations, pixel_size=1.0 / 512 * u.dimensionless_unscaled)
 
     img = np.zeros((1000, 1000), dtype=np.int16)
     img[256, 256] = 100
 
     img = np.zeros((1000, 1000), dtype=np.int16)
-    signal_location = (256, 256)
+    signal_location = (250, 250)
 
     img[signal_location] = 100
     src = MockSource(img, 400 * u.nm)
@@ -152,10 +149,10 @@ def test_microscope_wavefrontshaping(caplog):
     sim = Microscope(source=src, slm=slm.pixels(), numerical_aperture=1, aberrations=aberration, wavelength=800 * u.nm)
 
     cam = sim.get_camera(analog_max=100)
-    roi_detector = SingleRoi(cam, x=256, y=256, radius=0)  # Only measure that specific point
+    roi_detector = SingleRoi(cam, x=-249, y=-249, radius=0)  # Only measure that specific point
 
     alg = StepwiseSequential(feedback=roi_detector, slm=slm, phase_steps=3, n_x=3, n_y=3)
-    t = alg.execute()
+    t = alg.execute().t
 
     # test if the modes differ. The error causes them not to differ
     assert np.std(t[:][1:]) > 0

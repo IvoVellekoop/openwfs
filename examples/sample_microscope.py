@@ -34,7 +34,7 @@ p_limit = 100
 img = np.maximum(np.random.randint(-10000, 100, (img_size_y, img_size_x), dtype=np.int16), 0)
 src = MockSource(img, 50 * u.nm)
 mic = Microscope(src, magnification=magnification, numerical_aperture=numerical_aperture, wavelength=wavelength,
-                 camera_pixel_size=pixel_size, camera_resolution=camera_resolution, truncation_factor=0.5)
+                 truncation_factor=0.5)
 
 # simulate shot noise in an 8-bit camera with auto-exposure:
 cam = mic.get_camera(shot_noise=True, digital_max=255, transform=Transform.zoom(2.0))
