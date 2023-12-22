@@ -3,15 +3,12 @@ import numpy as np
 from ..openwfs.devices import ScanningMicroscope
 from ..openwfs.slm.patterns import coordinate_range
 from ..openwfs.utilities import imshow
-import time
 import astropy.units as u
 import pytest
-from astropy.units import Quantity
-import matplotlib.pyplot as plt
 
 
 @pytest.mark.parametrize("direction", ['horizontal', 'vertical'])
-def test_scanpattern(direction):
+def test_scan_pattern(direction):
     shape = (100, 80)
     padding = 0.0
     scale = 440 * u.um / u.V
@@ -29,7 +26,7 @@ def test_scanpattern(direction):
     else:
         assert np.allclose(y.to_value(u.mV), full, atol=0.5)
 
-    # set the ROI
+    # test setting the ROI
     left = 10
     top = 30
     width = 29
