@@ -2,9 +2,10 @@ import numpy as np
 
 from ..openwfs.devices import ScanningMicroscope
 from ..openwfs.slm.patterns import coordinate_range
-from ..openwfs.utilities import imshow
+from ..openwfs.utilities import imshow, place, set_pixel_size, get_pixel_size
 import astropy.units as u
 import pytest
+
 
 
 @pytest.mark.parametrize("direction", ['horizontal', 'vertical'])
@@ -54,3 +55,23 @@ def test_scan_pattern(direction):
 
     roi = scanner.read().astype('float32') - 0x8000
     assert np.allclose(full[top:(top + height), left:(left + width)], roi)
+
+    # test zooming
+    ps = scanner.pixel_size
+    scanner.zoom = 2.0
+    assert np.allclose(scanner.pixel_size, ps * 0.5)
+    assert scanner.width == width
+    assert scanner.height == height
+    assert scanner.data_shape == (height, width)
+    assert scanner.left == np.floor(2 * left + 0.5 * width)
+    assert scanner.top == np.floor(2 * top + 0.5 * height)
+
+    zoomed = scanner.read().astype('float32') - 0x8000
+    scaled = place(zoomed.shape, 0.5 * ps, set_pixel_size(roi, ps))
+    assert np.allclose(get_pixel_size(scaled), 0.5 * ps)
+    step = zoomed[1,1] - zoomed[0,0]
+    assert np.allclose(zoomed, scaled, atol=0.5 * step)
+
+    scanner.zoom = 1.0
+    reset_zoom = scanner.read().astype('float32') - 0x8000
+    assert np.allclose(reset_zoom, roi)
