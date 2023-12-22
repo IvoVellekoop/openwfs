@@ -21,7 +21,7 @@ class FourierDualReference(FourierBase):
     """
 
     def __init__(self, feedback: Detector, slm: PhaseSLM, slm_shape=(500, 500), phase_steps=4, k_angles_min=-3,
-                 k_angles_max=3, overlap=0.1):
+                 k_angles_max=3):
         """
         Args:
             feedback (Detector): Source of feedback
@@ -31,10 +31,8 @@ class FourierDualReference(FourierBase):
             phase_steps (int): The number of phase steps.
             k_angles_min (int): The minimum k-angle.
             k_angles_max (int): The maximum k-angle.
-            overlap (float): The overlap value.
         """
-        super().__init__(feedback, slm, slm_shape, np.array((0, 0)), np.array((0, 0)), phase_steps=phase_steps,
-                         overlap=overlap)
+        super().__init__(feedback, slm, slm_shape, np.array((0, 0)), np.array((0, 0)), phase_steps=phase_steps)
         self._k_angles_min = k_angles_min
         self._k_angles_max = k_angles_max
 

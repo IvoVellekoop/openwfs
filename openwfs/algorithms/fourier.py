@@ -2,7 +2,7 @@ import numpy as np
 from ..core import Detector, PhaseSLM
 from .utilities import analyze_phase_stepping, WFSResult
 from ..slm.patterns import tilt
-
+import warnings
 
 class FourierBase:
     """Base class definition for the Fourier algorithms.
@@ -24,8 +24,7 @@ class FourierBase:
       "Wavefront shaping for forward scattering," Opt. Express 30, 37436-37445 (2022)
       """
 
-    def __init__(self, feedback: Detector, slm: PhaseSLM, slm_shape, k_left, k_right, phase_steps=4,
-                 overlap=0.1):
+    def __init__(self, feedback: Detector, slm: PhaseSLM, slm_shape, k_left, k_right, phase_steps=4):
         """
 
         Args:
@@ -49,7 +48,6 @@ class FourierBase:
             overlap (float): The overlap between the reference and measurement part of the SLM (default is 0.1).
         """
         self._execute_button = False
-        self._overlap = overlap
         self._slm = slm
         self._feedback = feedback
         self.phase_steps = phase_steps
@@ -111,7 +109,7 @@ class FourierBase:
         # tilt generates a pattern from -2 to 2 (The convention for Zernike modes normalized to an RMS of 1).
         # The natural step to take is the Abbe diffraction limit, which corresponds to a gradient from
         # -π to π.
-        num_columns = int((0.5 + 0.5 * self._overlap) * self.slm_shape[1])
+        num_columns = int((0.5) * self.slm_shape[1])
         tilted_front = tilt([self.slm_shape[0], num_columns], [k[0] * (0.5 * np.pi), k[1] * (0.5 * np.pi)],
                             phase_offset=phase_offset, extent=self._slm.extent)
 
@@ -144,36 +142,37 @@ class FourierBase:
         """
 
         # TODO: determine noise
+        # Initialize transmission matrices
         t1 = np.zeros((*self.slm_shape, *self._feedback.data_shape), dtype='complex128')
         t2 = np.zeros((*self.slm_shape, *self._feedback.data_shape), dtype='complex128')
 
-        # compose all plane waves.
-        # For each k-vector (the leading dimension of left), compute the corresponding field,
-        # multiply it by the measured t coefficient, and add together.
-        # TODO: why is there a - sign in the np.exp below?
-        overlap_len = int(self._overlap * self.slm_shape[0])
-        overlap_begin = self.slm_shape[0] // 2 - int(overlap_len / 2)
-        overlap_end = self.slm_shape[0] // 2 + int(overlap_len / 2)
-        normalisation = 1.0 / (overlap_end * self.slm_shape[0])
+        # Calculate phase difference using the first mode
+
+        # Find the index of the first mode in k_left and k_right
+        index_first_mode_left = np.where((k_left == np.array([[0], [0]])).all(axis=0))[0][0]
+        index_first_mode_right = np.where((k_right == np.array([[0], [0]])).all(axis=0))[0][0]
+
+        phase_left_first_mode = np.angle(left.t[index_first_mode_left])
+        phase_right_first_mode = np.angle(right.t[index_first_mode_right])
+
+        # We can check here if they agree, because they should be equal
+        phase_difference = (phase_left_first_mode - phase_right_first_mode)/2
+
+        # Apply phase correction to the right side
+        phase_correction = np.exp(1j * phase_difference)
+
+        # Construct the transmission matrices
         for n, t in enumerate(left.t):
             phi = self._get_phase_pattern(k_left[:, n], 0, 0)
-            t1 += np.tensordot(np.exp(-1j * phi), t * normalisation, 0)
+            t1 += np.tensordot(np.exp(-1j * phi), t, 0)
 
         for n, t in enumerate(right.t):
             phi = self._get_phase_pattern(k_right[:, n], 0, 1)
-            t2 += np.tensordot(np.exp(-1j * phi), t * normalisation, 0)
+            corrected_t = t * phase_correction  # Apply phase correction
+            t2 += np.tensordot(np.exp(-1j * phi), corrected_t, 0)
 
-        c = np.sum(t2[:, overlap_begin:overlap_end, ...].conj() * t1[:, overlap_begin:overlap_end, ...], (0, 1))
-        factor = c / abs(c) * np.linalg.norm(t1[:, overlap_begin:overlap_end]) / np.linalg.norm(
-            t2[:, overlap_begin:overlap_end])
-        if np.linalg.norm(t2[:, overlap_begin:overlap_end]) == 0:
-            factor = 1
-        # keep total norm the same
-        t2 = t2 * factor / np.sqrt(np.abs(factor))
-        t1 = t1 / np.sqrt(np.abs(factor))
-
-        overlap = 0.5 * (t1[:, overlap_begin:overlap_end, ...] + t2[:, overlap_begin:overlap_end, ...])
-        t_full = np.concatenate([t1[:, 0:overlap_begin, ...], overlap, t2[:, overlap_end:, ...]], axis=1)
+        # Combine the left and right sides
+        t_full = np.concatenate([t1[:, :self.slm_shape[0] // 2, ...], t2[:, self.slm_shape[0] // 2:, ...]], axis=1)
 
         # return combined result, along with a course estimate of the snr and expected enhancement
         # TODO: not accurate yet
