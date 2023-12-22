@@ -50,7 +50,7 @@ def coordinate_range(shape: ShapeType, extent: ExtentType, offset: Optional[Exte
     """
     shape = unitless(shape)
     if np.size(shape) == 1:
-        shape = shape.repeat(2)
+        shape = np.array(shape).repeat(2)
 
     extent = Quantity(extent)
     if extent.size == 1:

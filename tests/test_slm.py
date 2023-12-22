@@ -56,6 +56,8 @@ class TestSLM:
         assert_allclose(slm.get_pixels('gray_value'), TestSLM.GVAL2 * mask)
         assert_allclose(slm.get_pixels(), TestSLM.VAL2 * mask)
 
+    @pytest.mark.skip(reason="This test is skipped by default because it causes the screen to flicker, which may "
+                             "affect people with epilepsy.")
     def test_refresh_rate(self):
         slm = SLM(1)
         slm.idle_time = 0
