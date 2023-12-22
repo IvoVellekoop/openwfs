@@ -26,6 +26,16 @@ def test_scan_pattern(direction):
     else:
         assert np.allclose(y.to_value(u.mV), full, atol=0.5)
 
+    # test binning
+    scanner.binning = 2
+    assert scanner.binning == 2
+    assert scanner.data_shape == (shape[0] / 2, shape[1] / 2)
+    binned = scanner.read().astype('float32') - 0x8000
+    assert np.allclose(0.5 * (full[::2, ::2] + full[1::2, 1::2]), binned)
+    scanner.binning = 1
+    restored = scanner.read().astype('float32') - 0x8000
+    assert np.allclose(full, restored)
+
     # test setting the ROI
     left = 10
     top = 30

@@ -53,6 +53,7 @@ class ScanningMicroscope(Detector):
         binning (int): Factor by which the resolution is reduced; lower binning increases resolution.
         padding (float): Fraction of the scan range at the edges to discard to reduce edge artifacts.
         bidirectional (bool): Whether scanning is bidirectional along the fast axis.
+        zoom (float): Used to zoom in on the center of the ROI.
 
     """
 
@@ -65,7 +66,6 @@ class ScanningMicroscope(Detector):
                  scale: Quantity[u.um / u.V],
                  sample_rate: Quantity[u.Hz],
                  delay: Quantity[u.us] = 0.0 * u.us,
-                 binning: int = 64,
                  padding: float = 0.05,
                  bidirectional: bool = True,
                  simulation: Optional[str] = None):
@@ -93,10 +93,6 @@ class ScanningMicroscope(Detector):
                 The sample rate affects the total time needed to scan a single frame.
                 Setting the ROI, padding, or binning does not affect the sample rate.
             delay (Quantity[u.us]): Delay between mirror control and data acquisition.
-            binning (int): Binning can be used to change the pixel size without changing the ROI. By decreasing the
-                `binning` property, more points are measured for the same ROI, thereby increasing the resolution.
-                For compatibility with micromanager, the `binning` property should be an integer. A binning of 100
-                corresponds to the `data_shape` that is passed in the initializer of the object.
             padding (float): Padding fraction at the sides of the scan. The scanner will scan a larger area than will be
                 reconstructed, to make sure the reconstructed image is within the linear scan range of the mirrors.
             bidirectional (bool): If true, enables bidirectional scanning along the fast axis.
@@ -113,7 +109,6 @@ class ScanningMicroscope(Detector):
         self._sample_rate = sample_rate.to(u.Hz)
 
         self._scale = scale.repeat(2) if scale.size == 1 else scale
-        self._full_resolution = np.array(data_shape) * binning
 
         v_width = (self._out_v_max - self._out_v_min)
         self._padding = np.array((0.0, padding))
@@ -122,11 +117,13 @@ class ScanningMicroscope(Detector):
         self._roi_end = v_width * (1.0 - self._padding)  # ROI end position relative to origin
 
         self._resized = True  # indicate that the output signals need to be recomputed
-        self._binning = 100
+        self._binning = 1
+        self._original_data_shape = data_shape
 
         # Scan settings
         self._delay = delay.to(u.us)
         self._padded_data_shape = np.array((0, 0))
+        self._zoom = 1.0
         self._bidirectional = bidirectional
 
         self._write_task = None
@@ -136,7 +133,8 @@ class ScanningMicroscope(Detector):
         self._scan_pattern = None
         self._simulation = simulation
 
-        super().__init__(data_shape=data_shape, pixel_size=np.array((0.0, 0.0)) * u.um, duration=0.0 * u.ms)
+        self._original_pixel_size = ((self._out_v_max - self._out_v_min) * self._scale / data_shape).to(u.um)
+        super().__init__(data_shape=data_shape, pixel_size=self._original_pixel_size, duration=0.0 * u.ms)
         self._update()
 
     def _update(self):
@@ -167,7 +165,6 @@ class ScanningMicroscope(Detector):
         self._scan_pattern = self._scan_pattern.reshape(2, -1)
 
         sample_count = self._padded_data_shape[0] * self._padded_data_shape[1]
-        self._pixel_size = ((self._roi_end - self._roi_start) * self._scale / self._data_shape).to(u.um)
         self._duration = (sample_count / self._sample_rate).to(u.ms)
 
         if self._simulation is not None:
@@ -208,11 +205,11 @@ class ScanningMicroscope(Detector):
             self._read_task.triggers.start_trigger.delay_units = nidaqmx.constants.DigitalWidthUnits.SECONDS
 
         self._writer = AnalogMultiChannelWriter(self._write_task.out_stream)
+        self._valid = True
 
     def _do_trigger(self):
         if not self._valid:
             self._update()
-            self._valid = True
 
         if self._simulation is not None:
             return
@@ -347,17 +344,6 @@ class ScanningMicroscope(Detector):
         self._valid = False
 
     @property
-    def binning(self) -> int:
-        """The factor by which the resolution is reduced. A lower binning increases the resolution."""
-        return self._binning
-
-    @binning.setter
-    def binning(self, value: float):
-        self._binning = value
-        self._data_shape = tuple(np.round(self._full_resolution / self._binning).astype('int32'))
-        self._update()  # to recompute changed pixel size directly
-
-    @property
     def padding(self) -> float:
         """Fraction of the scan range at the edges to discard to reduce edge artifacts."""
         return self._padding[1]
@@ -376,6 +362,51 @@ class ScanningMicroscope(Detector):
     @bidirectional.setter
     def bidirectional(self, value: bool):
         self._bidirectional = value
+        self._valid = False
+
+    @property
+    def zoom(self) -> float:
+        """Zoom factor.
+        The zoom factor determines the pixel size relative to original pixel size.
+        The original pixel size is given by `_scale * (_out_v_max - _out_v_min) / _data_shape`
+        When the zoom factor is changed,
+        the center of the region of interest and the number of pixels in the data remain constant.
+        """
+        return self._zoom
+
+    @zoom.setter
+    def zoom(self, value: float):
+        roi_center = 0.5 * (self._roi_end + self._roi_start)
+        roi_width_old = self._roi_end - self._roi_start
+        roi_width_new = roi_width_old * self._zoom / value
+        self._roi_start = roi_center - 0.5 * roi_width_new
+        self._roi_end = roi_center + 0.5 * roi_width_new
+        self._zoom = float(value)
+        self._pixel_size = self._original_pixel_size * self._binning / self._zoom
+        self._valid = False
+
+    @property
+    def binning(self) -> int:
+        """Undersampling factor.
+
+        Increasing the binning reduces the number of pixels in the image while keeping dwell time the same.
+        As a result, the total duration of a scan decreases.
+        Note: this behavior is different than for a camera.
+            No actual binning is performed, the scanner just takes fewer steps in x and y
+
+        Note: pixel_size  the roi is kept the same as much as possible.
+            However, due to rounding, it may vary slightly.
+
+        """
+        return self._binning
+
+    @binning.setter
+    def binning(self, value: int):
+        ratio = self._binning / value
+        self._binning = value
+        self._data_shape = tuple(int(s) for s in np.round(np.array(self._data_shape) * ratio))
+        self._pixel_size = self._original_pixel_size * self._binning / self._zoom
+        self._roi_end = self._roi_start + self._pixel_size * self._data_shape / self._scale
         self._valid = False
 
     @staticmethod
