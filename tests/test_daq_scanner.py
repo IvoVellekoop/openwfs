@@ -15,8 +15,8 @@ def test_scan_pattern_delay():
                                      data_shape=(5, 5), scale=440 * u.um / u.V)
         pattern = scanner._scan_pattern
         print(pattern)
-    except nidaqmx.DaqError:
-        print('No nidaq card found')
+    except (nidaqmx.DaqError, FileNotFoundError):
+        print('No nidaq card found or NI-DAQ MAX not installed')
         pass
 
 
@@ -27,7 +27,7 @@ def test_daq_connection():
                                      axis0=('Dev4/ao0', -1.0 * u.V, 1.0 * u.V),
                                      axis1=('Dev4/ao1', -1.0 * u.V, 1.0 * u.V),
                                      input=('Dev4/ai0', 0.1 * u.V, 1.0 * u.V),
-                                     data_shape=(15, 12), scale=440 * u.um / u.V, delay=9.0 * u.us, padding=0.1)
+                                     data_shape=(15, 12), scale=440 * u.um / u.V, delay=9.0, padding=0.1)
 
         assert scanner.top == 0
         assert scanner.left == 0
@@ -60,5 +60,5 @@ def test_daq_connection():
         plt.imshow(scanner.read())
         plt.colorbar()
         plt.show()
-    except nidaqmx.DaqError:
+    except (nidaqmx.DaqError, FileNotFoundError):
         pass

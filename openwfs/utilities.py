@@ -34,9 +34,9 @@ class Transform:
     Elements of the transformation are specified with an astropy.unit attached.
     """
 
-    def __init__(self, transform: Union[np.ndarray, Quantity, Sequence[Sequence[float]]] = ((1.0, 0.0), (0.0, 1.0)),
-                 source_origin: Union[Sequence[float], np.ndarray, Quantity, None] = None,
-                 destination_origin: Union[Sequence[float], np.ndarray, Quantity, None] = None):
+    def __init__(self, transform: np.ndarray | Quantity | Sequence[float] = ((1.0, 0.0), (0.0, 1.0)),
+                 source_origin: Sequence[float] | np.ndarray | Quantity | None = None,
+                 destination_origin: Sequence[float] | np.ndarray | Quantity | None = None):
         """
 
         Args:
@@ -130,7 +130,7 @@ def place(out_shape: Sequence[int], out_pixel_size: Quantity, source: np.ndarray
 
 
 def project(out_shape: Sequence[int], out_pixel_size: Quantity, source: np.ndarray,
-            transform: Transform, out: Union[np.ndarray, None] = None):
+            transform: Transform, out: np.ndarray | None = None):
     """Projects the input image onto an array with specified shape and resolution.
 
     The input image is scaled so that the pixel sizes match those of the output,

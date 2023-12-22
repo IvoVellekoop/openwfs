@@ -67,7 +67,7 @@ class Generator(Detector):
     def data_shape(self, value):
         self._data_shape = value
 
-    def _fetch(self, out: Union[np.ndarray, None]) -> np.ndarray:  # noqa
+    def _fetch(self, out: np.ndarray | None) -> np.ndarray:  # noqa
         latency_s = self.latency.to_value(u.s)
         if latency_s > 0.0:
             time.sleep(latency_s)
@@ -104,10 +104,10 @@ class MockSource(Generator):
     Attributes:
         data (np.ndarray): Pre-set data to be returned by the mock source.
         pixel_size (Quantity, optional): Size of each pixel in the data.
-        extent (Union[Quantity, float, Sequence[float], None], optional): Physical extent of the data array.
+        extent (Quantity | float, Sequence[float, None], None): Physical extent of the data array.
     """
 
-    def __init__(self, data, pixel_size: Quantity = None, extent: Union[Quantity, float, Sequence[float], None] = None,
+    def __init__(self, data: np.ndarray, pixel_size: Quantity | None = None, extent: Quantity | float | None = None,
                  **kwargs):
         """
         Initializes the MockSource class, a subclass of Generator, that returns pre-set data.
@@ -115,9 +115,10 @@ class MockSource(Generator):
         Args:
             data (np.ndarray): The pre-set data to be returned by the mock source.
             pixel_size (Quantity, optional): The size of each pixel in the data.
-            extent (Union[Quantity, float, Sequence[float], None], optional): The physical extent of the data array.
+            extent (Quantity | float, Sequence[float, None], optional): The physical extent of the data array.
             **kwargs: Additional keyword arguments.
         """
+
         def generator(data_shape):
             assert data_shape == self._data.shape
             return self._data.copy()
@@ -181,7 +182,7 @@ class ADCProcessor(Processor):
         self.analog_max = analog_max  # check value
         self.digital_max = digital_max  # check value
 
-    def _fetch(self, out: Union[np.ndarray, None], data) -> np.ndarray:  # noqa
+    def _fetch(self, out: np.ndarray | None, data) -> np.ndarray:  # noqa
         """Clips the data to the range of the ADC, and digitizes the values."""
         if self.analog_max == 0.0:
             max = np.max(data)
@@ -249,13 +250,13 @@ class MockCamera(ADCProcessor):
     Conversion to uint16 is implemented in the ADCProcessor base class.
     """
 
-    def __init__(self, source: Detector, shape: Union[Sequence[int], None] = None,
-                 pos: Union[Sequence[int], None] = None, **kwargs):
+    def __init__(self, source: Detector, shape: Sequence[int] | None = None,
+                 pos: Sequence[int] | None = None, **kwargs):
         """
         Args:
             source (Detector): The source detector to be wrapped.
-            shape (Union[Sequence[int], None], optional): The shape of the image data to be captured.
-            pos (Union[Sequence[int], None], optional): The position on the source from where the image is captured.
+            shape (Sequence[int] | None, optional): The shape of the image data to be captured.
+            pos (Sequence[int] | None, optional): The position on the source from where the image is captured.
             **kwargs: Additional keyword arguments to be passed to the Detector base class.
         """
         self._crop = CropProcessor(source, shape=shape, pos=pos)
@@ -323,6 +324,7 @@ class MockXYStage(Actuator):
     """
     Mimics an XY stage actuator
     """
+
     def __init__(self, step_size_x: Quantity[u.um], step_size_y: Quantity[u.um]):
         """
 
@@ -365,9 +367,10 @@ class MockSLM(PhaseSLM):
         phases (np.ndarray): Current phase pattern on the SLM.
 
     Methods:
-        set_phases(values: Union[np.ndarray, float], update=True): Set the phase pattern on the SLM.
+        set_phases(values: np.ndarray | float, update=True): Set the phase pattern on the SLM.
         pixels() -> Detector: Returns a `camera` that mimics the current phase on the SLM.
     """
+
     def __init__(self, shape):
         """
 
@@ -386,7 +389,7 @@ class MockSLM(PhaseSLM):
         self._monitor.data = self._back_buffer.copy()
         self._back_buffer[:] = 0.0
 
-    def set_phases(self, values: Union[np.ndarray, float], update=True):
+    def set_phases(self, values: np.ndarray | float, update=True):
         """
         Set the phase pattern on the SLM. The values are scaled to fit the SLM's shape.
 
@@ -394,7 +397,7 @@ class MockSLM(PhaseSLM):
         they are scaled to fit.
 
         Args:
-            values (Union[np.ndarray, float]): The new phase values to be set on the SLM. This can be a 2D array of
+            values (np.ndarray | float): The new phase values to be set on the SLM. This can be a 2D array of
                 values or a single float value. If it's a 2D array, it should represent the phase pattern to be
                 displayed on the SLM. If it's a single float value, this value is broadcasted over the entire SLM.
             update (bool, optional): If True, the SLM is updated with the new values immediately. Defaults to True.

@@ -1,5 +1,6 @@
 import numpy as np
 from enum import Enum
+from typing import Union
 
 
 class WFSResult:
@@ -7,38 +8,68 @@ class WFSResult:
     Data structure for holding wavefront shaping results and statistics.
 
     Attributes:
-        t: measured transmission matrix.
+        t(ndarray): measured transmission matrix.
             if multiple targets were used, the first dimension(s) of t denote the columns of the transmission matrix
             (`a` indices) and the last dimensions(s) denote the targets, i.e., the rows of the transmission matrix
             (`b` indices).
-        n: number of degrees of freedom (columns of the transmission matrix)
-        snr: estimated signal-to-noise ratio for each of the targets.
-        noise_factor: the estimated loss in fidelity caused by the the limited snr.
-        amplitude_factor: estimated reduction of the fidelity due to phase-only modulation (≈ π/4 for fully developed
-            speckle)
-        estimated_improvement: estimated ratio after/before
-        estimated_enhancement: estimated ratio <after>/<before>  (with <> denoting ensemble average)
+        axis(int):
+            number of dimensions used for denoting a single columns of the transmission matrix
+            (e.g. 2 dimensions representing the x and y coordinates of the SLM pixels)
+        noise_factor(ndarray):
+            the estimated loss in fidelity caused by the the limited snr (for each target).
+        amplitude_factor(ndarray):
+            estimated reduction of the fidelity due to phase-only modulation (for each target)
+            (≈ π/4 for fully developed speckle)
+        non_linearity(ndarray):
+            estimated deviation from a sinusoid responds (TODO: experimental, untested)
+        n(int): total number of segments used in the optimization.
+        estimated_optimized_intensity(ndarray):
+            when missing, estimated intensity in the target(s) after displaying the wavefront correction on
+            a perfect phase-only SLM.
+        intensity_offset(float | ndarray):
+            offset in the signal strength, as a scalar, or as one value per target
+            this is the offset that is caused by a bias in the detector signal, stray light, etc.
     """
 
-    def __init__(self, t, axis, noise_factor, amplitude_factor, non_linearity, n=None, I_offset=0.0):
+    def __init__(self,
+                 t: np.ndarray,
+                 axis: int,
+                 noise_factor: np.ndarray | float,
+                 amplitude_factor: np.ndarray | float,
+                 non_linearity: np.ndarray | float,
+                 n: int | None = None,
+                 intensity_offset: np.ndarray | float = 0.0):
         """
         Args:
-            t: measured transmission matrix.
-            snr: estimated signal-to-noise ratio for each of the targets.
-                Used to compute the noise factor.
-            amplitude_factor:
-                estimated reduction of the fidelity due to phase-only modulation (≈ π/4 for fully developed speckle)
-            estimated_improvement: estimated ratio before/after
+            t(ndarray): measured transmission matrix.
+            axis(int):
+                number of dimensions used for denoting a single columns of the transmission matrix
+                (e.g. 2 dimensions representing the x and y coordinates of the SLM pixels)
+            noise_factor(ndarray | float):
+                the estimated loss in fidelity caused by the the limited snr (for each target).
+            amplitude_factor(ndarray | float):
+                estimated reduction of the fidelity due to phase-only modulation (for each target)
+                (≈ π/4 for fully developed speckle)
+            non_linearity(ndarray | float):
+                estimated deviation from a sinusoid responds (TODO: experimental, untested)
+            n(int : None): total number of segments used in the optimization.
+                when missing, this value is set to the number of elements in the first `axis` dimensions of `t`.
+            intensity_offset(ndarray | float):
+                offset in the signal strength, as a scalar, or as one value per target
+                this is the offset that is caused by a bias in the detector signal, stray light, etc.
+                default value: 0.0
+
         """
         self.t = t
         self.axis = axis
         self.noise_factor = np.atleast_1d(noise_factor)
-        self.n = t.size / self.noise_factor.size if n is None else n
+        self.n = np.prod(t.shape[0:axis]) if n is None else n
         self.amplitude_factor = np.atleast_1d(amplitude_factor)
         self.estimated_enhancement = np.atleast_1d(1.0 + (self.n - 1) * self.amplitude_factor * self.noise_factor)
-        self.I_offset = np.atleast_1d(I_offset)
         self.non_linearity = np.atleast_1d(non_linearity)
-        after = np.sum(np.abs(t), tuple(range(self.axis))) ** 2 * self.noise_factor + I_offset
+        self.intensity_offset = intensity_offset * np.ones(self.non_linearity.shape) if np.isscalar(intensity_offset) \
+            else intensity_offset
+        after = np.sum(np.abs(t), tuple(range(self.axis))) ** 2 * self.noise_factor + intensity_offset
         self.estimated_optimized_intensity = np.atleast_1d(after)
 
     def select_target(self, b) -> 'WFSResult':
@@ -53,7 +84,7 @@ class WFSResult:
         """
         return WFSResult(t=self.t.reshape((*self.t.shape[0:2], -1))[:, :, b],
                          axis=self.axis,
-                         I_offset=self.I_offset[:][b],
+                         intensity_offset=self.intensity_offset[:][b],
                          noise_factor=self.noise_factor[:][b],
                          amplitude_factor=self.amplitude_factor[:][b],
                          non_linearity=self.non_linearity[:][b],
@@ -96,8 +127,8 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int, A=None):
     if these measurements are used for wavefront shaping.
     """
     phase_steps = measurements.shape[axis]
-    N = np.prod(measurements.shape[:axis])
-    M = np.prod(measurements.shape[axis + 1:])
+    n = int(np.prod(measurements.shape[:axis]))
+    # M = np.prod(measurements.shape[axis + 1:])
     segments = tuple(range(axis))
 
     # Fourier transform the phase stepping measurements
@@ -154,7 +185,7 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int, A=None):
     amplitude_factor = np.mean(np.abs(t), segments) ** 2 / np.mean(np.abs(t) ** 2, segments)
 
     return WFSResult(t, axis=axis, amplitude_factor=amplitude_factor, noise_factor=noise_factor,
-                     non_linearity=non_linearity)
+                     non_linearity=non_linearity, n=n)
 
 
 class WFSController:

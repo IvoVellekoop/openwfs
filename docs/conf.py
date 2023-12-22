@@ -7,6 +7,7 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 import os
 import sys
+
 sys.path.append(os.path.abspath('myst_parser'))
 sys.path.insert(0, os.path.abspath('../../openwfs'))
 p = os.path.dirname(os.path.dirname(__file__))
@@ -20,7 +21,7 @@ release = '0.0.1'
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
-extensions = ['sphinx.ext.napoleon','sphinx.ext.autodoc','recommonmark','sphinx.ext.mathjax']
+extensions = ['sphinx.ext.napoleon', 'sphinx.ext.autodoc', 'recommonmark', 'sphinx.ext.mathjax']
 
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
@@ -34,4 +35,3 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_theme = 'alabaster'
-

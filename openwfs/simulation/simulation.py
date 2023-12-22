@@ -45,7 +45,7 @@ class SimulatedWFS(Processor):
 
         self.slm = slm
 
-    def _fetch(self, out: Union[np.ndarray, None], slm_phases):
+    def _fetch(self, out: np.ndarray | None, slm_phases):
         """
         Computes the intensity in the focus by applying phase corrections to the input electric field.
 
@@ -54,7 +54,7 @@ class SimulatedWFS(Processor):
         resulting field.
 
         Args:
-            out (Union[np.ndarray, None]): An optional numpy array to store the calculated intensity. If provided, the
+            out (np.ndarray | None): An optional numpy array to store the calculated intensity. If provided, the
             intensity is stored in this array.
 
             slm_phases (np.ndarray): The phase corrections to apply, typically provided as a numpy array representing

@@ -10,6 +10,7 @@ from ..utilities import project, place, Transform, imshow
 from ..processors import TransformProcessor
 import warnings
 
+
 class Microscope(Processor):
     """A simulated microscope with pupil-conjugate SLM.
 
@@ -87,11 +88,12 @@ class Microscope(Processor):
                 Higher values are further away from the microscope objective.
                 Defaults to a MockStage.
             slm (Detector): Detector that produces 2-d images containing the phase (in radians) as displayed on the SLM.
-                If no `slm_transform` is specified, the `pixel_size` attribute should correspond to normalized pupil coordinates
+                If no `slm_transform` is specified, the `pixel_size` attribute should
+                 correspond to normalized pupil coordinates
                 (e.g. with a disk of radius 1.0, i.e. an extent of 2.0, corresponding to an NA of 1.0)
             slm_transform (Transform|None):
-                Optional Transform that transforms the phase pattern from the slm object (in slm.pixel_size units) to normalized pupil
-                coordinates.
+                Optional Transform that transforms the phase pattern from the slm object
+                (in slm.pixel_size units) to normalized pupil coordinates.
                 Typically, the slm image is already in normalized pupil coordinates,
                 but this transform can be used to mimic SLM misalignment.
             aberrations (ImageSource): 2-D image containing the phase (in radians) of aberrations observed
@@ -126,7 +128,7 @@ class Microscope(Processor):
         self.slm = slm
         self._psf = None
 
-    def _fetch(self, out: Union[np.ndarray, None], source: np.ndarray, aberrations: np.ndarray,  # noqa
+    def _fetch(self, out: np.ndarray | None, source: np.ndarray, aberrations: np.ndarray,  # noqa
                slm: np.ndarray) -> np.ndarray:
         """
         Updates the image on the camera sensor
@@ -249,7 +251,7 @@ class Microscope(Processor):
         """Returns the Abbe diffraction limit: λ/(2 NA)"""
         return 0.5 * self.wavelength / self.numerical_aperture
 
-    def get_camera(self, *, transform: Union[Transform, None] = None, **kwargs) -> Detector:
+    def get_camera(self, *, transform: Transform | None = None, **kwargs) -> Detector:
         """
         Returns a simulated camera that observes the microscope image.
 

@@ -7,7 +7,6 @@ import astropy.units as u
 import pytest
 
 
-
 @pytest.mark.parametrize("direction", ['horizontal', 'vertical'])
 def test_scan_pattern(direction):
     shape = (100, 80)

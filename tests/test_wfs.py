@@ -26,6 +26,7 @@ def assert_enhancement(slm, feedback, wfs_results, t_correct=None):
     before = feedback.read()
     slm.set_phases(optimised_wf)
     after = feedback.read()
+    print(f"improvement ratio {after/before}")
     estimated_after = wfs_results.estimated_optimized_intensity
     print(f"expected: {estimated_after}, actual: {after}")
     assert estimated_after * 0.5 <= after <= estimated_after * 2.0, f"""

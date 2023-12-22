@@ -249,7 +249,7 @@ class ScanningMicroscope(Detector):
 
         return cropped
 
-    def _fetch(self, out: Union[np.ndarray, None]) -> np.ndarray:  # noqa
+    def _fetch(self, out: np.ndarray | None) -> np.ndarray:  # noqa
         """Reads the acquired data from the input task."""
         if self._simulation is None:
             raw = self._read_task.in_stream.read()
@@ -324,7 +324,7 @@ class ScanningMicroscope(Detector):
         old = self._sample_rate
         self._sample_rate = (1.0 / value).to(u.Hz)
         self._delay = float(self._delay / old * self._sample_rate)
-        self._update() # to update duration
+        self._update()  # to update duration
 
     @property
     def delay(self) -> float:
@@ -384,7 +384,7 @@ class ScanningMicroscope(Detector):
 
         Increasing the binning reduces the number of pixels in the image while keeping dwell time the same.
         As a result, the total duration of a scan decreases.
-        Note: this behavior is different than for a camera.
+        Note: this behavior is different from that of a real camera.
             No actual binning is performed, the scanner just takes fewer steps in x and y
 
         Note: pixel_size  the roi is kept the same as much as possible.

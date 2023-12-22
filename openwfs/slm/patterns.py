@@ -33,20 +33,20 @@ or between grid points (for even shape).
 The returned array has a pixel_size property attached.
 """
 
-ShapeType = Union[int, Sequence[int]]
-ExtentType = Union[float, Sequence[float], np.ndarray, Quantity]
-ScalarType = Union[float, np.ndarray, Quantity]
+ShapeType = Union[int | Sequence[int]]
+ExtentType = Union[float | Sequence[float], np.ndarray, Quantity]
+ScalarType = Union[float | np.ndarray, Quantity]
 
 
-def coordinate_range(shape: ShapeType, extent: ExtentType, offset: Optional[ExtentType] = None) -> (Quantity, Quantity):
+def coordinate_range(shape: ShapeType, extent: ExtentType, offset: ExtentType | None = None) -> (Quantity, Quantity):
     """Returns coordinate vectors for the two coordinates (y and x).
 
     Given a range from `-extent/2` to `+extent/2`, uniformly divided into `shape` pixels,
      the returned coordinates correspond to the centers of these cooordinates.
 
     Arguments:
-        shape(Union[int, Sequence[int]]): size of the full grid (y, x) in pixels
-        extent(Union[float, Sequence[float], np.ndarray, Quantity]):
+        shape(int | Sequence[int]): size of the full grid (y, x) in pixels
+        extent(float | Sequence[float, np.ndarray, Quantity]):
     """
     shape = unitless(shape)
     if np.size(shape) == 1:

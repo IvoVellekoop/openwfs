@@ -2,7 +2,7 @@ import numpy as np
 from ..core import Detector, PhaseSLM
 from .utilities import analyze_phase_stepping, WFSResult
 from ..slm.patterns import tilt
-import warnings
+
 
 class FourierBase:
     """Base class definition for the Fourier algorithms.
@@ -15,7 +15,7 @@ class FourierBase:
           slm_shape (tuple of two ints): The shape that the SLM patterns & transmission matrices are calculated for,
             does not necessarily have to be the actual pixel dimensions as the SLM.
           phase_steps (int): The number of phase steps per mode. Default = 4
-          overlap (float): A value between 0 and 1 that indicates the fraction of overlap between the reference
+          overlap (float): A value between zero and one that indicates the fraction of overlap between the reference
             and measurement part of the SLM.
             A larger overlap reduces the uncertainty in matching the phase of the two halves of the solution,
             but reduces the overall efficiency of the algorithm. Default = 0.1
@@ -111,10 +111,10 @@ class FourierBase:
         Returns:
             np.ndarray: The generated phase pattern.
         """
-        # tilt generates a pattern from -2 to 2 (The convention for Zernike modes normalized to an RMS of 1).
+        # tilt generates a pattern from -2.0 to 2.0 (The convention for Zernike modes normalized to an RMS of 1).
         # The natural step to take is the Abbe diffraction limit, which corresponds to a gradient from
         # -π to π.
-        num_columns = int((0.5) * self.slm_shape[1])
+        num_columns = int(0.5 * self.slm_shape[1])
         tilted_front = tilt([self.slm_shape[0], num_columns], [k[0] * (0.5 * np.pi), k[1] * (0.5 * np.pi)],
                             phase_offset=phase_offset, extent=self._slm.extent)
 
@@ -161,7 +161,7 @@ class FourierBase:
         phase_right_first_mode = np.angle(right.t[index_first_mode_right])
 
         # We can check here if they agree, because they should be equal
-        phase_difference = (phase_left_first_mode - phase_right_first_mode)/2
+        phase_difference = (phase_left_first_mode - phase_right_first_mode) / 2
 
         # Apply phase correction to the right side
         phase_correction = np.exp(1j * phase_difference)

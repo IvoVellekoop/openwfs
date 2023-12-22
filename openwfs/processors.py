@@ -92,7 +92,7 @@ class MultipleRoi(Processor):
 
         return super().trigger(*args, positions=positions, **kwargs)
 
-    def _fetch(self, out: Union[np.ndarray, None], image: np.ndarray, positions: List[np.ndarray]) -> np.ndarray:
+    def _fetch(self, out: np.ndarray | None, image: np.ndarray, positions: List[np.ndarray]) -> np.ndarray:
         """
         Fetches and processes the data for each ROI from the image.
 
@@ -101,7 +101,7 @@ class MultipleRoi(Processor):
         the possible area of the image, a ValueError is raised.
 
         Args:
-            out (Union[np.ndarray, None]): Optional output array to store the processed data.
+            out (np.ndarray | None): Optional output array to store the processed data.
             image (np.ndarray): The source image data.
             positions (List[np.ndarray]): List of positions for each ROI.
 
@@ -211,8 +211,8 @@ class CropProcessor(Processor):
     the data is padded with 'padding_value'
     """
 
-    def __init__(self, source: Detector, shape: Union[Sequence[int], None] = None,
-                 pos: Union[Sequence[int], None] = None, padding_value=0.0):
+    def __init__(self, source: Detector, shape: Sequence[int] | None = None,
+                 pos: Sequence[int] | None = None, padding_value=0.0):
         """
 
         Args:
@@ -250,7 +250,7 @@ class CropProcessor(Processor):
     def data_shape(self, value):
         self._data_shape = tuple(np.array(value, ndmin=1))
 
-    def _fetch(self, out: Union[np.ndarray, None], image: np.ndarray) -> np.ndarray:  # noqa
+    def _fetch(self, out: np.ndarray | None, image: np.ndarray) -> np.ndarray:  # noqa
         """
         Args:
             out(ndarray) optional numpy array or view of an array that will receive the data
@@ -295,7 +295,7 @@ class SelectRoi(SingleRoi):
 
         super().__init__(source, x=0, y=0, mask_type='square')
         source.trigger()
-        tl, br = self.draw_square()
+        self.draw_square()
 
     def draw_square(self):
         """
@@ -311,7 +311,7 @@ class SelectRoi(SingleRoi):
         # Autoscale the image
         image_norm = cv2.normalize(image, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
 
-        def mouse_callback(event, x, y, flags, param):
+        def mouse_callback(event, x, y, _flags, _param):
             nonlocal roi_pts
 
             if event == cv2.EVENT_LBUTTONDOWN:
@@ -355,10 +355,6 @@ class SelectRoi(SingleRoi):
             self.top = tl[1]
             self.left = tl[0]
 
-            return tl, br
-
-        return None, None
-
 
 class SelectRoiCircle(SingleRoi):
     """
@@ -394,7 +390,7 @@ class SelectRoiCircle(SingleRoi):
         # Autoscale the image
         image_norm = cv2.normalize(image, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
 
-        def mouse_callback(event, x, y, flags, param):
+        def mouse_callback(event, x, y, _flags, _param):
             nonlocal circle_params
 
             if event == cv2.EVENT_LBUTTONDOWN:
@@ -455,7 +451,7 @@ class TransformProcessor(Processor):
         super().__init__(source, **kwargs)
         self.transform = transform
 
-    def _fetch(self, out: Union[np.ndarray, None], source) -> np.ndarray:
+    def _fetch(self, out: np.ndarray | None, source) -> np.ndarray:
         """
         Args:
             out(ndarray) optional numpy array or view of an array that will receive the data

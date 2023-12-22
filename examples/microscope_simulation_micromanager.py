@@ -1,4 +1,4 @@
-import set_path
+import set_path  # noqa - needed for setting the module search path to find openwfs
 import numpy as np
 from openwfs.algorithms import FourierDualReference
 from openwfs.algorithms.utilities import WFSController

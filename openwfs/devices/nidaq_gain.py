@@ -5,6 +5,7 @@ import time
 import astropy.units as u
 from astropy.units import Quantity
 
+
 class Gain:
     """
     A device that controls the voltage of a PMT gain using a NI data acquisition card.
@@ -24,6 +25,7 @@ class Gain:
         gain (Quantity[u.V], annotated): Sets or gets the current gain value. Range: 0 to 0.9 volts.
 
     """
+
     def __init__(self, port_ao, port_ai, port_do, reset=False, gain=0 * u.V):
         """
         Initializes the Gain control.

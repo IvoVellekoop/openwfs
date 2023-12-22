@@ -14,14 +14,6 @@ class GenericDevice:
     Represents a generic device with various configurable options. This device serves as a demonstration
     of different data types and their handling.
 
-    Attributes:
-        options (SomeOptions): Enumerated options for the device. Possible values are from the SomeOptions enum.
-        floating_point (float): A floating-point value representing some parameter of the device.
-        distance (u.Quantity[u.mm]): A distance measurement with astropy units, in millimeters.
-        boolean (bool): A boolean value representing a binary state or choice for the device.
-        integer (int): An integer value, constrained within a specified range (0 to 42).
-        command (str): A string representing a command or message for the device.
-
     The class allows setting and retrieving these attributes, demonstrating the use of properties
     and type annotations in Python.
     """

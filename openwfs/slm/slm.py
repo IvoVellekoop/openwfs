@@ -197,7 +197,6 @@ class SLM(PhaseSLM):
         (fb_width, fb_height) = glfw.get_framebuffer_size(self._window)
         fb_shape = (fb_height, fb_width)
         if self._shape != fb_shape:
-            raise Exception("aa")
             warnings.warn(f"Actual resolution {fb_shape} does not match requested resolution {self._shape}.")
             self._shape = fb_shape
 
@@ -375,7 +374,7 @@ class SLM(PhaseSLM):
     def lookup_table(self, value):
         self._frame_patch.lookup_table = value
 
-    def set_phases(self, values: Union[np.ndarray, float], update=True):
+    def set_phases(self, values: np.ndarray | float, update=True):
         self.primary_phase_patch.phases = values
         if update:
             self.update()

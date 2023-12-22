@@ -1,15 +1,16 @@
 # core classes used throughout openWFS
 import logging
-import time
-import numpy as np
-import astropy.units as u
 import threading
-from weakref import WeakSet
-from typing import Union, Set, final
-from concurrent.futures import Future, ThreadPoolExecutor
-from astropy.units import Quantity
+import time
 from abc import ABC, abstractmethod
+from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Sequence
+from typing import Set, final
+from weakref import WeakSet
+
+import astropy.units as u
+import numpy as np
+from astropy.units import Quantity
 
 
 def set_pixel_size(data: np.ndarray, pixel_size: Quantity) -> np.ndarray:
@@ -18,7 +19,7 @@ def set_pixel_size(data: np.ndarray, pixel_size: Quantity) -> np.ndarray:
     return data
 
 
-def get_pixel_size(data: Union[np.ndarray, Quantity], may_fail: bool = False) -> Quantity:
+def get_pixel_size(data: np.ndarray | Quantity, may_fail: bool = False) -> Quantity:
     """Extracts the `pixel_size` metadata from the data returned from a detector.
     Args:
         data(np.ndarray|Quantity): array that holds `pixel_size` metadata, as set by `set_pixel_size`
@@ -266,7 +267,8 @@ class Device:
             await_data(bool):
                 If False: waits until the device is no longer busy
                 If True (default): waits until the device is no longer locked.
-                For detectors, this means waiting until all acquisition and processing of previously triggered frames is completed.
+                For detectors, this means waiting until all acquisition
+                and processing of previously triggered frames is completed.
                 If an `out` parameter was specified in `trigger()`, this
                 guarantees that the data is stored in the `out` array.
                 Since actuators are usually not locked, this flag has no effect.
@@ -362,8 +364,10 @@ class Detector(Device, ABC):
         If the detector was not locked, it is locked, and the `measurements_pending` counter is incremented.
         Only when the measurements_pending counter drops to zero, the lock is released (see `_unlock_persistent()`).
 
-        If the detector was already locked, either wait for the lock to be released (if the existing lock was not persistent),
-        or just increment the `measurements_pending` counter (if the existing lock was persistent).
+        If the detector was already locked, either wait for the lock to be released
+        (if the existing lock was not persistent),
+        or just increment the `measurements_pending` counter
+        (if the existing lock was persistent).
         """
         logging.debug("entering persistent lock %s (tid %i).", self, threading.get_ident())
         with self._pending_count_lock:
@@ -406,7 +410,7 @@ class Detector(Device, ABC):
             self._start()
             assert not Device._moving
             self._do_trigger()
-        except:
+        except:  # noqa  - ok, we are not really catching the exception, just making sure the lock gets released
             self._unlock_persistent()
             raise
 
@@ -447,7 +451,7 @@ class Detector(Device, ABC):
         pass
 
     @abstractmethod
-    def _fetch(self, out: Union[np.ndarray, None], *args, **kwargs) -> np.ndarray:
+    def _fetch(self, out: np.ndarray | None, *args, **kwargs) -> np.ndarray:
         """Read the data from the detector
 
         Args:
@@ -605,7 +609,7 @@ class PhaseSLM(Actuator, ABC):
         """
 
     @abstractmethod
-    def set_phases(self, values: Union[np.ndarray, float], update=True):
+    def set_phases(self, values: np.ndarray | float, update=True):
         """Sets the phase pattern on the SLM.
 
         Args:

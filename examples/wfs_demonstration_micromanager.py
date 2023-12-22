@@ -1,4 +1,4 @@
-import set_path
+import set_path  # noqa - needed for setting the module search path to find openwfs
 from openwfs.devices import ScanningMicroscope
 from openwfs.slm import SLM
 from openwfs.algorithms import FourierDualReference
