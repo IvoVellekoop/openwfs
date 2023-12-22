@@ -63,13 +63,18 @@ class FourierBase:
             WFSResult: An object containing the computed SLM transmission matrix and related data.
         """
         # left side experiment
-        t_data_left = self.single_side_experiment(self.k_left, 0)
+        data_left = self.single_side_experiment(self.k_left, 0)
 
         # right side experiment
-        t_data_right = self.single_side_experiment(self.k_right, 1)
+        data_right = self.single_side_experiment(self.k_right, 1)
 
         # Compute transmission matrix (=field at SLM), as well as noise statistics
-        return self._compute_t(t_data_left, t_data_right, self.k_left, self.k_right)
+        results = self.compute_t(data_left, data_right, self.k_left, self.k_right)
+        results.left = data_left
+        results.right = data_right
+        results.k_left = self.k_left
+        results.k_right = self.k_right
+        return results
 
     def single_side_experiment(self, k_set, side):
         """
@@ -127,7 +132,7 @@ class FourierBase:
 
         return result
 
-    def _compute_t(self, left: WFSResult, right: WFSResult, k_left, k_right) -> WFSResult:
+    def compute_t(self, left: WFSResult, right: WFSResult, k_left, k_right) -> WFSResult:
         """
         Computes the SLM transmission matrix by combining the Fourier transmission matrices from both sides of the SLM.
 
