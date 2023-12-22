@@ -1,14 +1,17 @@
+import set_path
 import numpy as np
 from openwfs.algorithms import FourierDualReference
+from openwfs.algorithms.utilities import WFSController
 from openwfs.processors import SingleRoi
-from openwfs.devices import LaserScanning, Gain
+from openwfs.devices import ScanningMicroscope, Gain
 from openwfs.slm import SLM, Patch
 from openwfs.slm.geometry import fill_transform
 import astropy.units as u
 import matplotlib.pyplot as plt
+from nidaqmx.constants import TerminalConfiguration
 
 
-max_FOV_V = 1.0 * u.V
+max_FOV_V = (1.0/35) * u.V
 
 # Define NI-DAQ channels and settings for scanning
 scanner = ScanningMicroscope(
@@ -17,7 +20,7 @@ scanner = ScanningMicroscope(
     axis0=('Dev4/ao2', -max_FOV_V, max_FOV_V),
     axis1=('Dev4/ao3', -max_FOV_V, max_FOV_V),
     input=('Dev4/ai16', -1.0 * u.V, 1.0 * u.V, TerminalConfiguration.DIFF),
-    data_shape=(400, 400),
+    data_shape=(120, 120),
     scale=440 * u.um / u.V,
     delay=58.0,
     padding=0.05)
@@ -34,7 +37,7 @@ gain = Gain(
 
 
 # ROI detector
-roi_detector = SingleRoi(scanner, x=100, y=100, radius=99)
+roi_detector = SingleRoi(scanner, x=120, y=120, radius=119)
 
 
 # SLM
@@ -64,7 +67,9 @@ wfs_controller = WFSController(wfs_alg)
 devices = {
     'scanner': scanner,
     'gain': gain,
-    'wfs_controller': wfs_controller,
+    'roi_detector': roi_detector,
     'slm': slm,
-    'wfs': wfs_alg,
+    'wfs_controller': wfs_controller,
+    'wfs_alg': wfs_alg,
 }
+
