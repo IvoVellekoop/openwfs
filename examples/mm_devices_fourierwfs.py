@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from nidaqmx.constants import TerminalConfiguration
 
 
-max_FOV_V = (1.0/35) * u.V
+max_FOV_V = (1.0/30) * u.V
 
 # Define NI-DAQ channels and settings for scanning
 scanner = ScanningMicroscope(
@@ -20,7 +20,7 @@ scanner = ScanningMicroscope(
     axis0=('Dev4/ao2', -max_FOV_V, max_FOV_V),
     axis1=('Dev4/ao3', -max_FOV_V, max_FOV_V),
     input=('Dev4/ai16', -1.0 * u.V, 1.0 * u.V, TerminalConfiguration.DIFF),
-    data_shape=(120, 120),
+    data_shape=(240, 240),
     scale=440 * u.um / u.V,
     delay=58.0,
     padding=0.05)
@@ -37,7 +37,7 @@ gain = Gain(
 
 
 # ROI detector
-roi_detector = SingleRoi(scanner, x=120, y=120, radius=119)
+roi_detector = SingleRoi(scanner, x=60, y=60, radius=29)
 
 
 # SLM
@@ -54,8 +54,8 @@ wfs_alg = FourierDualReference(
     feedback=roi_detector,
     slm=slm,
     slm_shape=(1152, 1152),
-    k_angles_min=-3,
-    k_angles_max=3,
+    k_angles_min=-2,
+    k_angles_max=2,
     phase_steps=6)
 
 
