@@ -69,9 +69,16 @@ def test_scan_pattern(direction):
     zoomed = scanner.read().astype('float32') - 0x8000
     scaled = place(zoomed.shape, 0.5 * ps, set_pixel_size(roi, ps))
     assert np.allclose(get_pixel_size(scaled), 0.5 * ps)
-    step = zoomed[1,1] - zoomed[0,0]
+    step = zoomed[1, 1] - zoomed[0, 0]
     assert np.allclose(zoomed, scaled, atol=0.5 * step)
 
     scanner.zoom = 1.0
     reset_zoom = scanner.read().astype('float32') - 0x8000
     assert np.allclose(reset_zoom, roi)
+
+    # test setting dwell time
+    original_duration = scanner.duration
+    scanner.delay = 1.0
+    scanner.dwell_time = scanner.dwell_time * 2.0
+    assert scanner.duration == original_duration * 2.0
+    assert scanner.delay == 0.5

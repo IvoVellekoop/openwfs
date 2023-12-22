@@ -65,7 +65,7 @@ class ScanningMicroscope(Detector):
                  axis1: tuple[str, Quantity[u.V], Quantity[u.V]],
                  scale: Quantity[u.um / u.V],
                  sample_rate: Quantity[u.Hz],
-                 delay: Quantity[u.us] = 0.0 * u.us,
+                 delay: float = 0.0,
                  padding: float = 0.05,
                  bidirectional: bool = True,
                  simulation: Optional[str] = None):
@@ -92,7 +92,7 @@ class ScanningMicroscope(Detector):
                 Sample rate of the NiDaq input channel.
                 The sample rate affects the total time needed to scan a single frame.
                 Setting the ROI, padding, or binning does not affect the sample rate.
-            delay (Quantity[u.us]): Delay between mirror control and data acquisition.
+            delay (float): Delay between mirror control and data acquisition, measured in pixels
             padding (float): Padding fraction at the sides of the scan. The scanner will scan a larger area than will be
                 reconstructed, to make sure the reconstructed image is within the linear scan range of the mirrors.
             bidirectional (bool): If true, enables bidirectional scanning along the fast axis.
@@ -121,7 +121,7 @@ class ScanningMicroscope(Detector):
         self._original_data_shape = data_shape
 
         # Scan settings
-        self._delay = delay.to(u.us)
+        self._delay = float(delay)
         self._padded_data_shape = np.array((0, 0))
         self._zoom = 1.0
         self._bidirectional = bidirectional
@@ -199,7 +199,7 @@ class ScanningMicroscope(Detector):
                                                         terminal_config=self._in_terminal_configuration)
         self._read_task.timing.cfg_samp_clk_timing(sample_rate, samps_per_chan=sample_count)
         self._read_task.triggers.start_trigger.cfg_dig_edge_start_trig(self._write_task.triggers.start_trigger.term)
-        delay = self._delay.to_value(u.s)
+        delay = (self._delay / self._sample_rate).to_value(u.s)
         if delay > 0.0:
             self._read_task.triggers.start_trigger.delay = delay
             self._read_task.triggers.start_trigger.delay_units = nidaqmx.constants.DigitalWidthUnits.SECONDS
@@ -321,25 +321,18 @@ class ScanningMicroscope(Detector):
 
     @dwell_time.setter
     def dwell_time(self, value: Quantity[u.us]):
+        old = self._sample_rate
         self._sample_rate = (1.0 / value).to(u.Hz)
-        self._valid = False
+        self._delay = float(self._delay / old * self._sample_rate)
+        self._update() # to update duration
 
     @property
-    def duration(self) -> Quantity[u.ms]:
-        """Total duration of scanning for one frame."""
-        return self._duration.to(u.ms)
-
-    @duration.setter
-    def duration(self, value):
-        self._duration = value.to(u.ms)
-
-    @property
-    def delay(self) -> Quantity[u.us]:
+    def delay(self) -> float:
         """Delay between the control signal to the mirrors and the start of data acquisition."""
         return self._delay  # add unit
 
     @delay.setter
-    def delay(self, value: Quantity[u.us]):
+    def delay(self, value: float):
         self._delay = value
         self._valid = False
 
