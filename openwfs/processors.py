@@ -15,6 +15,7 @@ class Roi:
     radius, mask type, and parameters specific to the mask type.
     It supports different types of masks like 'disk', 'gaussian', or 'square'.
     """
+
     def __init__(self, x, y, radius=0.1, mask_type='disk', waist=0.5):
         """
         Initialize the Roi object.
@@ -55,9 +56,6 @@ class Roi:
 class MultipleRoi(Processor):
     """
     Processor that averages signals over multiple regions of interest (ROIs).
-
-    ToDo: I don't think this processor follows the y,x convention of the entire rest of the OpenWFS framework.
-        we should look into this.
     """
 
     def __init__(self, source, rois: List[Roi]):

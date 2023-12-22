@@ -5,6 +5,7 @@ import numpy as np
 from ..openwfs.algorithms import StepwiseSequential, FourierDualReference, PathfindingFourier, WFSController, FourierDualReference_new
 from ..openwfs.processors import SingleRoi
 import skimage
+from scipy.ndimage import zoom
 from ..openwfs.utilities import imshow
 import astropy.units as u
 import pytest
@@ -85,20 +86,16 @@ def test_fourier(n_x):
 
 def test_fourier2():
     """Test the Fourier dual reference algorithm using WFSController."""
-
-    aberration_phase = skimage.data.camera() * ((2 * np.pi) / 255.0)
-    roi_detector = SimulatedWFS(aberration_phase)
-    alg = FourierDualReference(feedback=roi_detector, slm=roi_detector.slm, slm_shape=(1000, 1000), k_angles_min=-1,
+    slm_shape = (1000, 1000)
+    aberrations = skimage.data.camera() * ((2 * np.pi) / 255.0)
+    sim = SimulatedWFS(aberrations)
+    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=slm_shape, k_angles_min=-1,
                                k_angles_max=1,
                                phase_steps=3)
     controller = WFSController(alg)
-    controller.wavefront = WFSController.State.FLAT_WAVEFRONT
-    before = roi_detector.read()
     controller.wavefront = WFSController.State.SHAPED_WAVEFRONT
-    after = roi_detector.read()
-    # imshow(controller._optimized_wavefront)
-    print(after / before)
-    assert after > 3.0 * before
+    scaled_aberration = zoom(aberrations, np.array(slm_shape) / aberrations.shape)
+    assert_enhancement(sim.slm, sim, controller._result, np.exp(1j * scaled_aberration))
 
 
 def test_fourier_microscope():
@@ -107,13 +104,15 @@ def test_fourier_microscope():
     img = np.zeros((1000, 1000), dtype=np.int16)
     signal_location = (250, 250)
     img[signal_location] = 100
+    slm_shape = (1000, 1000)
+
     src = MockSource(img, 400 * u.nm)
     slm = MockSLM(shape=(1000, 1000))
     sim = Microscope(source=src, slm=slm.pixels(), magnification=1, numerical_aperture=1, aberrations=aberration,
                      wavelength=800 * u.nm)
     cam = sim.get_camera(analog_max=100)
     roi_detector = SingleRoi(cam, x=-249, y=-249, radius=0)  # Only measure that specific point
-    alg = FourierDualReference(feedback=roi_detector, slm=slm, slm_shape=(1000, 1000), k_angles_min=-1, k_angles_max=1,
+    alg = FourierDualReference(feedback=roi_detector, slm=slm, slm_shape=slm_shape, k_angles_min=-1, k_angles_max=1,
                                phase_steps=3)
     controller = WFSController(alg)
     controller.wavefront = WFSController.State.FLAT_WAVEFRONT
@@ -122,7 +121,8 @@ def test_fourier_microscope():
     after = roi_detector.read()
     # imshow(controller._optimized_wavefront)
     print(after / before)
-    assert after > 3.0 * before
+    scaled_aberration = zoom(aberration_phase, np.array(slm_shape) / aberration_phase.shape)
+    assert_enhancement(slm, roi_detector, controller._result, np.exp(1j * scaled_aberration))
 
 
 def test_fourier_correction_field():

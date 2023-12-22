@@ -91,7 +91,7 @@ class Gain:
         self._reset = value
 
     @property
-    def gain(self) -> Annotated[Quantity[u.ms], {'min': 0 * u.V, 'max': 0.9 * u.V}]:
+    def gain(self) -> Annotated[Quantity[u.V], {'min': 0 * u.V, 'max': 0.9 * u.V}]:
         """Sets or gets the current gain value. Range: 0 to 0.9 volts."""
         # The range of values is the hardware supplier's defined voltage range. Setting the range here for safety
         return self._gain

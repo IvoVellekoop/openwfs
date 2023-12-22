@@ -1,6 +1,5 @@
 import numpy as np
-from typing import Union, Sequence
-import astropy.units as u
+from typing import Union, Sequence, Optional
 from astropy.units import Quantity
 from ..core import unitless
 
@@ -35,24 +34,37 @@ The returned array has a pixel_size property attached.
 """
 
 ShapeType = Union[int, Sequence[int]]
-ExtentType = Union[Sequence[float], np.ndarray, Quantity]
+ExtentType = Union[float, Sequence[float], np.ndarray, Quantity]
 ScalarType = Union[float, np.ndarray, Quantity]
 
 
-def coordinate_range(shape: ShapeType, extent: ExtentType):
-    """Returns coordinate vectors for the two coordinates (y and x)"""
-    if isinstance(shape, Quantity):
-        shape = shape.to_value(u.dimensionless_unscaled)
+def coordinate_range(shape: ShapeType, extent: ExtentType, offset: Optional[ExtentType] = None) -> (Quantity, Quantity):
+    """Returns coordinate vectors for the two coordinates (y and x).
 
+    Given a range from `-extent/2` to `+extent/2`, uniformly divided into `shape` pixels,
+     the returned coordinates correspond to the centers of these cooordinates.
+
+    Arguments:
+        shape(Union[int, Sequence[int]]): size of the full grid (y, x) in pixels
+        extent(Union[float, Sequence[float], np.ndarray, Quantity]):
+    """
+    shape = unitless(shape)
     if np.size(shape) == 1:
-        shape = (shape, shape)
+        shape = np.array(shape).repeat(2)
 
-    def c_range(res, ex):
+    extent = Quantity(extent)
+    if extent.size == 1:
+        extent = extent.repeat(2)
+
+    if offset is None:
+        offset = 0.0 * extent  # by default, let center be (0,0) (in whatever unit)
+
+    def c_range(res, ex, cx):
         dx = ex / res
-        return np.arange(res) * dx + (0.5 * dx - 0.5 * ex)
+        return np.arange(res) * dx + (0.5 * dx - 0.5 * ex + cx)
 
-    return (c_range(shape[0], extent[0]).reshape((-1, 1)),
-            c_range(shape[1], extent[1]).reshape((1, -1)))
+    return (c_range(shape[0], extent[0], offset[0]).reshape((-1, 1)),
+            c_range(shape[1], extent[1], offset[1]).reshape((1, -1)))
 
 
 def r2_range(shape: ShapeType, extent: ExtentType):
