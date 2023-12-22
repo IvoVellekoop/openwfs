@@ -3,22 +3,13 @@ import astropy.units as u
 import nidaqmx.system
 import numpy as np
 from astropy.units import Quantity
-from ..core import Detector, unitless
+from ..core import Detector
 from ..slm.patterns import coordinate_range
 import nidaqmx as ni
 from nidaqmx.constants import TaskMode
 
-from nidaqmx.constants import Edge, TerminalConfiguration
+from nidaqmx.constants import TerminalConfiguration
 from nidaqmx.stream_writers import AnalogMultiChannelWriter
-from nidaqmx.stream_readers import AnalogUnscaledReader
-
-
-# TODO: more descriptive names for 'input_mapping' 'x_mirror_mapping'->'x_channel'
-# TODO: docstring
-# TODO: Add padding of sides: the image needs to be the same size, but it just needs to scan a larger area and
-# throw parts of it away during reconstructions
-# TODO: make the duration always correct, and the pixeldwelltime change with changing settings, then let setting
-# the pixel dwell time command set the duration to the correct value.
 
 
 class ScanningMicroscope(Detector):
@@ -42,7 +33,7 @@ class ScanningMicroscope(Detector):
     By decreasing the `binning` property, more points are measured for the same ROI,
     thereby increasing the resolution.
     For compatibility with micromanager, the `binning` property should be an integer.
-    A binning of 100 corresponds to the `data_shape` passed in the initializer of the object.
+    A binning of 100 corresponds to the `data_shape` that is passed in the initializer of the object.
 
     The image quality at the edge of the scan range is usually low due to the fact
     that the mirror is rapidly changing the scan direction.
@@ -51,7 +42,7 @@ class ScanningMicroscope(Detector):
     Note: the padding affects the physical size of the ROI, and hence the pixel_size
     The padding does not affect the number of pixels (`data_shape`) in the returned image.
 
-    Attributes:
+    Properties:
         left (int): The leftmost pixel of the Region of Interest (ROI) in the scan range.
         top (int): The topmost pixel of the ROI in the scan range.
         height (int): The number of pixels in the vertical dimension of the ROI.
@@ -68,7 +59,7 @@ class ScanningMicroscope(Detector):
     # LaserScanner(input=("ai/8", -1.0 * u.V, 1.0 * u.V))
     def __init__(self,
                  data_shape: Sequence[int],
-                 input: tuple[str, Quantity[u.V], Quantity[u.V]],
+                 input: tuple[str, Quantity[u.V], Quantity[u.V]],  # noqa
                  axis0: tuple[str, Quantity[u.V], Quantity[u.V]],
                  axis1: tuple[str, Quantity[u.V], Quantity[u.V]],
                  scale: Quantity[u.um / u.V],
@@ -80,16 +71,18 @@ class ScanningMicroscope(Detector):
                  simulation: Optional[str] = None):
         """
         Args:
-            data_shape (tuple[int,int]): number of data points (height, width) of the full field of view.
+            data_shape (tuple[int, int]): number of data points (height, width) in the full field of view.
                 Note that the ROI can be reduced later by setting width, height, top and left,
                 and the resolution can be changed by modifying the `binning` property.
             input: tuple[str, Quantity[u.V], Quantity[u.V]],
                  Description of the Nidaq channel to use for the input.
                  Tuple of: (name of the channel (e.g., 'ai/1'), minimum voltage, maximum voltage).
-            axis0: tuple[str, Quantity[u.V], Quantity[u.V]],
+            axis0: tuple[str, Quantity[u.V], Quantity[u.V], TerminalConfiguration],
                  Description of the Nidaq channel to use for controlling the axis 0 galvo (slow axis).
-            axis1: tuple[str, Quantity[u.V], Quantity[u.V]],
+                 The TerminalConfiguration element is optional and defaults to TerminalConfiguration.DEFAULT.
+            axis1: tuple[str, Quantity[u.V], Quantity[u.V], TerminalConfiguration],
                  Description of the Nidaq channel to use for controlling the axis 1 galvo (fast axis).
+                 The TerminalConfiguration element is optional and defaults to TerminalConfiguration.DEFAULT.
             scale (u.um / u.V):
                 Conversion factor between voltage at the NiDaq card and displacement of the focus in the object plane.
                 This may be an array of (height, width) conversion factors if the factors differ for the different axes.
@@ -103,7 +96,7 @@ class ScanningMicroscope(Detector):
             binning (int): Binning can be used to change the pixel size without changing the ROI. By decreasing the
                 `binning` property, more points are measured for the same ROI, thereby increasing the resolution.
                 For compatibility with micromanager, the `binning` property should be an integer. A binning of 100
-                corresponds to the `data_shape` passed in the initializer of the object.
+                corresponds to the `data_shape` that is passed in the initializer of the object.
             padding (float): Padding fraction at the sides of the scan. The scanner will scan a larger area than will be
                 reconstructed, to make sure the reconstructed image is within the linear scan range of the mirrors.
             bidirectional (bool): If true, enables bidirectional scanning along the fast axis.
@@ -112,6 +105,7 @@ class ScanningMicroscope(Detector):
         self._in_channel = input[0]
         self._in_v_min = input[1].to(u.V)
         self._in_v_max = input[2].to(u.V)
+        self._in_terminal_configuration = input[3] if len(input) > 3 else TerminalConfiguration.DEFAULT
         self._axis0_channel = axis0[0]
         self._axis1_channel = axis1[0]
         self._out_v_min = Quantity((axis0[1], axis1[1])).to(u.V)
@@ -132,7 +126,7 @@ class ScanningMicroscope(Detector):
 
         # Scan settings
         self._delay = delay.to(u.us)
-        self._padded_data_shape = (0, 0)
+        self._padded_data_shape = np.array((0, 0))
         self._bidirectional = bidirectional
 
         self._write_task = None
@@ -146,25 +140,18 @@ class ScanningMicroscope(Detector):
         self._update()
 
     def _update(self):
-        v_extent = self._out_v_max - self._out_v_min
-
         # round padding up to integer number of pixels on both sides
         padding = 2 * np.ceil(self._data_shape * self._padding * 0.5).astype('int32')
         self._padded_data_shape = self._data_shape + padding
 
         # compute the scan range.
-        # first compute the padding voltage corresponding to the rounded padding (_padded_data_shape)
-        # then construct a voltage range from _v_origin + _roi_start - 0.5 * v_padding
-        # to _v_origin + _roi_end + 0.5 * v_padding
-        #
-        v_padding = v_extent * padding / self._data_shape
-        scan_range = self._roi_end - self._roi_start + v_padding
+        scan_range = (self._roi_end - self._roi_start) * (1.0 + padding / self._data_shape)  # noqa
         center = 0.5 * (self._roi_start + self._roi_end) + self._v_origin
         (voltages0, voltages1a) = coordinate_range(self._padded_data_shape, scan_range, offset=center)
 
         # clip to voltage limits to prevent possible damage
-        voltages0 = np.clip(voltages0.ravel(), self._out_v_min[0], self._out_v_max[0])
-        voltages1a = np.clip(voltages1a.ravel(), self._out_v_min[0], self._out_v_max[0])
+        voltages0 = voltages0.ravel().clip(self._out_v_min[0], self._out_v_max[0])
+        voltages1a = voltages1a.ravel().clip(self._out_v_min[0], self._out_v_max[0])
 
         # for bidirectional scanning, reverse the direction of the even scan lines
         if self._bidirectional:
@@ -212,7 +199,7 @@ class ScanningMicroscope(Detector):
         self._read_task.ai_channels.add_ai_voltage_chan(self._in_channel,
                                                         min_val=self._in_v_min.to_value(u.V),
                                                         max_val=self._in_v_max.to_value(u.V),
-                                                        terminal_config=TerminalConfiguration.DIFF)
+                                                        terminal_config=self._in_terminal_configuration)
         self._read_task.timing.cfg_samp_clk_timing(sample_rate, samps_per_chan=sample_count)
         self._read_task.triggers.start_trigger.cfg_dig_edge_start_trig(self._write_task.triggers.start_trigger.term)
         delay = self._delay.to_value(u.s)
@@ -244,18 +231,21 @@ class ScanningMicroscope(Detector):
     def _raw_to_cropped(self, raw):
         """Converts the raw scanner data back into a 2-Dimensional image.
 
-        Because the scanner can return both signed and unsigned integers, both cases are accounted for. Crops the data
-        if padding was added. Flips the even rows back if scanned in bidirectional mode.
+        Because the scanner can return both signed and unsigned integers, both cases are accounted for.
+        This function crops the data if padding was added, and it
+        flips the even rows back if scanned in bidirectional mode.
         """
         start = (self._padded_data_shape - self._data_shape) // 2
         end = self._padded_data_shape - start
 
-        # Change data type into uint16 if necessary
+        # Change the data type into uint16 if necessary
         if type(raw[0]) == np.int16:
-            cropped = raw.reshape(self._padded_data_shape).view(dtype='uint16')[start[0]:end[0],
-                      start[1]:end[1]] + 0x8000  # add 32768 to go from -32768-32767 to 0-65535
+            # add 32768 to go from -32768-32767 to 0-65535
+            cropped = raw.reshape(self._padded_data_shape).view('uint16')[start[0]:end[0], start[1]:end[1]] + 0x8000
         elif type(raw[0]) == np.uint16:
             cropped = raw.reshape(self._padded_data_shape)[start[0]:end[0], start[1]:end[1]]
+        else:
+            raise ValueError('Only int16 and uint16 data types are supported at the moment.')
 
         if self._bidirectional:
             cropped[1::2, :] = cropped[1::2, ::-1]
@@ -312,7 +302,7 @@ class ScanningMicroscope(Detector):
 
     @height.setter
     def height(self, value):
-        self._data_shape = (value, self.data_shape[1])
+        self._data_shape = (int(value), int(self.data_shape[1]))
         self._roi_end = self._roi_start + self._pixel_size * self._data_shape / self._scale
         self._valid = False
 
@@ -323,7 +313,7 @@ class ScanningMicroscope(Detector):
 
     @width.setter
     def width(self, value):
-        self._data_shape = (self.data_shape[0], value)
+        self._data_shape = (self.data_shape[0], int(value))
         self._roi_end = self._roi_start + self._pixel_size * self._data_shape / self._scale
         self._valid = False
 
@@ -358,7 +348,7 @@ class ScanningMicroscope(Detector):
 
     @property
     def binning(self) -> int:
-        """Factor by which the resolution is reduced; lower binning increases resolution."""
+        """The factor by which the resolution is reduced. A lower binning increases the resolution."""
         return self._binning
 
     @binning.setter

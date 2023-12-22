@@ -345,7 +345,7 @@ class Detector(Device, ABC):
         super().__init__(**kwargs)
         ndim = len(data_shape)
         self._pixel_size = pixel_size if pixel_size.size == ndim else np.tile(pixel_size, (ndim,))
-        self._data_shape = data_shape
+        self._data_shape = tuple(int(x) for x in data_shape)
         self._measurements_pending = 0
         self._pending_count_lock = threading.Lock()
         self._error = None
