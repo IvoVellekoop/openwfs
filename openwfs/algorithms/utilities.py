@@ -219,12 +219,16 @@ class WFSController:
         self.algorithm = algorithm
         self._wavefront = WFSController.State.FLAT_WAVEFRONT
         self._result = None
+        self._noise_factor = None
+        self._amplitude_factor = None
+        self._estimated_enhancement = None
+        self._non_linearity = None
+        self._estimated_optimized_intensity = None
+        self._snr = None  # Average SNR. Computed when wavefront is computed.
         self._optimized_wavefront = None
         self._recompute_wavefront = False
         self._feedback_enhancement = None
-        self._test_wavefront = False
-        self._snr = None  # Average SNR. Computed when wavefront is computed.
-        self._estimated_enhancement = None  # Expected enhancement from phase stepping measurements
+        self._test_wavefront = False        # Trigger to test the optimized wavefront
 
     @property
     def wavefront(self) -> State:
@@ -252,10 +256,56 @@ class WFSController:
                 # select only the wavefront and statistics for the first target
                 result = self.algorithm.execute().select_target(0)
                 self._optimized_wavefront = -np.angle(result.t)
-                self._snr = 1.0 / (1.0 / result.noise_factor - 1.0)
+                self._noise_factor = result.noise_factor
+                self._amplitude_factor = result.amplitude_factor
                 self._estimated_enhancement = result.estimated_enhancement
+                self._non_linearity = result.non_linearity
+                self._estimated_optimized_intensity = result.estimated_optimized_intensity
+                self._snr = 1.0 / (1.0 / result.noise_factor - 1.0)
                 self._result = result
             self.algorithm._slm.set_phases(self._optimized_wavefront)
+
+    @property
+    def noise_factor(self) -> float:
+        """
+        Returns:
+            float: noise factor: the estimated loss in fidelity caused by the the limited snr.
+        """
+        return self._noise_factor
+
+    @property
+    def amplitude_factor(self) -> float:
+        """
+        Returns:
+            float: amplitude factor: estimated reduction of the fidelity due to phase-only
+            modulation (≈ π/4 for fully developed speckle)
+        """
+        return self._amplitude_factor
+
+    @property
+    def estimated_enhancement(self) -> float:
+        """
+        Returns:
+            float: estimated enhancement: estimated ratio <after>/<before>  (with <> denoting
+            ensemble average)
+        """
+        return self._estimated_enhancement
+
+    @property
+    def non_linearity(self) -> float:
+        """
+        Returns:
+            float: non-linearity.
+        """
+        return self._non_linearity
+
+    @property
+    def estimated_optimized_intensity(self) -> float:
+        """
+        Returns:
+            float: estimated optimized intensity.
+        """
+        return self._estimated_optimized_intensity
 
     @property
     def snr(self) -> float:
@@ -281,10 +331,6 @@ class WFSController:
     def feedback_enhancement(self) -> float:
         """Returns: the average enhancement of the feedback, returns none if no such enhancement was measured."""
         return self._feedback_enhancement
-
-    @property
-    def estimated_enhancement(self) -> float:
-        return self._estimated_enhancement
 
     @property
     def test_wavefront(self) -> bool:
