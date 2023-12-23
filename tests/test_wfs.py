@@ -26,12 +26,12 @@ def assert_enhancement(slm, feedback, wfs_results, t_correct=None):
     before = feedback.read()
     slm.set_phases(optimised_wf)
     after = feedback.read()
-    print(f"improvement ratio {after/before}")
-    estimated_after = wfs_results.estimated_optimized_intensity
-    print(f"expected: {estimated_after}, actual: {after}")
-    assert estimated_after * 0.5 <= after <= estimated_after * 2.0, f"""
+    ratio = after / before
+    estimated_ratio = wfs_results.estimated_optimized_intensity / before
+    print(f"expected: {estimated_ratio}, actual: {ratio}")
+    assert estimated_ratio * 0.5 <= ratio <= estimated_ratio * 2.0, f"""
         The SSA algorithm did not enhance the focus as much as expected.
-        Expected at least 0.5 * {estimated_after}, got {after}"""
+        Expected at least 0.5 * {estimated_ratio}, got {ratio}"""
 
 
 @pytest.mark.parametrize("n_y, n_x", [(5, 5), (7, 11), (6, 4)])

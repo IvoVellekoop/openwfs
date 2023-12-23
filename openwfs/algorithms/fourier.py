@@ -115,7 +115,7 @@ class FourierBase:
         # The natural step to take is the Abbe diffraction limit, which corresponds to a gradient from
         # -π to π.
         num_columns = int(0.5 * self.slm_shape[1])
-        tilted_front = tilt([self.slm_shape[0], num_columns], [k[0] * (0.5 * np.pi), k[1] * (0.5 * np.pi)],
+        tilted_front = tilt([self.slm_shape[0], num_columns], k * (0.5 * np.pi),
                             phase_offset=phase_offset, extent=self._slm.extent)
 
         # Handle side-dependent pattern
@@ -151,30 +151,33 @@ class FourierBase:
         t1 = np.zeros((*self.slm_shape, *self._feedback.data_shape), dtype='complex128')
         t2 = np.zeros((*self.slm_shape, *self._feedback.data_shape), dtype='complex128')
 
-        # Calculate phase difference using the first mode
+        # Calculate phase difference between the two halves
+        # We have two phase stepping measurements where both halves are flat (k=0)
+        # Locate these measurements, and use the phase difference between them to connect the two halves
+        # of the corrected wavefront.
 
-        # Find the index of the first mode in k_left and k_right
-        index_first_mode_left = np.where((k_left == np.array([[0], [0]])).all(axis=0))[0][0]
-        index_first_mode_right = np.where((k_right == np.array([[0], [0]])).all(axis=0))[0][0]
+        # Find the index of the (0,0) mode in k_left and k_right
+        index_0_left = np.argmin(k_left[0] ** 2 + k_left[1] ** 2)
+        index_0_right = np.argmin(k_right[0] ** 2 + k_left[1] ** 2)
+        if not np.alltrue(k_left[:, index_0_left] == 0.0) or not np.alltrue(k_right[:, index_0_right] == 0.0):
+            raise Exception("k=(0,0) component missing from the measurement set, cannot determine relative phase.")
 
-        phase_left_first_mode = np.angle(left.t[index_first_mode_left])
-        phase_right_first_mode = np.angle(right.t[index_first_mode_right])
-
-        # We can check here if they agree, because they should be equal
-        phase_difference = (phase_left_first_mode - phase_right_first_mode) / 2
+        # average the measurements for better accuracy
+        # TODO: absolute values are not the same in simulation, 'A' scaling is off?
+        relative = 0.5 * (left.t[index_0_left, ...] + np.conjugate(right.t[index_0_right, ...]))
 
         # Apply phase correction to the right side
-        phase_correction = np.exp(1j * phase_difference)
+        phase_correction = relative / np.abs(relative)
 
         # Construct the transmission matrices
+        normalisation = 1.0 / (0.5 * self.slm_shape[0] * self.slm_shape[1])
         for n, t in enumerate(left.t):
             phi = self._get_phase_pattern(k_left[:, n], 0, 0)
-            t1 += np.tensordot(np.exp(-1j * phi), t, 0)
+            t1 += np.tensordot(np.exp(-1j * phi), t * normalisation, 0)
 
         for n, t in enumerate(right.t):
             phi = self._get_phase_pattern(k_right[:, n], 0, 1)
-            corrected_t = t * phase_correction  # Apply phase correction
-            t2 += np.tensordot(np.exp(-1j * phi), corrected_t, 0)
+            t2 += np.tensordot(np.exp(-1j * phi), t * (normalisation * phase_correction), 0)
 
         # Combine the left and right sides
         t_full = np.concatenate([t1[:, :self.slm_shape[0] // 2, ...], t2[:, self.slm_shape[0] // 2:, ...]], axis=1)
