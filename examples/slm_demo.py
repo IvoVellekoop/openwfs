@@ -8,6 +8,8 @@ import astropy.units as u
 """
 Example on how different geometries and patches work for an SLM. Currently uses SLM number 0, which is the left
 upper corner of the primary monitor.
+
+EPILEPSY WARNING: YOUR PRIMARY SCREEN MAY QUICKLY FLASH DURING RUNNING THIS FILE
 """
 
 # construct a new SLM object and add a patch to it
