@@ -8,6 +8,26 @@ from openwfs.utilities import imshow
 import skimage
 import astropy.units as u
 
+"""
+This script sets up a simulated adaptive optics system using a mock phase aberration and a simple point source image. 
+It simulates the correction of aberrations in a microscopic imaging system through wavefront sensing and shaping.
+
+Variables:
+- numerical_aperture: Defines the NA of the system
+- aberration_phase: Represents the phase aberrations introduced in the system, generated from a mock camera image and 
+    scaled to span a 2π phase range.
+- aberration: A MockSource object representing the aberration in the fourier plane. N
+- img: A mock image with a central bright spot and several other dimmer points, represented as a 512x512 array.
+- signal_location: The coordinates of the primary signal in the mock image.
+- src: A MockSource object representing the source image.
+- slm: A MockSLM object representing the spatial light modulator.
+- sim: A Microscope object simulating the imaging system.
+- cam: A camera object representing the detector.
+- roi_detector: A SingleRoi object defining a region of interest on the detector for targeted measurements.
+- controller: Object to control WFS from MicroManager.
+- devices: A dict object that PyDevice reads to access the objects from MicroManager.
+"""
+
 numerical_aperture = 1.0
 aberration_phase = skimage.data.camera() * ((2 * np.pi) / 255.0) + np.pi
 aberration = MockSource(aberration_phase, extent=2 * numerical_aperture)

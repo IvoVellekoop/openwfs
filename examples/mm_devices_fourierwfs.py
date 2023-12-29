@@ -10,6 +10,10 @@ import astropy.units as u
 import matplotlib.pyplot as plt
 from nidaqmx.constants import TerminalConfiguration
 
+"""
+Script for setting up a microscope, gain and WFS objects.
+These are put into the devices dict such that they can be read by PyDevice.
+"""
 
 max_FOV_V = (1.0/30) * u.V
 
