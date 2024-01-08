@@ -4,6 +4,12 @@ import set_path  # noqa - needed for setting the module search path to find open
 from openwfs.simulation import Microscope, MockSource
 from openwfs.utilities import grab_and_show, Transform
 
+"""
+This script simulates a microscopic imaging system, generating a random noise image as a mock source and capturing it 
+through a microscope with adjustable magnification, numerical aperture, and wavelength. It visualizes the original and 
+processed images dynamically, demonstrating how changes in optical parameters affect image quality and resolution.
+"""
+
 ### Parameters that can be altered
 
 img_size_x = 1024

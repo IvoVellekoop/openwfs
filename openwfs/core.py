@@ -88,8 +88,8 @@ class Device:
     If a `duration` is specified, the `Device` base class takes care of the `busy`->`ready` transition automatically.
     If `duration = 0 * u.ms`, the device is never `busy`.
     This makes sense for data sources that are not physical detectors, such as mock data sources.
-    If the measurement/movement duration is nog known in advance,
-    devices should set `duration=None` and override `busy` and `wait` to poll if the device is rady.
+    If the measurement/movement duration is not known in advance,
+    devices should set `duration=None` and override `busy` and `wait` to poll if the device is ready.
 
     OpenWFS synchronizes detectors and actuators using the `ready`->`busy`
     state transition.  If a device needs to switch from `ready` to `busy`, it internally calls `_start`.
