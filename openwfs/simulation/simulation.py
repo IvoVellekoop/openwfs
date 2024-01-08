@@ -23,7 +23,7 @@ class SimulatedWFS(Processor):
         Initializes the optical system with specified aberrations and optionally a Gaussian beam profile.
 
         This constructor sets up an optical system by specifying the aberrations across the SLM (Spatial Light
-        Modulator) and, optionally, defining a Gaussian beam profile. The aberrations array defines phase shifts at
+        Modulator) and, optionally, by defining a Gaussian beam profile. The aberrations array defines phase shifts at
         each point of the SLM. If a beam profile waist is provided, the input electric field is shaped into a
         Gaussian beam.
 

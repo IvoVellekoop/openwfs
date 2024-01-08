@@ -20,11 +20,12 @@ class FourierBase:
             A larger overlap reduces the uncertainty in matching the phase of the two halves of the solution,
             but reduces the overall efficiency of the algorithm. Default = 0.1
 
-      [1]: Bahareh Mastiani, Gerwin Osnabrugge, and Ivo M. Vellekoop,
+      [1]: Bahareh Mastiani, Gerwin Osnabrugge, and Ivo M. Vellekoop,
       "Wavefront shaping for forward scattering," Opt. Express 30, 37436-37445 (2022)
       """
 
-    def __init__(self, feedback: Detector, slm: PhaseSLM, slm_shape, k_left, k_right, phase_steps=4):
+    def __init__(self, feedback: Detector, slm: PhaseSLM, slm_shape: tuple[int, int], k_left: np.ndarray,
+                 k_right: np.ndarray, phase_steps: int = 4):
         """
 
         Args:
@@ -37,7 +38,7 @@ class FourierBase:
                 10% larger than the back pupil.
             slm_shape (tuple[int, int]): The shape of the SLM patterns and transmission matrices.
             k_left (numpy.ndarray): 2-row matrix containing the y, and x components of the spatial frequencies
-                used as basis for the left-hand side of the SLM.
+                used as a basis for the left-hand side of the SLM.
                 The frequencies are defined such that a frequency of (1,0) or (0,1) corresponds to
                 a phase gradient of -π to π over the back pupil of the microscope objective, which results in
                 a displacement in the focal plane of exactly a distance corresponding to the Abbe diffraction limit.
@@ -63,10 +64,10 @@ class FourierBase:
             WFSResult: An object containing the computed SLM transmission matrix and related data.
         """
         # left side experiment
-        data_left = self.single_side_experiment(self.k_left, 0)
+        data_left = self._single_side_experiment(self.k_left, 0)
 
         # right side experiment
-        data_right = self.single_side_experiment(self.k_right, 1)
+        data_right = self._single_side_experiment(self.k_right, 1)
 
         # Compute transmission matrix (=field at SLM), as well as noise statistics
         results = self.compute_t(data_left, data_right, self.k_left, self.k_right)
@@ -76,13 +77,13 @@ class FourierBase:
         results.k_right = self.k_right
         return results
 
-    def single_side_experiment(self, k_set, side):
+    def _single_side_experiment(self, k_set: np.ndarray, side: int) -> WFSResult:
         """
         Conducts experiments on one side of the SLM, generating measurements for each spatial frequency and phase step.
 
         Args:
             k_set (np.ndarray): An array of spatial frequencies to use in the experiment.
-            side (int): Indicates which side of the SLM to use (0 for left, 1 for right).
+            side (int): Indicates which side of the SLM to use (0 for the left hand side, 1 for right hand side).
 
         Returns:
             WFSResult: An object containing the computed SLM transmission matrix and related data.
@@ -99,7 +100,10 @@ class FourierBase:
         self._feedback.wait()
         return analyze_phase_stepping(measurements, axis=1)
 
-    def _get_phase_pattern(self, k, phase_offset, side):
+    def _get_phase_pattern(self,
+                           k: np.ndarray,
+                           phase_offset: float,
+                           side: int) -> np.ndarray:
         """
         Generates a phase pattern for the SLM based on the given spatial frequency, phase offset, and side.
 

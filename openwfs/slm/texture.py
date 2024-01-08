@@ -81,7 +81,8 @@ class Texture:
         self.context().activate()
         (internal_format, data_format, data_type) = (GL_R32F, GL_RED, GL_FLOAT)
         glBindTexture(self.type, self.handle)
-        glPixelStorei(GL_UNPACK_ALIGNMENT, 4)  # alignment is at least 4 bytes since we are using float32 for everything
+        # alignment is at least four bytes since we are using float32 for everything
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 4)
 
         if self.type == GL_TEXTURE_1D:
             if self._data_size_changed:

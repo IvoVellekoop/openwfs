@@ -10,13 +10,13 @@ class FourierDualReference(FourierBase):
     The k-space initializer is set to None because for custom k-spaces, you should use FourierDualRef directly.
 
     Attributes:
-        k_left (numpy.ndarray): Left k-space matrix.
-        k_right (numpy.ndarray): Right k-space matrix.
+        k_left(numpy.ndarray): left k-space matrix.
+        k_right(numpy.ndarray): right k-space matrix.
 
     Methods:
         build_kspace(): Constructs the k-space arrays used in the algorithm.
 
-    [1]: Bahareh Mastiani, Gerwin Osnabrugge, and Ivo M. Vellekoop,
+    [1]: Bahareh Mastiani, Gerwin Osnabrugge, and Ivo M. Vellekoop,
     "Wavefront shaping for forward scattering," Opt. Express 30, 37436-37445 (2022)
     """
 

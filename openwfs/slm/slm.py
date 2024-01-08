@@ -153,7 +153,8 @@ class SLM(PhaseSLM):
         """Refresh rate in Hz. The refresh rate can not be modified after the SLM is created. When moving
         the SLM to a different monitor (see :py:attr:`~monitor_id`), the refresh rate is changed to the current video
         mode on that monitor.
-        Note that this value is specified by OpenGL as an integer, whereas some SLMs support non-integer refresh rates.
+        Note that OpenGL specifies this value as an integer, whereas some SLMs support
+        non-integer refresh rates.
         It is always best to not specify the refresh_rate, and set the video mode in the OS before creating the SLM
         object."""
         return self._refresh_rate
@@ -181,7 +182,12 @@ class SLM(PhaseSLM):
                         (self._monitor_id == 1 and slm.monitor_id == SLM.WINDOWED):
                     raise Exception(f"Cannot create a full-screen SLM window on monitor {self.monitor_id} because a "
                                     f"window is already displayed on that monitor")
-            monitor = glfw.get_monitors()[self.monitor_id - 1]
+            try:
+                monitor = glfw.get_monitors()[self.monitor_id - 1]
+            except IndexError:
+                raise ValueError(f"Monitor {self.monitor_id} not found, only {len(glfw.get_monitors())} monitor("
+                                 f"s) "
+                                 f"are connected.")
             current_mode = glfw.get_video_mode(monitor)
             self._shape = self._shape or (current_mode.size.height, current_mode.size.width)
             if self._refresh_rate.to_value(u.Hz) == glfw.DONT_CARE:

@@ -14,22 +14,43 @@ from astropy.units import Quantity
 
 
 def set_pixel_size(data: np.ndarray, pixel_size: Quantity) -> np.ndarray:
+    """
+    Sets the pixel size metadata for the given data array.
+
+    Args:
+        data (np.ndarray): The input data array.
+        pixel_size (Quantity): The pixel size to be set.
+
+    Returns:
+        np.ndarray: The modified data array with the pixel size metadata.
+
+    Usage:
+    >>> data = np.array([[1, 2], [3, 4]])
+    >>> pixel_size = 0.1 * u.m
+    >>> modified_data = set_pixel_size(data, pixel_size)
+    """
     data = np.array(data)
     data.dtype = np.dtype(data.dtype, metadata={'pixel_size': pixel_size})
     return data
 
 
 def get_pixel_size(data: np.ndarray | Quantity, may_fail: bool = False) -> Quantity:
-    """Extracts the `pixel_size` metadata from the data returned from a detector.
-    Args:
-        data(np.ndarray|Quantity): array that holds `pixel_size` metadata, as set by `set_pixel_size`
-        may_fail(bool): when set to True, silently set missing pixel size to 1.0 dimensionless
-    Usage:
+    """
+    Extracts the pixel size metadata from the data array.
 
-     from openwfs.simulation import MockDetector
-     det = MockDetector()
-     data = det.trigger().result()
-     pixel_size = get_pixel_size(data)
+    Args:
+        data (np.ndarray | Quantity): The input data array or Quantity.
+        may_fail (bool): Flag indicating whether to silently set missing pixel size to 1.0 dimensionless if True.
+
+    Returns:
+        Quantity: The pixel size metadata.
+
+    Raises:
+        KeyError: If the data does not have pixel size metadata and may_fail is False.
+
+    Usage:
+    >>> data = np.array([[1, 2], [3, 4]], dtype=np.float32, metadata={'pixel_size': 0.1 * u.m})
+    >>> pixel_size = get_pixel_size(data)
     """
     try:
         return data.dtype.metadata['pixel_size']
@@ -41,13 +62,23 @@ def get_pixel_size(data: np.ndarray | Quantity, may_fail: bool = False) -> Quant
 
 
 def unitless(data):
-    """Converts data to a unitless numpy array.
+    """
+    Converts the input data to a unitless numpy array.
 
     Args:
-        data: If data is a Quantity, convert it to unitless_unscaled (this will raise an error if data has
-            a unit attached).
-            Otherwise, data is just returned as is.
+        data: The input data.
+
+    Returns:
+        np.ndarray: The unitless numpy array.
+
+    Raises:
+        UnitConversionError: If the data is a Quantity with a unit
+
+    Usage:
+    >>> data = np.array([1.0, 2.0, 3.0]) * u.m
+    >>> unitless_data = unitless(data)
     """
+
     if isinstance(data, Quantity):
         return data.to_value(u.dimensionless_unscaled)
     else:
@@ -60,7 +91,7 @@ class Device:
     This base class implements the synchronization of detectors and actuators.
     Devices hold a thread lock, which is automatically locked when an attribute is set
     (by overriding __setattr__).
-    The lock prevents concurrent modification of the detector settings in a multi-threaded environment.
+    The lock prevents concurrent modification of the detector settings in a multithreaded environment.
     In addition, detectors lock the object on `trigger()` and release it after `_fetch`-ing the last measurement data.
 
     In addition to the locking mechanism, each device can either be `busy` or `ready`.
@@ -78,8 +109,8 @@ class Device:
 
     For detectors, `wait` has an additional flag `await_data`.
     When `True` (default), the function waits until the detector becomes unlocked
-    (i.e. also waits for `_fetch` to complete), and `up_to` is ignored.
-    When `False`, just waits until the detector has finished the physical measurements, but it may still be
+    (i.e., also waits for `_fetch` to complete), and `up_to` is ignored.
+    When `False`, the function just waits until the detector has finished the physical measurements, but it may still be
     transferring and processing the data.
 
     Devices may indicate a `duration`, which is the time between the transition `ready`->`busy`
@@ -105,42 +136,44 @@ class Device:
     The `_start` function checks if OpenWFS is already in the correct global state for measuring or moving.
     Only if a state switch is needed, `wait` is called on all objects of the other type, as described above.
 
-    Example:
-        ``f1 = np.zeros((N, P, *cam1.data_shape))
-        f2 = np.zeros((N, P, *cam2.data_shape))
-        for n in range(N):
-            for p in range(P)
-                phase = 2 * np.pi * p / P
+    Usage:
+        >>> f1 = np.zeros((N, P, *cam1.data_shape))
+        >>> f2 = np.zeros((N, P, *cam2.data_shape))
+        >>> for n in range(N):
+        >>>     for p in range(P)
+        >>>         phase = 2 * np.pi * p / P
+        >>>
+        >>>         # wait for all measurements to complete (up to the latency of the slm), and trigger the slm.
+        >>>         slm.set_phases(phase)
+        >>>
+        >>>         # wait for the image on the slm to stabilize, then trigger the measurement.
+        >>>         cam1.trigger(out = f1[n, p, ...])
+        >>>
+        >>>         # directly trigger cam2, since we already are in the 'measuring' state.
+        >>>         cam2.trigger(out = f2[n, p, ...])
+        >>>
+        >>> cam1.wait() # wait until camera 1 is done grabbing frames
+        >>> cam2.wait() # wait until camera 2 is done grabbing frames
+        >>> fields = (f2 - f1) * np.exp(-j * phase)
 
-                # wait for all measurements to complete (up to the latency of the slm), and trigger the slm.
-                slm.set_phases(phase)
+    Attributes:
+    - `_workers`: A thread pool for awaiting detector input, actuator stabilization,
+      or for processing data in a non-deterministic order.
+    - `_moving`: Global state: 'moving'=True or 'measuring'=False
+    - `_state_lock`: Lock for switching global state (_start)
+    - `_devices`: List of all Device objects
+    - `multi_threading`: Option to globally disable multi-threading.
+      This is particularly useful for debugging.
 
-                # wait for the image on the slm to stabilize, then trigger the measurement.
-                cam1.trigger(out = f1[n, p, ...])
-
-                # directly trigger cam2, since we already are in the 'measuring' state.
-                cam2.trigger(out = f2[n, p, ...])
-
-        cam1.wait() # wait until camera 1 is done grabbing frames
-        cam2.wait() # wait until camera 2 is done grabbing frames
-        fields = (f2 - f1) * np.exp(-j * phase)``
+    Args:
+    - `latency`: Value to use for the `latency` attribute.
+      Child classes may directly write to the `_latency` attribute to modify this value later.
+    - `duration`: Time it takes to perform the measurement or for the actuator to stabilize.
     """
-
-    # A thread pool for awaiting detector input, actuator stabilization,
-    # or for processing data in a non-deterministic order.
     _workers = ThreadPoolExecutor(thread_name_prefix='Device._workers')
-
-    # Global state: 'moving'=True or 'measuring'=False
     _moving = False
-
-    # Lock for switching global state (_start)
     _state_lock = threading.Lock()
-
-    # List of all Device objects
     _devices: "Set[Device]" = WeakSet()
-
-    # Option to globally disable multi-threading
-    # This is particularly useful for debugging
     multi_threading: bool = True  # False
 
     def __init__(self, *, latency=0.0 * u.ms, duration=0.0 * u.ms):
@@ -160,9 +193,17 @@ class Device:
         self._locking_thread = None
         self._error = None
         Device._devices.add(self)
+        self._base_initialized = True
 
     def __del__(self):
-        self.wait()
+        # wait for the device to finish measuring/moving
+        # Only do this if the initialization of the Device base class finished succesfully
+        # Note: when closing Python, all modules are unloaded in an undefined order.
+        # This can cause problems if, for example, 'wait' calls a numpy function, since
+        # the numpy module may have been unloaded at this point, causing a 'NoneType is not callable'
+        # error.
+        if hasattr(self, '_base_initialized'):
+            self.wait()
 
     def __setattr__(self, key, value):
         """Prevents modification of public attributes and properties while the device is busy.
@@ -267,7 +308,7 @@ class Device:
             await_data(bool):
                 If False: waits until the device is no longer busy
                 If True (default): waits until the device is no longer locked.
-                For detectors, this means waiting until all acquisition
+                For detectors, this means waiting until all acquisitions
                 and processing of previously triggered frames is completed.
                 If an `out` parameter was specified in `trigger()`, this
                 guarantees that the data is stored in the `out` array.
@@ -403,7 +444,7 @@ class Detector(Device, ABC):
         self._lock_persistent()
 
         # if the detector is not locked yet,
-        # lock it now (this is a persistent lock,
+        # lock it now (this is a persistent lock),
         # which is released in _do_fetch if the number of pending measurements reaches zero
         # does nothing if the lock is already locked.
         try:
@@ -613,7 +654,8 @@ class PhaseSLM(Actuator, ABC):
         """Sets the phase pattern on the SLM.
 
         Args:
-            values(ndarray): phase pattern, in radians
+            values(ndarray | float): phase pattern, in radians.
+                The pattern is automatically stretched to fill the full SLM.
             update(bool): when True, calls `update` after setting the phase pattern.
                 set to `False` to suppress the call to `update`.
                 This is useful in advanced scenarios where multiple parameters of the SLM need to be changed

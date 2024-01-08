@@ -72,7 +72,7 @@ class Microscope(Processor):
             source (Detector): Detector that produces 2-d images of the original 'specimen'
             data_shape: shape (size in pixels) of the output.
                 Default value: source.data_shape
-            pixel_size (Quantity): 1 or 2-element pixel size (in astropy units).
+            pixel_size (Quantity): scalar or two element (anisotropic) pixel size (in astropy units).
                 Default value: source.pixel_size * magnification
             numerical_aperture: Numerical aperture of the microscope objective
             wavelength: Wavelength of the light used for imaging,
@@ -103,8 +103,8 @@ class Microscope(Processor):
                 Optional Transform that transforms the phase pattern from the aberration object (in slm.pixel_size units) to normalized pupil
                 coordinates.
                 Typically, the slm image is already in normalized pupil coordinates,
-                but this transform may e.g. be used to scale an aberration pattern
-                from extent 2.0 to extent 2.0 * NA.
+                but this transform may e.g., be used to scale an aberration pattern
+                from extent 2.0 to 2.0 * NA.
             truncation_factor (float | None):
                 When set to a value > 0.0,
                 the microscope pupil is illuminated by a Gaussian beam (instead of a flat intensity).
@@ -192,7 +192,7 @@ class Microscope(Processor):
         pupil_pixel_size = pupil_extent / pupil_shape
 
         # Compute the field in the pupil plane
-        # Aberrations and the SLM phase are mapped to the pupil plane coordinates
+        # The aberrations and the SLM phase pattern are both mapped to the pupil plane coordinates
         if self.truncation_factor is None:
             pupil_field = patterns.disk(pupil_shape, radius=self.numerical_aperture, extent=pupil_extent)
         else:

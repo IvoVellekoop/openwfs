@@ -16,7 +16,7 @@ class Roi:
     It supports different types of masks like 'disk', 'gaussian', or 'square'.
     """
 
-    def __init__(self, x, y, radius=0.1, mask_type='disk', waist=0.5):
+    def __init__(self, x, y, radius=0.1, mask_type='disk', waist=0.5, source_shape=None):
         """
         Initialize the Roi object.
 
@@ -27,6 +27,14 @@ class Roi:
             mask_type (str): Type of the mask. Options are 'disk', 'gaussian', or 'square'. Default is 'disk'.
             waist (float): Defines the width of the Gaussian distribution. Default is 0.5.
         """
+        if source_shape is not None and (
+                x - radius < -0.5 * source_shape[1] or
+                y - radius < -0.5 * source_shape[0] or
+                x + radius >= 0.5 * source_shape[1] or
+                x + radius >= 0.5 * source_shape[0]
+        ):
+            raise ValueError('ROI does not fit inside source image')
+
         self.x = x
         self.y = y
         self.radius = radius
@@ -113,8 +121,8 @@ class MultipleRoi(Processor):
 
         for idx, (roi, pos) in enumerate(zip(self.rois, positions)):
             # Crop image
-            image_start = np.array(((image.shape[0] - 1) / 2) + pos, dtype='int32')
-            image_end = np.minimum(image.shape, image_start + np.array(roi.mask.shape, dtype='int32'))
+            image_start = np.rint(np.array(image.shape) * 0.5 + pos).astype('uint32')
+            image_end = np.minimum(image.shape, image_start + roi.mask.shape)
 
             image_cropped = image[image_start[0]:image_end[0], image_start[1]:image_end[1]]
 
@@ -134,7 +142,7 @@ class SingleRoi(MultipleRoi):
     Processor that averages a signal over a single region of interest (ROI).
     """
 
-    def __init__(self, source, x, y, radius=0.1, mask_type='disk', waist=0.5):
+    def __init__(self, source, x=0.0, y=0.0, radius=0.1, mask_type='disk', waist=0.5):
         """
         Initialize the SingleRoi processor with a source and a single ROI.
 
@@ -146,7 +154,7 @@ class SingleRoi(MultipleRoi):
             mask_type (str): Type of the mask. Options are 'disk', 'gaussian', or 'square'. Default is 'disk'.
             waist (float): Defines the width of the Gaussian distribution. Default is 0.5.
         """
-        single_roi = Roi(x, y, radius, mask_type, waist)
+        single_roi = Roi(x, y, radius, mask_type, waist, source.data_shape)
         super().__init__(source, rois=[single_roi])
         self.single_roi = single_roi
 

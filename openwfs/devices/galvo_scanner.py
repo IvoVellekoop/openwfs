@@ -53,7 +53,7 @@ class ScanningMicroscope(Detector):
         binning (int): Factor by which the resolution is reduced; lower binning increases resolution.
         padding (float): Fraction of the scan range at the edges to discard to reduce edge artifacts.
         bidirectional (bool): Whether scanning is bidirectional along the fast axis.
-        zoom (float): Used to zoom in on the center of the ROI.
+        zoom (float): Used to zoom in at the center of the ROI.
 
     """
 
@@ -360,7 +360,7 @@ class ScanningMicroscope(Detector):
     @property
     def zoom(self) -> float:
         """Zoom factor.
-        The zoom factor determines the pixel size relative to original pixel size.
+        The zoom factor determines the pixel size relative to the original pixel size.
         The original pixel size is given by `_scale * (_out_v_max - _out_v_min) / _data_shape`
         When the zoom factor is changed,
         the center of the region of interest and the number of pixels in the data remain constant.
@@ -387,7 +387,7 @@ class ScanningMicroscope(Detector):
         Note: this behavior is different from that of a real camera.
             No actual binning is performed, the scanner just takes fewer steps in x and y
 
-        Note: pixel_size  the roi is kept the same as much as possible.
+        Note: the ROI is kept the same as much as possible.
             However, due to rounding, it may vary slightly.
 
         """

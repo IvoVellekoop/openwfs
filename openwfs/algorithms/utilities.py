@@ -92,12 +92,12 @@ class WFSResult:
                          )
 
 
-def analyze_phase_stepping(measurements: np.ndarray, axis: int, A=None):
+def analyze_phase_stepping(measurements: np.ndarray, axis: int, A: float | None = None):
     """Analyzes the result of phase stepping measurements, returning matrix `t` and noise statitics
 
     This function assumes that all measurements were made using the same reference field `A`
     and that the phase of the modulated segment/mode is phase-stepped in equally spaced steps
-    between 0 and 2π.
+    between 0 and 2π, whereas the phase of the reference field is kept constant.
 
     Args:
         measurements(ndarray): array of phase stepping measurements.
@@ -107,6 +107,9 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int, A=None):
             and the last zero or more dimensions corresponding to the individual targets
             where the feedback was measured.
         axis(int): indicates which axis holds the phase steps.
+        A(float | None): magnitude of the reference field.
+            This value is used to correctly normalize the returned transmission matrix.
+            When missing, the value of `A` is estimated from the measurements.
 
     With `phase_steps` phase steps, the measurements are given by
 
@@ -153,23 +156,6 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int, A=None):
         non_linearity = (I_f[2, ...] - I_f[3, ...]) / (I_f[2, ...] + I_f[3, ...])
     else:
         non_linearity = 0.0  # cannot estimate reliably, or I_f[2] + I_f[3] == 0 (happens in simulation)
-
-    # # determine scaling and offset of t
-    # y = np.take(t_f, 0, axis=axis)  # this is |A|^2 + |B_i|^2 + C
-    # # for SSA only:
-    # y = y - 2 * np.real(np.take(t_f, 1, axis=axis))
-    # x = np.abs(np.take(t_f, 1, axis=axis)) ** 2  # this is |A|^2|B_i|^2
-    #
-    # # linear fit
-    # a = np.sum(x ** 2, segments)
-    # b = np.sum(x, segments)
-    # c = -np.sum(x * y, segments)
-    # d = np.sum(y, segments)
-    # alpha = -(b * d / N + c) / (a - b ** 2 / N)
-    # I_A = 1.0 / alpha
-    # I_A = np.mean(measurements, axis=segments)[0, ...]
-    # I_offset = 0.0  # (d - alpha * b) / N - I_A
-    # # print(f"residual {np.linalg.norm(x * alpha + I_offset + I_A - y)}")
 
     if A is None:  # reference field strength not known: estimate from data
         t_abs = np.abs(np.take(t_f, 1, axis=axis))
@@ -228,7 +214,7 @@ class WFSController:
         self._optimized_wavefront = None
         self._recompute_wavefront = False
         self._feedback_enhancement = None
-        self._test_wavefront = False        # Trigger to test the optimized wavefront
+        self._test_wavefront = False  # Trigger to test the optimized wavefront
 
     @property
     def wavefront(self) -> State:

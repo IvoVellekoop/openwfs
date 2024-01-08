@@ -1,11 +1,9 @@
-from concurrent.futures import Future
-
 import numpy as np
 import astropy.units as u
 from astropy.units import Quantity
 from scipy.ndimage import zoom
 import time
-from typing import Union, Sequence
+from typing import Sequence
 from ..processors import CropProcessor
 from ..core import Detector, Processor, PhaseSLM, Actuator, get_pixel_size
 
@@ -103,8 +101,8 @@ class MockSource(Generator):
 
     Attributes:
         data (np.ndarray): Pre-set data to be returned by the mock source.
-        pixel_size (Quantity, optional): Size of each pixel in the data.
-        extent (Quantity | float, Sequence[float, None], None): Physical extent of the data array.
+        pixel_size (Quantity | None): Size of each pixel in the data.
+        extent (Quantity | float | Sequence[float] | None): Physical extent of the data array.
     """
 
     def __init__(self, data: np.ndarray, pixel_size: Quantity | None = None, extent: Quantity | float | None = None,
@@ -167,12 +165,17 @@ class ADCProcessor(Processor):
 
         Args:
             source (Detector): The source detector providing analog data.
-            analog_max (float): The maximum analog value that can be handled by the ADC. If set to 0, the maximum
-            value will be set to the maximum value in the data passed by source. Note that this means 2 measurements
-            are no longer proportional to each other, if they would be in the source.
+            analog_max (float): The maximum analog value that can be handled by the ADC.
+                If set to 0.0, each measurement will be automatically scaled so that the maximum
+                value in the data set returned by `source` is converted to `digital_max`.
+                Note that this means that the values from two different measurements cannot be compared quantitatively.
 
-            digital_max (int): The maximum digital value that the ADC can output, default is unsigned 16-bit maximum.
-            shot_noise (bool): Flag to determine if Poisson noise should be applied instead of rounding.
+            digital_max (int):
+                The maximum digital value that the ADC can output, default is unsigned 16-bit maximum.
+
+            shot_noise (bool):
+                Flag to determine if Poisson noise should be applied instead of rounding.
+                Useful for realistically simulating detectors.
         """
         super().__init__(source)
         self._analog_max = None
@@ -390,18 +393,7 @@ class MockSLM(PhaseSLM):
         self._back_buffer[:] = 0.0
 
     def set_phases(self, values: np.ndarray | float, update=True):
-        """
-        Set the phase pattern on the SLM. The values are scaled to fit the SLM's shape.
-
-        This method sets a new phase pattern on the SLM. If the input values have a different shape than the SLM,
-        they are scaled to fit.
-
-        Args:
-            values (np.ndarray | float): The new phase values to be set on the SLM. This can be a 2D array of
-                values or a single float value. If it's a 2D array, it should represent the phase pattern to be
-                displayed on the SLM. If it's a single float value, this value is broadcasted over the entire SLM.
-            update (bool, optional): If True, the SLM is updated with the new values immediately. Defaults to True.
-        """
+        # no docstring, use documentation from base class
         values = np.atleast_2d(values)
         scale = np.array(self._back_buffer.shape) / np.array(values.shape)
         # TODO: replace by cv2, with area interpolation

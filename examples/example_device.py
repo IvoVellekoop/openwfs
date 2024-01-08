@@ -39,7 +39,7 @@ class GenericDevice:
 
     @property
     def options(self) -> SomeOptions:
-        """Enumerated options for the device. Possible values are from the SomeOptions enum."""
+        """A property that takes values from the `SomeOptions` enumeration."""
         return self._options
 
     @options.setter
