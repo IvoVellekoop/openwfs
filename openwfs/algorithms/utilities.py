@@ -72,6 +72,20 @@ class WFSResult:
         after = np.sum(np.abs(t), tuple(range(self.axis))) ** 2 * self.noise_factor + intensity_offset
         self.estimated_optimized_intensity = np.atleast_1d(after)
 
+    def __str__(self) -> str:
+        noise_warning = "OK" if self.noise_factor > 0.5 else "WARNING low signal quality."
+        amplitude_warning = "OK" if self.amplitude_factor > 0.5 else "WARNING uneven contribution of optical modes."
+        non_linearity_warning = "OK" if self.non_linearity < 0.3 else ("WARNING non-linear phase response, check "
+                                                                       "lookup table.")
+        return f"""
+        Wavefront shaping results:
+            noise_factor: {self.noise_factor} {noise_warning}
+            amplitude_factor: {self.amplitude_factor} {amplitude_warning}
+            non_linearity: {self.non_linearity} {non_linearity_warning}
+            estimated_enhancement: {self.estimated_enhancement}
+            estimated_optimized_intensity: {self.estimated_optimized_intensity}
+            """
+
     def select_target(self, b) -> 'WFSResult':
         """
         Returns the wavefront shaping results for a single target
