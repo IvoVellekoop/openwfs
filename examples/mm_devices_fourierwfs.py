@@ -1,6 +1,6 @@
 import set_path
 import numpy as np
-from openwfs.algorithms import FourierDualReference
+from openwfs.algorithms import FourierDualReference, StepwiseSequential
 from openwfs.algorithms.utilities import WFSController
 from openwfs.processors import SingleRoi
 from openwfs.devices import ScanningMicroscope, Gain
@@ -39,7 +39,7 @@ gain = Gain(
 )
 
 # ROI detector
-roi_detector = SingleRoi(scanner, radius=29)
+roi_detector = SingleRoi(scanner, radius=10)
 
 # SLM
 wavelength_nm = 804
@@ -51,13 +51,15 @@ transform_matrix[2, :] = [0.0, 0.0, 1]
 slm.transform = transform_matrix
 
 # Wavefront Shaping algorithm
-wfs_alg = FourierDualReference(
+wfs_alg_FDR = FourierDualReference(
     feedback=roi_detector,
     slm=slm,
     slm_shape=(1152, 1152),
     k_angles_min=-2,
     k_angles_max=2,
     phase_steps=6)
+
+wfs_alg = wfs_alg_FDR
 
 # WFS controller
 wfs_controller = WFSController(wfs_alg)
