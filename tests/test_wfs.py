@@ -11,14 +11,6 @@ import pytest
 
 def assert_enhancement(slm, feedback, wfs_results, t_correct=None):
     """Helper function to check if the intensity in the target focus increases as much as expected"""
-
-    if t_correct is not None:
-        # Check if we correctly measured the transmission matrix.
-        # The correlation will be less for fewer segments, hence an (ad hoc) factor of 2/sqrt(n)
-        t = wfs_results.t[:]
-        corr = np.abs(np.vdot(t_correct, t) / np.sqrt(np.vdot(t_correct, t_correct) * np.vdot(t, t)))
-        assert corr > 1.0 - 2.0 / np.sqrt(wfs_results.n)
-
     optimised_wf = -np.angle(wfs_results.t)
     slm.set_phases(0.0)
     before = feedback.read()
@@ -31,8 +23,15 @@ def assert_enhancement(slm, feedback, wfs_results, t_correct=None):
         The SSA algorithm did not enhance the focus as much as expected.
         Expected at least 0.5 * {estimated_ratio}, got {ratio}"""
 
+    if t_correct is not None:
+        # Check if we correctly measured the transmission matrix.
+        # The correlation will be less for fewer segments, hence an (ad hoc) factor of 2/sqrt(n)
+        t = wfs_results.t[:]
+        corr = np.abs(np.vdot(t_correct, t) / np.sqrt(np.vdot(t_correct, t_correct) * np.vdot(t, t)))
+        assert corr > 1.0 - 2.0 / np.sqrt(wfs_results.n)
 
-@pytest.mark.parametrize("n_y, n_x", [(5, 5), (7, 11), (6, 4)])
+
+@pytest.mark.parametrize("n_y, n_x", [(5, 5), (7, 11), (6, 4), (30, 20)])
 def test_ssa(n_y, n_x):
     """
     Test the enhancement performance of the SSA algorithm.
@@ -88,8 +87,22 @@ def test_fourier2():
     slm_shape = (1000, 1000)
     aberrations = skimage.data.camera() * ((2 * np.pi) / 255.0)
     sim = SimulatedWFS(aberrations)
-    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=slm_shape, k_angles_min=-1,
-                               k_angles_max=1,
+    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=slm_shape, k_angles_min=-5,
+                               k_angles_max=5,
+                               phase_steps=3)
+    controller = WFSController(alg)
+    controller.wavefront = WFSController.State.SHAPED_WAVEFRONT
+    scaled_aberration = zoom(aberrations, np.array(slm_shape) / aberrations.shape)
+    assert_enhancement(sim.slm, sim, controller._result, np.exp(1j * scaled_aberration))
+
+
+def test_fourier3():
+    """Test the Fourier dual reference algorithm using WFSController."""
+    slm_shape = (32, 32)
+    aberrations = np.random.uniform(0.0, 2 * np.pi, slm_shape)
+    sim = SimulatedWFS(aberrations)
+    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=slm_shape, k_angles_min=-32,
+                               k_angles_max=32,
                                phase_steps=3)
     controller = WFSController(alg)
     controller.wavefront = WFSController.State.SHAPED_WAVEFRONT
