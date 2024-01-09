@@ -1,64 +1,144 @@
 import numpy as np
 import cv2
-from typing import Union, Sequence
+from typing import Sequence
 from .core import Processor, Detector
 from .slm.patterns import disk, gaussian
-from .utilities import project, Transform
-from typing import List, Union
+from .utilities import project
+from enum import StrEnum
+
+
+class MaskType(StrEnum):
+    DISK = 'disk'
+    SQUARE = 'square'
+    GAUSSIAN = 'gaussian'
 
 
 class Roi:
     """
-    Represents a Region of Interest (ROI) for image processing. It's used by MultipleRoi.
+    Represents a Region of Interest (ROI) to compute a (weighted) average over.
 
     This class defines an ROI with specified properties such as coordinates,
     radius, mask type, and parameters specific to the mask type.
     It supports different types of masks like 'disk', 'gaussian', or 'square'.
     """
 
-    def __init__(self, x, y, radius=0.1, mask_type='disk', waist=0.5, source_shape=None):
+    def __init__(self, pos, radius=0.1, mask_type: MaskType | None = MaskType.DISK, waist=None, source_shape=None):
         """
         Initialize the Roi object.
 
         Args:
-            x (int): X-coordinate of the center of the ROI, relative to the center of the image.
-            y (int): Y-coordinate of the center of the ROI, relative to the center of the image.
+            pos (int, int): y,x coordinates of the center of the ROI, measured in pixels from the top-left corner.
+                when omitted, the default value of source_shape // 2 is used.
+                note: non-integer positions for the ROI are currently not supported.
             radius (float): Radius of the ROI. Default is 0.1.
             mask_type (str): Type of the mask. Options are 'disk', 'gaussian', or 'square'. Default is 'disk'.
-            waist (float): Defines the width of the Gaussian distribution. Default is 0.5.
+            waist (float): Defines the width of the Gaussian distribution in pixels.
+                Default is 0.5 * radius.
+            source_shape (int, int): Shape of the source image.
+                Used to compute a default value for `pos`, and to check if the ROI is fully inside the image.
         """
-        if source_shape is not None and (
-                x - radius < -0.5 * source_shape[1] or
-                y - radius < -0.5 * source_shape[0] or
-                x + radius >= 0.5 * source_shape[1] or
-                x + radius >= 0.5 * source_shape[0]
-        ):
+        if pos is None:
+            pos = (source_shape[0] // 2, source_shape[1] // 2)
+        if round(pos[0] - radius) < 0 or round(pos[1] - radius) < 0 or source_shape is not None and (
+                round(pos[0] + radius) >= source_shape[0] or
+                round(pos[1] + radius) >= source_shape[1]):
             raise ValueError('ROI does not fit inside source image')
 
-        self.x = x
-        self.y = y
-        self.radius = radius
-        self.mask_type = mask_type
-        self.mask = None
-        self.waist = waist
+        self._pos = pos
+        self._radius = radius
+        self._mask_type = mask_type
+        self._waist = waist if waist is not None else radius * 0.5
+        self._mask = None
+        self._mask_sum = 0.0
 
-        # Initialize mask based on the mask type
-        self.initialize_mask()
+    @property
+    def pos(self) -> tuple[int, int]:
+        return self._pos
 
-    def initialize_mask(self):
+    @pos.setter
+    def pos(self, value: tuple[int, int]):
+        self._pos = value
+        self._mask = None  # need to re-compute mask
+
+    @property
+    def x(self) -> int:
+        """x-coordinate of the center of the ROI, relative to the center of the image."""
+        return self.pos[1]
+
+    @x.setter
+    def x(self, value: int):
+        self.pos = (self.pos[0], int(value))
+
+    @property
+    def y(self) -> int:
+        """y-coordinate of the center of the ROI, relative to the center of the image."""
+        return self.pos[0]
+
+    @y.setter
+    def y(self, value: int):
+        self.pos = (int(value), self.pos[1])
+
+    @property
+    def radius(self) -> float:
+        return self._radius
+
+    @radius.setter
+    def radius(self, value: float):
+        self._radius = float(value)
+        self._mask = None  # need to re-compute mask
+
+    @property
+    def waist(self) -> float:
+        return self._waist
+
+    @waist.setter
+    def waist(self, value: float):
+        self._waist = float(value)
+        self._mask = None  # need to re-compute mask
+
+    @property
+    def mask_type(self) -> MaskType:
+        return self._mask_type
+
+    @waist.setter
+    def waist(self, value: MaskType):
+        self._mask_type = MaskType(value)
+        self._mask = None  # need to re-compute mask
+
+    def apply(self, image: np.ndarray):
         """
-        Initializes the mask based on the specified mask type and parameters.
+        Applies the mask to the frame data
         """
-        d = int(np.floor(self.radius) * 2.0 + 1)
-        r = (2.0 * self.radius / d) + 0.0001
 
-        if self.mask_type == 'disk':
-            self.mask = disk(d, r)
-        elif self.mask_type == 'gaussian':
-            self.mask = gaussian(d, r * self.waist)
-        else:  # square
-            r = int(np.rint(self.radius))
-            self.mask = np.ones((r, r))
+        # if any of the variables changed, we need to re-compute the mask
+        if self._mask is None:
+            # clip the radius so that it corresponds to at least 1 pixel
+            r = np.maximum(self._radius, 0.1)
+
+            # for circular masks, always use an odd number of pixels so that we have a clearly
+            # defined center.
+            # for square masks, instead use the actual size
+            if self.mask_type == MaskType.DISK:
+                d = round(self._radius) * 2 + 1
+                self._mask = disk(d, r)
+            elif self.mask_type == MaskType.GAUSSIAN:
+                d = round(self._radius) * 2 + 1
+                self._mask = gaussian(d, self._waist)
+            else:
+                d = round(self._radius * 2.0)
+                self._mask = np.ones((d, d))
+
+            self._mask_sum = np.sum(self._mask)
+
+        image_start = np.array(self.pos) - int(0.5 * self._mask.shape[0] - 0.5)
+        image_cropped = image[image_start[0]:image_start[0] + self._mask.shape[0],
+                        image_start[1]:image_start[1] + self._mask.shape[1]]
+
+        if image_cropped.shape != self._mask.shape:
+            raise ValueError(
+                f"ROI is larger than the possible area. ROI shape: {self._mask.shape}, Cropped image shape: {image_cropped.shape}")
+
+        return np.sum(image_cropped * self._mask) / self._mask_sum
 
 
 class MultipleRoi(Processor):
@@ -66,41 +146,19 @@ class MultipleRoi(Processor):
     Processor that averages signals over multiple regions of interest (ROIs).
     """
 
-    def __init__(self, source, rois: List[Roi]):
+    def __init__(self, source, rois: Sequence[Roi]):
         """
         Initialize the MultipleRoi processor with a source and multiple ROIs.
-
+        Note: changing parmeters of any of the ROIs between triggering and fetching causes a race condition.
         Args:
             source (Detector): Source detector object to process the data from.
-            rois (List[Roi]): List of Roi objects defining the regions of interest.
+            rois (Sequence[Roi]): Sequence of Roi objects defining the regions of interest.
         """
-        super().__init__(source, data_shape=(len(rois),))
+        self._rois = np.array(rois)
         self._source = source
-        self.rois = rois
+        super().__init__(source, data_shape=self._rois.shape)
 
-    def trigger(self, *args, **kwargs):
-        """
-        Trigger the processing of the source data with the defined ROIs.
-
-        This method computes the positions for each ROI based on their
-        coordinates and prepares the processor for fetching the processed data.
-
-        Args:
-            *args & **kwargs: optional input parameters for the source detector
-        """
-        positions = []
-        for roi in self.rois:
-            roi.initialize_mask()
-
-            # Compute top-left coordinates of each roi
-            offset = (roi.mask.shape[0] - 1) / 2
-            x = roi.x - offset
-            y = roi.y - offset
-            positions.append(np.rint((x, y)).astype('int32'))
-
-        return super().trigger(*args, positions=positions, **kwargs)
-
-    def _fetch(self, out: np.ndarray | None, image: np.ndarray, positions: List[np.ndarray]) -> np.ndarray:
+    def _fetch(self, out: np.ndarray | None, image: np.ndarray) -> np.ndarray:  # noqa
         """
         Fetches and processes the data for each ROI from the image.
 
@@ -111,28 +169,17 @@ class MultipleRoi(Processor):
         Args:
             out (np.ndarray | None): Optional output array to store the processed data.
             image (np.ndarray): The source image data.
-            positions (List[np.ndarray]): List of positions for each ROI.
 
         Returns:
             np.ndarray: Array containing the processed data for each ROI.
         """
         if out is None:
-            out = np.empty((len(self.rois),))
+            out = np.empty(self.data_shape)
 
-        for idx, (roi, pos) in enumerate(zip(self.rois, positions)):
-            # Crop image
-            image_start = np.rint(np.array(image.shape) * 0.5 + pos).astype('uint32')
-            image_end = np.minimum(image.shape, image_start + roi.mask.shape)
+        def apply_mask(mask: Roi):
+            return mask.apply(image)
 
-            image_cropped = image[image_start[0]:image_end[0], image_start[1]:image_end[1]]
-
-            if roi.mask.shape[0] > image_cropped.shape[0] or roi.mask.shape[1] > image_cropped.shape[1]:
-                raise ValueError(
-                    f"ROI is larger than the possible area. ROI shape: {roi.mask.shape}, Cropped image shape: {image_cropped.shape}")
-
-            value = np.sum(image_cropped * roi.mask) / np.sum(roi.mask)
-
-            out[idx] = value
+        out[...] = np.vectorize(apply_mask)(self._rois)
 
         return out
 
@@ -142,73 +189,23 @@ class SingleRoi(MultipleRoi):
     Processor that averages a signal over a single region of interest (ROI).
     """
 
-    def __init__(self, source, x=0.0, y=0.0, radius=0.1, mask_type='disk', waist=0.5):
+    def __init__(self, source, pos=None, radius=0.1, mask_type: MaskType = MaskType.DISK, waist=0.5):
         """
         Initialize the SingleRoi processor with a source and a single ROI.
 
         Args:
             source (Detector): Source detector object to process the data from.
-            x (int): X-coordinate of the center of the ROI, relative to the center of the image.
-            y (int): Y-coordinate of the center of the ROI, relative to the center of the image.
+            pos (int, int): y,x coordinates of the center of the ROI, measured in pixels from the top-left corner.
+                when omitted, the default value of source.data_shape // 2 is used.
+                note: non-integer positions for the ROI are currently not supported.
             radius (float): Radius of the ROI. Default is 0.1.
-            mask_type (str): Type of the mask. Options are 'disk', 'gaussian', or 'square'. Default is 'disk'.
+            mask_type (MaskType): Type of the mask. Options are 'disk', 'gaussian', or 'square'. Default is 'disk'.
             waist (float): Defines the width of the Gaussian distribution. Default is 0.5.
         """
-        single_roi = Roi(x, y, radius, mask_type, waist, source.data_shape)
-        super().__init__(source, rois=[single_roi])
-        self.single_roi = single_roi
-
-    @property
-    def x(self) -> int:
-        """x-coordinate of the center of the ROI, relative to the center of the image."""
-        return self.single_roi.x
-
-    @x.setter
-    def x(self, value):
-        self.single_roi.x = value
-        self.single_roi.initialize_mask()
-
-    @property
-    def y(self) -> int:
-        """y-coordinate of the center of the ROI, relative to the center of the image."""
-        return self.single_roi.y
-
-    @y.setter
-    def y(self, value):
-        self.single_roi.y = value
-        self.single_roi.initialize_mask()
-
-    @property
-    def radius(self) -> float:
-        """radius of the ROI in pixels"""
-        return self.single_roi.radius
-
-    @radius.setter
-    def radius(self, value):
-        self.single_roi.radius = value
-        self.single_roi.initialize_mask()
-
-    @property
-    def mask_type(self):
-        """Type of weighting function to use: 'disk', 'square', 'gaussian'"""
-        return self.single_roi.mask_type
-
-    @mask_type.setter
-    def mask_type(self, value):
-        if value not in ['disk', 'square', 'gaussian']:
-            raise ValueError(f"Unknown mask type {value}")
-        self.single_roi.mask_type = value
-        self.single_roi.initialize_mask()
-
-    @property
-    def waist(self):
-        """Parameter for the Gaussian mask, defining the width of the Gaussian distribution."""
-        return self.single_roi.waist
-
-    @waist.setter
-    def waist(self, value):
-        self.single_roi.waist = value
-        self.single_roi.initialize_mask()
+        single_roi = Roi(pos, radius, mask_type, waist, source.data_shape)
+        rois = np.array([single_roi]).reshape(())
+        super().__init__(source, rois=rois)  # noqua
+        self.__dict__.update(single_roi.__dict__)
 
 
 class CropProcessor(Processor):
@@ -289,155 +286,47 @@ class CropProcessor(Processor):
         return out
 
 
-class SelectRoi(SingleRoi):
+def select_roi(source: Detector, mask_type: MaskType):
     """
-    A detector that allows the user to draw a square using the mouse. Inherits from SingleRoiSquare implementation.
+    Opens a window that allows the user to select an roi.
     """
+    image = cv2.normalize(source.read(), None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+    title = "Select ROI and press c to continue or ESC to cancel"
+    cv2.namedWindow(title)
+    cv2.imshow(title, image)
 
-    def __init__(self, source):
-        """
+    roi_start = np.array((0, 0))
+    roi_size = 0.0
 
-        Args:
-            source (Detector): Detector object to process the data from.
-        """
+    def mouse_callback(event, x, y, flags, _param):
+        nonlocal roi_start, roi_size, image
+        if event == cv2.EVENT_LBUTTONDOWN:  # mouse down: select start
+            roi_start = np.array((x, y))
 
-        super().__init__(source, x=0, y=0, mask_type='square')
-        source.trigger()
-        self.draw_square()
+        elif event == cv2.EVENT_MOUSEMOVE and cv2.EVENT_FLAG_LBUTTON & flags:
+            roi_size = np.minimum(x - roi_start[0], y - roi_start[1])
+            rect_image = image.copy()
+            if mask_type == MaskType.SQUARE:
+                cv2.rectangle(rect_image, roi_start, roi_start + roi_size, (0.0, 0.0, 255.0), 2)
+            else:
+                cv2.circle(rect_image, roi_start + roi_size // 2, abs(roi_size) // 2, (0.0, 0.0, 255.0), 2)
+            cv2.imshow(title, rect_image)
 
-    def draw_square(self):
-        """
-        Select a rectangular region of interest (ROI) using the mouse.
-        Returns the ROI coordinates (top-left and bottom-right corners).
-        """
-        image = self._source.read()
+    cv2.setMouseCallback(title, mouse_callback)
 
-        roi_pts = []
-        win_name = "Select ROI and press c, to redraw press r"
-        cv2.namedWindow(win_name)
+    while True:
+        key = cv2.waitKey(1) & 0xFF
+        if key == ord("c"):
+            if roi_size is not None:
+                cv2.destroyWindow(title)
+                if roi_size < 0.0:
+                    roi_start = roi_start + roi_size
+                    roi_size = -roi_size
+                return Roi(pos=(roi_start[1], roi_start[0]), radius=0.5 * roi_size)
 
-        # Autoscale the image
-        image_norm = cv2.normalize(image, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-
-        def mouse_callback(event, x, y, _flags, _param):
-            nonlocal roi_pts
-
-            if event == cv2.EVENT_LBUTTONDOWN:
-                roi_pts = [(x, y)]
-
-            elif event == cv2.EVENT_LBUTTONUP:
-                roi_pts.append((x, y))
-                cv2.rectangle(image_norm, roi_pts[0], roi_pts[1], (0, 0, 255), 2)
-                cv2.imshow(win_name, image_norm)
-
-        cv2.imshow(win_name, image_norm)
-        cv2.setMouseCallback(win_name, mouse_callback)
-
-        while True:
-            key = cv2.waitKey(1) & 0xFF
-
-            if key == ord("r"):
-                roi_pts = []
-                image_norm = cv2.normalize(image.copy(), None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX,
-                                           dtype=cv2.CV_8U)
-                cv2.imshow(win_name, image_norm)
-
-            elif key == ord("c"):
-                if len(roi_pts) == 2:
-                    cv2.destroyWindow(win_name)
-                    break
-
-            elif key == 27:
-                roi_pts = []
-                cv2.destroyWindow(win_name)
-                break
-
-        if len(roi_pts) == 2:
-            x1, y1 = roi_pts[0]
-            x2, y2 = roi_pts[1]
-            tl = (min(x1, x2), min(y1, y2))
-            br = (max(x1, x2), max(y1, y2))
-
-            self.width = br[0] - tl[0]
-            self.height = br[1] - tl[1]
-            self.top = tl[1]
-            self.left = tl[0]
-
-
-class SelectRoiCircle(SingleRoi):
-    """
-    A detector that allows the user to draw a circle using the mouse. Inherits from SingleRoi implementation.
-
-    Methods:
-        draw_circle(): Select a circular region of interest (ROI) using the mouse.
-
-    """
-
-    def __init__(self, source):
-        """
-        Initialising triggers the draw_circle method.
-
-        Args:
-            source (Detector): Source detector object to process the data from.
-        """
-        super().__init__(source, x=0, y=0)
-        source.trigger()
-        self.draw_circle()
-
-    def draw_circle(self):
-        """
-        Select a circular region of interest (ROI) using the mouse.
-        Returns the ROI coordinates (center and radius).
-        """
-        image = self._source.read()
-
-        circle_params = []
-        win_name = "Select Circle and press c, to redraw press r"
-        cv2.namedWindow(win_name)
-
-        # Autoscale the image
-        image_norm = cv2.normalize(image, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-
-        def mouse_callback(event, x, y, _flags, _param):
-            nonlocal circle_params
-
-            if event == cv2.EVENT_LBUTTONDOWN:
-                circle_params = [(x, y)]
-
-            elif event == cv2.EVENT_LBUTTONUP:
-                radius = int(np.sqrt((x - circle_params[0][0]) ** 2 + (y - circle_params[0][1]) ** 2))
-                circle_params.append(radius)
-                cv2.circle(image_norm, circle_params[0], radius, (0, 0, 255), 2)
-                cv2.imshow(win_name, image_norm)
-
-        cv2.imshow(win_name, image_norm)
-        cv2.setMouseCallback(win_name, mouse_callback)
-
-        while True:
-            key = cv2.waitKey(1) & 0xFF
-
-            if key == ord("r"):
-                circle_params = []
-                image_norm = cv2.normalize(image.copy(), None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX,
-                                           dtype=cv2.CV_8U)
-                cv2.imshow(win_name, image_norm)
-
-            if key == ord("c"):
-                if len(circle_params) == 2:
-                    cv2.destroyWindow(win_name)
-                    break
-
-            elif key == 27:
-                circle_params = []
-                cv2.destroyWindow(win_name)
-                break
-
-        if len(circle_params) == 2:
-            self._x, self._y = circle_params[0]
-            self._radius = circle_params[1]
-            return circle_params[0], circle_params[1]
-
-        return None, None
+        elif key == 27:
+            cv2.destroyWindow(title)
+            return None
 
 
 class TransformProcessor(Processor):
@@ -459,7 +348,7 @@ class TransformProcessor(Processor):
         super().__init__(source, **kwargs)
         self.transform = transform
 
-    def _fetch(self, out: np.ndarray | None, source) -> np.ndarray:
+    def _fetch(self, out: np.ndarray | None, source) -> np.ndarray:  # noqa
         """
         Args:
             out(ndarray) optional numpy array or view of an array that will receive the data

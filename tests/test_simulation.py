@@ -18,9 +18,9 @@ def test_mock_camera_and_single_roi():
     0xFFFF = (2 ** 16) - 1.
     """
     img = np.zeros((1000, 1000), dtype=np.int16)
-    img[200, 200] = 39.39  # some random float
+    img[200, 300] = 39.39  # some random float
     src = MockCamera(MockSource(img, 450 * u.nm))
-    roi_detector = SingleRoi(src, x=-299, y=-299, radius=0)  # Only measure that specific point
+    roi_detector = SingleRoi(src, pos=(200, 300), radius=0)  # Only measure that specific point
     assert roi_detector.read() == int(2 ** 16 - 1)  # it should cast the array into some int
 
 
@@ -139,7 +139,7 @@ def test_microscope_wavefront_shaping(caplog):
     img[256, 256] = 100
 
     img = np.zeros((1000, 1000), dtype=np.int16)
-    signal_location = (250, 250)
+    signal_location = (250, 200)
 
     img[signal_location] = 100
     src = MockSource(img, 400 * u.nm)
@@ -149,7 +149,7 @@ def test_microscope_wavefront_shaping(caplog):
     sim = Microscope(source=src, slm=slm.pixels(), numerical_aperture=1, aberrations=aberration, wavelength=800 * u.nm)
 
     cam = sim.get_camera(analog_max=100)
-    roi_detector = SingleRoi(cam, x=-249, y=-249, radius=0)  # Only measure that specific point
+    roi_detector = SingleRoi(cam, pos=signal_location, radius=0)  # Only measure that specific point
 
     alg = StepwiseSequential(feedback=roi_detector, slm=slm, phase_steps=3, n_x=3, n_y=3)
     t = alg.execute().t

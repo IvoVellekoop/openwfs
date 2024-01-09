@@ -1,5 +1,3 @@
-import matplotlib.pyplot as plt
-
 from ..openwfs.simulation import SimulatedWFS, MockSource, MockSLM, Microscope, ADCProcessor
 import numpy as np
 from ..openwfs.algorithms import StepwiseSequential, FourierDualReference, WFSController
@@ -15,8 +13,8 @@ def assert_enhancement(slm, feedback, wfs_results, t_correct=None):
     """Helper function to check if the intensity in the target focus increases as much as expected"""
 
     if t_correct is not None:
-        # check if we correctly measured the t-matrix
-        # the correlation will be less for fewer segments, hence the (ad-hoc) factor 2/sqrt(n)
+        # Check if we correctly measured the transmission matrix.
+        # The correlation will be less for fewer segments, hence an (ad hoc) factor of 2/sqrt(n)
         t = wfs_results.t[:]
         corr = np.abs(np.vdot(t_correct, t) / np.sqrt(np.vdot(t_correct, t_correct) * np.vdot(t, t)))
         assert corr > 1.0 - 2.0 / np.sqrt(wfs_results.n)
@@ -112,7 +110,7 @@ def test_fourier_microscope():
     sim = Microscope(source=src, slm=slm.pixels(), magnification=1, numerical_aperture=1, aberrations=aberration,
                      wavelength=800 * u.nm)
     cam = sim.get_camera(analog_max=100)
-    roi_detector = SingleRoi(cam, x=-249, y=-249, radius=0)  # Only measure that specific point
+    roi_detector = SingleRoi(cam, pos=(250, 250))  # Only measure that specific point
     alg = FourierDualReference(feedback=roi_detector, slm=slm, slm_shape=slm_shape, k_angles_min=-1, k_angles_max=1,
                                phase_steps=3)
     controller = WFSController(alg)
@@ -128,7 +126,7 @@ def test_fourier_microscope():
 
 def test_fourier_correction_field():
     """
-    Check the field correlation between set aberration and optimised wavefront of the Fourier-based algorithm.
+    Check the field correlation between set aberration and optimized wavefront of the Fourier-based algorithm.
     """
     aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
     sim = SimulatedWFS(aberrations)
@@ -140,7 +138,8 @@ def test_fourier_correction_field():
     t_correct = np.exp(1j * aberrations)
     correlation = np.vdot(t, t_correct) / np.sqrt(np.vdot(t, t) * np.vdot(t_correct, t_correct))
 
-    assert abs(correlation) > 0.75  # not that high because a 9 mode WFS procedure can only do so much
+    # TODO: integrate with other test cases, duplication
+    assert abs(correlation) > 0.75
 
 
 def test_phaseshift_correction():
@@ -169,9 +168,8 @@ def test_phaseshift_correction():
         signal = sim.read()
         signals.append(signal)
 
-    enhancements = signals / before
-
-    assert np.std(enhancements) < 0.0001, f"""The simulated response of the Fourier algorithm is sensitive to a flat 
+    assert np.std(signals) < 0.0001 * before, f"""The simulated response of the Fourier algorithm is sensitive to a 
+    flat 
         phase-shift. This is incorrect behaviour"""
 
 
@@ -180,8 +178,7 @@ def test_flat_wf_response_fourier():
     Test the response of the Fourier-based WFS method when the solution is flat
     A flat solution means that the optimal correction is no correction.
 
-    test the optimised wavefront by checking if it has irregularities.
-    Since a flat wavefront at 0 or pi have the same effect, the absolute value of the front is irrelevant.
+    test the optimized wavefront by checking if it has irregularities.
     """
     aberrations = np.zeros(shape=(512, 512))
     sim = SimulatedWFS(aberrations.reshape((*aberrations.shape, 1)))
@@ -191,10 +188,9 @@ def test_flat_wf_response_fourier():
                                phase_steps=3)
 
     t = alg.execute().t
-    optimised_wf = np.angle(t)
 
-    # test the optimised wavefront by checking if it has irregularities. Since a flat wavefront at 0 or pi
-    assert np.std(optimised_wf) < 0.001  # "Response flat wavefront not flat"
+    # test the optimized wavefront by checking if it has irregularities.
+    assert np.std(t) < 0.001  # The measured wavefront is not flat.
 
 
 def test_flat_wf_response_ssa():
