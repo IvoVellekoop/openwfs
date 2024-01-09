@@ -130,7 +130,7 @@ class Device:
     which calls `wait(up_to=latency)` on all actuators,
     where `latency` is given by the shortest latency of _all_ detectors.
 
-    For efficiency, Device keeps a global state to synchronize detectors and actuators. This state can be
+    For efficiency, `Device` keeps a global state to synchronize detectors and actuators. This state can be
     - `moving`. Actuators may be active (`busy`). No measurements can be made (all detectors are `ready`)
     - `measuring` Detectors may be active (`busy`). All actuators must remain static (`ready`).
     The `_start` function checks if OpenWFS is already in the correct global state for measuring or moving.
@@ -293,7 +293,7 @@ class Device:
         return self._duration
 
     def wait(self, up_to: Quantity[u.ms] = 0 * u.ns, await_data=True):
-        """Waits until the device is (almost) in the `ready` state, i.e. has finished measuring or moving.
+        """Waits until the device is (almost) in the `ready` state, i.e., has finished measuring or moving.
 
         Devices that don't have a fixed duration (_duration = None) should override `busy` to poll for finalization.
 
@@ -510,7 +510,7 @@ class Detector(Device, ABC):
         ...
 
     @final
-    def read(self, *args, immediate=True, **kwargs):
+    def read(self, *args, immediate=True, **kwargs) -> np.ndarray:
         """Triggers the detector and waits for the data to arrive.
 
         Shortcut for trigger().result().
