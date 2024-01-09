@@ -4,13 +4,13 @@ from typing import Sequence
 from .core import Processor, Detector
 from .slm.patterns import disk, gaussian
 from .utilities import project
-from enum import StrEnum
+from enum import Enum
 
 
-class MaskType(StrEnum):
-    DISK = 'disk'
-    SQUARE = 'square'
-    GAUSSIAN = 'gaussian'
+class MaskType(Enum):
+    DISK = 0
+    SQUARE = 1
+    GAUSSIAN = 2
 
 
 class Roi:
@@ -19,7 +19,6 @@ class Roi:
 
     This class defines an ROI with specified properties such as coordinates,
     radius, mask type, and parameters specific to the mask type.
-    It supports different types of masks like 'disk', 'gaussian', or 'square'.
     """
 
     def __init__(self, pos, radius=0.1, mask_type: MaskType | None = MaskType.DISK, waist=None, source_shape=None):
@@ -31,7 +30,8 @@ class Roi:
                 when omitted, the default value of source_shape // 2 is used.
                 note: non-integer positions for the ROI are currently not supported.
             radius (float): Radius of the ROI. Default is 0.1.
-            mask_type (str): Type of the mask. Options are 'disk', 'gaussian', or 'square'. Default is 'disk'.
+            mask_type (MaskType): Type of the mask.
+                Options are `MaskType.DISK` (default), `MaskType.GAUSSIAN`, or `MaskType.SQUARE`.
             waist (float): Defines the width of the Gaussian distribution in pixels.
                 Default is 0.5 * radius.
             source_shape (int, int): Shape of the source image.
@@ -185,13 +185,9 @@ class MultipleRoi(Processor):
 
 
 class SingleRoi(MultipleRoi):
-    """
-    Processor that averages a signal over a single region of interest (ROI).
-    """
-
     def __init__(self, source, pos=None, radius=0.1, mask_type: MaskType = MaskType.DISK, waist=0.5):
         """
-        Initialize the SingleRoi processor with a source and a single ROI.
+        Processor that averages a signal over a single region of interest (ROI).
 
         Args:
             source (Detector): Source detector object to process the data from.
