@@ -10,7 +10,6 @@ from .patch import FrameBufferPatch, Patch, VertexArray
 from .geometry import fill_transform
 from weakref import WeakSet
 from ..core import PhaseSLM
-from typing import Union
 
 
 class SLM(PhaseSLM):
@@ -372,8 +371,8 @@ class SLM(PhaseSLM):
 
     @property
     def lookup_table(self):
-        """Lookup table that is used to map the wrapped phase range 0-2pi to 8-bit color output. By default,
-        this is just range(256)"""
+        """Lookup table that is used to map the wrapped phase range 0-2pi to gray values
+        (represented as floats from 0.0 to 1.0). By default, this is just range(256)/255"""
         return self._frame_patch.lookup_table
 
     @lookup_table.setter
