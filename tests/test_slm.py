@@ -91,18 +91,6 @@ class TestSLM:
         read_back = slm.get_pixels('phase')
         assert_allclose(pattern, read_back)
 
-    def test_wavelength(self, windowed_slm):
-        slm = windowed_slm[0]
-        slm.lut_generator = lambda λ: np.arange(0, np.minimum(np.round(λ.to_value(u.nm) / 4), 256))
-        slm.wavelength = 800 * u.nm
-        assert slm.lookup_table.size == 200
-        slm.wavelength = 1000 * u.nm
-        assert slm.lookup_table.size == 250
-        assert slm.lookup_table[-1] == 249
-        slm.wavelength = 1300 * u.nm
-        assert slm.lookup_table.size == 256
-        assert slm.lookup_table[-1] == 255
-
     def test_lookup_table(self, windowed_slm):
         (slm, mask) = windowed_slm
 

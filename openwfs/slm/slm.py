@@ -30,7 +30,7 @@ class SLM(PhaseSLM):
     WINDOWED = 0
 
     def __init__(self, monitor_id=WINDOWED, shape=None, pos=(0, 0), refresh_rate=glfw.DONT_CARE * u.Hz,
-                 transform=None, latency=2, duration=1, wavelength=None, lut_generator=None):
+                 transform=None, latency=2, duration=1):
         """
         Constructs a new SLM window.
 
@@ -56,23 +56,17 @@ class SLM(PhaseSLM):
                 where the SLM has stabilized.
                 Specified in milliseconds (u.ms) or multiples of the frame period (unitless).
                 see :py:attr:`~duration`
-            wavelength (Quantity[u.ns]): Wavelength in nanometers (u.ns). Use in combination with lut_generator.
-            lut_generator (function): Function taking a wavelength in nanometers and returning a lookup table. This function
-                is called every time the wavelength of the slm object is set, so that the lookup table is
-                adapted to the wavelength of the light source.
         """
         super().__init__()
 
         # construct window for displaying the SLM pattern
         self.patches = []
-        self.lut_generator = lut_generator or (lambda λ: np.arange(0, 256) / 255)
         self._monitor_id = monitor_id
         self._shape = shape
         self._pos = pos
         self._refresh_rate = refresh_rate
         self._window = None
         self._globals = None  # will be filled by __create_window
-        self._wavelength = wavelength
         self._create_window()
         SLM._active_slms.add(self)
 
@@ -410,6 +404,7 @@ class SLM(PhaseSLM):
     @lookup_table.setter
     def lookup_table(self, value):
         self._frame_patch.lookup_table = value
+        self.update()
 
     def set_phases(self, values: np.ndarray | float, update=True):
         self.primary_phase_patch.phases = values
@@ -428,12 +423,3 @@ class SLM(PhaseSLM):
             return self._frame_patch.get_pixels()
 
         raise ValueError(f"Unsupported pixel type {type}")
-
-    @property
-    def wavelength(self) -> Quantity[u.nm]:
-        return self._wavelength
-
-    @wavelength.setter
-    def wavelength(self, value):
-        self._wavelength = value
-        self.lookup_table = self.lut_generator(value)
