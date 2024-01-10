@@ -398,7 +398,7 @@ class SLM(PhaseSLM):
     @property
     def lookup_table(self):
         """Lookup table that is used to map the wrapped phase range of 0-2pi to gray values
-        (represented as floats from 0.0 to 1.0). By default, this is just range(256)/255"""
+        (represented in a range from 0 to 256). By default, this is just range(256)"""
         return self._frame_patch.lookup_table
 
     @lookup_table.setter

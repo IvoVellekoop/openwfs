@@ -45,8 +45,6 @@ s3.monitor_id = 0  # test switching monitor id
 time.sleep(0.5)
 
 s = SLM(0)
-s.lut_generator = lambda λ: np.arange(0, 0.2623 * λ.to(u.nm).value - 23.33) / 255
-s.wavelength = 0.804 * u.um
 s.phases = (data.camera() / 255) * 2 * np.pi
 
 s.update()

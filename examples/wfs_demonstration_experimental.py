@@ -13,7 +13,7 @@ cam.nodes.ExposureTime.value = 16666
 roi_detector = SingleRoi(cam, radius=2)
 
 slm = SLM(monitor_id=2, duration=2)
-slm.lookup_table = np.arange(0, 142) / 255
+slm.lookup_table = range(142)
 alg = StepwiseSequential(feedback=roi_detector, slm=slm, n_x=6, phase_steps=9)
 
 result = alg.execute()

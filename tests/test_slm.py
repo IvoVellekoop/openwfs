@@ -40,9 +40,9 @@ class TestSLM:
         assert slm.pos == (2, 1)
 
         # check default LUT
-        assert slm.lookup_table[-1] == 1.0
+        assert slm.lookup_table[-1] == 255
         assert slm.lookup_table[0] == 0.0
-        assert_allclose(slm.lookup_table, np.arange(0, 256) / 255.0, )
+        assert_allclose(slm.lookup_table, np.arange(0, 256))
 
         # put homogeneous phase on slm and read back
         slm.set_phases(TestSLM.VAL1)
@@ -99,7 +99,9 @@ class TestSLM:
         assert_allclose(slm.get_pixels('gray_value'), TestSLM.GVAL2 * mask)
 
         # change lookup table for one gray value
-        slm.lookup_table[TestSLM.GVAL2] = TestSLM.GVAL3 / 255.0
-        assert_allclose(slm.get_pixels('gray_value'), TestSLM.GVAL2 * mask)
+        lut = slm.lookup_table
+        lut[TestSLM.GVAL2] = TestSLM.GVAL3
         slm.update()
+        assert_allclose(slm.get_pixels('gray_value'), TestSLM.GVAL2 * mask)
+        slm.lookup_table = lut
         assert_allclose(slm.get_pixels('gray_value'), TestSLM.GVAL3 * mask)

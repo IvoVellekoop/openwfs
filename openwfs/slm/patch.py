@@ -167,7 +167,7 @@ class FrameBufferPatch(Patch):
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
         self._textures.append(Texture(slm, GL_TEXTURE_1D))  # create texture for lookup table
-        self.lookup_table = np.arange(0, 256) / 255.0  # 256 entries from 0.0 to 1.0
+        self.lookup_table = range(256)
         self.additive_blend = False
 
     def __del__(self):
@@ -178,12 +178,12 @@ class FrameBufferPatch(Patch):
     @property
     def lookup_table(self):
         """1-D array """
-        return self._textures[FrameBufferPatch.LUT_TEXTURE].data
+        return self._textures[FrameBufferPatch.LUT_TEXTURE].data * 255
 
     @lookup_table.setter
     def lookup_table(self, value):
         self.context().activate()
-        self._textures[FrameBufferPatch.LUT_TEXTURE].data = value
+        self._textures[FrameBufferPatch.LUT_TEXTURE].data = np.array(value) / 255
 
     def get_pixels(self):
         self.context().activate()

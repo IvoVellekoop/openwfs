@@ -15,7 +15,7 @@ Script for setting up a microscope, gain and WFS objects.
 These are put into the devices dict such that they can be read by PyDevice.
 """
 
-max_FOV_V = (1.0/30) * u.V
+max_FOV_V = (1.0 / 30) * u.V
 
 # Define NI-DAQ channels and settings for scanning
 scanner = ScanningMicroscope(
@@ -29,7 +29,6 @@ scanner = ScanningMicroscope(
     delay=58.0,
     padding=0.05)
 
-
 # Define NI-DAQ Gain channel and settings
 gain = Gain(
     port_ao="Dev4/ao0",
@@ -39,19 +38,17 @@ gain = Gain(
     gain=0.65 * u.V,
 )
 
-
 # ROI detector
-roi_detector = SingleRoi(scanner, x=60, y=60, radius=29)
-
+roi_detector = SingleRoi(scanner, radius=29)
 
 # SLM
-slm = SLM(2, wavelength=804*u.nm)
-slm.lut_generator = lambda λ: np.arange(0, 0.2623 * λ.to(u.nm).value - 23.33) / 255     # Temporary, hardcoded lookup table
+wavelength_nm = 804
+slm = SLM(2)
+slm.lookup_table = np.arange(0, 0.2623 * wavelength_nm - 23.33)  # Temporary, hardcoded lookup table
 transform_scale_factor = 1.032
 transform_matrix = np.array(fill_transform(slm, fit='short')) * transform_scale_factor
 transform_matrix[2, :] = [0.0, 0.0, 1]
 slm.transform = transform_matrix
-
 
 # Wavefront Shaping algorithm
 wfs_alg = FourierDualReference(
@@ -62,10 +59,8 @@ wfs_alg = FourierDualReference(
     k_angles_max=2,
     phase_steps=6)
 
-
 # WFS controller
 wfs_controller = WFSController(wfs_alg)
-
 
 # Devices
 devices = {
@@ -76,4 +71,3 @@ devices = {
     'wfs_controller': wfs_controller,
     'wfs_alg': wfs_alg,
 }
-
