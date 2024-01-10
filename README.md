@@ -1,5 +1,7 @@
 # OpenWFS
 
+Python 3.10 or higher is required to run this toolbox.
+
 This repository holds Python code for conducting or simulating a wide range of wavefront shaping experiments in a Python
 environment and in the MicroManager [^1] environment.
 

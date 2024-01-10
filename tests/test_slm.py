@@ -60,8 +60,8 @@ class TestSLM:
                              "affect people with epilepsy.")
     def test_refresh_rate(self):
         slm = SLM(1)
-        slm.idle_time = 0
-        slm.settle_time = 0
+        slm.latency = 0
+        slm.duration = 0
         refresh_rate = slm.refresh_rate
         slm.update()
         frame_count = 100

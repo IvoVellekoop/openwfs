@@ -1,5 +1,5 @@
 numpy>=1.25.2
-pytest>=7.4.2
+pytest~=7.0.0
 astropy>=5.3.4
 glfw>=2.5.9
 opencv-python>=4.8.1
@@ -11,3 +11,4 @@ PyOpenGL>=3.1.7
 nidaqmx>=0.8.0
 recommonmark>=0.7
 harvesters~=1.4.2
+pytest~=7.0.0

@@ -1,6 +1,9 @@
 import time
 
 from OpenGL.GL import *
+import time
+
+from OpenGL.GL import *
 import numpy as np
 import glfw
 import warnings
@@ -20,45 +23,43 @@ class SLM(PhaseSLM):
     """
 
     _active_slms = WeakSet()
-    """"Keep track of all active SLMs. This is done for two reasons. First, to check if we are not putting two
+    """Keep track of all active SLMs. This is done for two reasons. First, to check if we are not putting two
     full-screen SLMs on the same monitor. Second, to allow sharing the OpenGL context between all SLM windows,
     so that we can use the same Patch and Texture objects on multiple SLMs simultaneously."""
 
     WINDOWED = 0
 
     def __init__(self, monitor_id=WINDOWED, shape=None, pos=(0, 0), refresh_rate=glfw.DONT_CARE * u.Hz,
-                 transform=None, latency=2, settle_time=1, wavelength=None, lut_generator=None):
+                 transform=None, latency=2, duration=1, wavelength=None, lut_generator=None):
         """
         Constructs a new SLM window.
 
         Args:
-            monitor_id:  Monitor id, see :py:attr:`~monitor_id`
-            shape(tuple[int,int]):
-                Size of the window (height, width) or resolution of the fullscreen mode.
-                Default valie is None (recommended for full screen windows), which will use the current resolution
+            monitor_id (int): Monitor id, see :py:attr:`~monitor_id`
+            shape (tuple[int,int]): Size of the window (height, width) or resolution of the fullscreen mode.
+                Default value is None (recommended for full screen windows), which will use the current resolution
                 of the monitor, or a standard size of 300x300 for windowed modes.
-            pos(tuple[int,int]):
-                Windowed-mode only: (y,x)-coordinate of the top-left corner of the window.
-                Default value (0,0).
-            refresh_rate(Quantity[u.Hz]): Refresh rate of the SLM.
+            pos (tuple[int,int]): Windowed-mode only: (y,x)-coordinate of the top-left corner of the window.
+                Default value is (0,0).
+            refresh_rate (Quantity[u.Hz]): Refresh rate of the SLM.
                 Ignored for windowed SLMs.
                 When omitted, the current refresh rate of the monitor will be used.
                 Note that OpenGL does not seem to support non-integer refresh rates.
                 In these cases, it is better to set the refresh rate in the OS, and don't
                 explicitly specify a refresh rate.
-            transform: 3x3 transformation matrix to convert from vertex coordinates to window coordinates,
+            transform (np.ndarray): 3x3 transformation matrix to convert from vertex coordinates to window coordinates,
                 see :py:attr:`~transform`
-            latency: time between the vertical retrace and the start of the SLM response to the new frame,
-                       Specified in milliseconds (u.ms) or multiples of the frame period (unitless).
-                       see :py:attr:`~idle_time`
-            settle_time: time between the start of the SLM response to the newly presented frame, and the point
-                       where the SLM has stabilized.
-                       Specified in milliseconds (u.ms) or multiples of the frame period (unitless).
-                       see :py:attr:`~settle_time`
-            wavelength: wavelength in nanometers (u.ns). Use in combination with lut_generator
-            lut_generator: function taking a wavelength in nanometers and returning a lookup table. This function
-                       is called every time the wavelength of the slm object is set, so that the lookup table is
-                       be adapted to the wavelength of the light source.
+            latency (int): Time between the vertical retrace and the start of the SLM response to the new frame,
+                specified in milliseconds (u.ms) or multiples of the frame period (unitless).
+                see :py:attr:`~latency`
+            duration (int): Time between the start of the SLM response to the newly presented frame, and the point
+                where the SLM has stabilized.
+                Specified in milliseconds (u.ms) or multiples of the frame period (unitless).
+                see :py:attr:`~duration`
+            wavelength (Quantity[u.ns]): Wavelength in nanometers (u.ns). Use in combination with lut_generator.
+            lut_generator (function): Function taking a wavelength in nanometers and returning a lookup table. This function
+                is called every time the wavelength of the slm object is set, so that the lookup table is
+                adapted to the wavelength of the light source.
         """
         super().__init__()
 
@@ -76,7 +77,7 @@ class SLM(PhaseSLM):
         SLM._active_slms.add(self)
 
         self.latency = latency
-        self.settle_time = settle_time
+        self.duration = duration
         self.transform = transform or fill_transform(self, 'short')
 
         # Construct the frame buffer, this is the texture where all patches draw to. After all patches
@@ -100,9 +101,7 @@ class SLM(PhaseSLM):
         primary screen, but there cannot also be a fullscreen SLM on the primary screen at the same time.
 
         `monitor_id` can be modified at run time, in which case the current SLM window is replaced by a new window
-         on a different monitor. When moving the SLM to a different window, width, height and refresh_rate are set
-         to the current mode on that window (as if None was specified), i.e. it is only possible to select a
-         display mode when first creating an SLM.
+        on a different monitor. When moving the SLM to a different window, width, height and refresh_rate are set
         """
         return self._monitor_id
 
@@ -126,36 +125,57 @@ class SLM(PhaseSLM):
         self.update()
 
     @property
-    def shape(self) -> tuple:
-        """Shape (height x width) of the window in pixels.
+    def shape(self) -> tuple[int, int]:
+        """
+        Returns the shape (height x width) of the window in pixels.
 
-        The size cannot be modified after the SLM is created. When moving
-        the SLM to a different monitor (see :py:attr:`~monitor_id`), the SLM is sized to match the current resolution
-        on that monitor.
-        Note that this value may differ from the value passed as input, because the input value is specified in
-        screen coordinates, whereas the reported width is in pixels."""
+        Returns:
+            Tuple[int, int]: The shape of the window in pixels.
+
+        Note:
+            The size cannot be modified after the SLM is created. When moving
+            the SLM to a different monitor (see `monitor_id`), the SLM is sized to match the current resolution
+            on that monitor. Note that this value may differ from the value passed as input, because the input value
+            is specified in screen coordinates, whereas the reported width is in pixels.
+        """
         return self._shape
 
     @property
-    def pos(self):
+    def pos(self) -> tuple[int, int]:
+        """
+        Returns the position of the top-left corner of the SLM window.
+
+        Returns:
+            Tuple[int, int]: The position of the top-left corner of the SLM window as (y, x) coordinates.
+
+        Note:
+            The position can be modified by assigning a new tuple of (y, x) coordinates to the `pos` property.
+            When moving the SLM window to a different position, the SLM is activated and the window position is updated.
+        """
         return self._pos
 
     @pos.setter
-    def pos(self, value):
+    def pos(self, value: tuple[int, int]):
         if self.monitor_id == SLM.WINDOWED and self._pos != value:
             self.activate()
             glfw.set_window_pos(self._window, value[1], value[0])
-        self._pos = value
+            self._pos = value
 
     @property
     def refresh_rate(self) -> Quantity[u.Hz]:
-        """Refresh rate in Hz. The refresh rate can not be modified after the SLM is created. When moving
-        the SLM to a different monitor (see :py:attr:`~monitor_id`), the refresh rate is changed to the current video
-        mode on that monitor.
-        Note that OpenGL specifies this value as an integer, whereas some SLMs support
-        non-integer refresh rates.
-        It is always best to not specify the refresh_rate, and set the video mode in the OS before creating the SLM
-        object."""
+        """
+        Returns the refresh rate of the SLM in Hz.
+
+        Returns:
+            Quantity[u.Hz]: The refresh rate of the SLM.
+
+        Note:
+            The refresh rate cannot be modified after the SLM is created. When moving
+            the SLM to a different monitor (see `monitor_id`), the refresh rate is changed to the current video
+            mode on that monitor. Note that OpenGL specifies this value as an integer, whereas some SLMs support
+            non-integer refresh rates. It is always best to not specify the refresh rate and set the video mode
+            in the operating system before creating the SLM object.
+        """
         return self._refresh_rate
 
     def _set_default_video_mode(self):
@@ -322,19 +342,31 @@ class SLM(PhaseSLM):
 
     @property
     def latency(self) -> Quantity[u.ms]:
+        """The latency (a.k.a. 'idle time')
+        represents the time delay between the vertical retrace
+        and the start of the SLM response to then new frame.
+
+        The latency can be specified in milliseconds (u.ms) or multiples of the frame period (unitless).
+        """
         return self._latency
 
     @latency.setter
     def latency(self, value):
-        self._latency = value if isinstance(value, Quantity) else value / self.refresh_rate
+        self._latency = (value if isinstance(value, Quantity) else value / self.refresh_rate).to(u.ms)
 
     @property
-    def settle_time(self) -> Quantity[u.ms]:
+    def duration(self) -> Quantity[u.ms]:
+        """The duration (a.k.a. 'settle time')
+        represents the time between the the start of the SLM response
+         and sufficient stabilization of the phase pattern.
+
+        The duration can be specified in milliseconds (u.ms) or multiples of the frame period (unitless).
+        """
         return self._duration
 
-    @settle_time.setter
-    def settle_time(self, value):
-        self._duration = value if isinstance(value, Quantity) else value / self.refresh_rate
+    @duration.setter
+    def duration(self, value):
+        self._duration = (value if isinstance(value, Quantity) else value / self.refresh_rate).to(u.ms)
 
     @property
     def transform(self):
@@ -371,7 +403,7 @@ class SLM(PhaseSLM):
 
     @property
     def lookup_table(self):
-        """Lookup table that is used to map the wrapped phase range 0-2pi to gray values
+        """Lookup table that is used to map the wrapped phase range of 0-2pi to gray values
         (represented as floats from 0.0 to 1.0). By default, this is just range(256)/255"""
         return self._frame_patch.lookup_table
 
