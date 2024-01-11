@@ -49,7 +49,7 @@ sim = Microscope(source=src, slm=slm.pixels(), magnification=1, numerical_apertu
                  wavelength=800 * u.nm)
 
 cam = sim.get_camera(analog_max=10)
-roi_detector = SingleRoi(cam, x=256, y=256, radius=0)  # Only measure that specific point
+roi_detector = SingleRoi(cam, radius=0)  # Only measure that specific point
 alg = FourierDualReference(feedback=roi_detector, slm=slm, slm_shape=(1000, 1000), k_angles_min=-3, k_angles_max=3, phase_steps=3)
 controller = WFSController(alg)
 
