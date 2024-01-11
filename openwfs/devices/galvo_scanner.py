@@ -166,6 +166,7 @@ class ScanningMicroscope(Detector):
 
         sample_count = self._padded_data_shape[0] * self._padded_data_shape[1]
         self._duration = (sample_count / self._sample_rate).to(u.ms)
+        self._read_task.in_stream.timeout = self.timeout
 
         if self._simulation is not None:
             return
