@@ -228,7 +228,8 @@ class WFSController:
         self._optimized_wavefront = None
         self._recompute_wavefront = False
         self._feedback_enhancement = None
-        self._test_wavefront = False  # Trigger to test the optimized wavefront
+        self._test_wavefront = False        # Trigger to test the optimized wavefront
+        self._run_troubleshooter = False    # Trigger troubleshooter
 
     @property
     def wavefront(self) -> State:
@@ -354,3 +355,87 @@ class WFSController:
             self._feedback_enhancement = float(feedback_shaped.sum() / feedback_flat.sum())
 
         self._test_wavefront = value
+    
+    @property
+    def run_troubleshooter(self) -> bool:
+        """Returns: bool that indiciates whether toubleshoot will be performed if set."""
+        return self._run_troubleshooter
+    
+    @run_troubleshooter.setter
+    def run_troubleshooter(self, value):
+        """Runs the troubleshoot function."""
+        if value:
+            self.troubleshoot()
+        self._run_troubleshooter = value
+
+    def troubleshoot(self):
+        """
+        Run a series of basic checks to find common sources of error in a WFS experiment.
+        """
+
+        raise NotImplementedError
+
+        ### An outline of the to be written troubleshooting code.
+        ### Each block indicates a step; i.e. a particular action or calculation, and may depend on
+        ### previous steps (e.g. darkframe measurement). This indication helps with selecting the
+        ### required order of steps.
+        ### All steps where images are taken, must take images of the same part of the sample and
+        ### some features in the image must be visible.
+
+        ### === Dark frame ===
+        ### Manual step: for single photon/transmission: block laser
+        ### Preconfig: for multi-photon: random pattern SLM
+        ### Measurement: snap image
+        ### Result: save image in class, so it's accessible after WFS
+
+        ### === Frame before ===
+        ### Preconfig: Flat wavefront
+        ### Measurement: snap image
+        ### Result: save image in class, so it's accessible after WFS
+
+        ### === Frame with shaped wavefront after ===
+        ### Requirement: Regular WFS experiment computed wavefront
+        ### Preconfig: Shaped wavefront
+        ### Measurement: snap image
+        ### Result: save image in class
+
+        ### === Frame with flat wavefront after ===
+        ### Requirement: Regular WFS experiment done first
+        ### Preconfig: Flat wavefront
+        ### Measurement: snap image
+        ### Result: save image in class
+
+        ### === Test setup stability ===
+        ### Preconfig: Flat wavefront
+        ### Measurement: Snap multiple images over a long period of time
+        ### Calculation: Cross-correlation between images
+        ### Result: xdrift, ydrift, intensity drift, warning if >threshold
+        ### Note 1: measurement should take a long time, could result in significant photobleaching
+        ### Note 2: larger image size for more precise x,y cross correlation
+
+        ### === Measure unmodulated light ===
+        ### Measurement: 2-mode phase stepping checkerboard.
+        ### Calculation:
+        ###    |A⋅exp(iθ) + B⋅exp(iφ) + C|² + b.g.noise
+        ### Result: fraction of modulated and fraction of unmodulated light, warning if >threshold
+
+        ### === SLM illumination ===
+        ### Measurement: WFS experiment on entire SLM
+        ### Calculation: amplitude from WFS (from e.g. Hadamard to SLM x,y basis)
+        ### Result: SLM illumination map
+
+        ### === Corrected contrast ===
+        ### Requirement: Input darkframe and frame
+        ### Calculation: sqrt( var(signal) - var(darkframe) )
+        ### Result: signal contrast, corrected for darkframe noise
+
+        ### === Check calibration LUT ===
+        ### Requirement: Phase stepping measurement light modulation done
+        ### Calculation: Check higher phasestep frequencies. Is response cosine?
+        ### Result: Nonlinearity value. Warning if very not cosine
+
+        ### === Check SLM timing ===
+        ### Measurement: Quick measurement, change SLM pattern, quick measurement, wait,
+        ### later measurement
+        ### Calculation: do quick measurement and later measurement correspond
+        ### Result: Warning if timing seems incorrect
