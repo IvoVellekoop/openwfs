@@ -2,7 +2,6 @@ from ..core import Detector
 from harvesters.core import Harvester
 import numpy as np
 import astropy.units as u
-from contextlib import contextmanager
 
 """Adapter for GenICam/GenTL cameras"""
 
@@ -49,19 +48,10 @@ Naming Convention <https://www.emva.org/wp-content/uploads/GenICam_SFNC_2_3.pdf>
                     When omitted, the first camera found is selected.
                 **kwargs: Additional keyword arguments.
                     These arguments are transferred to the node map of the camera.
-
-            Todo:
-                automatically expose a selection of properties in the node map as
-                properties of the Camera object.
-
-            Note:
-                The `serial_number` argument is required to specify the serial number of the camera.
         """
         self._harvester = Harvester()
         self._harvester.add_file(cti_file, check_validity=True)
         self._harvester.update()
-
-        print(self._harvester.device_info_list)  # for debugging, should go in a separate function
 
         # open the camera, use the serial_number to select the camera if it is specified.
         search_key = {'serial_number': serial_number} if serial_number is not None else None
@@ -82,6 +72,21 @@ Naming Convention <https://www.emva.org/wp-content/uploads/GenICam_SFNC_2_3.pdf>
         nodes.OffsetY.value = 0
         nodes.Width.value = nodes.Width.max
         nodes.Height.value = nodes.Height.max
+
+        #  Todo:
+        #         automatically expose a selection of properties in the node map as
+        #         properties of the Camera object.
+        #
+        # assign a dynamic class, so that we can add properties to the Camera object
+        # class DynamicClass(self.__class__):
+        #     pass
+        # self.__class__ = DynamicClass
+        #
+        # for key, value in kwargs.items():
+        #     getter = lambda self: self.__dict__.get(key)
+        #     setter = lambda self, val: self.__dict__.__setitem__(key, val)
+        #     setattr(self.__class__, key, property(getter, setter))
+        #     setattr(self, key, value)
 
         # set additional properties specified in the kwargs
         for key, value in kwargs.items():
@@ -132,6 +137,15 @@ Naming Convention <https://www.emva.org/wp-content/uploads/GenICam_SFNC_2_3.pdf>
 
     def _update_roi(self):
         self._data_shape = (self.nodes.Height.value, self.nodes.Width.value)
+
+    @property
+    def duration(self) -> u.Quantity:
+        return self.nodes.ExposureTime.value * u.us
+
+    @duration.setter
+    def duration(self, value):
+        with self.paused():
+            self.nodes.ExposureTime.value = int(value.to(u.us).value)
 
     @property
     def binning(self) -> int:
@@ -217,6 +231,13 @@ Naming Convention <https://www.emva.org/wp-content/uploads/GenICam_SFNC_2_3.pdf>
     def height(self, value: int):
         self._set_round_up(self.nodes.Height, value)
         self._update_roi()
+
+    @staticmethod
+    def enumerate_cameras(cti_file: str):
+        with Harvester() as harvester:
+            harvester.add_file(cti_file, check_validity=True)
+            harvester.update()
+            return harvester.device_info_list.copy()
 
 
 class _CameraPause:
