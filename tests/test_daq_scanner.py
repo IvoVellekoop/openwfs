@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from ..openwfs.devices import ScanningMicroscope
 import astropy.units as u
@@ -16,7 +17,7 @@ def test_scan_pattern_delay():
         print(pattern)
     except (nidaqmx.DaqError, FileNotFoundError):
         print('No nidaq card found or NI-DAQ MAX not installed')
-        pass
+        pytest.skip()
 
 
 def test_daq_connection():
@@ -60,4 +61,5 @@ def test_daq_connection():
         plt.colorbar()
         plt.show()
     except (nidaqmx.DaqError, FileNotFoundError):
-        pass
+        print('No nidaq card found or NI-DAQ MAX not installed')
+        pytest.skip()
