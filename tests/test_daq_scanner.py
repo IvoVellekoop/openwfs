@@ -1,7 +1,6 @@
 import numpy as np
 
 from ..openwfs.devices import ScanningMicroscope
-import time
 import astropy.units as u
 import matplotlib.pyplot as plt
 import nidaqmx

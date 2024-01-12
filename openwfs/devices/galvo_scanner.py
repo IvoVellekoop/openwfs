@@ -166,7 +166,6 @@ class ScanningMicroscope(Detector):
 
         sample_count = self._padded_data_shape[0] * self._padded_data_shape[1]
         self._duration = (sample_count / self._sample_rate).to(u.ms)
-        self._read_task.in_stream.timeout = self.timeout
 
         if self._simulation is not None:
             return
@@ -180,6 +179,7 @@ class ScanningMicroscope(Detector):
 
         self._write_task = ni.Task()
         self._read_task = ni.Task()
+        self._read_task.in_stream.timeout = self.timeout
 
         # Configure the sample clock task
         sample_rate = self._sample_rate.to_value(u.Hz)
