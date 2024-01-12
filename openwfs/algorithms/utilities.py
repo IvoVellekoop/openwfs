@@ -230,6 +230,8 @@ class WFSController:
         self._feedback_enhancement = None
         self._test_wavefront = False        # Trigger to test the optimized wavefront
         self._run_troubleshooter = False    # Trigger troubleshooter
+        self.darkframe = None
+        self.preframe = None
 
     @property
     def wavefront(self) -> State:
@@ -349,18 +351,57 @@ class WFSController:
         """
         if value:
             self.wavefront = WFSController.State.FLAT_WAVEFRONT
-            feedback_flat = self.algorithm._feedback.read()
+            feedback_flat = self.algorithm._feedback.read().copy()
             self.wavefront = WFSController.State.SHAPED_WAVEFRONT
-            feedback_shaped = self.algorithm._feedback.read()
+            feedback_shaped = self.algorithm._feedback.read().copy()
             self._feedback_enhancement = float(feedback_shaped.sum() / feedback_flat.sum())
 
         self._test_wavefront = value
     
+    def read_frame(self) -> np.ndarray:
+        """
+        Read a single frame from the feedback function.
+        TODO: Maybe distinguish WFS feedback and full frame measurement.
+        """
+        return self.algorithm._feedback.read().copy()
+
+    def set_slm_random(self):
+        """
+        Set a patch of random phases to the SLM primary phase patch. Useful for extinguishing the
+        laser light in multi-PEF setups.
+        """
+        slm = self.algorithm._slm
+        slm.primary_phase_patch.phases = 2*np.pi * np.random.rand(300, 300)
+        slm.update()
+
+    def reset_slm_primary_patch(self):
+        """
+        Reset the SLM primary phase patch.
+        """
+        slm = self.algorithm._slm
+        slm.primary_phase_patch.phases = 0
+        slm.update()
+
+    def snap_darkframe(self):
+        """
+        Snap a dark frame.
+        """
+        ### Note: for now, assume multi-PEF
+        self.set_slm_random()
+        self.darkframe = self.read_frame()
+        self.reset_slm_primary_patch()
+
+    def snap_preframe(self):
+        """
+        Snap a frame before the WFS experiment.
+        """
+        self.preframe = self.read_frame()
+
     @property
     def run_troubleshooter(self) -> bool:
         """Returns: bool that indiciates whether toubleshoot will be performed if set."""
         return self._run_troubleshooter
-    
+
     @run_troubleshooter.setter
     def run_troubleshooter(self, value):
         """Runs the troubleshoot function."""
