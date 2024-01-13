@@ -66,14 +66,12 @@ class Microscope(Processor):
                  magnification: float = 1.0, xy_stage=None, z_stage=None,
                  slm: Optional[Detector] = None, slm_transform: Optional[Transform] = None,
                  aberrations: Optional[Detector] = None, aberration_transform: Optional[Transform] = None,
-                 truncation_factor: Optional[float] = None, pixel_size: Quantity = None):
+                 truncation_factor: Optional[float] = None):
         """
         Args:
             source (Detector): Detector that produces 2-d images of the original 'specimen'
             data_shape: shape (size in pixels) of the output.
                 Default value: source.data_shape
-            pixel_size (Quantity): scalar or two element (anisotropic) pixel size (in astropy units).
-                Default value: source.pixel_size * magnification
             numerical_aperture: Numerical aperture of the microscope objective
             wavelength: Wavelength of the light used for imaging,
                 the wavelength and numerical_aperture together determine the resolution of the microscope.
@@ -110,13 +108,12 @@ class Microscope(Processor):
                 the microscope pupil is illuminated by a Gaussian beam (instead of a flat intensity).
                 The value corresponds to the beam waist relative to the full pupil (the full NA).
         """
-        if pixel_size is None:
-            pixel_size = source.pixel_size * magnification
         if not isinstance(source, Detector):
             raise ValueError("`source` should be a Detector object.")
 
-        super().__init__(source, aberrations, slm, pixel_size=pixel_size, data_shape=data_shape)
+        super().__init__(source, aberrations, slm)
         self._magnification = magnification
+        self._data_shape = data_shape if data_shape is not None else source.data_shape
         self.numerical_aperture = numerical_aperture
         self.aberration_transform = aberration_transform
         self.slm_transform = slm_transform
@@ -250,6 +247,17 @@ class Microscope(Processor):
     def abbe_limit(self) -> Quantity:
         """Returns the Abbe diffraction limit: λ/(2 NA)"""
         return 0.5 * self.wavelength / self.numerical_aperture
+
+    @property
+    def pixel_size(self) -> Quantity:
+        """Returns the pixel size in the image plane
+        This value is always equal to `source.pixel_size * magnification`"""
+        return self._sources[0].pixel_size * self.magnification
+
+    @property
+    def data_shape(self):
+        """Returns the shape of the image in the image plane"""
+        return self._data_shape
 
     def get_camera(self, *, transform: Transform | None = None, **kwargs) -> Detector:
         """

@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 # This script shows how a wavefront shaping experiment can be performed from Python
 Device.multi_threading = False
 cam = Camera(R"C:\Program Files\Basler\pylon 7\Runtime\x64\ProducerU3V.cti")
-cam.nodes.ExposureTime.value = 16666
+cam._nodes.ExposureTime.value = 16666
 roi_detector = SingleRoi(cam, radius=2)
 
 slm = SLM(monitor_id=2, duration=2)

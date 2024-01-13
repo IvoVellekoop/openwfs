@@ -57,7 +57,6 @@ class SLM(PhaseSLM):
                 Specified in milliseconds (u.ms) or multiples of the frame period (unitless).
                 see :py:attr:`~duration`
         """
-        super().__init__()
 
         # construct window for displaying the SLM pattern
         self.patches = []
@@ -67,11 +66,11 @@ class SLM(PhaseSLM):
         self._refresh_rate = refresh_rate
         self._window = None
         self._globals = None  # will be filled by __create_window
+        self._latency = latency
+        self._duration = duration
         self._create_window()
         SLM._active_slms.add(self)
 
-        self.latency = latency
-        self.duration = duration
         self.transform = transform or fill_transform(self, 'short')
 
         # Construct the frame buffer, this is the texture where all patches draw to. After all patches
@@ -84,6 +83,7 @@ class SLM(PhaseSLM):
         # In advanced scenarios, the geometry of this patch may be modified, or it may be replaced altogether.
         self.patches = [Patch(self)]  # note: this also removes the frame patch from list of patches
         self.primary_phase_patch = self.patches[0]
+        super().__init__()
         self.update()
 
     @property
@@ -332,7 +332,7 @@ class SLM(PhaseSLM):
         # update the start time, since some time has passed waiting for the vsync
         # also adjust the start time for the wait factor, so that wait_finished can still wait
         # until _start_time_ns + ._duration
-        self._start_time_ns = time.time_ns() + np.rint((self._duration * (1.0 - wait_factor)).to_value(u.ns))
+        self._start_time_ns = time.time_ns() + np.rint((self.duration * (1.0 - wait_factor)).to_value(u.ns))
 
     @property
     def latency(self) -> Quantity[u.ms]:
@@ -342,11 +342,11 @@ class SLM(PhaseSLM):
 
         The latency can be specified in milliseconds (u.ms) or multiples of the frame period (unitless).
         """
-        return self._latency
+        return (self._latency if isinstance(self._latency, Quantity) else self._latency / self.refresh_rate).to(u.ms)
 
     @latency.setter
-    def latency(self, value):
-        self._latency = (value if isinstance(value, Quantity) else value / self.refresh_rate).to(u.ms)
+    def latency(self, value: Quantity[u.ms] | int):
+        self._latency = value
 
     @property
     def duration(self) -> Quantity[u.ms]:
@@ -356,11 +356,11 @@ class SLM(PhaseSLM):
 
         The duration can be specified in milliseconds (u.ms) or multiples of the frame period (unitless).
         """
-        return self._duration
+        return (self._duration if isinstance(self._duration, Quantity) else self._duration / self.refresh_rate).to(u.ms)
 
     @duration.setter
-    def duration(self, value):
-        self._duration = (value if isinstance(value, Quantity) else value / self.refresh_rate).to(u.ms)
+    def duration(self, value: Quantity[u.ms] | int):
+        self._duration = value
 
     @property
     def transform(self):

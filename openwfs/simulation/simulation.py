@@ -18,7 +18,7 @@ class SimulatedWFS(Processor):
     For a more advanced (but slower) simulation, use `Microscope`
     """
 
-    def __init__(self, aberrations, beam_profile_waist=None):
+    def __init__(self, aberrations: np.ndarray, beam_profile_waist=None):
         """
         Initializes the optical system with specified aberrations and optionally a Gaussian beam profile.
 
@@ -37,13 +37,11 @@ class SimulatedWFS(Processor):
         field at the SLM considering the aberrations and optionally the Gaussian beam profile, and initializes the
         system with these parameters.
         """
-        slm = MockSLM(aberrations.shape[0:2])
-        super().__init__(slm.pixels(), data_shape=aberrations.shape[2:], pixel_size=1 * u.dimensionless_unscaled)
-        self.E_input_slm = np.exp(1.0j * aberrations) / np.sqrt(np.prod(slm.pixels().data_shape))
+        self.slm = MockSLM(aberrations.shape[0:2])
+        self.E_input_slm = np.exp(1.0j * aberrations) / np.sqrt(np.prod(self.slm.pixels().data_shape))
         if beam_profile_waist is not None:
             self.E_input_slm *= gaussian(aberrations.shape, waist=beam_profile_waist)
-
-        self.slm = slm
+        super().__init__(self.slm.pixels())
 
     def _fetch(self, out: np.ndarray | None, slm_phases):
         """
@@ -70,3 +68,7 @@ class SimulatedWFS(Processor):
         if out is not None:
             out[...] = intensity
         return intensity
+
+    @property
+    def data_shape(self):
+        return self.E_input_slm.shape[2:]

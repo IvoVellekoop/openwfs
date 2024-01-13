@@ -5,6 +5,7 @@ from .core import Processor, Detector
 from .slm.patterns import disk, gaussian
 from .utilities import project
 from enum import Enum
+from astropy.units import Quantity
 
 
 class MaskType(Enum):
@@ -156,7 +157,7 @@ class MultipleRoi(Processor):
         """
         self._rois = np.array(rois)
         self._source = source
-        super().__init__(source, data_shape=self._rois.shape)
+        super().__init__(source)
 
     def _fetch(self, out: np.ndarray | None, image: np.ndarray) -> np.ndarray:  # noqa
         """
@@ -182,6 +183,15 @@ class MultipleRoi(Processor):
         out[...] = np.vectorize(apply_mask)(self._rois)
 
         return out
+
+    @property
+    def data_shape(self):
+        return self._rois.shape
+
+    @property
+    def pixel_size(self) -> Quantity | None:
+        """Returns None, since the elements in the output of the MultipleRoi processor do not have a physical size."""
+        return None
 
 
 class SingleRoi(MultipleRoi):
@@ -227,11 +237,8 @@ class CropProcessor(Processor):
             padding_value (float): Value to use if the cropped area extends beyond the original data.
         """
         super().__init__(source)
-        if shape is None:
-            shape = source.data_shape
-
-        self._data_shape = shape or source.data_shape
-        self._pos = pos if pos is not None else np.zeros((len(source.data_shape),), dtype=int)
+        self._data_shape = tuple(shape) if shape is not None else source.data_shape
+        self._pos = np.array(pos) if pos is not None else np.zeros((len(self.data_shape),), dtype=int)
         self._padding_value = padding_value
 
     @property
@@ -330,21 +337,39 @@ class TransformProcessor(Processor):
     Performs a 2-D transform of the input data (including shifting, padding, cropping, resampling).
     """
 
-    def __init__(self, source, transform, **kwargs):
+    def __init__(self, source, transform, data_shape: Sequence[int] | None = None,
+                 pixel_size: Quantity | None | bool = False):
         """
 
         Args:
             transform: Transform object that describes the transformation from the source
-            data_shape (in **kwargs): defaults to source.data_shape
-            pixel_size (in **kwargs): defaults to source.pixel_size
+            data_shape: defaults to source.data_shape
+            pixel_size: defaults to source.pixel_size.
+                Specify any pixel size (including `None`) to override the pixel size of the source.
         """
-        if len(source.data_shape) != 2:
-            raise ValueError("Source should produce 2-D data")
+        if (data_shape is not None and len(data_shape) != 2) or len(source.data_shape) != 2:
+            raise ValueError("TransformProcessor only supports 2-D data")
 
-        super().__init__(source, **kwargs)
+        self._pixel_size = pixel_size
+        self._data_shape = data_shape
+        super().__init__(source)
         self.transform = transform
 
-    def _fetch(self, out: np.ndarray | None, source) -> np.ndarray:  # noqa
+    @property
+    def data_shape(self):
+        if self._data_shape is not None:
+            return self._data_shape
+        else:
+            return super().data_shape
+
+    @property
+    def pixel_size(self) -> Quantity | None:
+        if self._pixel_size is not False:
+            return self._pixel_size
+        else:
+            return super().pixel_size
+
+    def _fetch(self, out: np.ndarray | None, source: np.ndarray) -> np.ndarray:  # noqa
         """
         Args:
             out(ndarray) optional numpy array or view of an array that will receive the data

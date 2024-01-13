@@ -11,30 +11,33 @@ from ..core import Detector, Processor, PhaseSLM, Actuator, get_pixel_size
 class Generator(Detector):
     """A detector that returns synthetic data, simulating latency and measurement duration.
 
-    Attributes:
-        duration (Quantity[u.ms]): Duration for which the generator simulates data acquisition.
-        latency (Quantity[u.ms]): Simulated delay before data acquisition begins.
-
     Methods:
         uniform_noise: Static method to create a generator with uniform noise.
         gaussian_noise: Static method to create a generator with Gaussian noise.
     """
 
-    def __init__(self, generator, *, duration=0 * u.ms, **kwargs):
+    def __init__(self, generator, data_shape: Sequence[int], pixel_size: Quantity, latency=0 * u.ms,
+                 duration=0 * u.ms):
         """
         Initializes the Generator class, a subclass of Detector, that generates synthetic data.
 
         Args:
             generator (callable): A function that takes the data shape as input and returns the generated data.
+            data_shape (tuple): The shape of the data to be generated, may have any number of dimensions.
+            pixel_size (Quantity, optional): The size of each pixel in the data.
             duration (Quantity[u.ms]): Duration for which the generator simulates the data acquisition.
-            **kwargs: Additional keyword arguments to be passed to the Detector base class.
+            latency (Quantity[u.ms]): Simulated delay before data acquisition begins.
         """
-        super().__init__(**kwargs)
+        super().__init__()
+        self._latency = latency
+        self._pixel_size = pixel_size
+        self._data_shape = data_shape
         self._duration = duration
         self._generator = generator
 
     @property
     def duration(self) -> Quantity[u.ms]:
+        """The duration for which the generator simulates the data acquisition."""
         return self._duration
 
     @duration.setter
@@ -43,23 +46,24 @@ class Generator(Detector):
 
     @property
     def latency(self) -> Quantity[u.ms]:
+        """The simulated delay before data acquisition begins."""
         return self._latency
 
     @latency.setter
     def latency(self, value: Quantity[u.ms]):
-        self._latency = value.to(u.ns)
+        self._latency = value.to(u.ms)
 
     @property
     def pixel_size(self) -> Quantity:
-        return super().pixel_size
+        return self._pixel_size
 
     @pixel_size.setter
     def pixel_size(self, value):
-        self._pixel_size = value.to(u.ns)
+        self._pixel_size = Quantity(value)
 
     @property
     def data_shape(self):
-        return super().data_shape
+        return self._data_shape
 
     @data_shape.setter
     def data_shape(self, value):
@@ -82,6 +86,8 @@ class Generator(Detector):
 
     @staticmethod
     def uniform_noise(*args, low=0.0, high=1.0, **kwargs):
+        """Static method to create a generator that produces uniform noise."""
+
         def generator(shape):
             return np.random.default_rng().uniform(low=low, high=high, size=shape)
 
@@ -89,6 +95,8 @@ class Generator(Detector):
 
     @staticmethod
     def gaussian_noise(*args, average=0.0, standard_deviation=1.0, **kwargs):
+        """Static method to create a generator that produces Gaussian noise."""
+
         def generator(shape):
             return np.random.default_rng().normal(loc=average, scale=standard_deviation, size=shape)
 
@@ -98,49 +106,62 @@ class Generator(Detector):
 class MockSource(Generator):
     """
     Detector that returns pre-set data. Also simulates latency and measurement duration.
-
-    Attributes:
-        data (np.ndarray): Pre-set data to be returned by the mock source.
-        pixel_size (Quantity | None): Size of each pixel in the data.
-        extent (Quantity | float | Sequence[float] | None): Physical extent of the data array.
     """
 
     def __init__(self, data: np.ndarray, pixel_size: Quantity | None = None, extent: Quantity | float | None = None,
                  **kwargs):
         """
-        Initializes the MockSource class, a subclass of Generator, that returns pre-set data.
+        Initializes the MockSource
 
         Args:
             data (np.ndarray): The pre-set data to be returned by the mock source.
             pixel_size (Quantity, optional): The size of each pixel in the data.
+                If not specified, the pixel size is calculated from the extent and the data shape.
+                If neither pixel size nor extent are specified, the pixel size from `data` is used, if available.
+                Otherwise, pixel_size is set to None.
             extent (Quantity | float, Sequence[float, None], optional): The physical extent of the data array.
-            **kwargs: Additional keyword arguments.
+                Only used when the pixel size is not specified explicitly.
+            **kwargs: Additional keyword arguments to pass to the Generator base class.
         """
 
         def generator(data_shape):
             assert data_shape == self._data.shape
             return self._data.copy()
 
-        if pixel_size is None and extent is not None:
-            pixel_size = Quantity(extent) / data.shape
+        if pixel_size is None:
+            if extent is not None:
+                pixel_size = Quantity(extent) / data.shape
+            else:
+                pixel_size = get_pixel_size(data)
 
-        super().__init__(generator=generator, data_shape=data.shape,
-                         pixel_size=pixel_size if pixel_size is not None else get_pixel_size(data),
-                         **kwargs)
+        if pixel_size is not None and (np.isscalar(pixel_size) or pixel_size.size == 1) and data.ndim > 1:
+            pixel_size = pixel_size.repeat(data.ndim)
+
+        super().__init__(generator=generator, data_shape=data.shape, pixel_size=pixel_size, **kwargs)
         self._data = data
 
     @property
     def data(self):
+        """
+        The pre-set data to be returned by the mock source.
+
+        Note:
+            When setting the `data` property, the `data_shape` attribute is updated accordingly.
+            If the `data` property is set with an array that has the `pixel_size` metadata set,
+            the `pixel_size` attribute is also updated accordingly.
+        """
         return self._data
 
     @data.setter
     def data(self, value):
         self._data = value
-        self._data_shape = value.shape
+        pixel_size = get_pixel_size(value)
+        if pixel_size is not None:
+            self.pixel_size = pixel_size
 
     @property
     def data_shape(self):
-        return super().data_shape
+        return self._data.shape
 
 
 class ADCProcessor(Processor):
@@ -261,6 +282,9 @@ class MockCamera(ADCProcessor):
             shape (Sequence[int] | None, optional): The shape of the image data to be captured.
             pos (Sequence[int] | None, optional): The position on the source from where the image is captured.
             **kwargs: Additional keyword arguments to be passed to the Detector base class.
+
+            TODO: move left-right-top-bottom to CropProcessor.
+            Expose the properties of CropProcessor as properties of MockCamera automatically by copying from __dict__?
         """
         self._crop = CropProcessor(source, shape=shape, pos=pos)
         super().__init__(source=self._crop, **kwargs)
@@ -291,36 +315,27 @@ class MockCamera(ADCProcessor):
 
     @property
     def height(self) -> int:
-        return self.data_shape[0]
+        return self._crop.data_shape[0]
 
     @height.setter
     def height(self, value: int):
-        self.data_shape = (value, self.data_shape[1])
+        self._crop.data_shape = (value, self._crop.data_shape[1])
 
     @property
     def width(self) -> int:
-        return self.data_shape[1]
+        return self._crop.data_shape[1]
 
     @width.setter
     def width(self, value: int):
-        self.data_shape = (self.data_shape[0], value)
+        self._crop.data_shape = (self._crop.data_shape[0], value)
 
     @property
     def data_shape(self):
-        return self._data_shape
+        return self._crop.data_shape
 
     @data_shape.setter
     def data_shape(self, value):
         self._crop.data_shape = value
-        self._data_shape = value
-
-    @property
-    def duration(self) -> Quantity[u.ms]:
-        return self._duration
-
-    @duration.setter
-    def duration(self, value):
-        self._duration = value.to(u.ms)
 
 
 class MockXYStage(Actuator):
@@ -360,6 +375,14 @@ class MockXYStage(Actuator):
     def home(self):
         self._x = 0.0 * u.um
         self._y = 0.0 * u.um
+
+    @property
+    def latency(self) -> Quantity[u.ms]:
+        return 0.0 * u.ms
+
+    @property
+    def duration(self) -> Quantity[u.ms] | None:
+        return 0.0 * u.ms
 
 
 class MockSLM(PhaseSLM):
@@ -410,3 +433,11 @@ class MockSLM(PhaseSLM):
 
         The camera coordinates are spanning the [-1,1] range by default."""
         return self._monitor
+
+    @property
+    def latency(self) -> Quantity[u.ms]:
+        return 0.0 * u.ms
+
+    @property
+    def duration(self) -> Quantity[u.ms] | None:
+        return 0.0 * u.ms

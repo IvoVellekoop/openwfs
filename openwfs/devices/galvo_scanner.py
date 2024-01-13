@@ -119,6 +119,7 @@ class ScanningMicroscope(Detector):
         self._resized = True  # indicate that the output signals need to be recomputed
         self._binning = 1
         self._original_data_shape = data_shape
+        self._data_shape = data_shape
 
         # Scan settings
         self._delay = float(delay)
@@ -134,7 +135,7 @@ class ScanningMicroscope(Detector):
         self._simulation = simulation
 
         self._original_pixel_size = ((self._out_v_max - self._out_v_min) * self._scale / data_shape).to(u.um)
-        super().__init__(data_shape=data_shape, pixel_size=self._original_pixel_size, duration=0.0 * u.ms)
+        super().__init__()
         self._update()
 
     def _update(self):
@@ -164,9 +165,6 @@ class ScanningMicroscope(Detector):
         self._scan_pattern[1, 1::2, :] = voltages1b.to_value(u.V).reshape((1, -1))
         self._scan_pattern = self._scan_pattern.reshape(2, -1)
 
-        sample_count = self._padded_data_shape[0] * self._padded_data_shape[1]
-        self._duration = (sample_count / self._sample_rate).to(u.ms)
-
         if self._simulation is not None:
             return
         # Sets up Nidaq task and i/o channels
@@ -183,6 +181,7 @@ class ScanningMicroscope(Detector):
 
         # Configure the sample clock task
         sample_rate = self._sample_rate.to_value(u.Hz)
+        sample_count = self._padded_data_shape[0] * self._padded_data_shape[1]
 
         # Configure the analog output task (two channels)
         self._write_task.ao_channels.add_ao_voltage_chan(self._axis0_channel,
@@ -274,23 +273,37 @@ class ScanningMicroscope(Detector):
         return out
 
     @property
+    def data_shape(self):
+        return self._data_shape
+
+    @property
+    def pixel_size(self) -> Quantity | None:
+        """The size of a pixel in the object plane."""
+        return self._original_pixel_size * self._binning / self._zoom
+
+    @property
+    def duration(self) -> Quantity[u.ms] | None:
+        """Total duration of scanning for one frame."""
+        return self._padded_data_shape[0] * self._padded_data_shape[1] * self.dwell_time
+
+    @property
     def left(self) -> int:
         """The leftmost pixel of the Region of Interest (ROI) in the scan range."""
-        return int(np.round(self._roi_start[1] * self._scale[1] / self._pixel_size[1]))
+        return int(np.round(self._roi_start[1] * self._scale[1] / self.pixel_size[1]))
 
     @left.setter
     def left(self, value: int):
-        self._roi_start[1] = value * self._pixel_size[1] / self._scale[1]
+        self._roi_start[1] = value * self.pixel_size[1] / self._scale[1]
         self._valid = False
 
     @property
     def top(self) -> int:
         """The topmost pixel of the ROI in the scan range."""
-        return int(np.round(self._roi_start[0] * self._scale[0] / self._pixel_size[0]))
+        return int(np.round(self._roi_start[0] * self._scale[0] / self.pixel_size[0]))
 
     @top.setter
     def top(self, value: int):
-        self._roi_start[0] = value * self._pixel_size[0] / self._scale[0]
+        self._roi_start[0] = value * self.pixel_size[0] / self._scale[0]
         self._valid = False
 
     @property
@@ -301,7 +314,7 @@ class ScanningMicroscope(Detector):
     @height.setter
     def height(self, value):
         self._data_shape = (int(value), int(self.data_shape[1]))
-        self._roi_end = self._roi_start + self._pixel_size * self._data_shape / self._scale
+        self._roi_end = self._roi_start + self.pixel_size * self._data_shape / self._scale
         self._valid = False
 
     @property
@@ -312,7 +325,7 @@ class ScanningMicroscope(Detector):
     @width.setter
     def width(self, value):
         self._data_shape = (self.data_shape[0], int(value))
-        self._roi_end = self._roi_start + self._pixel_size * self._data_shape / self._scale
+        self._roi_end = self._roi_start + self.pixel_size * self._data_shape / self._scale
         self._valid = False
 
     @property
@@ -376,7 +389,6 @@ class ScanningMicroscope(Detector):
         self._roi_start = roi_center - 0.5 * roi_width_new
         self._roi_end = roi_center + 0.5 * roi_width_new
         self._zoom = float(value)
-        self._pixel_size = self._original_pixel_size * self._binning / self._zoom
         self._valid = False
 
     @property
@@ -399,8 +411,7 @@ class ScanningMicroscope(Detector):
         ratio = self._binning / value
         self._binning = value
         self._data_shape = tuple(int(s) for s in np.round(np.array(self._data_shape) * ratio))
-        self._pixel_size = self._original_pixel_size * self._binning / self._zoom
-        self._roi_end = self._roi_start + self._pixel_size * self._data_shape / self._scale
+        self._roi_end = self._roi_start + self.pixel_size * self._data_shape / self._scale
         self._valid = False
 
     @staticmethod

@@ -1,3 +1,5 @@
+from astropy.units import Quantity
+
 from ..core import Detector
 from harvesters.core import Harvester
 import numpy as np
@@ -11,7 +13,7 @@ class Camera(Detector):
         Adapter for GenICam/GenTL cameras.
 
         Attributes:
-            nodes: The GenICam node map of the camera.
+            _nodes: The GenICam node map of the camera.
                 This map can be used to access camera properties,
                 see the `GenICam/GenAPI documentation <https://www.emva.org/standards-technology/genicam/>`_
                 and the `Standard Features
@@ -72,6 +74,7 @@ Naming Convention <https://www.emva.org/wp-content/uploads/GenICam_SFNC_2_3.pdf>
         nodes.OffsetY.value = 0
         nodes.Width.value = nodes.Width.max
         nodes.Height.value = nodes.Height.max
+        self._nodes = nodes
 
         #  Todo:
         #         automatically expose a selection of properties in the node map as
@@ -95,14 +98,12 @@ Naming Convention <https://www.emva.org/wp-content/uploads/GenICam_SFNC_2_3.pdf>
             except AttributeError:
                 print(f'Warning: could not set camera property {key} to {value}')
 
-        data_shape = (nodes.Height.value, nodes.Width.value)
         try:
-            pixel_size = [nodes.SensorPixelWidth.value, nodes.SensorPixelWidth.value] * u.um
+            self._pixel_size = [nodes.SensorPixelHeight.value, nodes.SensorPixelWidth.value] * u.um
         except AttributeError:  # the SensorPixelWidth feature is optional
-            pixel_size = [1.0, 1.0] * u.um
+            self._pixel_size = None
 
-        super().__init__(data_shape=data_shape, pixel_size=pixel_size, duration=nodes.ExposureTime.value * u.us)
-        self.nodes = nodes  # can only set public property after initializing
+        super().__init__()
         self._camera.start()
 
     def __del__(self):
@@ -113,7 +114,7 @@ Naming Convention <https://www.emva.org/wp-content/uploads/GenICam_SFNC_2_3.pdf>
             self._harvester.reset()
 
     def _do_trigger(self):
-        self.nodes.TriggerSoftware.execute()
+        self._nodes.TriggerSoftware.execute()
 
     def paused(self):
         """Returns a context manager for pausing the camera.
@@ -135,17 +136,15 @@ Naming Convention <https://www.emva.org/wp-content/uploads/GenICam_SFNC_2_3.pdf>
         buffer.queue()
         return out
 
-    def _update_roi(self):
-        self._data_shape = (self.nodes.Height.value, self.nodes.Width.value)
-
     @property
     def duration(self) -> u.Quantity:
-        return self.nodes.ExposureTime.value * u.us
+        """Exposure time in microseconds."""
+        return self._nodes.ExposureTime.value * u.us
 
     @duration.setter
     def duration(self, value):
         with self.paused():
-            self.nodes.ExposureTime.value = int(value.to(u.us).value)
+            self._nodes.ExposureTime.value = int(value.to(u.us).value)
 
     @property
     def binning(self) -> int:
@@ -154,16 +153,15 @@ Naming Convention <https://www.emva.org/wp-content/uploads/GenICam_SFNC_2_3.pdf>
         Note:
             setting horizontal and vertical binning separately is not supported.
         """
-        return self.nodes.BinningHorizontal.value
+        return self._nodes.BinningHorizontal.value
 
     @binning.setter
     def binning(self, value):
         with self.paused():
-            if value != self.nodes.BinningHorizontal.value:
-                self.nodes.BinningHorizontal.value = int(value)
-            if value != self.nodes.BinningVertical.value:
-                self.nodes.BinningVertical.value = int(value)
-        self._update_roi()
+            if value != self._nodes.BinningHorizontal.value:
+                self._nodes.BinningHorizontal.value = int(value)
+            if value != self._nodes.BinningVertical.value:
+                self._nodes.BinningVertical.value = int(value)
 
     @property
     def top(self) -> int:
@@ -173,12 +171,11 @@ Naming Convention <https://www.emva.org/wp-content/uploads/GenICam_SFNC_2_3.pdf>
         Returns:
         int: The top position of the camera frame.
         """
-        return self.nodes.OffsetY.value
+        return self._nodes.OffsetY.value
 
     @top.setter
     def top(self, value: int):
-        self._set_round_up(self.nodes.OffsetX, value)
-        self._update_roi()
+        self._set_round_up(self._nodes.OffsetX, value)
 
     @property
     def left(self) -> int:
@@ -188,12 +185,11 @@ Naming Convention <https://www.emva.org/wp-content/uploads/GenICam_SFNC_2_3.pdf>
         Returns:
         int: The left position of the camera frame.
         """
-        return self.nodes.OffsetX.value
+        return self._nodes.OffsetX.value
 
     @left.setter
     def left(self, value: int):
-        self._set_round_up(self.nodes.OffsetX, value)
-        self._update_roi()
+        self._set_round_up(self._nodes.OffsetX, value)
 
     def _set_round_up(self, node, value):
         """Sets the value of a property, rounding up to the next multiple of the increment."""
@@ -210,12 +206,11 @@ Naming Convention <https://www.emva.org/wp-content/uploads/GenICam_SFNC_2_3.pdf>
         Returns:
         int: The width of the camera frame.
         """
-        return self.nodes.Width.value
+        return self._nodes.Width.value
 
     @width.setter
     def width(self, value: int):
-        self._set_round_up(self.nodes.Width, value)
-        self._update_roi()
+        self._set_round_up(self._nodes.Width, value)
 
     @property
     def height(self) -> int:
@@ -225,12 +220,25 @@ Naming Convention <https://www.emva.org/wp-content/uploads/GenICam_SFNC_2_3.pdf>
         Returns:
         int: The height of the camera frame.
         """
-        return self.nodes.Height.value
+        return self._nodes.Height.value
 
     @height.setter
     def height(self, value: int):
-        self._set_round_up(self.nodes.Height, value)
-        self._update_roi()
+        self._set_round_up(self._nodes.Height, value)
+
+    @property
+    def pixel_size(self) -> Quantity[u.um] | None:
+        """
+        Physical pixel size of the camera sensor.
+
+        Returns:
+        Quantity: The pixel size of the camera.
+        """
+        return self._pixel_size
+
+    @property
+    def data_shape(self):
+        return self.height, self.width
 
     @staticmethod
     def enumerate_cameras(cti_file: str):

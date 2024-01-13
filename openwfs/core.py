@@ -4,8 +4,7 @@ import threading
 import time
 from abc import ABC, abstractmethod
 from concurrent.futures import Future, ThreadPoolExecutor
-from typing import Sequence
-from typing import Set, final
+from typing import Set, final, Sequence
 from weakref import WeakSet
 
 import astropy.units as u
@@ -34,31 +33,24 @@ def set_pixel_size(data: np.ndarray, pixel_size: Quantity) -> np.ndarray:
     return data
 
 
-def get_pixel_size(data: np.ndarray | Quantity, may_fail: bool = False) -> Quantity:
+def get_pixel_size(data: np.ndarray | Quantity) -> Quantity | None:
     """
     Extracts the pixel size metadata from the data array.
 
     Args:
         data (np.ndarray | Quantity): The input data array or Quantity.
-        may_fail (bool): Flag indicating whether to silently set missing pixel size to 1.0 dimensionless if True.
 
     Returns:
-        Quantity: The pixel size metadata.
-
-    Raises:
-        KeyError: If the data does not have pixel size metadata and may_fail is False.
+        Quantity: The pixel size metadata, or None if no pixel size metadata is present.
 
     Usage:
     >>> data = np.array([[1, 2], [3, 4]], dtype=np.float32, metadata={'pixel_size': 0.1 * u.m})
     >>> pixel_size = get_pixel_size(data)
     """
-    try:
-        return data.dtype.metadata['pixel_size']
-    except (KeyError, TypeError):
-        if may_fail:
-            return 1.0 * u.dimensionless_unscaled
-        else:
-            raise KeyError("data does not have pixel size metadata.")
+    metadata = data.dtype.metadata
+    if metadata is None:
+        return None
+    return data.dtype.metadata.get('pixel_size', None)
 
 
 def unitless(data):
@@ -164,11 +156,6 @@ class Device:
     - `_devices`: List of all Device objects
     - `multi_threading`: Option to globally disable multi-threading.
       This is particularly useful for debugging.
-
-    Args:
-    - `latency`: Value to use for the `latency` attribute.
-      Child classes may directly write to the `_latency` attribute to modify this value later.
-    - `duration`: Time it takes to perform the measurement or for the actuator to stabilize.
     """
     _workers = ThreadPoolExecutor(thread_name_prefix='Device._workers')
     _moving = False
@@ -176,18 +163,9 @@ class Device:
     _devices: "Set[Device]" = WeakSet()
     multi_threading: bool = True  # False
 
-    def __init__(self, *, latency=0.0 * u.ms, duration=0.0 * u.ms):
-        """Constructs a new Device object
-
-        Args:
-            latency: value to use for the `latency` attribute.
-                Child classes may directly write to the _latency attribute to modify this value later.
-
-            duration: time it takes to perform the measurement or for the actuator to stabilize.
-        """
+    def __init__(self):
+        """Constructs a new Device object"""
         self._start_time_ns = 0
-        self._latency = latency
-        self._duration = duration
         self._timeout_margin = 5 * u.s
         self._lock = threading.Lock()
         self._locking_thread = None
@@ -211,7 +189,7 @@ class Device:
         Private attributes can be set without locking.
         Note that this is not thread-safe and should be done with care!!
         """
-        if not key.startswith('_'):
+        if hasattr(self, '_base_initialized') and not key.startswith('_'):
             logging.debug("acquiring lock to set attribute `%s` %s (tid: %i). ", key, self, threading.get_ident())
             new_lock = self._lock_acquire()
             try:
@@ -272,30 +250,29 @@ class Device:
         self._start_time_ns = time.time_ns()
 
     @property
+    @abstractmethod
     def latency(self) -> Quantity[u.ms]:
         """latency (Quantity[u.ms]): time between sending a command or trigger to the device and the moment the device
             starts responding.
         """
-        return self._latency
+        ...
 
     @property
-    def duration(self) -> Quantity[u.ms]:
+    @abstractmethod
+    def duration(self) -> Quantity[u.ms] | None:
         """ duration (Quantity[u.ms]): time it takes to perform the measurement or for the actuator to stabilize.
 
-        This value does not include latency.
-        Child classes may directly write to the _duration attribute to modify this value when starting the
-        measurement/movement.
-        The duration is used in the default implementation of `wait_finished()`.
-        If the duration of an operation is not known in advance
-        (e.g., waiting for the user to push a button), the child class should pass `np.inf * u.ms` for the
-        duration, and override `wait_finished()`.
+        This value does not include the latency.
+        If the duration of an operation is not known in advance,
+        (e.g., when waiting for a hardware trigger), this function should return `None`.
         """
-        return self._duration
+        ...
 
     def wait(self, up_to: Quantity[u.ms] = 0 * u.ns, await_data=True):
         """Waits until the device is (almost) in the `ready` state, i.e., has finished measuring or moving.
 
-        Devices that don't have a fixed duration (_duration = None) should override `busy` to poll for finalization.
+        Devices that don't have a fixed duration (duration = None) should override `busy` to poll for
+        finalization.
 
         Note:
             In a multi-threading environment,
@@ -319,11 +296,12 @@ class Device:
             self._error = None
             raise e
 
-        if self._duration is None or not np.isfinite(self._duration):
+        duration = self.duration
+        if duration is None:
             while self.busy():
                 time.sleep(0.001)
         else:
-            end_time = self._start_time_ns + (self._duration + self.latency).to_value(u.ns)
+            end_time = self._start_time_ns + (duration + self.latency).to_value(u.ns)
             time_to_wait = end_time - up_to.to_value(u.ns) - time.time_ns()
             if time_to_wait > 0:
                 time.sleep(time_to_wait / 1.0E9)
@@ -351,22 +329,25 @@ class Device:
         self._lock.release()
 
     def busy(self) -> bool:
-        """Returns true if the device is measuring or moving (see `wait()`)"""
-        assert np.isfinite(self._duration)
-        end_time = self._start_time_ns + (self._duration + self.latency).to_value(u.ns)
+        """Returns true if the device is measuring or moving (see `wait()`).
+
+        Note: if a device does not define a `duration`, it should override this function to poll for finalization."""
+        end_time = self._start_time_ns + (self.duration + self.latency).to_value(u.ns)
         return end_time > time.time_ns()
 
     @property
     def timeout(self) -> Quantity[u.ms]:
-        if self._duration is not None and np.isfinite(self._duration):
-            return self._timeout_margin + self._duration
+        duration = self.duration
+        if duration is not None:
+            return self._timeout_margin + duration
         else:
             return self._timeout_margin
 
     @timeout.setter
     def timeout(self, value):
-        if self._duration is not None and np.isfinite(self._duration):
-            self._timeout_margin = value - self._duration
+        duration = self.duration
+        if duration is not None:
+            self._timeout_margin = value - duration
         else:
             self._timeout_margin = value.to(u.ms)
 
@@ -384,11 +365,8 @@ class Detector(Device, ABC):
     """Base class for all detectors, cameras and other data sources with possible dynamic behavior.
     """
 
-    def __init__(self, *, data_shape: Sequence[int], pixel_size: Quantity, **kwargs):
-        super().__init__(**kwargs)
-        ndim = len(data_shape)
-        self._pixel_size = pixel_size if pixel_size.size == ndim else np.tile(pixel_size, (ndim,))
-        self._data_shape = tuple(int(x) for x in data_shape)
+    def __init__(self):
+        super().__init__()
         self._measurements_pending = 0
         self._pending_count_lock = threading.Lock()
         self._error = None
@@ -518,6 +496,7 @@ class Detector(Device, ABC):
         return self.trigger(*args, immediate=immediate, **kwargs).result()
 
     @property
+    @abstractmethod
     def data_shape(self):
         """Returns a tuple corresponding to the shape of the returned data array.
 
@@ -528,10 +507,10 @@ class Detector(Device, ABC):
             In any case, the value of `data_shape`
             just before calling `trigger` will match the size of the data returned by the corresponding `result` call.
         """
-        return self._data_shape
+        ...
 
     @property
-    def pixel_size(self) -> Quantity:
+    def pixel_size(self) -> Quantity | None:
         """Dimension of one element in the returned data array.
 
         For cameras, this is the pixel size (in astropy length units).
@@ -543,7 +522,7 @@ class Detector(Device, ABC):
         However, in some cases (such as when the `pixel_size` is actually a sampling interval),
             it makes sense for the child class to implement a setter.
         """
-        return self._pixel_size
+        return None
 
     @final
     def coordinates(self, dim):
@@ -564,7 +543,7 @@ class Detector(Device, ABC):
         Returns:
             Quantity: An array holding the coordinates.
         """
-        c = np.arange(0.5, 0.5 + self.data_shape[dim], 1.0) * self._pixel_size[dim]
+        c = np.arange(0.5, 0.5 + self.data_shape[dim], 1.0) * self.pixel_size[dim]
         shape = np.ones(len(self.data_shape), dtype='uint32')
         shape[dim] = self.data_shape[dim]
         return c.reshape(shape)
@@ -587,19 +566,16 @@ class Processor(Detector, ABC):
     more input Detectors and processes that data (e.g., cropping an image, averaging over an ROI, etc.).
     A processor, itself, is a Detector to allow chaining multiple processors together to combine functionality.
 
-    To implement a processor, override read and/or __init__
+    To implement a processor, implement _fetch, and optionally override data_shape, pixel_size, and __init__.
 
-    Note: it is not possible to specify the latency, it is computed based on the latency of the sources
+    The `latency` and `duration` properties are computed from the latency and duration of the inputs and cannot be set.
+    By default, the `pixel_size` and `data_shape` are the same as the pixel_size and data_shape of the first input.
+    To override this behavior, override the `pixel_size` and `data_shape` properties.
     """
 
-    def __init__(self, *args, data_shape=None, pixel_size=None):
+    def __init__(self, *args):
         self._sources = args
-        if data_shape is None:
-            data_shape = self._sources[0].data_shape
-        if pixel_size is None:
-            pixel_size = self._sources[0].pixel_size
-
-        super().__init__(data_shape=data_shape, pixel_size=pixel_size, latency=0 * u.ms)
+        super().__init__()
 
     def trigger(self, *args, immediate=False, **kwargs):
         """Triggers all sources at the same time (regardless of latency), and schedules a call to `_fetch()`"""
@@ -607,11 +583,13 @@ class Processor(Detector, ABC):
                        self._sources]
         return super().trigger(*future_data, *args, **kwargs)
 
+    @final
     @property
     def latency(self) -> Quantity[u.ms]:
         """Returns the shortest latency for all detectors."""
         return min((source.latency for source in self._sources if source is not None), default=0 * u.ms)
 
+    @final
     @property
     def duration(self) -> Quantity[u.ms]:
         """Returns the longest duration + latency, minus the shortest latency for all detectors."""
@@ -619,19 +597,29 @@ class Processor(Detector, ABC):
         return max((source.latency + source.duration for source in self._sources if source is not None),
                    default=latency) - latency
 
+    @property
+    def data_shape(self):
+        """This default implementation returns the data shape of the first source."""
+        return self._sources[0].data_shape
 
-"""Base class for phase-only SLMs
-
-Attributes:
-    extent(Sequence[float]): in a pupil-conjugate configuration, this attribute can be used to 
-        indicate how the pattern shown in `set_phases` is mapped to the back pupil of the microscope objective.
-        The default extent of (2.0, 2.0) corresponds to exactly filling the back pupil (i.e. the full NA)
-        with the phase pattern.
-        A higher value can be used to introduce some `bleed`/overfilling to allow for alignment inaccuracies.
-"""
+    @property
+    def pixel_size(self) -> Quantity | None:
+        """This default implementation returns the pixel size of the first source."""
+        return self._sources[0].pixel_size
 
 
 class PhaseSLM(Actuator, ABC):
+    """Base class for phase-only SLMs
+
+    Attributes:
+        extent(Sequence[float]): in a pupil-conjugate configuration, this attribute can be used to
+            indicate how the pattern shown in `set_phases` is mapped to the back pupil of the microscope objective.
+            The default extent of (2.0, 2.0) corresponds to exactly filling the back pupil (i.e. the full NA)
+            with the phase pattern.
+            A higher value can be used to introduce some `bleed`/overfilling to allow for alignment inaccuracies.
+    """
+    extent: np.array
+
     def __init__(self, extent=np.array((2.0, 2.0))):
         super().__init__()
         self.extent = extent
