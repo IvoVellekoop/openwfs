@@ -47,7 +47,7 @@ def get_pixel_size(data: np.ndarray) -> Quantity | None:
         data (np.ndarray | Quantity): The input data array or Quantity.
 
     Returns:
-        Quantity: The pixel size metadata, or None if no pixel size metadata is present.
+        Quantity | None: The pixel size metadata, or None if no pixel size metadata is present.
 
     Usage:
     >>> import astropy.units as u
@@ -166,7 +166,6 @@ class Device:
 
     def __init__(self):
         """Constructs a new Device object"""
-        self._start_time_ns = 0
         self._end_time_ns = 0
         self._timeout_margin = 5 * u.s
         self._lock = threading.Lock()
@@ -224,7 +223,8 @@ class Device:
         This function changes the global state to 'moving' or 'measuring' if needed,
         and it may block until this state switch is completed.
 
-        After switching, stores the current time in the _start_time_ns field.
+        After switching, stores the time at which the operation will have ended in the `_end_time_ns`
+        field (i.e., `time.time_ns() + self.latency + self.duration`).
         """
 
         # acquire a global lock, to prevent multiple threads to switch moving/measuring state simultaneously
@@ -261,8 +261,7 @@ class Device:
         # note: it may start slightly later because the latency is a minimum value
         # also store the time we expect the operation to finish
         # note: it may finish slightly earlier since the duration is a maximum value
-        self._start_time_ns = time.time_ns() + self.latency.to_value(u.ns)
-        self._end_time_ns = self._start_time_ns + self.duration.to_value(u.ns)
+        self._end_time_ns = time.time_ns() + self.latency.to_value(u.ns) + self.duration.to_value(u.ns)
 
     @property
     def latency(self) -> Quantity[u.ms]:
@@ -480,7 +479,11 @@ class Detector(Device, ABC):
         If any of these parameters is a Future, it is awaited before calling _fetch.
         This way, data from multiple sources can be combined (see Processor).
 
-        Child classes may override trigger() to add additional parameters.
+        Child classes may override trigger() to call `super().trigger()` with additional parameters.
+
+        Note:
+            To implement hardware triggering, do not override this function.
+            Instead, override `_do_trigger()` instead to ensure proper synchronization and locking.
         """
 
         self._lock_persistent()
@@ -524,12 +527,12 @@ class Detector(Device, ABC):
             # Therefore, store it so that it can be raised on the next call to wait()
             if out_ is not None:
                 self._error = e
-            raise e
+            raise e  # raise the error again, it will be stored in the 'Future' object that was returned by trigger()
         finally:
             self._unlock_persistent()
 
     def _do_trigger(self):
-        """Override to perform the actual hardware trigger"""
+        """Override this function to perform the actual hardware trigger."""
         pass
 
     @abstractmethod
@@ -606,8 +609,10 @@ class Detector(Device, ABC):
         Returns:
             Quantity: An array holding the coordinates.
         """
-        c = np.arange(0.5, 0.5 + self.data_shape[dim], 1.0) * self.pixel_size[dim]
-        shape = np.ones(len(self.data_shape), dtype='uint32')
+        c = np.arange(0.5, 0.5 + self.data_shape[dim], 1.0)
+        if self.pixel_size is not None:
+            c = c * self.pixel_size[dim]
+        shape = np.ones_like(self.data_shape)
         shape[dim] = self.data_shape[dim]
         return c.reshape(shape)
 
@@ -618,8 +623,9 @@ class Detector(Device, ABC):
 
         Note:
             The value is returned as a numpy array with astropy unit rather than as a tuple to allow easy manipulation.
+            If `self.pixel_size is None`, just returns `self.data_shape`.
         """
-        return self.data_shape * self.pixel_size
+        return self.data_shape * self.pixel_size if self.pixel_size is not None else self.data_shape
 
 
 class Processor(Detector, ABC):
@@ -688,7 +694,6 @@ class PhaseSLM(Actuator, ABC):
             with the phase pattern.
             A higher value can be used to introduce some `bleed`/overfilling to allow for alignment inaccuracies.
     """
-    extent: np.array
 
     def __init__(self, extent=np.array((2.0, 2.0))):
         super().__init__()
