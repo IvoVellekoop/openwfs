@@ -291,13 +291,8 @@ class SLM(PhaseSLM):
         """Activates the OpenGL context for this slm window. All OpenGL commands now apply to this slm"""
         glfw.make_context_current(self._window)
 
-    def update(self, wait_factor=1.0):
+    def update(self):
         """Sends the new phase pattern to be displayed on the SLM.
-        Args:
-            wait_factor.
-                Time to allow for stabilization of the image, relative to the settle_time property.
-                Values higher than 1.0 allow extra stabilization time before measurements are made.
-
         Note:
             This function waits for the vsync, and returns directly after it.
             Therefore, it can be used as software synchronization to the SLM.
@@ -329,10 +324,9 @@ class SLM(PhaseSLM):
         # function _should_ be synced with the vsync)
         glFinish()
 
-        # update the start time, since some time has passed waiting for the vsync
-        # also adjust the start time for the wait factor, so that wait_finished can still wait
-        # until _start_time_ns + ._duration
-        self._start_time_ns = time.time_ns() + np.rint((self.duration * (1.0 - wait_factor)).to_value(u.ns))
+        # call _start again to update the _end_time_ns property,
+        # since some time has passed waiting for the vsync
+        self._start()
 
     @property
     def latency(self) -> Quantity[u.ms]:

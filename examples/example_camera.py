@@ -16,6 +16,7 @@ class RandomGenerator:
     """
     Generates random numbers to simulate noise images, primarily for testing device graphs.
     """
+
     def __init__(self, min=0, max=1000, noise_type=NoiseType.UNIFORM):
         """
         Args:
@@ -71,17 +72,18 @@ class Camera:
     Simulates a camera that returns noise images, used for testing device graphs.
     Utilizes an external random number generator to produce these images.
     """
+
     def __init__(self, left=0, top=0, width=100, height=100, duration: Quantity[u.ms] = 100 * u.ms,
                  random_generator=None):
         """
-        Initializes the Camera with specified view dimensions, exposure duration, and random generator.
+        Initializes the Camera with specified view dimensions, exposure time, and random generator.
 
         Args:
             left (int): The left coordinate of the camera's view.
             top (int): The top coordinate of the camera's view.
             width (int): The width of the camera's view.
             height (int): The height of the camera's view.
-            duration (Quantity[u.ms]): The exposure duration.
+            duration (Quantity[u.ms]): The simulated exposure time.
                 Default value: 100 μs
                 Not really used, only serves to show the property in micromanager.
             random_generator (RandomGenerator): External random number generator to use.

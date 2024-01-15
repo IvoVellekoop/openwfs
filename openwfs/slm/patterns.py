@@ -53,7 +53,6 @@ def coordinate_range(shape: ShapeType, extent: ExtentType, offset: ExtentType | 
     Returns:
         Tuple[Quantity, Quantity]: coordinate vectors for the two coordinates (y and x)
     """
-    shape = unitless(shape)
     if np.size(shape) == 1:
         shape = np.array(shape).repeat(2)
 

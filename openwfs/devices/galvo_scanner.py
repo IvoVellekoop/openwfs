@@ -338,7 +338,7 @@ class ScanningMicroscope(Detector):
         old = self._sample_rate
         self._sample_rate = (1.0 / value).to(u.Hz)
         self._delay = float(self._delay / old * self._sample_rate)
-        self._update()  # to update duration
+        self._valid = False
 
     @property
     def delay(self) -> float:

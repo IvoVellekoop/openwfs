@@ -1,4 +1,3 @@
-# core classes used throughout openWFS
 import logging
 import threading
 import time
@@ -9,16 +8,19 @@ from weakref import WeakSet
 
 import astropy.units as u
 import numpy as np
+from numpy.typing import ArrayLike
 from astropy.units import Quantity
 
 
-def set_pixel_size(data: np.ndarray, pixel_size: Quantity) -> np.ndarray:
+def set_pixel_size(data: ArrayLike, pixel_size: Quantity | None) -> np.ndarray:
     """
     Sets the pixel size metadata for the given data array.
 
     Args:
-        data (np.ndarray): The input data array.
-        pixel_size (Quantity): The pixel size to be set.
+        data (ArrayLike): The input data array.
+        pixel_size (Quantity | None): The pixel size to be set. When a single-element pixel size is given,
+            it is broadcasted to all dimensions of the data array.
+            Passing None sets the pixel size metadata to None.
 
     Returns:
         np.ndarray: The modified data array with the pixel size metadata.
@@ -29,11 +31,15 @@ def set_pixel_size(data: np.ndarray, pixel_size: Quantity) -> np.ndarray:
     >>> modified_data = set_pixel_size(data, pixel_size)
     """
     data = np.array(data)
+
+    if pixel_size is not None and pixel_size.size == 1:
+        pixel_size = pixel_size * np.ones(data.ndim)
+
     data.dtype = np.dtype(data.dtype, metadata={'pixel_size': pixel_size})
     return data
 
 
-def get_pixel_size(data: np.ndarray | Quantity) -> Quantity | None:
+def get_pixel_size(data: np.ndarray) -> Quantity | None:
     """
     Extracts the pixel size metadata from the data array.
 
@@ -44,7 +50,9 @@ def get_pixel_size(data: np.ndarray | Quantity) -> Quantity | None:
         Quantity: The pixel size metadata, or None if no pixel size metadata is present.
 
     Usage:
-    >>> data = np.array([[1, 2], [3, 4]], dtype=np.float32, metadata={'pixel_size': 0.1 * u.m})
+    >>> import astropy.units as u
+    >>> import numpy as np
+    >>> data = set_pixel_size(((1, 2), (3, 4)), 5 * u.um)
     >>> pixel_size = get_pixel_size(data)
     """
     metadata = data.dtype.metadata
@@ -53,24 +61,30 @@ def get_pixel_size(data: np.ndarray | Quantity) -> Quantity | None:
     return data.dtype.metadata.get('pixel_size', None)
 
 
-def unitless(data):
+def unitless(data: ArrayLike) -> ArrayLike:
     """
-    Converts the input data to a unitless numpy array.
+    Converts unitless `Quanity` objects to numpy arrays.
 
     Args:
         data: The input data.
+        If `data` is a Quantity, it is converted to a (unitless) numpy array.
+        All other data types are just returned as is.
 
     Returns:
-        np.ndarray: The unitless numpy array.
+        ArrayLike: unitless numpy array, or the input data if it is not a Quantity.
 
     Raises:
         UnitConversionError: If the data is a Quantity with a unit
+
+    Note:
+        Do NOT use `np.array(data)` to convert a Quantity to a numpy array,
+        because this will drop the unit prefix.
+        For example, ```np.array(1 * u.s / u.ms) == 1```.
 
     Usage:
     >>> data = np.array([1.0, 2.0, 3.0]) * u.m
     >>> unitless_data = unitless(data)
     """
-
     if isinstance(data, Quantity):
         return data.to_value(u.dimensionless_unscaled)
     else:
@@ -80,53 +94,40 @@ def unitless(data):
 class Device:
     """Base class for detectors and actuators
 
-    This base class implements the synchronization of detectors and actuators.
-    Devices hold a thread lock, which is automatically locked when an attribute is set
-    (by overriding __setattr__).
-    The lock prevents concurrent modification of the detector settings in a multithreaded environment.
-    In addition, detectors lock the object on `trigger()` and release it after `_fetch`-ing the last measurement data.
+    Multi-threading:
+        Devices hold a thread lock, prevents concurrent modification of attributes
+        in a multithreaded environment.
+        This lock is automatically acquired when setting a public attribute or property.
+        See `__setattr__` for details.
 
-    In addition to the locking mechanism, each device can either be `busy` or `ready`.
-    Detectors are `busy` as long as the detector hardware is measuring.
-    That is, between `trigger()` and the end of the physical measurement,
-    which by definition occurs some time _before_ `_fetch` completes,
-    so the detector may become `ready` _before_ the measurement data is all fetched and processed.
-    Actuators are `busy` when they are moving, about to move, or settling after movement.
-    To check if a device is busy, read the `busy` attribute.
-    To wait for a device to become `ready`, call `wait`.
+    Detector locking:
+        For detectors, an additional synchonization mechanism is implemented.
+        It prevents modification of the detector settings while a measurement is in progress.
+        See Detector for details.
 
-    `wait` takes an additional optional time parameter `up_to`.
-    When present, the `wait` function will try to return `up_to` seconds before the device becomes ready.
-    This feature is used to synchronize detectors and actuators with a latency (see below).
+    Synchronization:
+        Device implements the synchronization between detectors and actuators.
+        The idea is that a measurement can only be made when all actuators are stable,
+        and that an actuator can only be moved when all detectors are ready.
 
-    For detectors, `wait` has an additional flag `await_data`.
-    When `True` (default), the function waits until the detector becomes unlocked
-    (i.e., also waits for `_fetch` to complete), and `up_to` is ignored.
-    When `False`, the function just waits until the detector has finished the physical measurements, but it may still be
-    transferring and processing the data.
+        The synchronization mechanism is implemented using a global state variable `_moving`.
+        A detector can request a state switch to the `measuring` state (`_moving=False`),
+        and an actuator can request a state switch to the `moving` state (`_moving=True`)
+        by calling `_start`.
 
-    Devices may indicate a `duration`, which is the time between the transition `ready`->`busy`
-    (made by an internal call to _start, which is done when triggering a detector, or starting an actuator update)
-    and the `busy`->`ready` transition.
-    If a `duration` is specified, the `Device` base class takes care of the `busy`->`ready` transition automatically.
-    If `duration = 0 * u.ms`, the device is never `busy`.
-    This makes sense for data sources that are not physical detectors, such as mock data sources.
-    If the measurement/movement duration is not known in advance,
-    devices should set `duration=None` and override `busy` and `wait` to poll if the device is ready.
+        Before making the state switch, `_start` waits for all devices of the _other_ type
+        (actuators or detectors) to become ready by calling
+        `wait(up_to=latency, await_data=False)` on those devices.
+        Here, `latency` is the minimum latency of all devices of the _same_ type as the one
+        requesting the state switch.
+        If this minimum latency is positive, it means that the devices will not start their
+        measurement or movement immediately, so we can make the state switch slightly before
+        the devices of the other type are all ready.
+        For example, a spatial light modulator has a relatively long latency, meaning that
+        we can send the next frame even before a camera has finished reading the previous frame.
 
-    OpenWFS synchronizes detectors and actuators using the `ready`->`busy`
-    state transition.  If a device needs to switch from `ready` to `busy`, it internally calls `_start`.
-    `start` _blocks_ until all devices of the other type are `ready` (up to latency).
-
-    For example, when a detector is triggered, `trigger()` internally calls `_start`,
-    which calls `wait(up_to=latency)` on all actuators,
-    where `latency` is given by the shortest latency of _all_ detectors.
-
-    For efficiency, `Device` keeps a global state to synchronize detectors and actuators. This state can be
-    - `moving`. Actuators may be active (`busy`). No measurements can be made (all detectors are `ready`)
-    - `measuring` Detectors may be active (`busy`). All actuators must remain static (`ready`).
-    The `_start` function checks if OpenWFS is already in the correct global state for measuring or moving.
-    Only if a state switch is needed, `wait` is called on all objects of the other type, as described above.
+        For detectors, `_start` is called automatically by `trigger()`, so there is never a need to call it.
+        Implementations of an actuator should call `_start` explicitly before starting to move the actuator.
 
     Usage:
         >>> f1 = np.zeros((N, P, *cam1.data_shape))
@@ -149,23 +150,24 @@ class Device:
         >>> fields = (f2 - f1) * np.exp(-j * phase)
 
     Attributes:
-    - `_workers`: A thread pool for awaiting detector input, actuator stabilization,
-      or for processing data in a non-deterministic order.
-    - `_moving`: Global state: 'moving'=True or 'measuring'=False
-    - `_state_lock`: Lock for switching global state (_start)
-    - `_devices`: List of all Device objects
-    - `multi_threading`: Option to globally disable multi-threading.
-      This is particularly useful for debugging.
+    multi_threading (bool): Option to globally disable multi-threading.
+        This is particularly useful for debugging.
+    _workers (ThreadPoolExecutor): A thread pool for awaiting detector input, actuator stabilization,
+       or for processing data in a non-deterministic order.
+    _moving (bool): Global state: 'moving'=True or 'measuring'=False
+    _state_lock (Lock): Lock for switching global state (see _start)
+    _devices (WeakSet[Device]): List of all Device objects
     """
     _workers = ThreadPoolExecutor(thread_name_prefix='Device._workers')
     _moving = False
     _state_lock = threading.Lock()
     _devices: "Set[Device]" = WeakSet()
-    multi_threading: bool = True  # False
+    multi_threading: bool = True
 
     def __init__(self):
         """Constructs a new Device object"""
         self._start_time_ns = 0
+        self._end_time_ns = 0
         self._timeout_margin = 5 * u.s
         self._lock = threading.Lock()
         self._locking_thread = None
@@ -174,17 +176,25 @@ class Device:
         self._base_initialized = True
 
     def __del__(self):
-        # wait for the device to finish measuring/moving
-        # Only do this if the initialization of the Device base class finished succesfully
-        # Note: when closing Python, all modules are unloaded in an undefined order.
-        # This can cause problems if, for example, 'wait' calls a numpy function, since
-        # the numpy module may have been unloaded at this point, causing a 'NoneType is not callable'
-        # error.
+        """
+        Destructor for Device objects.
+
+        The destructor calls `wait()` to ensure that the device is not busy when it is destroyed.
+        If `__init__` did not complete, the destructor does nothing.
+
+        Note:
+            When closing Python, all modules are unloaded in an undefined order.
+            This can cause problems if `wait` calls a function form a module that is already unloaded, such as `numpy`.
+            In this case, a 'NoneType is not callable' error occurs.
+        """
         if hasattr(self, '_base_initialized'):
             self.wait()
 
     def __setattr__(self, key, value):
-        """Prevents modification of public attributes and properties while the device is busy.
+        """Prevents modification of public attributes and properties while the device is locked.
+
+        For detectors, this prevents modification of the detector settings while a measurement is in progress.
+        For all devices, it prevents concurrent modification in a multi-threading context.
 
         Private attributes can be set without locking.
         Note that this is not thread-safe and should be done with care!!
@@ -247,62 +257,112 @@ class Device:
             else:
                 logging.debug("state is now MEASURING.")
 
-        self._start_time_ns = time.time_ns()
+        # store the time we expect the operation to actually start
+        # note: it may start slightly later because the latency is a minimum value
+        # also store the time we expect the operation to finish
+        # note: it may finish slightly earlier since the duration is a maximum value
+        self._start_time_ns = time.time_ns() + self.latency.to_value(u.ns)
+        self._end_time_ns = self._start_time_ns + self.duration.to_value(u.ns)
 
     @property
-    @abstractmethod
     def latency(self) -> Quantity[u.ms]:
-        """latency (Quantity[u.ms]): time between sending a command or trigger to the device and the moment the device
-            starts responding.
+        """latency (Quantity[u.ms]): minimum amount of time between sending a command or trigger to the device and the
+        moment the device starts responding.
+
+        The default value is 0.0 ms.
+
+        Note:
+            The latency is used to compute when it is safe to switch the global state from 'moving'
+            to 'measuring' or
+            vice versa.
+            Devices that report a non-zero latency promise not to do anything before the latency has passed.
+            This allows making the state switch even before the devices of the other type have all finished.
+            This construct is used for spatial light modulators that typically have a long latency (1-2 frames).
+            Due to this latency, we may send an `update` command to the SLM even before the camera has finished reading
+            the previous frame.
+
+        Note:
+            A device is allowed to report a different latency every time `latency` is called.
+            For example, for a spatial light modulator that only refreshes
+            at a fixed rate, we can add the remaining time until the next refresh to the latency.
         """
-        ...
+        return 0.0 * u.ms
 
     @property
     @abstractmethod
-    def duration(self) -> Quantity[u.ms] | None:
-        """ duration (Quantity[u.ms]): time it takes to perform the measurement or for the actuator to stabilize.
+    def duration(self) -> Quantity[u.ms]:
+        """duration (Quantity[u.ms]): maximum amount of time it takes to perform the measurement or for the
+        actuator to stabilize.
+        This value *does not* include the latency.
 
-        This value does not include the latency.
+        For a detector, this is the maximum amount of time that elapses between returning from `trigger()` and the
+        end of the measurement.
+        For an actuator, this is the maximum amount of time that elapses from returning from a command like `update(
+        )` and the stabilization of the device.
+
         If the duration of an operation is not known in advance,
-        (e.g., when waiting for a hardware trigger), this function should return `None`.
+        (e.g., when waiting for a hardware trigger), this function should return `np.inf`.
+
+        Note: A device may update the duration dynamically.
+        For example, a stage may compute the required time to
+        move to the target position and update the duration accordingly.
+
+        Note: If `latency` is a (lower) estimate, the duration should be high enough to guarantee that `latency +
+        duration` corresponds to the time between starting the operation and finishing it.
         """
         ...
 
     def wait(self, up_to: Quantity[u.ms] = 0 * u.ns, await_data=True):
         """Waits until the device is (almost) in the `ready` state, i.e., has finished measuring or moving.
 
-        Devices that don't have a fixed duration (duration = None) should override `busy` to poll for
-        finalization.
+        This function is called by `_start` automatically to ensure proper synchronization between detectors and
+        actuators, and it is called by `__del__` to ensure the device is not active when it is destroyed.
+        The only time to call `wait` explicitly is when using pipelined measurements, see `Detector.trigger()`.
 
-        Note:
-            In a multi-threading environment,
-            there is no guarantee that the device is in the `ready`
-            state when this function returns, since some other thread may have activated it again.
+        For devices that report a duration (`duration ≠ ∞`), this function waits until
+        `current_time - up_to >= self._end_time_ns`,
+        where `_end_time_ns` was set by the last call to `_start`.
+
+        For devices that report no duration `duration = ∞`, this function repeatedly calls `busy` until `busy`
+        returns `False`.
+        In this case, `up_to` is ignored.
 
         Args:
-            up_to(Quantity[u.ms]): when non-zero, specifies that this function may return 'up_to' milliseconds
+            up_to(Quantity[u.ms]):
+            when non-zero, specifies that this function may return 'up_to' milliseconds
                 *before* the device is finished.
             await_data(bool):
-                If False: waits until the device is no longer busy
-                If True (default): waits until the device is no longer locked.
-                For detectors, this means waiting until all acquisitions
-                and processing of previously triggered frames is completed.
-                If an `out` parameter was specified in `trigger()`, this
-                guarantees that the data is stored in the `out` array.
-                Since actuators are usually not locked, this flag has no effect.
+                If True, after waiting until the device is no longer busy, briefly locks the device.
+                For detectors, this has the effect of waiting until all acquisitions and processing of
+                previously triggered frames are completed.
+                If an `out` parameter was specified in `trigger()`, this guarantees that the data is stored
+                in the `out` array.
+                For actuators, this flag has no effect other than briefly locking the device.
+
+        Raises:
+            Any other exception raised by the device in another thread (e.g., during `_fetch`).
+            TimeoutError: if the device has `duration = ∞`, and `busy` does not return `True` within
+                `self.timeout`
+            RuntimeError: if `wait` is called from inside a setter or from inside `_fetch`.
+                This would cause a deadlock.
+
         """
         if self._error is not None:
             e = self._error
             self._error = None
             raise e
 
-        duration = self.duration
-        if duration is None:
+        # If duration = ∞, poll busy until it returns False or a timeout occurs.
+        # Note: avoid np.isinf because numpy may have been unloaded during Python shutdown
+        if self._end_time_ns > 1.0e+38:
+            start = time.time_ns()
+            timeout = self.timeout.to_value(u.ns)
             while self.busy():
                 time.sleep(0.001)
+                if time.time_ns() - start > timeout:
+                    raise TimeoutError("Timeout in %s (tid %i)", self, threading.get_ident())
         else:
-            end_time = self._start_time_ns + (duration + self.latency).to_value(u.ns)
-            time_to_wait = end_time - up_to.to_value(u.ns) - time.time_ns()
+            time_to_wait = self._end_time_ns - up_to.to_value(u.ns) - time.time_ns()
             if time_to_wait > 0:
                 time.sleep(time_to_wait / 1.0E9)
 
@@ -319,7 +379,7 @@ class Device:
         if self._locking_thread == tid:
             return False  # already locked, this could happen if we call a setter from _fetch or from another setter
         if not self._lock.acquire(timeout=self.timeout.to_value(u.s)):
-            raise TimeoutError("Timeout in %s (tid %i)", self, threading.get_ident())
+            raise TimeoutError("Timeout in %s (tid %i)", self, tid)
         self._locking_thread = tid
         return True
 
@@ -331,14 +391,18 @@ class Device:
     def busy(self) -> bool:
         """Returns true if the device is measuring or moving (see `wait()`).
 
-        Note: if a device does not define a `duration`, it should override this function to poll for finalization."""
-        end_time = self._start_time_ns + (self.duration + self.latency).to_value(u.ns)
-        return end_time > time.time_ns()
+        Note: if a device does not define a finite `duration`, it should override this function to poll for
+        finalization."""
+        return time.time_ns() < self._end_time_ns
 
     @property
     def timeout(self) -> Quantity[u.ms]:
+        """timeout (Quantity[u.ms]): time after which a timeout error is raised when waiting for the device.
+
+        The timeout is automatically adjusted if the `duration` changes.
+        The default value is `duration + 5 s`."""
         duration = self.duration
-        if duration is not None:
+        if not np.isinf(duration):
             return self._timeout_margin + duration
         else:
             return self._timeout_margin
@@ -346,7 +410,7 @@ class Device:
     @timeout.setter
     def timeout(self, value):
         duration = self.duration
-        if duration is not None:
+        if not np.isinf(duration):
             self._timeout_margin = value - duration
         else:
             self._timeout_margin = value.to(u.ms)
@@ -427,7 +491,6 @@ class Detector(Device, ABC):
         # does nothing if the lock is already locked.
         try:
             self._start()
-            assert not Device._moving
             self._do_trigger()
         except:  # noqa  - ok, we are not really catching the exception, just making sure the lock gets released
             self._unlock_persistent()
@@ -587,15 +650,22 @@ class Processor(Detector, ABC):
     @property
     def latency(self) -> Quantity[u.ms]:
         """Returns the shortest latency for all detectors."""
-        return min((source.latency for source in self._sources if source is not None), default=0 * u.ms)
+        return min((source.latency for source in self._sources if source is not None), default=0.0 * u.ms)
 
     @final
     @property
     def duration(self) -> Quantity[u.ms]:
-        """Returns the longest duration + latency, minus the shortest latency for all detectors."""
-        latency = self.latency
-        return max((source.latency + source.duration for source in self._sources if source is not None),
-                   default=latency) - latency
+        """Returns the last end time minus the first start time for all detectors
+        i.e., max (duration + latency) - min(latency).
+
+        Note that `latency` is allowed to vary over time for devices that can only be triggered periodically,
+        so this `duration` may also vary over time.
+        """
+        times = [(source.duration, source.latency) for source in self._sources if source is not None]
+        if len(times) == 0:
+            return 0.0 * u.ms
+        return (max([duration + latency for (duration, latency) in times])
+                - min([latency for (duration, latency) in times]))
 
     @property
     def data_shape(self):
@@ -614,7 +684,7 @@ class PhaseSLM(Actuator, ABC):
     Attributes:
         extent(Sequence[float]): in a pupil-conjugate configuration, this attribute can be used to
             indicate how the pattern shown in `set_phases` is mapped to the back pupil of the microscope objective.
-            The default extent of (2.0, 2.0) corresponds to exactly filling the back pupil (i.e. the full NA)
+            The default extent of (2.0, 2.0) corresponds to exactly filling the back pupil (i.e., the full NA)
             with the phase pattern.
             A higher value can be used to introduce some `bleed`/overfilling to allow for alignment inaccuracies.
     """

@@ -377,10 +377,6 @@ class MockXYStage(Actuator):
         self._y = 0.0 * u.um
 
     @property
-    def latency(self) -> Quantity[u.ms]:
-        return 0.0 * u.ms
-
-    @property
     def duration(self) -> Quantity[u.ms] | None:
         return 0.0 * u.ms
 
@@ -433,10 +429,6 @@ class MockSLM(PhaseSLM):
 
         The camera coordinates are spanning the [-1,1] range by default."""
         return self._monitor
-
-    @property
-    def latency(self) -> Quantity[u.ms]:
-        return 0.0 * u.ms
 
     @property
     def duration(self) -> Quantity[u.ms] | None:

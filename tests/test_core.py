@@ -2,10 +2,34 @@ import logging
 import time
 import pytest
 from ..openwfs.simulation.mockdevices import MockSource, Generator, MockSLM
-from ..openwfs.core import get_pixel_size
+from ..openwfs.core import get_pixel_size, set_pixel_size
 from ..openwfs.processors import CropProcessor
 import numpy as np
 import astropy.units as u
+
+
+def test_set_pixel_size():
+    # Test case 1: Broadcasted pixel size
+    data = np.array([[1, 2], [3, 4]])
+    pixel_size = 0.1 * u.m
+    modified_data = set_pixel_size(data, pixel_size)
+    assert np.alltrue(get_pixel_size(modified_data) == (0.1, 0.1) * u.m)
+
+    # Test case 2: Anisotropic pixel size
+    data = np.array([[1, 2], [3, 4]])
+    pixel_size = [0.1, 0.2] * u.m
+    modified_data = set_pixel_size(data, pixel_size)
+    assert np.alltrue(get_pixel_size(modified_data) == pixel_size)
+
+    # Test case 3: None pixel size
+    data = np.array([[1, 2], [3, 4]])
+    pixel_size = None
+    modified_data = set_pixel_size(data, pixel_size)
+    assert np.alltrue(get_pixel_size(modified_data) == pixel_size)
+
+    # Test case 4: Getting pixel size from bare numpy array
+    data = np.array([[1, 2], [3, 4]])
+    assert get_pixel_size(data) is None
 
 
 @pytest.mark.parametrize("pixel_size", [4 * u.um, (4, 3) * u.um])
