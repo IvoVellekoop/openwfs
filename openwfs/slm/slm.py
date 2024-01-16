@@ -9,10 +9,10 @@ from astropy.units import Quantity
 from .patch import FrameBufferPatch, Patch, VertexArray
 from .geometry import fill_transform
 from weakref import WeakSet
-from ..core import PhaseSLM
+from ..core import PhaseSLM, Actuator
 
 
-class SLM(PhaseSLM):
+class SLM(Actuator, PhaseSLM):
     """
     Object representing a phase-only spatial light modulator. This object has many fancy functions that are important
     in setting up the SLM layers and geometry before starting the experiment. However, the algorithms only access
@@ -397,9 +397,7 @@ class SLM(PhaseSLM):
         self.update()
 
     def set_phases(self, values: ArrayLike, update=True):
-        self.primary_phase_patch.phases = values
-        if update:
-            self.update()
+        self.primary_phase_patch.set_phases(values, update)
 
     def get_pixels(self, type='phase'):
         """Read back the pixels currently displayed on the SLM."""

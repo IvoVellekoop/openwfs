@@ -1,14 +1,16 @@
 import numpy as np
 import weakref
+from numpy.typing import ArrayLike
 from OpenGL.GL import *
 from OpenGL.GL import shaders
 from .geometry import square
 from .shaders import default_vertex_shader, default_fragment_shader, \
     post_process_fragment_shader, post_process_vertex_shader
 from .texture import Texture
+from ..core import PhaseSLM
 
 
-class Patch:
+class Patch(PhaseSLM):
     PHASES_TEXTURE = 0  # indices of the phases texture in the _texture array
 
     def __init__(self, slm, geometry=None, vertex_shader=default_vertex_shader,
@@ -27,7 +29,7 @@ class Patch:
 
         slm.patches.append(self)
         slm.activate()  # make sure the opengl operations occur in the context of the specified slm window
-        self.context = weakref.ref(slm)  # keep weak reference to parent, to avoid cyclic references
+        self.slm_window = weakref.ref(slm)  # keep weak reference to parent, to avoid cyclic references
         self.geometry = geometry
 
         # construct vertex shader, fragment shader and program
@@ -37,6 +39,7 @@ class Patch:
         self._textures = [Texture(slm)]
         self.additive_blend = True
         self.enabled = True
+        super().__init__()
 
     def draw(self):
         """Never call directly, this is called from slm.update()"""
@@ -60,17 +63,21 @@ class Patch:
 
         self._geometry.draw()
 
-    @property
-    def phases(self):
-        """1-D or 2-D array holding phase values to display on the SLM.
-        Phases are in radians, and stored as float32. There is no need to wrap the phase to a 0-2pi range.
-        The values are uploaded to the GPU automatically on slm.update.
+    def set_phases(self, values: ArrayLike, update=True):
         """
-        return self._textures[Patch.PHASES_TEXTURE].data
+        Args:
+            values(ArrayLike): 1-D or 2-D array holding phase values to display on the SLM.
+                Phases are in radians, and stored as float32. There is no need to wrap the phase to a 0-2pi range.
+            update(bool): when True, the SLM in which this patch is contained is updated immediately.
+                When False, the SLM is not updated, and the
+                caller is responsible for calling slm.update() to update the SLM.
+        """
+        self._textures[Patch.PHASES_TEXTURE].data = values
+        if update:
+            self.slm_window().update()
 
-    @phases.setter
-    def phases(self, value):
-        self._textures[Patch.PHASES_TEXTURE].data = value
+    def update(self):
+        self.slm_window().update()
 
     @property
     def geometry(self):
@@ -83,7 +90,7 @@ class Patch:
     @geometry.setter
     def geometry(self, value):
         if not isinstance(value, Geometry):
-            value = Geometry(self.context(), value)
+            value = Geometry(self.slm_window(), value)
         self._geometry = value
 
 
@@ -157,7 +164,7 @@ class FrameBufferPatch(Patch):
         # is then processed as a whole (applying the software lookup table) and displayed on the screen.
         self.frame_buffer = glGenFramebuffers(1)
 
-        self.phases = np.zeros(slm.shape, dtype=np.float32)
+        self.set_phases(np.zeros(slm.shape, dtype=np.float32), update=False)
         self._textures[Patch.PHASES_TEXTURE].synchronize()
         glBindFramebuffer(GL_FRAMEBUFFER, self.frame_buffer)
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
@@ -171,8 +178,8 @@ class FrameBufferPatch(Patch):
         self.additive_blend = False
 
     def __del__(self):
-        if self.context() is not None and hasattr(self, 'frame_buffer'):
-            self.context().activate()
+        if self.slm_window() is not None and hasattr(self, 'frame_buffer'):
+            self.slm_window().activate()
             glDeleteFramebuffers(1, [self.frame_buffer])
 
     @property
@@ -182,11 +189,11 @@ class FrameBufferPatch(Patch):
 
     @lookup_table.setter
     def lookup_table(self, value):
-        self.context().activate()
+        self.slm_window().activate()
         self._textures[FrameBufferPatch.LUT_TEXTURE].data = np.array(value) / 255
 
     def get_pixels(self):
-        self.context().activate()
+        self.slm_window().activate()
         tex = self._textures[FrameBufferPatch.PHASES_TEXTURE]
         data = np.empty(tex.shape, dtype='float32')
         glGetTextureImage(tex.handle, 0, GL_RED, GL_FLOAT, data.size * 4, data)

@@ -344,9 +344,9 @@ class WFSController:
         """
         if value:
             self.wavefront = WFSController.State.FLAT_WAVEFRONT
-            feedback_flat = self.algorithm._feedback.read().copy()
+            feedback_flat = self.algorithm.feedback.read().copy()
             self.wavefront = WFSController.State.SHAPED_WAVEFRONT
-            feedback_shaped = self.algorithm._feedback.read().copy()
+            feedback_shaped = self.algorithm.feedback.read().copy()
             self._feedback_enhancement = float(feedback_shaped.sum() / feedback_flat.sum())
 
         self._test_wavefront = value
@@ -356,7 +356,7 @@ class WFSController:
         Read a single frame from the feedback function.
         TODO: Maybe distinguish WFS feedback and full frame measurement.
         """
-        return self.algorithm._feedback.read().copy()
+        return self.algorithm.feedback.read().copy()
 
     def set_slm_random(self):
         """

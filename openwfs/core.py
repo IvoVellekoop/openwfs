@@ -688,12 +688,9 @@ class Processor(Detector, ABC):
         return self._sources[0].pixel_size
 
 
-class PhaseSLM(Actuator, ABC):
+class PhaseSLM(ABC):
     """Base class for phase-only SLMs
     """
-
-    def __init__(self):
-        super().__init__()
 
     @abstractmethod
     def update(self):

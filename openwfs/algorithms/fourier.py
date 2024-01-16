@@ -39,7 +39,7 @@ class FourierBase:
         """
         self._execute_button = False
         self.slm = slm
-        self._feedback = feedback
+        self.feedback = feedback
         self.phase_steps = phase_steps
         self.k_left = k_left
         self.k_right = k_right
@@ -77,16 +77,16 @@ class FourierBase:
         Returns:
             WFSResult: An object containing the computed SLM transmission matrix and related data.
         """
-        measurements = np.zeros((k_set.shape[1], self.phase_steps, *self._feedback.data_shape))
+        measurements = np.zeros((k_set.shape[1], self.phase_steps, *self.feedback.data_shape))
 
         for i in range(k_set.shape[1]):
             for p in range(self.phase_steps):
                 phase_offset = p * 2 * np.pi / self.phase_steps
                 phase_pattern = self._get_phase_pattern(k_set[:, i], phase_offset, side)
                 self.slm.set_phases(phase_pattern)
-                self._feedback.trigger(out=measurements[i, p, ...])
+                self.feedback.trigger(out=measurements[i, p, ...])
 
-        self._feedback.wait()
+        self.feedback.wait()
         return analyze_phase_stepping(measurements, axis=1)
 
     def _get_phase_pattern(self,
@@ -141,8 +141,8 @@ class FourierBase:
 
         # TODO: determine noise
         # Initialize transmission matrices
-        t1 = np.zeros((*self.slm_shape, *self._feedback.data_shape), dtype='complex128')
-        t2 = np.zeros((*self.slm_shape, *self._feedback.data_shape), dtype='complex128')
+        t1 = np.zeros((*self.slm_shape, *self.feedback.data_shape), dtype='complex128')
+        t2 = np.zeros((*self.slm_shape, *self.feedback.data_shape), dtype='complex128')
 
         # Calculate phase difference between the two halves
         # We have two phase stepping measurements where both halves are flat (k=0)
