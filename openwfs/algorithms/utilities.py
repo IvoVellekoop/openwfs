@@ -221,8 +221,10 @@ class WFSController:
         self._optimized_wavefront = None
         self._recompute_wavefront = False
         self._feedback_enhancement = None
-        self._test_wavefront = False  # Trigger to test the optimized wavefront
-        self._run_troubleshooter = False  # Trigger troubleshooter
+        self._test_wavefront = False        # Trigger to test the optimized wavefront
+        self._run_troubleshooter = False    # Trigger troubleshooter
+        self.darkframe = None
+        self.preframe = None
 
     @property
     def wavefront(self) -> State:
@@ -260,7 +262,7 @@ class WFSController:
             self.algorithm._slm.set_phases(self._optimized_wavefront)
 
     @property
-    def noise_factor(self) -> float:
+    def noise_factor(self) -> (float | None):
         """
         Returns:
             float: noise factor: the estimated loss in fidelity caused by the the limited snr.
@@ -268,7 +270,7 @@ class WFSController:
         return self._noise_factor
 
     @property
-    def amplitude_factor(self) -> float:
+    def amplitude_factor(self) -> (float | None):
         """
         Returns:
             float: amplitude factor: estimated reduction of the fidelity due to phase-only
@@ -277,7 +279,7 @@ class WFSController:
         return self._amplitude_factor
 
     @property
-    def estimated_enhancement(self) -> float:
+    def estimated_enhancement(self) -> (float | None):
         """
         Returns:
             float: estimated enhancement: estimated ratio <after>/<before>  (with <> denoting
@@ -286,7 +288,7 @@ class WFSController:
         return self._estimated_enhancement
 
     @property
-    def non_linearity(self) -> float:
+    def non_linearity(self) -> (float | None):
         """
         Returns:
             float: non-linearity.
@@ -294,7 +296,7 @@ class WFSController:
         return self._non_linearity
 
     @property
-    def estimated_optimized_intensity(self) -> float:
+    def estimated_optimized_intensity(self) -> (float | None):
         """
         Returns:
             float: estimated optimized intensity.
@@ -302,7 +304,7 @@ class WFSController:
         return self._estimated_optimized_intensity
 
     @property
-    def snr(self) -> float:
+    def snr(self) -> (float | None):
         """
         Gets the signal-to-noise ratio (SNR) of the optimized wavefront.
 
@@ -322,7 +324,7 @@ class WFSController:
         self._recompute_wavefront = value
 
     @property
-    def feedback_enhancement(self) -> float:
+    def feedback_enhancement(self) -> (float | None):
         """Returns: the average enhancement of the feedback, returns none if no such enhancement was measured."""
         return self._feedback_enhancement
 
@@ -342,12 +344,52 @@ class WFSController:
         """
         if value:
             self.wavefront = WFSController.State.FLAT_WAVEFRONT
-            feedback_flat = self.algorithm._feedback.read()
+            feedback_flat = self.algorithm._feedback.read().copy()
             self.wavefront = WFSController.State.SHAPED_WAVEFRONT
-            feedback_shaped = self.algorithm._feedback.read()
+            feedback_shaped = self.algorithm._feedback.read().copy()
             self._feedback_enhancement = float(feedback_shaped.sum() / feedback_flat.sum())
 
         self._test_wavefront = value
+
+    def read_frame(self) -> np.ndarray:
+        """
+        Read a single frame from the feedback function.
+        TODO: Maybe distinguish WFS feedback and full frame measurement.
+        """
+        return self.algorithm._feedback.read().copy()
+
+    def set_slm_random(self):
+        """
+        Set a patch of random phases to the SLM primary phase patch. Useful for extinguishing the
+        laser light in multi-PEF setups.
+        """
+        slm = self.algorithm._slm
+        slm.primary_phase_patch.phases = 2*np.pi * np.random.rand(300, 300)
+        slm.update()
+
+    def reset_slm_primary_patch(self):
+        """
+        Reset the SLM primary phase patch.
+        """
+        slm = self.algorithm._slm
+        slm.primary_phase_patch.phases = 0
+        slm.update()
+
+    def snap_darkframe(self):
+        """
+        Snap a dark frame.
+        """
+        ### Note: for now, assume multi-PEF
+        self.set_slm_random()
+        self.darkframe = self.read_frame()
+        self.reset_slm_primary_patch()
+
+    def snap_preframe(self):
+        """
+        Snap a frame before the WFS experiment.
+        """
+        self.preframe = self.read_frame()
+
 
     @property
     def run_troubleshooter(self) -> bool:
@@ -375,13 +417,13 @@ class WFSController:
         ### All steps where images are taken, must take images of the same part of the sample and
         ### some features in the image must be visible.
 
-        ### === Dark frame ===
+        ### === Done: Dark frame ===
         ### Manual step: for single photon/transmission: block laser
         ### Preconfig: for multi-photon: random pattern SLM
         ### Measurement: snap image
         ### Result: save image in class, so it's accessible after WFS
 
-        ### === Frame before ===
+        ### === Done: Frame before ===
         ### Preconfig: Flat wavefront
         ### Measurement: snap image
         ### Result: save image in class, so it's accessible after WFS
@@ -391,44 +433,96 @@ class WFSController:
         ### Preconfig: Shaped wavefront
         ### Measurement: snap image
         ### Result: save image in class
+        ### Note: there's a flag of whether the WFS experiment has been done already
+        ### Implementation complexity: 1
+
+        ### === Corrected contrast function ===
+        ### Requirement: Input: measured darkframe and frame
+        ### Calculation: σ_signal = sqrt( var(signal) - var(darkframe) )
+        ### Result: signal contrast, corrected for darkframe noise
+        ### Implementation complexity: 1
+
+        ### === Contrast enhancement function ===
+        ### Requirement: Input: measured darkframe, frame with shaped wavefront, and frame with flat wavefront
+        ### Calculation: η_σ = σ_shaped / σ_flat
+        ### Result: signal enhancement, robust against consistent noise and offsets
+        ### Implementation complexity: 1
 
         ### === Frame with flat wavefront after ===
         ### Requirement: Regular WFS experiment done first
         ### Preconfig: Flat wavefront
         ### Measurement: snap image
         ### Result: save image in class
+        ### Note: there's a flag of whether the WFS experiment has been done already
+        ### Implementation complexity: 1
+
+        ### === cross-correlation function ===
+        ### Calculation: https://mathworld.wolfram.com/Cross-CorrelationTheorem.html
+        ### Result: cross-correlation function
+        ### Implementation complexity: 2
+
+        ### === Find-image-pixel-shift function ===
+        ### Requirement: cross-correlation function
+        ### Calculation: 2D argmax of crosscorr https://stackoverflow.com/questions/47726073/how-to-find-the-argmax-of-a-two-dimensional-array-in-numpy
+        ### Result: pixel shift between two images
+        ### Implementation complexity: 2
 
         ### === Test setup stability ===
+        ### Requirement: find-image-pixel-shift function
         ### Preconfig: Flat wavefront
         ### Measurement: Snap multiple images over a long period of time
         ### Calculation: Cross-correlation between images
         ### Result: xdrift, ydrift, intensity drift, warning if >threshold
         ### Note 1: measurement should take a long time, could result in significant photobleaching
         ### Note 2: larger image size for more precise x,y cross correlation
-
-        ### === Measure unmodulated light ===
-        ### Measurement: 2-mode phase stepping checkerboard.
-        ### Calculation:
-        ###    |A⋅exp(iθ) + B⋅exp(iφ) + C|² + b.g.noise
-        ### Result: fraction of modulated and fraction of unmodulated light, warning if >threshold
-
-        ### === SLM illumination ===
-        ### Measurement: WFS experiment on entire SLM
-        ### Calculation: amplitude from WFS (from e.g. Hadamard to SLM x,y basis)
-        ### Result: SLM illumination map
-
-        ### === Corrected contrast ===
-        ### Requirement: Input darkframe and frame
-        ### Calculation: sqrt( var(signal) - var(darkframe) )
-        ### Result: signal contrast, corrected for darkframe noise
-
-        ### === Check calibration LUT ===
-        ### Requirement: Phase stepping measurement light modulation done
-        ### Calculation: Check higher phasestep frequencies. Is response cosine?
-        ### Result: Nonlinearity value. Warning if very not cosine
+        ### Implementation complexity: 3
 
         ### === Check SLM timing ===
         ### Measurement: Quick measurement, change SLM pattern, quick measurement, wait,
         ### later measurement
         ### Calculation: do quick measurement and later measurement correspond
-        ### Result: Warning if timing seems incorrect
+        ### Result 1: Warning if timing seems incorrect
+        ### Result 2: Plot graph
+        ### Implementation complexity: 5
+
+        ### === SLM illumination ===
+        ### Requirement: Depends on it's own experiment
+        ### Measurement: WFS experiment on entire SLM
+        ### Calculation: amplitude from WFS (from e.g. Hadamard to SLM x,y basis)
+        ### Result: SLM illumination map
+        ### Implementation complexity: 4
+
+        ### === Measure unmodulated light ===
+        ### Requirement: Depends on it's own experiment
+        ### Measurement: 2-mode phase stepping checkerboard.
+        ### Calculation:
+        ###    |A⋅exp(iθ) + B⋅exp(iφ) + C|² + b.g.noise
+        ### Result: fraction of modulated and fraction of unmodulated light, warning if >threshold
+        ### Note: large fraction of unmodulated light could indicate wrong illumination
+        ### Implementation complexity: 7
+
+        ### === Check calibration LUT ===
+        ### Requirement: Phase stepping measurement light modulation done
+        ### Calculation: Check higher phasestep frequencies. Is response cosine?
+        ### Result 1: Nonlinearity value. Warning if very not cosine
+        ### Result 2: Plot graph
+        ### Implementation complexity: 5
+
+        ### === Quantify SNR - darknoise ===
+        ### Requirement: darkframe, before frame, noise corrected std function
+        ### Calculation: noise corrected std / std of darkframe
+        ### Result: 'measured signal when dark is noise'-SNR
+        ### Implementation complexity: 1
+
+        ### === Quantify SNR - with frame correlation ===
+        ### Requirement:
+        ### Measurement: Snap multiple images in short time
+        ### Calculation: how do consecutive frames correlate?
+        ### Result: 'everything not reproducible is noise'-SNR
+        ### Note: How can we distinguish from slm phase jitter?
+        ### Implementation complexity: 2
+
+        ### === Done: Quantify noise in signal - from phase stepping ===
+        ### Requirement: phase-stepping measurement
+        ### Calculation: from phase-stepping measurements
+        ### Result: 'non-linearity in phase response is noise'-SNR
