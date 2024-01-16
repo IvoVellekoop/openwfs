@@ -137,12 +137,19 @@ Naming Convention <https://www.emva.org/wp-content/uploads/GenICam_SFNC_2_3.pdf>
         return out
 
     @property
-    def duration(self) -> u.Quantity:
+    def duration(self) -> Quantity[u.ms]:
+        """Returns the exposure time in milliseconds if software triggering is used.
+        Returns ∞ if hardware triggering is used.
+        TODO: implement hardware triggering."""
+        return self.exposure_time.to(u.ms)
+
+    @property
+    def exposure_time(self) -> u.Quantity:
         """Exposure time in microseconds."""
         return self._nodes.ExposureTime.value * u.us
 
-    @duration.setter
-    def duration(self, value):
+    @exposure_time.setter
+    def exposure_time(self, value):
         with self.paused():
             self._nodes.ExposureTime.value = int(value.to(u.us).value)
 

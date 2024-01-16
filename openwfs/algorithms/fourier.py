@@ -9,17 +9,6 @@ class FourierBase:
 
       Can run natively, provided you input the kspace for the reference and measurement part of the SLM.
 
-      Attributes:
-          feedback (Detector): Source of feedback
-          slm (PhaseSLM): The spatial light modulator
-          slm_shape (tuple of two ints): The shape that the SLM patterns & transmission matrices are calculated for,
-            does not necessarily have to be the actual pixel dimensions as the SLM.
-          phase_steps (int): The number of phase steps per mode. Default = 4
-          overlap (float): A value between zero and one that indicates the fraction of overlap between the reference
-            and measurement part of the SLM.
-            A larger overlap reduces the uncertainty in matching the phase of the two halves of the solution,
-            but reduces the overall efficiency of the algorithm. Default = 0.1
-
       [1]: Bahareh Mastiani, Gerwin Osnabrugge, and Ivo M. Vellekoop,
       "Wavefront shaping for forward scattering," Opt. Express 30, 37436-37445 (2022)
       """
@@ -49,7 +38,7 @@ class FourierBase:
             overlap (float): The overlap between the reference and measurement part of the SLM (default is 0.1).
         """
         self._execute_button = False
-        self._slm = slm
+        self.slm = slm
         self._feedback = feedback
         self.phase_steps = phase_steps
         self.k_left = k_left
@@ -94,7 +83,7 @@ class FourierBase:
             for p in range(self.phase_steps):
                 phase_offset = p * 2 * np.pi / self.phase_steps
                 phase_pattern = self._get_phase_pattern(k_set[:, i], phase_offset, side)
-                self._slm.set_phases(phase_pattern)
+                self.slm.set_phases(phase_pattern)
                 self._feedback.trigger(out=measurements[i, p, ...])
 
         self._feedback.wait()
@@ -120,7 +109,7 @@ class FourierBase:
         # -π to π.
         num_columns = int(0.5 * self.slm_shape[1])
         tilted_front = tilt([self.slm_shape[0], num_columns], k * (0.5 * np.pi),
-                            phase_offset=phase_offset, extent=self._slm.extent)
+                            phase_offset=phase_offset, extent=self.slm.extent)
 
         # Handle side-dependent pattern
 

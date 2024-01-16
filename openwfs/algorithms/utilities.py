@@ -221,8 +221,8 @@ class WFSController:
         self._optimized_wavefront = None
         self._recompute_wavefront = False
         self._feedback_enhancement = None
-        self._test_wavefront = False        # Trigger to test the optimized wavefront
-        self._run_troubleshooter = False    # Trigger troubleshooter
+        self._test_wavefront = False  # Trigger to test the optimized wavefront
+        self._run_troubleshooter = False  # Trigger troubleshooter
         self.darkframe = None
         self.preframe = None
 
@@ -246,7 +246,7 @@ class WFSController:
         """
         self._wavefront = value
         if value == WFSController.State.FLAT_WAVEFRONT:
-            self.algorithm._slm.set_phases(0.0)
+            self.algorithm.slm.set_phases(0.0)
         else:
             if self._recompute_wavefront or self._optimized_wavefront is None:
                 # select only the wavefront and statistics for the first target
@@ -259,7 +259,7 @@ class WFSController:
                 self._estimated_optimized_intensity = result.estimated_optimized_intensity
                 self._snr = 1.0 / (1.0 / result.noise_factor - 1.0)
                 self._result = result
-            self.algorithm._slm.set_phases(self._optimized_wavefront)
+            self.algorithm.slm.set_phases(self._optimized_wavefront)
 
     @property
     def noise_factor(self) -> (float | None):
@@ -363,15 +363,15 @@ class WFSController:
         Set a patch of random phases to the SLM primary phase patch. Useful for extinguishing the
         laser light in multi-PEF setups.
         """
-        slm = self.algorithm._slm
-        slm.primary_phase_patch.phases = 2*np.pi * np.random.rand(300, 300)
+        slm = self.algorithm.slm
+        slm.primary_phase_patch.phases = 2 * np.pi * np.random.rand(300, 300)
         slm.update()
 
     def reset_slm_primary_patch(self):
         """
         Reset the SLM primary phase patch.
         """
-        slm = self.algorithm._slm
+        slm = self.algorithm.slm
         slm.primary_phase_patch.phases = 0
         slm.update()
 
@@ -389,7 +389,6 @@ class WFSController:
         Snap a frame before the WFS experiment.
         """
         self.preframe = self.read_frame()
-
 
     @property
     def run_troubleshooter(self) -> bool:

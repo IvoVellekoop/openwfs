@@ -19,11 +19,6 @@ class Gain:
     It contains a boolean called reset that triggers the method on_reset.
     Ideally, we would like some button to execute methods in our devices,
     but this approach allows the user to execute methods in the device property manager.
-
-    Attributes:
-        reset (bool): Triggers the reset process if set to True.
-        gain (Quantity[u.V], annotated): Sets or gets the current gain value. Range: 0 to 0.9 volts.
-
     """
 
     def __init__(self, port_ao, port_ai, port_do, reset=False, gain=0 * u.V):
@@ -42,24 +37,7 @@ class Gain:
         self.port_do = port_do
         self._reset = reset
         self._gain = gain
-
-    def set_gain(self, value):
-        """
-
-        Args:
-            value (Quantity[u.V]): the voltage of the gain.
-
-        Returns:
-
-        """
-        with ni.Task() as write_task:
-            aochan = write_task.ao_channels.add_ao_voltage_chan(self.port_ao)
-            aochan.ao_min = 0
-            aochan.ao_max = 0.9
-
-            write_task.write(value.to_value(u.V))
-
-        return value
+        self.gain = gain  # triggers write to nidaq
 
     def check_overload(self):
         with ni.Task() as task:
@@ -100,8 +78,11 @@ class Gain:
 
     @gain.setter
     def gain(self, value: Quantity[u.V]):
-        self.set_gain(value.to(u.V))
-        self._gain = value
+        self._gain = value.to(u.V)
+        with ni.Task() as write_task:
+            aochan = write_task.ao_channels.add_ao_voltage_chan(self.port_ao)
+            aochan.ao_min = 0
+            aochan.ao_max = 0.9
+            write_task.write(self._gain.to_value(u.V))
 
-
-devices = {'gain': Gain(port_ao="Dev4/ao0", port_ai="Dev4/ai0", port_do="Dev4/port0/line0")}
+# devices = {'gain': Gain(port_ao="Dev4/ao0", port_ai="Dev4/ai0", port_do="Dev4/port0/line0")}

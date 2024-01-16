@@ -107,7 +107,7 @@ class Transform:
     @staticmethod
     def zoom(scale: float):
         """Returns a transform that just zooms in the image."""
-        return Transform(transform=((scale, 0.0), (0.0, scale)))
+        return Transform(transform=np.array(((scale, 0.0), (0.0, scale))))
 
     @staticmethod
     def identity():

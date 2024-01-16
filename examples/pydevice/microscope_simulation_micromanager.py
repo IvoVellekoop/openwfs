@@ -3,8 +3,7 @@ import numpy as np
 from openwfs.algorithms import FourierDualReference
 from openwfs.algorithms.utilities import WFSController
 from openwfs.processors import SingleRoi
-from openwfs.simulation import Microscope, MockSource, MockSLM, SimulatedWFS
-from openwfs.utilities import imshow
+from openwfs.simulation import Microscope, MockSource, MockSLM
 import skimage
 import astropy.units as u
 
@@ -50,7 +49,8 @@ sim = Microscope(source=src, slm=slm.pixels(), magnification=1, numerical_apertu
 
 cam = sim.get_camera(analog_max=10)
 roi_detector = SingleRoi(cam, radius=0)  # Only measure that specific point
-alg = FourierDualReference(feedback=roi_detector, slm=slm, slm_shape=(1000, 1000), k_angles_min=-3, k_angles_max=3, phase_steps=3)
+alg = FourierDualReference(feedback=roi_detector, slm=slm, slm_shape=(1000, 1000), k_angles_min=-3, k_angles_max=3,
+                           phase_steps=3)
 controller = WFSController(alg)
 
 devices = {

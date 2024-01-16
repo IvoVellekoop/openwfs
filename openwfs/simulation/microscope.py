@@ -2,11 +2,11 @@ import numpy as np
 import astropy.units as u
 from astropy.units import Quantity
 from scipy.signal import fftconvolve
-from typing import Union, Optional
+from typing import Optional
 from ..simulation.mockdevices import MockXYStage, MockCamera
 from ..slm import patterns
 from ..core import Processor, Detector, get_pixel_size, set_pixel_size
-from ..utilities import project, place, Transform, imshow
+from ..utilities import project, place, Transform
 from ..processors import TransformProcessor
 import warnings
 
@@ -39,8 +39,6 @@ class Microscope(Processor):
             (even if the slm and/or aberration map use a different NA).
         wavelength (astropy distance unit): wavelength of the light in micrometer.
             Used to compute the diffraction limit and the effect of aberrations.
-        camera (ImageSource, output only): represents the camera in the magnified image plane of the microscope
-            (i.e., where an actual camera would be located).
         truncation_factor (float): is used to simulate a gaussian beam illumination of the SLM/back pupil.
             Corresponds to w/r, with w the beam waist (1/e² intensity) and r the pupil radius.
             Defaults to None for a flat intensity distribution.

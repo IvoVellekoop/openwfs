@@ -1,4 +1,4 @@
-from typing import Union, Sequence, Optional
+from typing import Sequence, Optional
 import astropy.units as u
 import nidaqmx.system
 import numpy as np
@@ -141,7 +141,7 @@ class ScanningMicroscope(Detector):
     def _update(self):
         # round padding up to integer number of pixels on both sides
         padding = 2 * np.ceil(self._data_shape * self._padding * 0.5).astype('int32')
-        self._padded_data_shape = self._data_shape + padding
+        self._padded_data_shape = np.array(self._data_shape) + padding
 
         # compute the scan range.
         scan_range = (self._roi_end - self._roi_start) * (1.0 + padding / self._data_shape)  # noqa

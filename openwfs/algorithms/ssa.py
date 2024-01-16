@@ -26,7 +26,7 @@ class StepwiseSequential:
         """
         self._n_x = n_x
         self._n_y = n_x if n_y is None else n_y
-        self._slm = slm
+        self.slm = slm
         self._feedback = feedback
         self._phase_steps = phase_steps
 
@@ -42,14 +42,14 @@ class StepwiseSequential:
             for n_x in range(self.n_x):
                 for p in range(self._phase_steps):
                     phase_pattern[n_y, n_x] = p * 2 * np.pi / self._phase_steps
-                    self._slm.set_phases(phase_pattern)
+                    self.slm.set_phases(phase_pattern)
                     self._feedback.trigger(out=measurements[n_y, n_x, p, ...])
                     self._feedback.wait()
                 phase_pattern[n_y, n_x] = 0
 
         self._feedback.wait()
-        I_0 = np.mean(measurements[:, :, 0])  # flat wavefront intensity
-        return analyze_phase_stepping(measurements, axis=2, A=np.sqrt(I_0))
+        starting_intensity = np.mean(measurements[:, :, 0])  # flat wavefront intensity
+        return analyze_phase_stepping(measurements, axis=2, A=np.sqrt(starting_intensity))
 
     @property
     def n_x(self) -> int:

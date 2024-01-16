@@ -41,7 +41,7 @@ class SimulatedWFS(Processor):
             self.E_input_slm *= gaussian(aberrations.shape, waist=beam_profile_waist)
         super().__init__(self.slm.pixels())
 
-    def _fetch(self, out: Optional[np.ndarray], slm_phases):
+    def _fetch(self, out: Optional[np.ndarray], slm_phases):  # noqa
         """
         Computes the intensity in the focus by applying phase corrections to the input electric field.
 

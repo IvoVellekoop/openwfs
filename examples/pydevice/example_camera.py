@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Annotated
+from typing import Annotated, Optional
 import astropy.units as u
 from astropy.units import Quantity
 from enum import Enum
@@ -74,7 +74,7 @@ class Camera:
     """
 
     def __init__(self, left=0, top=0, width=100, height=100, duration: Quantity[u.ms] = 100 * u.ms,
-                 random_generator=None):
+                 random_generator: Optional[RandomGenerator] = None):
         """
         Initializes the Camera with specified view dimensions, exposure time, and random generator.
 
@@ -104,7 +104,7 @@ class Camera:
         if self._resized:
             self._image = np.zeros(self.data_shape, dtype=np.uint16)
             self._resized = False
-        self.random_generator.generate_into(self._image)
+        self._random_generator.generate_into(self._image)
         result = Future()
         result.set_result(self._image)  # noqa
         return result

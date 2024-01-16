@@ -261,16 +261,8 @@ class ADCProcessor(Processor):
 class MockCamera(ADCProcessor):
     """Wraps any 2-d image source as a camera.
 
-    To implement the camera interface (see bootstrap.py), in addition to the Detector interface,
-    we must implement the following:
-
-    Attributes:
-        left (int): Left position of the ROI in the source data.
-        top (int): Top position of the ROI in the source data.
-        height (int): Height of the ROI.
-        width (int): Width of the ROI.
-        data_shape (tuple): Shape of the image data to be captured.
-
+    To implement the camera interface, in addition to the Detector interface,
+    we must implement left,right,top, and bottom.
     In addition, the data should be returned as uint16.
     Conversion to uint16 is implemented in the ADCProcessor base class.
     """
@@ -292,6 +284,7 @@ class MockCamera(ADCProcessor):
 
     @property
     def left(self) -> int:
+        """left (int): Horizontal start position of the ROI."""
         return self._crop.pos[1]
 
     @left.setter
@@ -300,10 +293,12 @@ class MockCamera(ADCProcessor):
 
     @property
     def right(self) -> int:
+        """right (int): Horizontal end position of the ROI."""
         return self.left + self.width
 
     @property
     def top(self) -> int:
+        """top (int): Vertical start position of the ROI."""
         return self._crop.pos[0]
 
     @top.setter
@@ -312,10 +307,12 @@ class MockCamera(ADCProcessor):
 
     @property
     def bottom(self) -> int:
+        """bottom (int): Vertical end position of the ROI."""
         return self.top + self.height
 
     @property
     def height(self) -> int:
+        """Height of the ROI."""
         return self._crop.data_shape[0]
 
     @height.setter
@@ -324,6 +321,7 @@ class MockCamera(ADCProcessor):
 
     @property
     def width(self) -> int:
+        """Width of the ROI."""
         return self._crop.data_shape[1]
 
     @width.setter
