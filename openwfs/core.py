@@ -690,18 +690,10 @@ class Processor(Detector, ABC):
 
 class PhaseSLM(Actuator, ABC):
     """Base class for phase-only SLMs
-
-    Attributes:
-        extent(Sequence[float]): in a pupil-conjugate configuration, this attribute can be used to
-            indicate how the pattern shown in `set_phases` is mapped to the back pupil of the microscope objective.
-            The default extent of (2.0, 2.0) corresponds to exactly filling the back pupil (i.e., the full NA)
-            with the phase pattern.
-            A higher value can be used to introduce some `bleed`/overfilling to allow for alignment inaccuracies.
     """
 
-    def __init__(self, extent=np.array((2.0, 2.0))):
+    def __init__(self):
         super().__init__()
-        self.extent = extent
 
     @abstractmethod
     def update(self):

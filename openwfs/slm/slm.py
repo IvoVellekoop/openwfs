@@ -80,7 +80,6 @@ class SLM(PhaseSLM):
         # In advanced scenarios, the geometry of this patch may be modified, or it may be replaced altogether.
         self.patches = [Patch(self)]  # note: this also removes the frame patch from list of patches
         self.primary_phase_patch = self.patches[0]
-        super().__init__()
         self.update()
 
     @property

@@ -109,7 +109,7 @@ class FourierBase:
         # -π to π.
         num_columns = int(0.5 * self.slm_shape[1])
         tilted_front = tilt([self.slm_shape[0], num_columns], k * (0.5 * np.pi),
-                            phase_offset=phase_offset, extent=self.slm.extent)
+                            phase_offset=phase_offset)
 
         # Handle side-dependent pattern
 
