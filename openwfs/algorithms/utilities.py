@@ -465,11 +465,13 @@ class WFSController:
         ### === cross-correlation function ===
         ### Calculation: https://mathworld.wolfram.com/Cross-CorrelationTheorem.html
         ### Result: cross-correlation function
+        ### Implementation complexity: 2
 
         ### === Find-image-pixel-shift function ===
         ### Requirement: cross-correlation function
         ### Calculation: 2D argmax of crosscorr https://stackoverflow.com/questions/47726073/how-to-find-the-argmax-of-a-two-dimensional-array-in-numpy
         ### Result: pixel shift between two images
+        ### Implementation complexity: 2
 
         ### === Test setup stability ===
         ### Requirement: find-image-pixel-shift function
@@ -479,7 +481,7 @@ class WFSController:
         ### Result: xdrift, ydrift, intensity drift, warning if >threshold
         ### Note 1: measurement should take a long time, could result in significant photobleaching
         ### Note 2: larger image size for more precise x,y cross correlation
-        ### Implementation complexity: 1
+        ### Implementation complexity: 3
 
         ### === Check SLM timing ===
         ### Measurement: Quick measurement, change SLM pattern, quick measurement, wait,
@@ -487,12 +489,14 @@ class WFSController:
         ### Calculation: do quick measurement and later measurement correspond
         ### Result 1: Warning if timing seems incorrect
         ### Result 2: Plot graph
+        ### Implementation complexity: 5
 
         ### === SLM illumination ===
         ### Requirement: Depends on it's own experiment
         ### Measurement: WFS experiment on entire SLM
         ### Calculation: amplitude from WFS (from e.g. Hadamard to SLM x,y basis)
         ### Result: SLM illumination map
+        ### Implementation complexity: 4
 
         ### === Measure unmodulated light ===
         ### Requirement: Depends on it's own experiment
@@ -501,9 +505,30 @@ class WFSController:
         ###    |A⋅exp(iθ) + B⋅exp(iφ) + C|² + b.g.noise
         ### Result: fraction of modulated and fraction of unmodulated light, warning if >threshold
         ### Note: large fraction of unmodulated light could indicate wrong illumination
+        ### Implementation complexity: 7
 
         ### === Check calibration LUT ===
         ### Requirement: Phase stepping measurement light modulation done
         ### Calculation: Check higher phasestep frequencies. Is response cosine?
         ### Result 1: Nonlinearity value. Warning if very not cosine
         ### Result 2: Plot graph
+        ### Implementation complexity: 5
+
+        ### === Quantify SNR - darknoise ===
+        ### Requirement: darkframe, before frame, noise corrected std function
+        ### Calculation: noise corrected std / std of darkframe
+        ### Result: 'measured signal when dark is noise'-SNR
+        ### Implementation complexity: 1
+
+        ### === Quantify SNR - with frame correlation ===
+        ### Requirement: 
+        ### Measurement: Snap multiple images in short time
+        ### Calculation: how do consecutive frames correlate?
+        ### Result: 'everything not reproducible is noise'-SNR
+        ### Note: How can we distinguish from slm phase jitter?
+        ### Implementation complexity: 2
+
+        ### === Done: Quantify noise in signal - from phase stepping ===
+        ### Requirement: phase-stepping measurement
+        ### Calculation: from phase-stepping measurements
+        ### Result: 'non-linearity in phase response is noise'-SNR
