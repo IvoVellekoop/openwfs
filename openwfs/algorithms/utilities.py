@@ -1,4 +1,5 @@
 import numpy as np
+from numpy.fft import fft2, ifft2
 from enum import Enum
 from typing import Union
 
@@ -188,6 +189,82 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int, A: float | None 
                      non_linearity=non_linearity, n=n)
 
 
+def signal_std(signal_with_noise: np.ndarray, noise:np.ndarray) -> float:
+    """
+    Compute noise corrected standard deviation of signal measurement.
+
+    Args:
+        signal_with_noise:
+            ND array containing the measured signal including noise. The noise is assumed to be uncorrelated with the
+            signal.
+        noise:
+            ND array containing only noise.
+
+    Returns:
+        Standard deviation of the signal, corrected for the variance due to given noise.
+    """
+    return np.sqrt(signal_with_noise.var() - noise.var())
+
+
+def cnr(signal_with_noise: np.ndarray, noise:np.ndarray) -> float:
+    """
+    Compute the noise-corrected contrast-to-noise ratio of a measured signal. Contrast is computed as the standard
+    deviation, corrected for noise. The noise variance is computed from a separate array, containing only noise.
+
+    Args:
+        signal_with_noise:
+            ND array containing the measured signal including noise. The noise is assumed to be uncorrelated with the
+            signal.
+        noise:
+            ND array containing only noise, e.g. a dark frame.
+
+    Returns:
+        Standard deviation of the signal, corrected for the variance due to given noise.
+    """
+    return signal_std(signal_with_noise, noise) / noise.std()
+
+
+def contrast_enhancement(signal_with_noise: np.ndarray, reference_with_noise: np.ndarray, noise: np.ndarray) -> float:
+    """
+    Compute noise corrected contrast enhancement.
+
+    Args:
+        signal_with_noise:
+            ND array containing the measured signal including noise, e.g. image signal with shaped wavefront. The noise
+            is assumed to be uncorrelated with the signal.
+        reference_with_noise:
+            ND array containing a reference signal including noise, e.g. image signal with a flat wavefront. The noise
+            is assumed to be uncorrelated with the reference.
+        noise:
+            ND array containing only noise.
+
+    Returns:
+        Standard deviation of the signal, corrected for the variance due to given noise.
+    """
+    return signal_std(signal_with_noise, noise) / signal_std(reference_with_noise, noise)
+
+
+def cross_corr_fft2(f: np.ndarray, g: np.ndarray) -> np.ndarray:
+    """
+    Compute cross-correlation with a 2D Fast Fourier Transform.
+
+    Args:
+        f, g:
+            2D arrays to be correlated.
+    """
+    return ifft2(fft2(f).conj() * fft2(g))
+
+
+def find_pixel_shift(f: np.ndarray, g: np.ndarray) -> tuple[np.intp, ...]:
+    """
+    Find the pixel shift between two images by performing a 2D FFT based cross-correlation.
+
+    TODO: fix negative shifts
+    """
+    corr = cross_corr_fft2(f, g)
+    return np.unravel_index(np.argmax(corr), np.array(corr).shape)
+
+
 class WFSController:
     """
     Controller for Wavefront Shaping (WFS) operations using a specified algorithm in the MicroManager environment.
@@ -230,8 +307,9 @@ class WFSController:
         self._feedback_enhancement = None
         self._test_wavefront = False        # Trigger to test the optimized wavefront
         self._run_troubleshooter = False    # Trigger troubleshooter
-        self.darkframe = None
-        self.preframe = None
+        self._frame_cnr = None
+        self.dark_frame = None
+        self.before_frame = None
 
     @property
     def wavefront(self) -> State:
@@ -334,6 +412,11 @@ class WFSController:
     def feedback_enhancement(self) -> (float | None):
         """Returns: the average enhancement of the feedback, returns none if no such enhancement was measured."""
         return self._feedback_enhancement
+    
+    @property
+    def frame_cnr(self) -> (float | None):
+        """Returns: the noise corrected contrast to noise ratio of the frame"""
+        return self._frame_cnr
 
     @property
     def test_wavefront(self) -> bool:
@@ -361,13 +444,13 @@ class WFSController:
     def read_frame(self) -> np.ndarray:
         """
         Read a single frame from the feedback function.
-        TODO: Maybe distinguish WFS feedback and full frame measurement.
+        TODO: Distinguish WFS feedback and full frame measurement.
         """
         return self.algorithm._feedback.read().copy()
 
     def set_slm_random(self):
         """
-        Set a patch of random phases to the SLM primary phase patch. Useful for extinguishing the
+        Set a pattern of random phases to the SLM primary phase patch. Useful for extinguishing the
         laser light in multi-PEF setups.
         """
         slm = self.algorithm._slm
@@ -382,20 +465,45 @@ class WFSController:
         slm.primary_phase_patch.phases = 0
         slm.update()
 
-    def snap_darkframe(self):
+    def read_dark_frame(self) -> np.ndarray:
         """
-        Snap a dark frame.
-        """
-        ### Note: for now, assume multi-PEF
-        self.set_slm_random()
-        self.darkframe = self.read_frame()
-        self.reset_slm_primary_patch()
+        Read and save a dark frame.
 
-    def snap_preframe(self):
+        Note: for now, assume multi-PEF
+        TODO: support 1PEF and transmission setups
         """
-        Snap a frame before the WFS experiment.
+        self.set_slm_random()
+        self.dark_frame = self.read_frame()
+        self.reset_slm_primary_patch()
+        return self.dark_frame
+
+    def read_before_frame_flatwf(self) -> np.ndarray:
         """
-        self.preframe = self.read_frame()
+        Read and save a frame before the WFS experiment.
+        """
+        assert self._optimized_wavefront is None
+        self.wavefront = WFSController.State.FLAT_WAVEFRONT
+        self.before_frame = self.read_frame()
+        return self.before_frame
+
+    def read_after_frame_flatwf(self) -> np.ndarray:
+        """Read a frame after the WFS experiment with flat wavefront."""
+        assert self._optimized_wavefront is not None
+        self.wavefront = WFSController.State.FLAT_WAVEFRONT
+        return self.read_frame()
+
+    def read_after_frame_shapedwf(self) -> np.ndarray:
+        """Read a frame after the WFS experiment with shaped wavefront."""
+        assert self._optimized_wavefront is not None
+        self.wavefront = WFSController.State.SHAPED_WAVEFRONT
+        return self.read_frame()
+
+    def compute_cnr(self) -> float:
+        """Compute the CNR of the before_frame."""
+        assert self.dark_frame is not None
+        assert self.before_frame is not None
+        self._frame_cnr = cnr(self.before_frame, self.dark_frame)
+        return self._frame_cnr
 
     @property
     def run_troubleshooter(self) -> bool:
@@ -434,33 +542,29 @@ class WFSController:
         ### Measurement: snap image
         ### Result: save image in class, so it's accessible after WFS
 
-        ### === Frame with shaped wavefront after ===
-        ### Requirement: Regular WFS experiment computed wavefront
-        ### Preconfig: Shaped wavefront
-        ### Measurement: snap image
-        ### Result: save image in class
-        ### Note: there's a flag of whether the WFS experiment has been done already
-        ### Implementation complexity: 1
-
-        ### === Corrected contrast function ===
-        ### Requirement: Input: measured darkframe and frame
-        ### Calculation: σ_signal = sqrt( var(signal) - var(darkframe) )
-        ### Result: signal contrast, corrected for darkframe noise
-        ### Implementation complexity: 1
-
-        ### === Contrast enhancement function ===
-        ### Requirement: Input: measured darkframe, frame with shaped wavefront, and frame with flat wavefront
-        ### Calculation: η_σ = σ_shaped / σ_flat
-        ### Result: signal enhancement, robust against consistent noise and offsets
-        ### Implementation complexity: 1
-
-        ### === Frame with flat wavefront after ===
+        ### === Done: Frame with flat wavefront after ===
         ### Requirement: Regular WFS experiment done first
         ### Preconfig: Flat wavefront
         ### Measurement: snap image
         ### Result: save image in class
         ### Note: there's a flag of whether the WFS experiment has been done already
-        ### Implementation complexity: 1
+
+        ### === Done: Frame with shaped wavefront after ===
+        ### Requirement: Regular WFS experiment computed wavefront
+        ### Preconfig: Shaped wavefront
+        ### Measurement: snap image
+        ### Result: save image in class
+        ### Note: there's a flag of whether the WFS experiment has been done already
+
+        ### === Done: Corrected contrast function ===
+        ### Requirement: Input: measured darkframe and frame
+        ### Calculation: σ_signal = sqrt( var(signal) - var(darkframe) )
+        ### Result: signal contrast, corrected for darkframe noise
+
+        ### === Done: Contrast enhancement function ===
+        ### Requirement: Input: measured darkframe, frame with shaped wavefront, and frame with flat wavefront
+        ### Calculation: η_σ = σ_shaped / σ_flat
+        ### Result: signal enhancement, robust against consistent noise and offsets
 
         ### === cross-correlation function ===
         ### Calculation: https://mathworld.wolfram.com/Cross-CorrelationTheorem.html
@@ -514,14 +618,13 @@ class WFSController:
         ### Result 2: Plot graph
         ### Implementation complexity: 5
 
-        ### === Quantify SNR - darknoise ===
+        ### === Done: Quantify CNR ===
         ### Requirement: darkframe, before frame, noise corrected std function
         ### Calculation: noise corrected std / std of darkframe
         ### Result: 'measured signal when dark is noise'-SNR
-        ### Implementation complexity: 1
 
         ### === Quantify SNR - with frame correlation ===
-        ### Requirement: 
+        ### Requirement: cross-corr
         ### Measurement: Snap multiple images in short time
         ### Calculation: how do consecutive frames correlate?
         ### Result: 'everything not reproducible is noise'-SNR
@@ -532,3 +635,9 @@ class WFSController:
         ### Requirement: phase-stepping measurement
         ### Calculation: from phase-stepping measurements
         ### Result: 'non-linearity in phase response is noise'-SNR
+
+        ### === Quantify photobleaching ===
+        ### Requirement: WFS experiment done, frames before and after WFS experiment
+        ### Calculation: loss of intensity -> % photobleached
+        ### Result: Value for amount of photobleaching
+        ### Implementation complexity: 2
