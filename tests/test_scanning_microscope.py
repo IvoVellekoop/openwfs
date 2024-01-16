@@ -2,7 +2,7 @@ import numpy as np
 
 from ..openwfs.devices import ScanningMicroscope
 from ..openwfs.slm.patterns import coordinate_range
-from ..openwfs.utilities import imshow, place, set_pixel_size, get_pixel_size
+from ..openwfs.utilities import place, set_pixel_size, get_pixel_size
 import astropy.units as u
 import pytest
 

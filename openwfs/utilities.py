@@ -5,6 +5,10 @@ from .core import Detector, get_pixel_size, set_pixel_size
 from typing import Union, Sequence, Optional
 import numpy as np
 import cv2
+from numpy.typing import ArrayLike
+
+# A coordinate is a sequence of two floats with an optional unit attached
+CoordinateType = Union[Sequence[float], Quantity]
 
 
 def grab_and_show(cam: Detector, magnification=1.0):
@@ -16,11 +20,14 @@ def grab_and_show(cam: Detector, magnification=1.0):
 
 
 def imshow(data):
-    pixel_size = get_pixel_size(data, may_fail=True)
-    extent = pixel_size * data.shape
-    plt.xlabel(extent.unit)
-    plt.ylabel(extent.unit)
-    extent = extent.value
+    pixel_size = get_pixel_size(data)
+    if pixel_size is not None:
+        extent = pixel_size * data.shape
+        plt.xlabel(extent.unit)
+        plt.ylabel(extent.unit)
+        extent = extent.value
+    else:
+        extent = data.shape
     plt.imshow(data, extent=(0.0, extent[0], 0.0, extent[1]), cmap='gray')
     plt.colorbar()
     plt.show()
@@ -34,9 +41,9 @@ class Transform:
     Elements of the transformation are specified with an astropy.unit attached.
     """
 
-    def __init__(self, transform: np.ndarray | Quantity | Sequence[float] = ((1.0, 0.0), (0.0, 1.0)),
-                 source_origin: Sequence[float] | np.ndarray | Quantity | None = None,
-                 destination_origin: Sequence[float] | np.ndarray | Quantity | None = None):
+    def __init__(self, transform: ArrayLike = ((1.0, 0.0), (0.0, 1.0)),
+                 source_origin: Optional[CoordinateType] = None,
+                 destination_origin: Optional[CoordinateType] = None):
         """
 
         Args:
@@ -130,7 +137,7 @@ def place(out_shape: Sequence[int], out_pixel_size: Quantity, source: np.ndarray
 
 
 def project(out_shape: Sequence[int], out_pixel_size: Quantity, source: np.ndarray,
-            transform: Transform, out: np.ndarray | None = None):
+            transform: Transform, out: Optional[np.ndarray] = None):
     """Projects the input image onto an array with specified shape and resolution.
 
     The input image is scaled so that the pixel sizes match those of the output,

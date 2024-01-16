@@ -3,7 +3,7 @@ import threading
 import time
 from abc import ABC, abstractmethod
 from concurrent.futures import Future, ThreadPoolExecutor
-from typing import Set, final, Sequence
+from typing import Set, final, Sequence, Tuple, Optional, Union
 from weakref import WeakSet
 
 import astropy.units as u
@@ -11,14 +11,20 @@ import numpy as np
 from numpy.typing import ArrayLike
 from astropy.units import Quantity
 
+# Aliases for commonly used type hints
 
-def set_pixel_size(data: ArrayLike, pixel_size: Quantity | None) -> np.ndarray:
+# An extent is a sequence of two floats with an optional unit attached,
+# or a single float with optional unit attached, which is broadcasted to a sequence of two floats.
+ExtentType = Union[float, Sequence[float], np.ndarray, Quantity]
+
+
+def set_pixel_size(data: ArrayLike, pixel_size: Optional[Quantity]) -> np.ndarray:
     """
     Sets the pixel size metadata for the given data array.
 
     Args:
         data (ArrayLike): The input data array.
-        pixel_size (Quantity | None): The pixel size to be set. When a single-element pixel size is given,
+        pixel_size (Optional[Quantity]): The pixel size to be set. When a single-element pixel size is given,
             it is broadcasted to all dimensions of the data array.
             Passing None sets the pixel size metadata to None.
 
@@ -39,15 +45,15 @@ def set_pixel_size(data: ArrayLike, pixel_size: Quantity | None) -> np.ndarray:
     return data
 
 
-def get_pixel_size(data: np.ndarray) -> Quantity | None:
+def get_pixel_size(data: np.ndarray) -> Optional[Quantity]:
     """
     Extracts the pixel size metadata from the data array.
 
     Args:
-        data (np.ndarray | Quantity): The input data array or Quantity.
+        data (np.ndarray): The input data array or Quantity.
 
     Returns:
-        Quantity | None: The pixel size metadata, or None if no pixel size metadata is present.
+        OptionalQuantity]: The pixel size metadata, or None if no pixel size metadata is present.
 
     Usage:
     >>> import astropy.units as u
@@ -171,8 +177,8 @@ class Device:
         self._lock = threading.Lock()
         self._locking_thread = None
         self._error = None
-        Device._devices.add(self)
         self._base_initialized = True
+        Device._devices.add(self)
 
     def __del__(self):
         """
@@ -228,40 +234,38 @@ class Device:
         """
 
         # acquire a global lock, to prevent multiple threads to switch moving/measuring state simultaneously
+        with Device._state_lock:
+            # check if transition from moving/measuring or vice versa is needed
+            if Device._moving != self.is_actuator():
+                if Device._moving:
+                    logging.debug("switch to MEASURING requested by %s.", self)
+                else:
+                    logging.debug("switch to MOVING requested by %s.", self)
 
-        # check if transition from moving/measuring or vice versa is needed
-        if Device._moving != self.is_actuator():
-            if Device._moving:
-                logging.debug("switch to MEASURING requested by %s.", self)
-            else:
-                logging.debug("switch to MOVING requested by %s.", self)
+                same_type = [device for device in Device._devices if device.is_actuator == self.is_actuator]
+                other_type = [device for device in Device._devices if device.is_actuator != self.is_actuator]
 
-            same_type = [device for device in Device._devices if device.is_actuator == self.is_actuator]
-            other_type = [device for device in Device._devices if device.is_actuator != self.is_actuator]
+                # compute the minimum latency of same_type
+                # for instance, when switching to 'measuring', this number tells us how long it takes before any of the
+                # detectors actually starts a measurement.
+                # If this is a positive number, we can make the switch to 'measuring' slightly _before_
+                # all actuators have stabilized.
+                latency = min((device.latency for device in same_type), default=0.0 * u.ns)
 
-            # compute the minimum latency of same_type
-            # for instance, when switching to 'measuring', this number tells us how long it takes before any of the
-            # detectors actually starts a measurement.
-            # If this is a positive number, we can make the switch to 'measuring' slightly _before_ all actuators have
-            # stabilized.
-            latency = min((device.latency for device in same_type), default=0.0 * u.ns)
+                # wait until all devices of the other type have (almost) finished
+                for device in other_type:
+                    device.wait(up_to=latency, await_data=False)
 
-            # wait until all devices of the other type have (almost) finished
-            for device in other_type:
-                device.wait(up_to=latency, await_data=False)
+                # changes the state from moving to measuring and vice versa
+                Device._moving = not Device._moving
+                if Device._moving:
+                    logging.debug("state is now MOVING.")
+                else:
+                    logging.debug("state is now MEASURING.")
 
-            # changes the state from moving to measuring and vice versa
-            Device._moving = not Device._moving
-            if Device._moving:
-                logging.debug("state is now MOVING.")
-            else:
-                logging.debug("state is now MEASURING.")
-
-        # store the time we expect the operation to actually start
-        # note: it may start slightly later because the latency is a minimum value
-        # also store the time we expect the operation to finish
-        # note: it may finish slightly earlier since the duration is a maximum value
-        self._end_time_ns = time.time_ns() + self.latency.to_value(u.ns) + self.duration.to_value(u.ns)
+            # also store the time we expect the operation to finish
+            # note: it may finish slightly earlier since (latency + duration) is a maximum value
+            self._end_time_ns = time.time_ns() + self.latency.to_value(u.ns) + self.duration.to_value(u.ns)
 
     @property
     def latency(self) -> Quantity[u.ms]:
@@ -272,11 +276,11 @@ class Device:
 
         Note:
             The latency is used to compute when it is safe to switch the global state from 'moving'
-            to 'measuring' or
-            vice versa.
+            to 'measuring' or vice versa.
             Devices that report a non-zero latency promise not to do anything before the latency has passed.
             This allows making the state switch even before the devices of the other type have all finished.
-            This construct is used for spatial light modulators that typically have a long latency (1-2 frames).
+
+            This construct is used for spatial light modulators, which typically have a long latency (1-2 frames).
             Due to this latency, we may send an `update` command to the SLM even before the camera has finished reading
             the previous frame.
 
@@ -307,7 +311,7 @@ class Device:
         move to the target position and update the duration accordingly.
 
         Note: If `latency` is a (lower) estimate, the duration should be high enough to guarantee that `latency +
-        duration` corresponds to the time between starting the operation and finishing it.
+        duration` is at least as large as the time between starting the operation and finishing it.
         """
         ...
 
@@ -328,7 +332,7 @@ class Device:
 
         Args:
             up_to(Quantity[u.ms]):
-            when non-zero, specifies that this function may return 'up_to' milliseconds
+                when non-zero, specifies that this function may return 'up_to' milliseconds
                 *before* the device is finished.
             await_data(bool):
                 If True, after waiting until the device is no longer busy, briefly locks the device.
@@ -390,7 +394,7 @@ class Device:
     def busy(self) -> bool:
         """Returns true if the device is measuring or moving (see `wait()`).
 
-        Note: if a device does not define a finite `duration`, it should override this function to poll for
+        Note: if a device does not define a finite `duration`, it must override this function to poll for
         finalization."""
         return time.time_ns() < self._end_time_ns
 
@@ -536,7 +540,7 @@ class Detector(Device, ABC):
         pass
 
     @abstractmethod
-    def _fetch(self, out: np.ndarray | None, *args, **kwargs) -> np.ndarray:
+    def _fetch(self, out: Optional[np.ndarray], *args, **kwargs) -> np.ndarray:
         """Read the data from the detector
 
         Args:
@@ -563,20 +567,20 @@ class Detector(Device, ABC):
 
     @property
     @abstractmethod
-    def data_shape(self):
+    def data_shape(self) -> Tuple[int, ...]:
         """Returns a tuple corresponding to the shape of the returned data array.
 
-        May be overridden by a child class.
+        Must be implemented by the child class.
         Note:
             This value matches the `shape` property of the array returned when calling `trigger` followed by `read`.
             The property may change, for example, when the ROI of a camera is changed.
             In any case, the value of `data_shape`
-            just before calling `trigger` will match the size of the data returned by the corresponding `result` call.
+            just before calling `trigger` must match the size of the data returned by the corresponding `result` call.
         """
         ...
 
     @property
-    def pixel_size(self) -> Quantity | None:
+    def pixel_size(self) -> Optional[Quantity]:
         """Dimension of one element in the returned data array.
 
         For cameras, this is the pixel size (in astropy length units).
@@ -679,7 +683,7 @@ class Processor(Detector, ABC):
         return self._sources[0].data_shape
 
     @property
-    def pixel_size(self) -> Quantity | None:
+    def pixel_size(self) -> Optional[Quantity]:
         """This default implementation returns the pixel size of the first source."""
         return self._sources[0].pixel_size
 
@@ -713,14 +717,14 @@ class PhaseSLM(Actuator, ABC):
         """
 
     @abstractmethod
-    def set_phases(self, values: np.ndarray | float, update=True):
+    def set_phases(self, values: ArrayLike, update=True):
         """Sets the phase pattern on the SLM.
 
         Args:
-            values(ndarray | float): phase pattern, in radians.
+            values(ArrayLike): phase pattern, in radians.
                 The pattern is automatically stretched to fill the full SLM.
             update(bool): when True, calls `update` after setting the phase pattern.
-                set to `False` to suppress the call to `update`.
+                Set to `False` to suppress the call to `update`.
                 This is useful in advanced scenarios where multiple parameters of the SLM need to be changed
                 before updating the displayed image.
         """

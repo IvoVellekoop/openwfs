@@ -1,12 +1,12 @@
-from ..openwfs.simulation import SimulatedWFS, MockSource, MockSLM, Microscope, ADCProcessor
+import astropy.units as u
 import numpy as np
-from ..openwfs.algorithms import StepwiseSequential, FourierDualReference, WFSController
-from ..openwfs.processors import SingleRoi
+import pytest
 import skimage
 from scipy.ndimage import zoom
-from ..openwfs.utilities import imshow
-import astropy.units as u
-import pytest
+
+from ..openwfs.algorithms import StepwiseSequential, FourierDualReference, WFSController
+from ..openwfs.processors import SingleRoi
+from ..openwfs.simulation import SimulatedWFS, MockSource, MockSLM, Microscope, ADCProcessor
 
 
 def assert_enhancement(slm, feedback, wfs_results, t_correct=None):

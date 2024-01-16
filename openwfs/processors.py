@@ -1,6 +1,6 @@
 import numpy as np
 import cv2
-from typing import Sequence
+from typing import Sequence, Optional, Union
 from .core import Processor, Detector
 from .slm.patterns import disk, gaussian
 from .utilities import project
@@ -22,7 +22,8 @@ class Roi:
     radius, mask type, and parameters specific to the mask type.
     """
 
-    def __init__(self, pos, radius=0.1, mask_type: MaskType | None = MaskType.DISK, waist=None, source_shape=None):
+    def __init__(self, pos, radius=0.1, mask_type: MaskType = MaskType.DISK, waist=None,
+                 source_shape=None):
         """
         Initialize the Roi object.
 
@@ -159,7 +160,7 @@ class MultipleRoi(Processor):
         self._source = source
         super().__init__(source)
 
-    def _fetch(self, out: np.ndarray | None, image: np.ndarray) -> np.ndarray:  # noqa
+    def _fetch(self, out: Optional[np.ndarray], image: np.ndarray) -> np.ndarray:  # noqa
         """
         Fetches and processes the data for each ROI from the image.
 
@@ -168,7 +169,7 @@ class MultipleRoi(Processor):
         the possible area of the image, a ValueError is raised.
 
         Args:
-            out (np.ndarray | None): Optional output array to store the processed data.
+            out (Optional[np.ndarray]): Optional output array to store the processed data.
             image (np.ndarray): The source image data.
 
         Returns:
@@ -189,7 +190,7 @@ class MultipleRoi(Processor):
         return self._rois.shape
 
     @property
-    def pixel_size(self) -> Quantity | None:
+    def pixel_size(self) -> None:
         """Returns None, since the elements in the output of the MultipleRoi processor do not have a physical size."""
         return None
 
@@ -222,8 +223,8 @@ class CropProcessor(Processor):
     the data is padded with 'padding_value'
     """
 
-    def __init__(self, source: Detector, shape: Sequence[int] | None = None,
-                 pos: Sequence[int] | None = None, padding_value=0.0):
+    def __init__(self, source: Detector, shape: Optional[Sequence[int]] = None,
+                 pos: Optional[Sequence[int]] = None, padding_value=0.0):
         """
 
         Args:
@@ -258,7 +259,7 @@ class CropProcessor(Processor):
     def data_shape(self, value):
         self._data_shape = tuple(np.array(value, ndmin=1))
 
-    def _fetch(self, out: np.ndarray | None, image: np.ndarray) -> np.ndarray:  # noqa
+    def _fetch(self, out: Optional[np.ndarray], image: np.ndarray) -> np.ndarray:  # noqa
         """
         Args:
             out(ndarray) optional numpy array or view of an array that will receive the data
@@ -337,8 +338,8 @@ class TransformProcessor(Processor):
     Performs a 2-D transform of the input data (including shifting, padding, cropping, resampling).
     """
 
-    def __init__(self, source, transform, data_shape: Sequence[int] | None = None,
-                 pixel_size: Quantity | None | bool = False):
+    def __init__(self, source, transform, data_shape: Optional[Sequence[int]] = None,
+                 pixel_size: Union[Optional[Quantity], bool] = False):
         """
 
         Args:
@@ -363,13 +364,13 @@ class TransformProcessor(Processor):
             return super().data_shape
 
     @property
-    def pixel_size(self) -> Quantity | None:
+    def pixel_size(self) -> Optional[Quantity]:
         if self._pixel_size is not False:
             return self._pixel_size
         else:
             return super().pixel_size
 
-    def _fetch(self, out: np.ndarray | None, source: np.ndarray) -> np.ndarray:  # noqa
+    def _fetch(self, out: Optional[np.ndarray], source: np.ndarray) -> np.ndarray:  # noqa
         """
         Args:
             out(ndarray) optional numpy array or view of an array that will receive the data

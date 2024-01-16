@@ -249,7 +249,7 @@ class ScanningMicroscope(Detector):
 
         return cropped
 
-    def _fetch(self, out: np.ndarray | None) -> np.ndarray:  # noqa
+    def _fetch(self, out: Optional[np.ndarray]) -> np.ndarray:  # noqa
         """Reads the acquired data from the input task."""
         if self._simulation is None:
             raw = self._read_task.in_stream.read()
@@ -277,12 +277,12 @@ class ScanningMicroscope(Detector):
         return self._data_shape
 
     @property
-    def pixel_size(self) -> Quantity | None:
+    def pixel_size(self) -> Quantity:
         """The size of a pixel in the object plane."""
         return self._original_pixel_size * self._binning / self._zoom
 
     @property
-    def duration(self) -> Quantity[u.ms] | None:
+    def duration(self) -> Quantity[u.ms]:
         """Total duration of scanning for one frame."""
         return self._padded_data_shape[0] * self._padded_data_shape[1] * self.dwell_time
 

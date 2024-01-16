@@ -4,7 +4,6 @@ from ..openwfs.simulation.mockdevices import MockSource
 from ..openwfs.processors import SingleRoi, select_roi, Roi, MultipleRoi, MaskType
 import skimage as sk
 import astropy.units as u
-from ..openwfs.utilities import imshow
 
 
 def test_croppers():

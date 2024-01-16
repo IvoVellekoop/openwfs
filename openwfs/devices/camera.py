@@ -1,5 +1,5 @@
 from astropy.units import Quantity
-
+from typing import Optional
 from ..core import Detector
 from harvesters.core import Harvester
 import numpy as np
@@ -36,7 +36,7 @@ Naming Convention <https://www.emva.org/wp-content/uploads/GenICam_SFNC_2_3.pdf>
             camera.stop()'
         """
 
-    def __init__(self, cti_file: str, serial_number: str | None = None, **kwargs):
+    def __init__(self, cti_file: str, serial_number: Optional[str] = None, **kwargs):
         """
             Initialize the Camera object.
 
@@ -124,7 +124,7 @@ Naming Convention <https://www.emva.org/wp-content/uploads/GenICam_SFNC_2_3.pdf>
         """
         return _CameraPause(self._camera)
 
-    def _fetch(self, out: np.ndarray | None, *args, **kwargs) -> np.ndarray:
+    def _fetch(self, out: Optional[np.ndarray], *args, **kwargs) -> np.ndarray:
         buffer = self._camera.fetch()
         frame = buffer.payload.components[0].data.reshape(self.data_shape)
         if frame.size == 0:
@@ -227,7 +227,7 @@ Naming Convention <https://www.emva.org/wp-content/uploads/GenICam_SFNC_2_3.pdf>
         self._set_round_up(self._nodes.Height, value)
 
     @property
-    def pixel_size(self) -> Quantity[u.um] | None:
+    def pixel_size(self) -> Optional[Quantity[u.um]]:
         """
         Physical pixel size of the camera sensor.
 

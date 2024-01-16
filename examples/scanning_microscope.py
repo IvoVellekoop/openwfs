@@ -1,12 +1,9 @@
 import set_path  # noqa - needed for setting the module search path to find openwfs
 from openwfs.devices import ScanningMicroscope, Gain
-from openwfs.slm import SLM
-from openwfs.algorithms import FourierDualReference
 import astropy.units as u
-import numpy as np
-from openwfs.slm.geometry import fill_transform
-from openwfs.processors import SelectRoi
+
 from nidaqmx.constants import TerminalConfiguration
+
 """
 Example containing the creation of a ScanningMicroscope and Gain object. This script is intended to be 
     read by MicroManager's PyDevice.

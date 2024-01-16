@@ -1,7 +1,13 @@
 import numpy as np
 from typing import Union, Sequence, Optional
 from astropy.units import Quantity
-from ..core import unitless
+from ..core import unitless, ExtentType
+
+# shape of a numpy array, or a single integer that is broadcasted to a square shape
+ShapeType = Union[int, Sequence[int]]
+
+# a scalar quantity with optional unit attached
+ScalarType = Union[float, np.ndarray, Quantity]
 
 """
 Library of functions to create commonly used patterns
@@ -33,12 +39,9 @@ or between grid points (for even shape).
 The returned array has a pixel_size property attached.
 """
 
-ShapeType = Union[int | Sequence[int]]
-ExtentType = Union[float | Sequence[float], np.ndarray, Quantity]
-ScalarType = Union[float | np.ndarray, Quantity]
 
-
-def coordinate_range(shape: ShapeType, extent: ExtentType, offset: ExtentType | None = None) -> (Quantity, Quantity):
+def coordinate_range(shape: ShapeType, extent: ExtentType, offset: Optional[ExtentType] = None) -> (Quantity,
+                                                                                                    Quantity):
     """
     Returns coordinate vectors for the two coordinates (y and x).
 
@@ -46,9 +49,9 @@ def coordinate_range(shape: ShapeType, extent: ExtentType, offset: ExtentType | 
     the returned coordinates correspond to the centers of these coordinates.
 
     Arguments:
-        shape (int | Sequence[int]): size of the full grid (y, x) in pixels
-        extent (float | Sequence[float] | np.ndarray | Quantity): extent of the coordinate range
-        offset (ExtentType | None): offset to be added to the coordinates (optional)
+        shape (ShapeType): size of the full grid (y, x) in pixels
+        extent (ExtentType): extent of the coordinate range
+        offset (Optional[ExtentType]): offset to be added to the coordinates (optional)
 
     Returns:
         Tuple[Quantity, Quantity]: coordinate vectors for the two coordinates (y and x)

@@ -1,6 +1,8 @@
-import numpy as np
 from enum import Enum
-from typing import Union
+from typing import Optional
+
+import numpy as np
+from numpy.typing import ArrayLike
 
 
 class WFSResult:
@@ -8,53 +10,47 @@ class WFSResult:
     Data structure for holding wavefront shaping results and statistics.
 
     Attributes:
-        t(ndarray): measured transmission matrix.
-            if multiple targets were used, the first dimension(s) of t denote the columns of the transmission matrix
-            (`a` indices) and the last dimensions(s) denote the targets, i.e., the rows of the transmission matrix
-            (`b` indices).
-        axis(int):
-            number of dimensions used for denoting a single columns of the transmission matrix
-            (e.g. 2 dimensions representing the x and y coordinates of the SLM pixels)
-        noise_factor(ndarray):
-            the estimated loss in fidelity caused by the the limited snr (for each target).
-        amplitude_factor(ndarray):
-            estimated reduction of the fidelity due to phase-only modulation (for each target)
-            (≈ π/4 for fully developed speckle)
-        non_linearity(ndarray):
-            estimated deviation from a sinusoid responds (TODO: experimental, untested)
-        n(int): total number of segments used in the optimization.
-        estimated_optimized_intensity(ndarray):
-            when missing, estimated intensity in the target(s) after displaying the wavefront correction on
-            a perfect phase-only SLM.
-        intensity_offset(float | ndarray):
-            offset in the signal strength, as a scalar, or as one value per target
-            this is the offset that is caused by a bias in the detector signal, stray light, etc.
+        t (ndarray): Measured transmission matrix. If multiple targets were used, the first dimension(s) of `t`
+            denote the columns of the transmission matrix (`a` indices), and the last dimensions(s) denote the targets,
+            i.e., the rows of the transmission matrix (`b` indices).
+        axis (int): Number of dimensions used for denoting a single column of the transmission matrix
+            (e.g., 2 dimensions representing the x and y coordinates of the SLM pixels).
+        noise_factor (ndarray): The estimated loss in fidelity caused by the limited SNR (for each target).
+        amplitude_factor (ndarray): Estimated reduction of the fidelity due to phase-only modulation (for each target)
+            (≈ π/4 for fully developed speckle).
+        non_linearity (ndarray): Estimated deviation from a sinusoid response (TODO: experimental, untested).
+        n (int): Total number of segments used in the optimization. When missing, this value is set to the number of
+            elements in the first `axis` dimensions of `t`.
+        estimated_optimized_intensity (ndarray): When missing, estimated intensity in the target(s) after displaying the
+            wavefront correction on a perfect phase-only SLM.
+        intensity_offset (Optional[ndarray]): Offset in the signal strength, as a scalar, or as one value per target.
+            This is the offset that is caused by a bias in the detector signal, stray light, etc. Default value: 0.0.
     """
 
     def __init__(self,
                  t: np.ndarray,
                  axis: int,
-                 noise_factor: np.ndarray | float,
-                 amplitude_factor: np.ndarray | float,
-                 non_linearity: np.ndarray | float,
-                 n: int | None = None,
-                 intensity_offset: np.ndarray | float = 0.0):
+                 noise_factor: ArrayLike,
+                 amplitude_factor: ArrayLike,
+                 non_linearity: ArrayLike,
+                 n: Optional[int] = None,
+                 intensity_offset: Optional[ArrayLike] = 0.0):
         """
         Args:
             t(ndarray): measured transmission matrix.
             axis(int):
                 number of dimensions used for denoting a single columns of the transmission matrix
                 (e.g. 2 dimensions representing the x and y coordinates of the SLM pixels)
-            noise_factor(ndarray | float):
+            noise_factor(ArrayLike):
                 the estimated loss in fidelity caused by the the limited snr (for each target).
-            amplitude_factor(ndarray | float):
+            amplitude_factor(ArrayLike):
                 estimated reduction of the fidelity due to phase-only modulation (for each target)
                 (≈ π/4 for fully developed speckle)
-            non_linearity(ndarray | float):
+            non_linearity(ArrayLike):
                 estimated deviation from a sinusoid responds (TODO: experimental, untested)
-            n(int : None): total number of segments used in the optimization.
+            n(Optional[int]): total number of segments used in the optimization.
                 when missing, this value is set to the number of elements in the first `axis` dimensions of `t`.
-            intensity_offset(ndarray | float):
+            intensity_offset(Optional[ArrayLike]):
                 offset in the signal strength, as a scalar, or as one value per target
                 this is the offset that is caused by a bias in the detector signal, stray light, etc.
                 default value: 0.0
@@ -106,7 +102,7 @@ class WFSResult:
                          )
 
 
-def analyze_phase_stepping(measurements: np.ndarray, axis: int, A: float | None = None):
+def analyze_phase_stepping(measurements: np.ndarray, axis: int, A: Optional[float] = None):
     """Analyzes the result of phase stepping measurements, returning matrix `t` and noise statitics
 
     This function assumes that all measurements were made using the same reference field `A`
@@ -121,7 +117,7 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int, A: float | None 
             and the last zero or more dimensions corresponding to the individual targets
             where the feedback was measured.
         axis(int): indicates which axis holds the phase steps.
-        A(float | None): magnitude of the reference field.
+        A(Optional[float]): magnitude of the reference field.
             This value is used to correctly normalize the returned transmission matrix.
             When missing, the value of `A` is estimated from the measurements.
 
@@ -195,16 +191,13 @@ class WFSController:
     exposing all these parameters to MicroManager.
 
     Attributes:
-        Public:
-            wavefront (State): Current state of the wavefront.
-            recompute_wavefront (bool): Flag to indicate if the wavefront needs to be recomputed.
-            feedback_enhancement (float): Measured feedback enhancement.
-            test_wavefront (bool): Flag indicating if the wavefront is in test mode.
-            snr (float): Average signal-to-noise ratio computed during wavefront optimization.
-            algorithm: The wavefront shaping algorithm instance.
-
-        Private:
-            _optimized_wavefront (numpy.ndarray): Optimized wavefront data.
+        wavefront (State): Current state of the wavefront.
+        recompute_wavefront (bool): Flag to indicate if the wavefront needs to be recomputed.
+        feedback_enhancement (float): Measured feedback enhancement.
+        test_wavefront (bool): Flag indicating if the wavefront is in test mode.
+        snr (float): Average signal-to-noise ratio computed during wavefront optimization.
+        algorithm: The wavefront shaping algorithm instance.
+        _optimized_wavefront (numpy.ndarray): Optimized wavefront data.
     """
 
     class State(Enum):
@@ -228,8 +221,8 @@ class WFSController:
         self._optimized_wavefront = None
         self._recompute_wavefront = False
         self._feedback_enhancement = None
-        self._test_wavefront = False        # Trigger to test the optimized wavefront
-        self._run_troubleshooter = False    # Trigger troubleshooter
+        self._test_wavefront = False  # Trigger to test the optimized wavefront
+        self._run_troubleshooter = False  # Trigger troubleshooter
 
     @property
     def wavefront(self) -> State:
@@ -355,12 +348,12 @@ class WFSController:
             self._feedback_enhancement = float(feedback_shaped.sum() / feedback_flat.sum())
 
         self._test_wavefront = value
-    
+
     @property
     def run_troubleshooter(self) -> bool:
         """Returns: bool that indiciates whether toubleshoot will be performed if set."""
         return self._run_troubleshooter
-    
+
     @run_troubleshooter.setter
     def run_troubleshooter(self, value):
         """Runs the troubleshoot function."""

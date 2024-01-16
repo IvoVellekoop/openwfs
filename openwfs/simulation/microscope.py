@@ -89,7 +89,7 @@ class Microscope(Processor):
                 If no `slm_transform` is specified, the `pixel_size` attribute should
                  correspond to normalized pupil coordinates
                 (e.g. with a disk of radius 1.0, i.e. an extent of 2.0, corresponding to an NA of 1.0)
-            slm_transform (Transform|None):
+            slm_transform (Optional[Transform]):
                 Optional Transform that transforms the phase pattern from the slm object
                 (in slm.pixel_size units) to normalized pupil coordinates.
                 Typically, the slm image is already in normalized pupil coordinates,
@@ -97,13 +97,13 @@ class Microscope(Processor):
             aberrations (ImageSource): 2-D image containing the phase (in radians) of aberrations observed
                 in the back pupil of the microscope objective.
                 The `pixel_size` attribute corresponds to normalized pupil coordinates.
-            aberration_transform (Transform|None):
+            aberration_transform (Optional[Transform]):
                 Optional Transform that transforms the phase pattern from the aberration object (in slm.pixel_size units) to normalized pupil
                 coordinates.
                 Typically, the slm image is already in normalized pupil coordinates,
                 but this transform may e.g., be used to scale an aberration pattern
                 from extent 2.0 to 2.0 * NA.
-            truncation_factor (float | None):
+            truncation_factor (Optional[float]):
                 When set to a value > 0.0,
                 the microscope pupil is illuminated by a Gaussian beam (instead of a flat intensity).
                 The value corresponds to the beam waist relative to the full pupil (the full NA).
@@ -125,7 +125,7 @@ class Microscope(Processor):
         self.slm = slm
         self._psf = None
 
-    def _fetch(self, out: np.ndarray | None, source: np.ndarray, aberrations: np.ndarray,  # noqa
+    def _fetch(self, out: Optional[np.ndarray], source: np.ndarray, aberrations: np.ndarray,  # noqa
                slm: np.ndarray) -> np.ndarray:
         """
         Updates the image on the camera sensor
@@ -259,7 +259,7 @@ class Microscope(Processor):
         """Returns the shape of the image in the image plane"""
         return self._data_shape
 
-    def get_camera(self, *, transform: Transform | None = None, **kwargs) -> Detector:
+    def get_camera(self, *, transform: Optional[Transform] = None, **kwargs) -> Detector:
         """
         Returns a simulated camera that observes the microscope image.
 

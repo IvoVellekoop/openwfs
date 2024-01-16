@@ -1,8 +1,6 @@
 import numpy as np
-from typing import Union
+from typing import Optional
 from ..slm.patterns import gaussian
-import astropy.units as u
-from ..utilities import imshow
 from .mockdevices import MockSLM, Processor
 
 
@@ -43,7 +41,7 @@ class SimulatedWFS(Processor):
             self.E_input_slm *= gaussian(aberrations.shape, waist=beam_profile_waist)
         super().__init__(self.slm.pixels())
 
-    def _fetch(self, out: np.ndarray | None, slm_phases):
+    def _fetch(self, out: Optional[np.ndarray], slm_phases):
         """
         Computes the intensity in the focus by applying phase corrections to the input electric field.
 
@@ -52,7 +50,7 @@ class SimulatedWFS(Processor):
         resulting field.
 
         Args:
-            out (np.ndarray | None): An optional numpy array to store the calculated intensity. If provided, the
+            out (Optional[np.ndarray]): An optional numpy array to store the calculated intensity. If provided, the
             intensity is stored in this array.
 
             slm_phases (np.ndarray): The phase corrections to apply, typically provided as a numpy array representing

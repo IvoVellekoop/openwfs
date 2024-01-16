@@ -2,10 +2,11 @@ import numpy as np
 import astropy.units as u
 from astropy.units import Quantity
 from scipy.ndimage import zoom
+from numpy.typing import ArrayLike
 import time
-from typing import Sequence
+from typing import Sequence, Optional
 from ..processors import CropProcessor
-from ..core import Detector, Processor, PhaseSLM, Actuator, get_pixel_size
+from ..core import Detector, Processor, PhaseSLM, Actuator, get_pixel_size, ExtentType
 
 
 class Generator(Detector):
@@ -69,7 +70,7 @@ class Generator(Detector):
     def data_shape(self, value):
         self._data_shape = value
 
-    def _fetch(self, out: np.ndarray | None) -> np.ndarray:  # noqa
+    def _fetch(self, out: Optional[np.ndarray]) -> np.ndarray:  # noqa
         latency_s = self.latency.to_value(u.s)
         if latency_s > 0.0:
             time.sleep(latency_s)
@@ -108,7 +109,7 @@ class MockSource(Generator):
     Detector that returns pre-set data. Also simulates latency and measurement duration.
     """
 
-    def __init__(self, data: np.ndarray, pixel_size: Quantity | None = None, extent: Quantity | float | None = None,
+    def __init__(self, data: np.ndarray, pixel_size: Optional[Quantity] = None, extent: Optional[ExtentType] = None,
                  **kwargs):
         """
         Initializes the MockSource
@@ -119,7 +120,7 @@ class MockSource(Generator):
                 If not specified, the pixel size is calculated from the extent and the data shape.
                 If neither pixel size nor extent are specified, the pixel size from `data` is used, if available.
                 Otherwise, pixel_size is set to None.
-            extent (Quantity | float, Sequence[float, None], optional): The physical extent of the data array.
+            extent (Optional[ExtentType]): The physical extent of the data array.
                 Only used when the pixel size is not specified explicitly.
             **kwargs: Additional keyword arguments to pass to the Generator base class.
         """
@@ -206,7 +207,7 @@ class ADCProcessor(Processor):
         self.analog_max = analog_max  # check value
         self.digital_max = digital_max  # check value
 
-    def _fetch(self, out: np.ndarray | None, data) -> np.ndarray:  # noqa
+    def _fetch(self, out: Optional[np.ndarray], data) -> np.ndarray:  # noqa
         """Clips the data to the range of the ADC, and digitizes the values."""
         if self.analog_max == 0.0:
             max = np.max(data)
@@ -274,13 +275,13 @@ class MockCamera(ADCProcessor):
     Conversion to uint16 is implemented in the ADCProcessor base class.
     """
 
-    def __init__(self, source: Detector, shape: Sequence[int] | None = None,
-                 pos: Sequence[int] | None = None, **kwargs):
+    def __init__(self, source: Detector, shape: Optional[Sequence[int]] = None,
+                 pos: Optional[Sequence[int]] = None, **kwargs):
         """
         Args:
             source (Detector): The source detector to be wrapped.
-            shape (Sequence[int] | None, optional): The shape of the image data to be captured.
-            pos (Sequence[int] | None, optional): The position on the source from where the image is captured.
+            shape (Optional[Sequence[int]]): The shape of the image data to be captured.
+            pos (Optional[Sequence[int]]): The position on the source from where the image is captured.
             **kwargs: Additional keyword arguments to be passed to the Detector base class.
 
             TODO: move left-right-top-bottom to CropProcessor.
@@ -377,7 +378,7 @@ class MockXYStage(Actuator):
         self._y = 0.0 * u.um
 
     @property
-    def duration(self) -> Quantity[u.ms] | None:
+    def duration(self) -> Quantity[u.ms]:
         return 0.0 * u.ms
 
 
@@ -387,10 +388,6 @@ class MockSLM(PhaseSLM):
 
     Attributes:
         phases (np.ndarray): Current phase pattern on the SLM.
-
-    Methods:
-        set_phases(values: np.ndarray | float, update=True): Set the phase pattern on the SLM.
-        pixels() -> Detector: Returns a `camera` that mimics the current phase on the SLM.
     """
 
     def __init__(self, shape):
@@ -411,7 +408,7 @@ class MockSLM(PhaseSLM):
         self._monitor.data = self._back_buffer.copy()
         self._back_buffer[:] = 0.0
 
-    def set_phases(self, values: np.ndarray | float, update=True):
+    def set_phases(self, values: ArrayLike, update=True):
         # no docstring, use documentation from base class
         values = np.atleast_2d(values)
         scale = np.array(self._back_buffer.shape) / np.array(values.shape)
@@ -431,5 +428,5 @@ class MockSLM(PhaseSLM):
         return self._monitor
 
     @property
-    def duration(self) -> Quantity[u.ms] | None:
+    def duration(self) -> Quantity[u.ms]:
         return 0.0 * u.ms

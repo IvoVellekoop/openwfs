@@ -1,13 +1,10 @@
-import time
-
-from OpenGL.GL import *
-import time
-
 from OpenGL.GL import *
 import numpy as np
 import glfw
 import warnings
 import astropy.units as u
+from numpy.typing import ArrayLike
+from typing import Union
 from astropy.units import Quantity
 from .patch import FrameBufferPatch, Patch, VertexArray
 from .geometry import fill_transform
@@ -339,7 +336,7 @@ class SLM(PhaseSLM):
         return (self._latency if isinstance(self._latency, Quantity) else self._latency / self.refresh_rate).to(u.ms)
 
     @latency.setter
-    def latency(self, value: Quantity[u.ms] | int):
+    def latency(self, value: Union[Quantity[u.ms], int]):
         self._latency = value
 
     @property
@@ -353,7 +350,7 @@ class SLM(PhaseSLM):
         return (self._duration if isinstance(self._duration, Quantity) else self._duration / self.refresh_rate).to(u.ms)
 
     @duration.setter
-    def duration(self, value: Quantity[u.ms] | int):
+    def duration(self, value: Union[Quantity[u.ms], int]):
         self._duration = value
 
     @property
@@ -400,7 +397,7 @@ class SLM(PhaseSLM):
         self._frame_patch.lookup_table = value
         self.update()
 
-    def set_phases(self, values: np.ndarray | float, update=True):
+    def set_phases(self, values: ArrayLike, update=True):
         self.primary_phase_patch.phases = values
         if update:
             self.update()

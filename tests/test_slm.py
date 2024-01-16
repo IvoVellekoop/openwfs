@@ -1,4 +1,3 @@
-import pytest
 import time
 import numpy.random
 import pytest
