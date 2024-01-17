@@ -203,7 +203,7 @@ def signal_std(signal_with_noise: np.ndarray, noise:np.ndarray) -> float:
     Returns:
         Standard deviation of the signal, corrected for the variance due to given noise.
     """
-    return np.sqrt(signal_with_noise.var() - noise.var())
+    return float(np.sqrt(signal_with_noise.var() - noise.var()))
 
 
 def cnr(signal_with_noise: np.ndarray, noise:np.ndarray) -> float:
@@ -221,7 +221,7 @@ def cnr(signal_with_noise: np.ndarray, noise:np.ndarray) -> float:
     Returns:
         Standard deviation of the signal, corrected for the variance due to given noise.
     """
-    return signal_std(signal_with_noise, noise) / noise.std()
+    return float(signal_std(signal_with_noise, noise) / noise.std())
 
 
 def contrast_enhancement(signal_with_noise: np.ndarray, reference_with_noise: np.ndarray, noise: np.ndarray) -> float:
@@ -240,7 +240,7 @@ def contrast_enhancement(signal_with_noise: np.ndarray, reference_with_noise: np
     Returns:
         Standard deviation of the signal, corrected for the variance due to given noise.
     """
-    return signal_std(signal_with_noise, noise) / signal_std(reference_with_noise, noise)
+    return float(signal_std(signal_with_noise, noise) / signal_std(reference_with_noise, noise))
 
 
 def cross_corr_fft2(f: np.ndarray, g: np.ndarray) -> np.ndarray:
@@ -290,12 +290,13 @@ class WFSController:
         FLAT_WAVEFRONT = 0
         SHAPED_WAVEFRONT = 1
 
-    def __init__(self, algorithm):
+    def __init__(self, algorithm, scanner):
         """
         Args:
             algorithm: An instance of a wavefront shaping algorithm.
         """
         self.algorithm = algorithm
+        self.scanner = scanner
         self._wavefront = WFSController.State.FLAT_WAVEFRONT
         self._result = None
         self._noise_factor = None
@@ -310,6 +311,7 @@ class WFSController:
         self._test_wavefront = False        # Trigger to test the optimized wavefront
         self._run_troubleshooter = False    # Trigger troubleshooter
         self._frame_cnr = None
+        self._contrast_enhancement = None
         self.dark_frame = None
         self.before_frame = None
 
@@ -421,6 +423,11 @@ class WFSController:
         return self._frame_cnr
 
     @property
+    def contrast_enhancement(self) -> float:
+        """Returns: the noise corrected contrast enhancement"""
+        return self._contrast_enhancement
+
+    @property
     def test_wavefront(self) -> bool:
         """Returns: bool that indicates whether test_wavefront will be performed if set."""
         return self._test_wavefront
@@ -448,7 +455,7 @@ class WFSController:
         Read a single frame from the feedback function.
         TODO: Distinguish WFS feedback and full frame measurement.
         """
-        return self.algorithm._feedback.read().copy()
+        return self.scanner.read().copy()
 
     def set_slm_random(self):
         """
@@ -473,7 +480,6 @@ class WFSController:
         """
         Read and save a frame before the WFS experiment.
         """
-        assert self._optimized_wavefront is None
         self.wavefront = WFSController.State.FLAT_WAVEFRONT
         self.before_frame = self.read_frame()
         return self.before_frame
@@ -489,13 +495,6 @@ class WFSController:
         assert self._optimized_wavefront is not None
         self.wavefront = WFSController.State.SHAPED_WAVEFRONT
         return self.read_frame()
-
-    def compute_cnr(self) -> float:
-        """Compute the CNR of the before_frame."""
-        assert self.dark_frame is not None
-        assert self.before_frame is not None
-        self._frame_cnr = cnr(self.before_frame, self.dark_frame)
-        return self._frame_cnr
 
     @property
     def run_troubleshooter(self) -> bool:
