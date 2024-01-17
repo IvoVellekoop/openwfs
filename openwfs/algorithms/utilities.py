@@ -196,7 +196,7 @@ def signal_std(signal_with_noise: np.ndarray, noise:np.ndarray) -> float:
     Args:
         signal_with_noise:
             ND array containing the measured signal including noise. The noise is assumed to be uncorrelated with the
-            signal.
+            signal, such that var(measured) = var(signal) + var(noise).
         noise:
             ND array containing only noise.
 
@@ -214,7 +214,7 @@ def cnr(signal_with_noise: np.ndarray, noise:np.ndarray) -> float:
     Args:
         signal_with_noise:
             ND array containing the measured signal including noise. The noise is assumed to be uncorrelated with the
-            signal.
+            signal, such that var(measured) = var(signal) + var(noise).
         noise:
             ND array containing only noise, e.g. a dark frame.
 
@@ -226,15 +226,14 @@ def cnr(signal_with_noise: np.ndarray, noise:np.ndarray) -> float:
 
 def contrast_enhancement(signal_with_noise: np.ndarray, reference_with_noise: np.ndarray, noise: np.ndarray) -> float:
     """
-    Compute noise corrected contrast enhancement.
+    Compute noise corrected contrast enhancement. The noise is assumed to be uncorrelated with the signal, such that
+    var(measured) = var(signal) + var(noise).
 
     Args:
         signal_with_noise:
-            ND array containing the measured signal including noise, e.g. image signal with shaped wavefront. The noise
-            is assumed to be uncorrelated with the signal.
+            ND array containing the measured signal including noise, e.g. image signal with shaped wavefront.
         reference_with_noise:
-            ND array containing a reference signal including noise, e.g. image signal with a flat wavefront. The noise
-            is assumed to be uncorrelated with the reference.
+            ND array containing a reference signal including noise, e.g. image signal with a flat wavefront.
         noise:
             ND array containing only noise.
 
@@ -453,20 +452,10 @@ class WFSController:
 
     def set_slm_random(self):
         """
-        Set a pattern of random phases to the SLM primary phase patch. Useful for extinguishing the
+        Set a pattern of random phases to the active SLM phase patch. Useful for extinguishing the
         laser light in multi-PEF setups.
         """
-        slm = self.algorithm._slm
-        slm.primary_phase_patch.phases = 2*np.pi * np.random.rand(300, 300)
-        slm.update()
-
-    def reset_slm_primary_patch(self):
-        """
-        Reset the SLM primary phase patch.
-        """
-        slm = self.algorithm._slm
-        slm.primary_phase_patch.phases = 0
-        slm.update()
+        self.algorithm._slm.set_phases(2*np.pi * np.random.rand(300, 300))
 
     def read_dark_frame(self) -> np.ndarray:
         """
@@ -477,7 +466,7 @@ class WFSController:
         """
         self.set_slm_random()
         self.dark_frame = self.read_frame()
-        self.reset_slm_primary_patch()
+        self._wavefront = self.State.FLAT_WAVEFRONT
         return self.dark_frame
 
     def read_before_frame_flatwf(self) -> np.ndarray:
@@ -525,39 +514,33 @@ class WFSController:
         Run a series of basic checks to find common sources of error in a WFS experiment.
         """
 
-        raise NotImplementedError
-
         ### An outline of the to be written troubleshooting code.
         ### Each block indicates a step; i.e. a particular action or calculation, and may depend on
         ### previous steps (e.g. darkframe measurement). This indication helps with selecting the
         ### required order of steps.
         ### All steps where images are taken, must take images of the same part of the sample and
         ### some features in the image must be visible.
+        ### TODO: some flags to indiciate which troubleshooting functions should run (especially ability to turn off
+        ### long measurements)
 
-        ### === Done: Dark frame ===
-        ### Manual step: for single photon/transmission: block laser
-        ### Preconfig: for multi-photon: random pattern SLM
-        ### Measurement: snap image
-        ### Result: save image in class, so it's accessible after WFS
+        # Capture frames before WFS
+        dark_frame = self.read_dark_frame()                         # Dark frame
+        before_frame = self.read_before_frame_flatwf()              # Frame before WFS
 
-        ### === Done: Frame before ===
-        ### Preconfig: Flat wavefront
-        ### Measurement: snap image
-        ### Result: save image in class, so it's accessible after WFS
+        self._frame_cnr = cnr(before_frame, dark_frame)             # Contrast to Noise Ratio
 
-        ### === Done: Frame with flat wavefront after ===
-        ### Requirement: Regular WFS experiment done first
-        ### Preconfig: Flat wavefront
-        ### Measurement: snap image
-        ### Result: save image in class
-        ### Note: there's a flag of whether the WFS experiment has been done already
+        # WFS experiment
+        recompute_wf_flag = self.recompute_wavefront
+        self.recompute_wavefront = True
+        self.wavefront = WFSController.State.SHAPED_WAVEFRONT
+        self.recompute_wavefront = recompute_wf_flag
 
-        ### === Done: Frame with shaped wavefront after ===
-        ### Requirement: Regular WFS experiment computed wavefront
-        ### Preconfig: Shaped wavefront
-        ### Measurement: snap image
-        ### Result: save image in class
-        ### Note: there's a flag of whether the WFS experiment has been done already
+        # Capture frames after WFS
+        after_frame_flatwf = self.read_after_frame_flatwf()         # After-frame flat wavefront
+        after_frame_shapedwf = self.read_after_frame_shapedwf()     # After-frame shaped wavefront
+
+        self._contrast_enhancement = contrast_enhancement(after_frame_shapedwf, after_frame_flatwf, dark_frame)
+
 
         ### === Done: Corrected contrast function ===
         ### Requirement: Input: measured darkframe and frame
@@ -569,12 +552,12 @@ class WFSController:
         ### Calculation: η_σ = σ_shaped / σ_flat
         ### Result: signal enhancement, robust against consistent noise and offsets
 
-        ### === cross-correlation function ===
+        ### === Done: cross-correlation function ===
         ### Calculation: https://mathworld.wolfram.com/Cross-CorrelationTheorem.html
         ### Result: cross-correlation function
         ### Implementation complexity: 2
 
-        ### === Find-image-pixel-shift function ===
+        ### === Done: Find-image-pixel-shift function ===
         ### Requirement: cross-correlation function
         ### Calculation: 2D argmax of crosscorr https://stackoverflow.com/questions/47726073/how-to-find-the-argmax-of-a-two-dimensional-array-in-numpy
         ### Result: pixel shift between two images

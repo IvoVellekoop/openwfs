@@ -1,7 +1,30 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from ..openwfs.algorithms.utilities import find_pixel_shift
+from ..openwfs.algorithms.utilities import cnr, signal_std, find_pixel_shift
+
+
+def test_signal_std():
+    """
+    Test signal std, corrected for (uncorrelated) noise in the signal.
+    """
+    A = np.random.rand(200, 200)
+    B = np.random.rand(200, 200)
+    assert signal_std(A, A) < 1e-6                                      # Test noise only
+    assert np.abs(signal_std(A+B, B) - A.std()) < 0.01                  # Test signal+uncorrelated noise
+    assert np.abs(signal_std(A+A, A) - np.sqrt(3) * A.std()) < 0.01     # Test signal+correlated noise
+
+
+def test_cnr():
+    """
+    Test Contrast to Noise Ratio, corrected for (uncorrelated) noise in the signal.
+    """
+    A = np.random.randn(300, 300)
+    B = np.random.randn(300, 300)
+    cnr_gt = 3.0
+    assert cnr(A, A) < 1e-6                                                     # Test noise only
+    assert np.abs(cnr(cnr_gt*A + B, B) - cnr_gt) < 0.05                         # Test signal+uncorrelated noise
+    assert np.abs(cnr(cnr_gt*A + A, A) - np.sqrt((cnr_gt+1)**2 - 1)) < 0.05     # Test signal+correlated noise
 
 
 def test_find_pixel_shift():
