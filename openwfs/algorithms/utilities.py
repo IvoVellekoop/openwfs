@@ -1,5 +1,5 @@
 import numpy as np
-from numpy.fft import fft2, ifft2
+from numpy.fft import fft2, ifft2, fftfreq
 from enum import Enum
 from typing import Union
 
@@ -246,7 +246,8 @@ def contrast_enhancement(signal_with_noise: np.ndarray, reference_with_noise: np
 
 def cross_corr_fft2(f: np.ndarray, g: np.ndarray) -> np.ndarray:
     """
-    Compute cross-correlation with a 2D Fast Fourier Transform.
+    Compute cross-correlation with a 2D Fast Fourier Transform. Note that this approach will introduce wrap-around
+    artefacts.
 
     Args:
         f, g:
@@ -258,11 +259,13 @@ def cross_corr_fft2(f: np.ndarray, g: np.ndarray) -> np.ndarray:
 def find_pixel_shift(f: np.ndarray, g: np.ndarray) -> tuple[np.intp, ...]:
     """
     Find the pixel shift between two images by performing a 2D FFT based cross-correlation.
-
-    TODO: fix negative shifts
     """
-    corr = cross_corr_fft2(f, g)
-    return np.unravel_index(np.argmax(corr), np.array(corr).shape)
+    corr = cross_corr_fft2(f, g)                    # Compute cross-correlation with fft2
+    s = np.array(corr).shape                        # Get shape
+    index = np.unravel_index(np.argmax(corr), s)    # Find 2D indices of maximum
+    pix_shift = (fftfreq(s[0], 1/s[0])[index[0]],   # Correct negative pixel shifts
+                 fftfreq(s[1], 1/s[1])[index[1]])
+    return pix_shift
 
 
 class WFSController:
