@@ -349,7 +349,7 @@ class WFSController:
             self.algorithm._slm.set_phases(self._optimized_wavefront)
 
     @property
-    def noise_factor(self) -> (float | None):
+    def noise_factor(self) -> float:
         """
         Returns:
             float: noise factor: the estimated loss in fidelity caused by the the limited snr.
@@ -357,7 +357,7 @@ class WFSController:
         return self._noise_factor
 
     @property
-    def amplitude_factor(self) -> (float | None):
+    def amplitude_factor(self) -> float:
         """
         Returns:
             float: amplitude factor: estimated reduction of the fidelity due to phase-only
@@ -366,7 +366,7 @@ class WFSController:
         return self._amplitude_factor
 
     @property
-    def estimated_enhancement(self) -> (float | None):
+    def estimated_enhancement(self) -> float:
         """
         Returns:
             float: estimated enhancement: estimated ratio <after>/<before>  (with <> denoting
@@ -375,7 +375,7 @@ class WFSController:
         return self._estimated_enhancement
 
     @property
-    def non_linearity(self) -> (float | None):
+    def non_linearity(self) -> float:
         """
         Returns:
             float: non-linearity.
@@ -383,7 +383,7 @@ class WFSController:
         return self._non_linearity
 
     @property
-    def estimated_optimized_intensity(self) -> (float | None):
+    def estimated_optimized_intensity(self) -> float:
         """
         Returns:
             float: estimated optimized intensity.
@@ -391,7 +391,7 @@ class WFSController:
         return self._estimated_optimized_intensity
 
     @property
-    def snr(self) -> (float | None):
+    def snr(self) -> float:
         """
         Gets the signal-to-noise ratio (SNR) of the optimized wavefront.
 
@@ -411,12 +411,12 @@ class WFSController:
         self._recompute_wavefront = value
 
     @property
-    def feedback_enhancement(self) -> (float | None):
+    def feedback_enhancement(self) -> float:
         """Returns: the average enhancement of the feedback, returns none if no such enhancement was measured."""
         return self._feedback_enhancement
     
     @property
-    def frame_cnr(self) -> (float | None):
+    def frame_cnr(self) -> float:
         """Returns: the noise corrected contrast to noise ratio of the frame"""
         return self._frame_cnr
 
