@@ -469,18 +469,18 @@ class SLM(Actuator, PhaseSLM):
         glBindBufferBase(GL_UNIFORM_BUFFER, 1, self._globals)  # connect buffer to binding point 1
 
     @property
-    def lut(self) -> Sequence[int]:
+    def lookup_table(self) -> Sequence[int]:
         """Lookup table that is used to map the wrapped phase range of 0-2pi to gray values
         (represented in a range from 0 to 256). By default, this is just range(256).
         Note that the lookup table need not contain 256 elements.
-        A typlical scenario is to use something like `slm.lut=range(142)` to map the 0-2pi range
+        A typlical scenario is to use something like `slm.lookup_table=range(142)` to map the 0-2pi range
         to only the first 142 gray values of the slm.
         """
         return self._frame_buffer.lookup_table
 
-    @lut.setter
-    def lut(self, lut: Sequence[int]):
-        self._frame_buffer.lookup_table = lut[:]
+    @lookup_table.setter
+    def lookup_table(self, value: Sequence[int]):
+        self._frame_buffer.lookup_table = value[:]
 
     def set_phases(self, values: ArrayLike, update=True):
         self.primary_patch.set_phases(values, update)
