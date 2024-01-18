@@ -64,9 +64,10 @@ class SLM(Actuator, PhaseSLM):
     _window: object
     _globals: int
     _frame_buffer: 'Optional[FrameBufferPatch]'
+    _vertex_array: VertexArray
 
     def __init__(self, monitor_id: int = WINDOWED, shape: Optional[tuple[int, int]] = None,
-                 pos: tuple[int, int] = (0, 0), refresh_rate=glfw.DONT_CARE * u.Hz,
+                 pos: tuple[int, int] = (0, 0), refresh_rate=None,
                  latency: TimeType = 2, duration: TimeType = 1, transform: Union[Transform | str] = 'short'):
         """
         Constructs a new SLM window.
@@ -104,8 +105,9 @@ class SLM(Actuator, PhaseSLM):
         self._pos = pos
         self._latency = latency
         self._duration = duration
-        self._refresh_rate = refresh_rate
-        self._shape = SLM._default_shape(monitor_id) if shape is None else shape
+        (default_shape, default_rate, _) = SLM._current_mode(monitor_id)
+        self._shape = default_shape if shape is None else shape
+        self._refresh_rate = default_rate if refresh_rate is None else refresh_rate
         self._frame_buffer = None
         self._window = None
         self._globals = -1
@@ -146,13 +148,20 @@ class SLM(Actuator, PhaseSLM):
                                  f"are connected.")
 
     @staticmethod
-    def _default_shape(monitor_id: int):
+    def _current_mode(monitor_id: int):
+        """Returns the current video mode resolution (height, width), refresh rate and bit depth of the specified
+        monitor. For monitor_id == SLM.WINDOWED (windowed mode SLM), always returns the default window size
+        of (300, 300)"""
         if monitor_id == SLM.WINDOWED:
-            return 300, 300
+            monitor = glfw.get_primary_monitor()
+            mode = glfw.get_video_mode(monitor)
+            return ((300, 300), mode.refresh_rate * u.Hz,
+                    min([mode.bits.red, mode.bits.green, mode.bits.blue]))
         else:
             monitor = glfw.get_monitors()[monitor_id - 1]
-            current_mode = glfw.get_video_mode(monitor)
-            return current_mode.size.height, current_mode.size.width
+            mode = glfw.get_video_mode(monitor)
+            return ((mode.size[1], mode.size[0]), mode.refresh_rate * u.Hz,
+                    min([mode.bits.red, mode.bits.green, mode.bits.blue]))
 
     def _on_resize(self):
         """Updates shape and refresh rate to the actual values of the window.
@@ -167,39 +176,38 @@ class SLM(Actuator, PhaseSLM):
 
         This function also sets the viewport to the full window size and creates a frame buffer.
         """
+        # create a new frame buffer, re-use the old one if one was present, otherwise use a default of range(256)
+        # re-use the lookup table if possible, otherwise create a default one ranging from 0 to 255.
+        old_lut = self._frame_buffer.lookup_table if self._frame_buffer is not None else range(256)
+        self._frame_buffer = FrameBufferPatch(self, old_lut)
+        glViewport(0, 0, self._shape[1], self._shape[0])
+        # tell openGL to wait for the vertical retrace when swapping buffers (it appears need to do this
+        # after creating the frame buffer)
+        glfw.swap_interval(1)
 
-        # update the shape the actual value of the window
+        # update the shape property to match the actual value of the window
         (fb_width, fb_height) = glfw.get_framebuffer_size(self._window)
         fb_shape = (fb_height, fb_width)
         if self._shape != fb_shape:
             warnings.warn(f"Actual resolution {fb_shape} does not match requested resolution {self._shape}.")
             self._shape = fb_shape
 
-        monitor = glfw.get_window_monitor(self._window)
-        current_mode = glfw.get_video_mode(monitor if bool(monitor) else glfw.get_primary_monitor())
+        (current_size, current_rate, current_bit_depth) = SLM._current_mode(self._monitor_id)
 
         # verify bit depth is at least 8 bit
-        if current_mode.bits.red < 8 or current_mode.bits.green < 8 or current_mode.bits.blue < 8:
+        if current_bit_depth < 8:
             warnings.warn(
                 f"Bit depth is less than 8 bits "
-                f"(RGB = {current_mode.bits.red},{current_mode.bits.green},{current_mode.bits.blue} bits). "
                 f"You may not be able to use the full phase resolution of your SLM.")
-
-        # verify refresh rate is correct
-        # Then update the refresh rate to the actual value
-        rate = int(self._refresh_rate.to_value(u.Hz))
-        if rate != glfw.DONT_CARE and rate != current_mode.refresh_rate:
-            warnings.warn(f"Actual refresh rate of {current_mode.refresh_rate} Hz does not match set rate "
-                          f"of {self.refresh_rate}")
-        self._refresh_rate = current_mode.refresh_rate * u.Hz
 
         self.activate()
 
-        # create a new frame buffer, re-use the old one if one was present, otherwise use a default of range(256)
-        # re-use the lookup table if possible, otherwise create a default one ranging from 0 to 255.
-        lut = self._frame_buffer.lookup_table if self._frame_buffer is not None else range(256)
-        self._frame_buffer = FrameBufferPatch(self, lut)
-        glViewport(0, 0, self._shape[1], self._shape[0])
+        # verify the refresh rate is correct
+        # Then update the refresh rate to the actual value
+        if int(self.refresh_rate.to_value(u.Hz)) != current_rate.to_value(u.Hz):
+            warnings.warn(f"Actual refresh rate of {current_rate} Hz does not match set rate "
+                          f"of {self.refresh_rate}")
+        self._refresh_rate = current_rate
 
     @staticmethod
     def _init_glfw():
@@ -234,7 +242,6 @@ class SLM(Actuator, PhaseSLM):
         glfw.window_hint(glfw.REFRESH_RATE, int(self._refresh_rate.to_value(u.Hz)))
         self._window = glfw.create_window(self._shape[1], self._shape[0], "OpenWFS SLM", monitor, shared)
         glfw.set_input_mode(self._window, glfw.CURSOR, glfw.CURSOR_HIDDEN)  # disable cursor
-        glfw.swap_interval(1)  # tell openGL to wait for the vertical retrace when swapping buffers
         if monitor:  # full screen mode
             glfw.set_gamma(monitor, 1.0)
         else:  # windowed mode
@@ -327,8 +334,7 @@ class SLM(Actuator, PhaseSLM):
 
         self._assert_window_available(value)
         self._monitor_id = value
-        self._shape = SLM._default_shape(value)
-        self._refresh_rate = glfw.DONT_CARE * u.Hz
+        (self._shape, self._refresh_rate, _) = SLM._current_mode(value)
         monitor = glfw.get_monitors()[value - 1] if value != SLM.WINDOWED else None
 
         # move window to new monitor
