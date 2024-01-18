@@ -17,7 +17,7 @@ roi_detector = SingleRoi(cam, radius=2)
 slm = SLM(monitor_id=2, duration=2)
 slm.lookup_table = range(142)
 monitor = SLM(monitor_id=0)
-monitor.primary_phase_patch.phases
+monitor.primary_patch.phases
 alg = FourierDualReference(feedback=roi_detector, slm=slm, slm_shape=[800, 800], k_angles_min=-5, k_angles_max=5)
 
 result = alg.execute()

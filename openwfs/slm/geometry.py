@@ -1,4 +1,6 @@
 import numpy as np
+import weakref
+from OpenGL.GL import *
 
 
 def rectangle(left, top, right, bottom):
@@ -38,31 +40,56 @@ def square(radius):
     return rectangle(-radius, -radius, radius, radius)
 
 
-def fill_transform(slm, fit='short'):
-    """
-    Constructs a transformation matrix that makes a 'square' patch (range -1.0 to 1.0 in x and y) fill the SLM.
-    The transformation depends on the 'fit' argument, which determines how the square patch is fitted onto the SLM.
+class Geometry:
+    def __init__(self, context, vertices):
+        self.context = weakref.ref(context)  # keep weak reference to parent, to avoid cyclic references
 
-    Args:
-        slm: SLM object used to obtain the width and height dimensions.
-        fit (str): The fitting strategy, which can be:
-            - 'full': Makes the patch fill the full SLM, causing pixels in a square texture to become stretched.
-            - 'short': Makes the patch square, filling the short side of the SLM.
-            - 'small': Makes the patch square, filling the long side of the SLM. Part of the patch might be outside
-              the SLM window if the SLM is not square.
+        if vertices is None:
+            self.vertices = square(1.0)
+            self.indices = Geometry.compute_indices_for_grid(self.vertices.shape)
+        elif isinstance(vertices, tuple):
+            self.vertices = np.array(vertices[0], dtype=np.float32, copy=False)
+            self.indices = np.array(vertices[1], dtype=np.uint16, copy=False)
+        else:
+            self.vertices = np.array(vertices, dtype=np.float32, copy=False)
+            self.indices = Geometry.compute_indices_for_grid(self.vertices.shape)
 
-    Returns:
-        numpy.ndarray: A 3x3 transformation matrix used to adjust the square patch to fit the SLM as specified.
+        # store the data on the GPU
+        self.context().activate()
+        (self._vertices, self._indices) = glGenBuffers(2)
+        glBindBuffer(GL_ARRAY_BUFFER, self._vertices)
+        glBufferData(GL_ARRAY_BUFFER, self.vertices.size * 4, self.vertices, GL_DYNAMIC_DRAW)
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self._indices)
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, self.indices.size * 2, self.indices, GL_DYNAMIC_DRAW)
 
-    """
-    width = slm.shape[1]
-    height = slm.shape[0]
-    if fit == 'full':
-        return np.eye(3)
-    elif fit != 'short' and fit != 'long':
-        raise ValueError("Unsupported type")
+    def __del__(self):
+        if self.context() is not None and hasattr(self, '_vertices'):
+            self.context().activate()
+            glDeleteBuffers(2, [self._vertices, self._indices])
 
-    if (width > height) == (fit == 'short'):  # scale width?
-        return [[height / width, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
-    else:  # or scale height
-        return [[1.0, 0.0, 0.0], [0.0, width / height, 0.0], [0.0, 0.0, 1.0]]
+    @staticmethod
+    def compute_indices_for_grid(shape):
+        # construct the indices that convert the vertices to a set of triangle strips (see triangle strip in OpenGL
+        # specification)
+        assert len(shape) == 3  # expect 2-D array of vertices
+        assert shape[2] == 4  # where each vertex holds 4 floats
+        i = 0
+        nr = shape[0]
+        nc = shape[1]
+        index_count = (nr - 1) * (2 * nc + 1)
+        indices = np.zeros(index_count, np.uint16)
+        for r in range(nr - 1):
+            # emit triangle strip (single row)
+            row_start = r * nc
+            for c in range(nc):
+                indices[i] = row_start + c
+                indices[i + 1] = row_start + c + nc
+                i += 2
+            indices[i] = 0xFFFF
+            i += 1
+        return indices
+
+    def draw(self):
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self._indices)
+        glBindVertexBuffer(0, self._vertices, 0, 16)
+        glDrawElements(GL_TRIANGLE_STRIP, self.indices.size, GL_UNSIGNED_SHORT, None)

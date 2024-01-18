@@ -3,7 +3,7 @@ import threading
 import time
 from abc import ABC, abstractmethod
 from concurrent.futures import Future, ThreadPoolExecutor
-from typing import Set, final, Sequence, Tuple, Optional, Union
+from typing import Set, final, Tuple, Optional
 from weakref import WeakSet
 
 import astropy.units as u
@@ -11,90 +11,13 @@ import numpy as np
 from numpy.typing import ArrayLike
 from astropy.units import Quantity
 
+from .utilities import set_pixel_size
+
+
 # Aliases for commonly used type hints
 
 # An extent is a sequence of two floats with an optional unit attached,
 # or a single float with optional unit attached, which is broadcasted to a sequence of two floats.
-ExtentType = Union[float, Sequence[float], np.ndarray, Quantity]
-
-
-def set_pixel_size(data: ArrayLike, pixel_size: Optional[Quantity]) -> np.ndarray:
-    """
-    Sets the pixel size metadata for the given data array.
-
-    Args:
-        data (ArrayLike): The input data array.
-        pixel_size (Optional[Quantity]): The pixel size to be set. When a single-element pixel size is given,
-            it is broadcasted to all dimensions of the data array.
-            Passing None sets the pixel size metadata to None.
-
-    Returns:
-        np.ndarray: The modified data array with the pixel size metadata.
-
-    Usage:
-    >>> data = np.array([[1, 2], [3, 4]])
-    >>> pixel_size = 0.1 * u.m
-    >>> modified_data = set_pixel_size(data, pixel_size)
-    """
-    data = np.array(data)
-
-    if pixel_size is not None and pixel_size.size == 1:
-        pixel_size = pixel_size * np.ones(data.ndim)
-
-    data.dtype = np.dtype(data.dtype, metadata={'pixel_size': pixel_size})
-    return data
-
-
-def get_pixel_size(data: np.ndarray) -> Optional[Quantity]:
-    """
-    Extracts the pixel size metadata from the data array.
-
-    Args:
-        data (np.ndarray): The input data array or Quantity.
-
-    Returns:
-        OptionalQuantity]: The pixel size metadata, or None if no pixel size metadata is present.
-
-    Usage:
-    >>> import astropy.units as u
-    >>> import numpy as np
-    >>> data = set_pixel_size(((1, 2), (3, 4)), 5 * u.um)
-    >>> pixel_size = get_pixel_size(data)
-    """
-    metadata = data.dtype.metadata
-    if metadata is None:
-        return None
-    return data.dtype.metadata.get('pixel_size', None)
-
-
-def unitless(data: ArrayLike) -> ArrayLike:
-    """
-    Converts unitless `Quanity` objects to numpy arrays.
-
-    Args:
-        data: The input data.
-        If `data` is a Quantity, it is converted to a (unitless) numpy array.
-        All other data types are just returned as is.
-
-    Returns:
-        ArrayLike: unitless numpy array, or the input data if it is not a Quantity.
-
-    Raises:
-        UnitConversionError: If the data is a Quantity with a unit
-
-    Note:
-        Do NOT use `np.array(data)` to convert a Quantity to a numpy array,
-        because this will drop the unit prefix.
-        For example, ```np.array(1 * u.s / u.ms) == 1```.
-
-    Usage:
-    >>> data = np.array([1.0, 2.0, 3.0]) * u.m
-    >>> unitless_data = unitless(data)
-    """
-    if isinstance(data, Quantity):
-        return data.to_value(u.dimensionless_unscaled)
-    else:
-        return data
 
 
 class Device:

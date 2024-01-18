@@ -1,7 +1,61 @@
 import numpy as np
-from ..openwfs.core import get_pixel_size, set_pixel_size
-from ..openwfs.utilities import place, Transform, project
+from ..openwfs.utilities import set_pixel_size, get_pixel_size, place, Transform, project
 import astropy.units as u
+
+
+def test_to_matrix():
+    # Create a transform object
+    transform = Transform(transform=((1, 2), (3, 4)),
+                          source_origin=(0.0, 0.0) * u.m,
+                          destination_origin=(0.001, 0.002) * u.mm)
+
+    # Define the expected output matrix for same input and output pixel sizes
+    expected_matrix = ((1, 2, 1), (3, 4, 1))
+    result_matrix = transform.to_matrix((1, 2) * u.um, (1, 2) * u.um)
+    assert result_matrix.shape == (2, 3)
+    assert np.allclose(result_matrix, expected_matrix)
+
+    # Repeat for different input and output pixel sizes
+    expected_matrix = ((0.5, 4, 1), (1.5, 8, 1))
+    result_matrix = transform.to_matrix((0.5, 4) * u.um, (1, 2) * u.um)
+    assert np.allclose(result_matrix, expected_matrix)
+
+    # Check if we get the correct matrix in CV2 format without center correction
+    expected_matrix = ((8, 1.5, 1), (4, 0.5, 1))
+    result_matrix = transform.cv2_matrix(source_shape=(0, 0),
+                                         source_pixel_size=(0.5, 4) * u.um, destination_shape=(0, 0),
+                                         destination_pixel_size=(1, 2) * u.um)
+    assert np.allclose(result_matrix, expected_matrix)
+
+    # Test center correction. The center of the source image should be mapped to the center of the destination image
+    src = (17, 18)
+    dst = (13, 14)
+    src_center = np.array((0.5 * src[1], 0.5 * src[0], 1.0))
+    dst_center = np.array((0.5 * dst[1], 0.5 * dst[0]))
+    transform = Transform()
+    result_matrix = transform.cv2_matrix(source_shape=src,
+                                         source_pixel_size=(1, 1), destination_shape=dst,
+                                         destination_pixel_size=(1, 1))
+    assert np.allclose(result_matrix @ src_center, dst_center)
+
+    # Test center correction. The center of the source image should be mapped to the center of the destination image
+    transform = Transform()  # transform=((1, 2), (3, 4)))
+    result_matrix = transform.cv2_matrix(source_shape=src,
+                                         source_pixel_size=(0.5, 4) * u.um, destination_shape=dst,
+                                         destination_pixel_size=(1, 2) * u.um)
+    assert np.allclose(result_matrix @ src_center, dst_center)
+
+    # Also check openGL matrix (has y-axis flipped and extra row and column)
+    expected_matrix = ((1, 2, 1), (3, 4, 2))
+    transform = Transform(transform=((1, 2), (3, 4)),
+                          source_origin=(0, 0),
+                          destination_origin=(1, 2))
+    result_matrix = transform.to_matrix((1, 1), (1, 1))
+    assert np.allclose(result_matrix, expected_matrix)
+
+    result_matrix = transform.opencl_matrix()
+    expected_matrix = ((4, 3, 2, 0), (-2, -1, -1, 0), (0, 0, 1, 0))
+    assert np.allclose(result_matrix, expected_matrix)
 
 
 def test_place():
@@ -38,7 +92,7 @@ def test_transform():
     ps1 = (0.5, 2) * u.um
     src = set_pixel_size(np.random.uniform(size=(7, 8)), ps1)
 
-    id = Transform.identity()
+    id = Transform()
     matrix = id.cv2_matrix(src.shape, ps1, src.shape, ps1)
     assert np.allclose(matrix, ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0)))
 
@@ -52,3 +106,26 @@ def test_transform():
     dst1a = place(src.shape, ps1, src, offset=ps1 * (1, 2))
     dst1b = project(src.shape, ps1, src, t1)
     assert np.allclose(dst1a, dst1b)
+
+
+def test_zoom():
+    transform = Transform.zoom(2.0)
+    vector = (0.3, 0.4)
+    result = transform.apply(vector)
+    expected_result = (0.6, 0.8)
+    assert np.allclose(result, expected_result)
+
+
+def test_inverse():
+    transform = Transform(
+        transform=((0.1, 0.2), (-0.25, 0.33)),
+        source_origin=(0.12, 0.15),
+        destination_origin=(0.23, 0.33))
+    vector = (0.3, 0.4)
+    result = transform.apply(vector)
+
+    inverse = transform.inverse()
+    tranformed_back = inverse.apply(result)
+    assert np.allclose(vector, tranformed_back)
+    assert np.allclose(inverse @ transform @ vector, vector)
+    assert np.allclose(transform @ inverse @ vector, vector)

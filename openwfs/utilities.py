@@ -1,37 +1,51 @@
-import matplotlib.pyplot as plt
+import astropy
 import astropy.units as u
+import numpy
+from astropy import units as u
 from astropy.units import Quantity
-from .core import Detector, get_pixel_size, set_pixel_size
+from numpy._typing import ArrayLike
+
 from typing import Union, Sequence, Optional
 import numpy as np
 import cv2
-from numpy.typing import ArrayLike
 
 # A coordinate is a sequence of two floats with an optional unit attached
 CoordinateType = Union[Sequence[float], Quantity]
 
+# A transform is a 2x2 array with optional units attached
+TransformType = Union[np.ndarray, Quantity, Sequence[Sequence[float]]]
 
-def grab_and_show(cam: Detector, magnification=1.0):
-    image = cam.read()
-    dimensions = cam.extent.to_value(u.um) / magnification
-    plt.imshow(image, extent=(0.0, dimensions[0], 0.0, dimensions[1]), cmap='gray')
-    plt.xlabel('μm')
-    plt.ylabel('μm')
+ExtentType = Union[float, Sequence[float], np.ndarray, Quantity]
 
 
-def imshow(data):
-    pixel_size = get_pixel_size(data)
-    if pixel_size is not None:
-        extent = pixel_size * data.shape
-        plt.xlabel(extent.unit)
-        plt.ylabel(extent.unit)
-        extent = extent.value
+def unitless(data: ArrayLike) -> ArrayLike:
+    """
+    Converts unitless `Quanity` objects to numpy arrays.
+
+    Args:
+        data: The input data.
+        If `data` is a Quantity, it is converted to a (unitless) numpy array.
+        All other data types are just returned as is.
+
+    Returns:
+        ArrayLike: unitless numpy array, or the input data if it is not a Quantity.
+
+    Raises:
+        UnitConversionError: If the data is a Quantity with a unit
+
+    Note:
+        Do NOT use `np.array(data)` to convert a Quantity to a numpy array,
+        because this will drop the unit prefix.
+        For example, ```np.array(1 * u.s / u.ms) == 1```.
+
+    Usage:
+    >>> data = np.array([1.0, 2.0, 3.0]) * u.m
+    >>> unitless_data = unitless(data)
+    """
+    if isinstance(data, Quantity):
+        return data.to_value(u.dimensionless_unscaled)
     else:
-        extent = data.shape
-    plt.imshow(data, extent=(0.0, extent[0], 0.0, extent[1]), cmap='gray')
-    plt.colorbar()
-    plt.show()
-    plt.pause(0.1)
+        return data
 
 
 class Transform:
@@ -41,67 +55,88 @@ class Transform:
     Elements of the transformation are specified with an astropy.unit attached.
     """
 
-    def __init__(self, transform: ArrayLike = ((1.0, 0.0), (0.0, 1.0)),
+    """
+    Args:
+        transform:
+            2x2 transformation matrix that transforms (y,x)
+            coordinates in the source image to (y,x) coordinates in the destination image.
+            This matrix may include astropy units,
+            for instance when converting from normalized SLM coordinates to physical coordinates in micrometers.
+            Note:
+                the units of the transform must match the units of the pixel_size of the destination
+                divided by the pixel size of the source.
+        source_origin:
+            (y,x) coordinate of the origin in the source image, relative to the center of the image.
+            By default, the center of the source image is taken as the origin of the transform,
+            meaning that that point is mapped onto the destination_origin.
+            Note:
+                the units of source_origin must match the units of the pixel_size of the source.
+        destination_origin:
+            (y,x) coordinate of the origin in the destination image, relative to the center of the image.
+            By default, the center of the destination image is taken as the origin of the transform,
+            meaning that the source_origin is mapped to that point.
+            Note:
+                the units of destination_origin must match the units of the pixel_size of the source.
+
+
+    """
+
+    def __init__(self, transform: Optional[TransformType] = None,
                  source_origin: Optional[CoordinateType] = None,
                  destination_origin: Optional[CoordinateType] = None):
-        """
 
-        Args:
-            transform:
-                2x2 transformation matrix that transforms (y,x)
-                coordinates in the source image to (y,x) coordinates in the destination image.
-                This matrix may include astropy units,
-                for instance when converting from normalized SLM coordinates to physical coordinates in micrometers.
-                Note:
-                    the units of the transform must match the units of the pixel_size of the destination
-                    divided by the pixel size of the source.
-            source_origin:
-                (y,x) coordinate of the origin in the source image, relative to the center of the image.
-                By default, the center of the source image is taken as the origin of the transform,
-                meaning that that point is mapped onto the destination_origin.
-                Note:
-                    the units of source_origin must match the units of the pixel_size of the source.
-            destination_origin:
-                (y,x) coordinate of the origin in the destination image, relative to the center of the image.
-                By default, the center of the destination image is taken as the origin of the transform,
-                meaning that the source_origin is mapped to that point.
-                Note:
-                    the units of destination_origin must match the units of the pixel_size of the source.
+        self.transform = Quantity(transform if transform is not None else np.eye(2))
+        self.source_origin = Quantity(source_origin) if source_origin is not None else None
+        self.destination_origin = Quantity(destination_origin) if destination_origin is not None else None
 
+    def cv2_matrix(self, source_shape: Sequence[int],
+                   source_pixel_size: CoordinateType,
+                   destination_shape: Sequence[int],
+                   destination_pixel_size: CoordinateType) -> np.ndarray:
+        """Returns the transformation matrix in the format used by cv2.warpAffine."""
 
-        """
-        self.transform = Quantity(transform)
-        self.source_origin = None if source_origin is None else Quantity(source_origin)
-        self.destination_origin = None if destination_origin is None else Quantity(destination_origin)
-
-    def cv2_matrix(self, source_shape, source_pixel_size, destination_shape, destination_pixel_size):
-        transform = np.zeros((2, 3))
-
-        # compute the transform itself, from source pixels to destination pixels
-        # this also verifies that the transform has the correct pixel sizes
-        # note: x and y are swapped to have a matrix in cv2's (x,y) convention
-        transform[0, 0] = self.transform[1, 1] * source_pixel_size[1] / destination_pixel_size[1]
-        transform[0, 1] = self.transform[1, 0] * source_pixel_size[0] / destination_pixel_size[1]
-        transform[1, 0] = self.transform[0, 1] * source_pixel_size[1] / destination_pixel_size[0]
-        transform[1, 1] = self.transform[0, 0] * source_pixel_size[0] / destination_pixel_size[0]
-
-        # apply the transform to the source offset
-        # compute source offset in pixels
-        # this also verifies that source_origin and source_pixel_size have compatible units
-        transform[0, 2] = - 0.5 * source_shape[1]
-        transform[1, 2] = - 0.5 * source_shape[0]
+        # first construct a transform that is relative to the center of the image, as required by cv2.warpAffine
+        source_origin = 0.5 * np.array(source_shape) * source_pixel_size
         if self.source_origin is not None:
-            transform[0, 2] -= self.source_origin[1] / source_pixel_size[1]
-            transform[1, 2] -= self.source_origin[0] / source_pixel_size[0]
-        transform[0:2, 2] = transform[0:2, 0:2] @ transform[0:2, 2]
+            source_origin += self.source_origin
 
-        # apply the destination offset
-        transform[0, 2] += 0.5 * destination_shape[1]
-        transform[1, 2] += 0.5 * destination_shape[0]
+        destination_origin = 0.5 * np.array(destination_shape) * destination_pixel_size
         if self.destination_origin is not None:
-            transform[0, 2] += self.destination_origin[1] / destination_pixel_size[1]
-            transform[1, 2] += self.destination_origin[0] / destination_pixel_size[0]
+            destination_origin += self.destination_origin
 
+        centered_transform = Transform(transform=self.transform,
+                                       source_origin=source_origin,
+                                       destination_origin=destination_origin)
+
+        # then convert the transform to a matrix, using the specified pixel sizes
+        transform_matrix = centered_transform.to_matrix(source_pixel_size=source_pixel_size,
+                                                        destination_pixel_size=destination_pixel_size)
+
+        # finally, convert the matrix to the format used by cv2.warpAffine by swapping x and y columns and rows
+        transform_matrix = transform_matrix[[1, 0], :]
+        transform_matrix = transform_matrix[:, [1, 0, 2]]
+        return transform_matrix
+
+    def to_matrix(self, source_pixel_size: CoordinateType, destination_pixel_size: CoordinateType) -> np.ndarray:
+        matrix = np.zeros((2, 3))
+        matrix[0:2, 0:2] = unitless(self.transform * source_pixel_size / destination_pixel_size)
+        if self.destination_origin is not None:
+            matrix[0:2, 2] = unitless(self.destination_origin / destination_pixel_size)
+        if self.source_origin is not None:
+            matrix[0:2, 2] -= unitless((self.transform @ self.source_origin) / destination_pixel_size)
+        return matrix
+
+    def opencl_matrix(self) -> np.ndarray:
+        # compute the transform for points (0,1), (1,0), and (0, 0)
+        matrix = self.to_matrix((1.0, 1.0), (1.0, 1.0))
+
+        # subtract the offset (transform of 0,0) from the first two points
+        # to construct the homogeneous transformation matrix
+        # convert to opencl format: swap x and y columns (note: the rows were
+        # already swapped in the construction of t2), and flip the sign of the y-axis.
+        transform = np.eye(3, 4, dtype='float32', order='C')
+        transform[0, 0:3] = matrix[1, [1, 0, 2],]
+        transform[1, 0:3] = -matrix[0, [1, 0, 2],]
         return transform
 
     @staticmethod
@@ -109,10 +144,55 @@ class Transform:
         """Returns a transform that just zooms in the image."""
         return Transform(transform=np.array(((scale, 0.0), (0.0, scale))))
 
-    @staticmethod
-    def identity():
-        """Returns a transform that does nothing."""
-        return Transform.zoom(1.0)
+    def __matmul__(self, other):
+        """The matrix multiplication operator is used to compose transformations,
+        and to apply a transformation to a vector."""
+        if isinstance(other, Transform):
+            return self.compose(other)
+        else:
+            return self.apply(other)
+
+    def apply(self, vector: CoordinateType) -> CoordinateType:
+        """Applies the transformation to a column vector.
+
+         If `vector` is a 2-D array, applies the transformation to each column of `vector` individually."""
+        if self.source_origin is not None:
+            vector = vector - self.source_origin
+        vector = self.transform @ vector
+        if self.destination_origin is not None:
+            vector = vector + self.destination_origin
+        return vector
+
+    def inverse(self):
+        """Compute the inverse transformation,
+        such that the composition of the transformation and its inverse is the identity."""
+
+        # invert the transform matrix
+        if self.transform is not None:
+            transform = np.linalg.inv(self.transform)
+        else:
+            transform = None
+
+        # swap source and destination origins
+        return Transform(transform, source_origin=self.destination_origin, destination_origin=self.source_origin)
+
+    def compose(self, other: 'Transform'):
+        """Compose two transformations.
+
+        Args:
+            other (Transform): the transformation to apply first
+
+        Returns:
+            Transform: the composition of the two transformations
+        """
+        transform = self.transform @ other.transform
+        source_origin = other.source_origin
+        destination_origin = self.apply(other.destination_origin) if other.destination_origin is not None else None
+        return Transform(transform, source_origin, destination_origin)
+
+    def _standard_input(self) -> Quantity:
+        """Construct standard input points (1,0), (0,1) and (0,0) with the source unit of this transform.."""
+        return Quantity(((1.0, 0.0, 0.0), (0.0, 1.0, 0.0)), self.source_origin)
 
 
 def place(out_shape: Sequence[int], out_pixel_size: Quantity, source: np.ndarray, offset: Optional[Quantity] = None,
@@ -158,10 +238,59 @@ def project(out_shape: Sequence[int], out_pixel_size: Quantity, source: np.ndarr
 
     """
     if transform is None:
-        transform = Transform.identity()
+        transform = Transform()
     t = transform.cv2_matrix(source.shape, get_pixel_size(source), out_shape, out_pixel_size)
     # swap x and y in matrix and size, since cv2 uses the (x,y) convention.
     out_size = (out_shape[1], out_shape[0])
     dst = cv2.warpAffine(source, t, out_size, dst=out, flags=cv2.INTER_AREA,
                          borderMode=cv2.BORDER_CONSTANT, borderValue=(0.0,))
     return set_pixel_size(dst, out_pixel_size)
+
+
+def set_pixel_size(data: ArrayLike, pixel_size: Optional[Quantity]) -> np.ndarray:
+    """
+    Sets the pixel size metadata for the given data array.
+
+    Args:
+        data (ArrayLike): The input data array.
+        pixel_size (Optional[Quantity]): The pixel size to be set. When a single-element pixel size is given,
+            it is broadcasted to all dimensions of the data array.
+            Passing None sets the pixel size metadata to None.
+
+    Returns:
+        np.ndarray: The modified data array with the pixel size metadata.
+
+    Usage:
+    >>> data = np.array([[1, 2], [3, 4]])
+    >>> pixel_size = 0.1 * u.m
+    >>> modified_data = set_pixel_size(data, pixel_size)
+    """
+    data = np.array(data)
+
+    if pixel_size is not None and pixel_size.size == 1:
+        pixel_size = pixel_size * np.ones(data.ndim)
+
+    data.dtype = np.dtype(data.dtype, metadata={'pixel_size': pixel_size})
+    return data
+
+
+def get_pixel_size(data: np.ndarray) -> Optional[Quantity]:
+    """
+    Extracts the pixel size metadata from the data array.
+
+    Args:
+        data (np.ndarray): The input data array or Quantity.
+
+    Returns:
+        OptionalQuantity]: The pixel size metadata, or None if no pixel size metadata is present.
+
+    Usage:
+    >>> import astropy.units as u
+    >>> import numpy as np
+    >>> data = set_pixel_size(((1, 2), (3, 4)), 5 * u.um)
+    >>> pixel_size = get_pixel_size(data)
+    """
+    metadata = data.dtype.metadata
+    if metadata is None:
+        return None
+    return data.dtype.metadata.get('pixel_size', None)

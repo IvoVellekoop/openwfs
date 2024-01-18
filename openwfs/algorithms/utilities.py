@@ -364,16 +364,14 @@ class WFSController:
         laser light in multi-PEF setups.
         """
         slm = self.algorithm.slm
-        slm.primary_phase_patch.phases = 2 * np.pi * np.random.rand(300, 300)
-        slm.update()
+        slm.set_phases(2 * np.pi * np.random.rand(300, 300))
 
     def reset_slm_primary_patch(self):
         """
         Reset the SLM primary phase patch.
         """
         slm = self.algorithm.slm
-        slm.primary_phase_patch.phases = 0
-        slm.update()
+        slm.set_phases(0)
 
     def snap_darkframe(self):
         """

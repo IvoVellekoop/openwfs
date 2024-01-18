@@ -2,7 +2,7 @@ import logging
 import time
 import pytest
 from ..openwfs.simulation.mockdevices import MockSource, Generator, MockSLM
-from ..openwfs.core import get_pixel_size, set_pixel_size
+from ..openwfs.utilities import set_pixel_size, get_pixel_size
 from ..openwfs.processors import CropProcessor
 import numpy as np
 import astropy.units as u

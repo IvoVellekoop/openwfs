@@ -1,5 +1,5 @@
 import logging  # noqa
-from ..openwfs.utilities import imshow  # noqa
+from ..openwfs.plot_utilities import imshow
 import pytest
 import numpy as np
 from ..openwfs.algorithms import StepwiseSequential
