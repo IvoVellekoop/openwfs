@@ -195,7 +195,7 @@ def test_get_pixels():
 def test_lookup_table(slm):
     # verify that we cannot set properties that do not exist on the object
     with pytest.raises(AttributeError):
-        slm.lookup_table = np.arange(256)
+        slm.lut = np.arange(256)
 
     # resize the SLM and put a linear ramp on it
     slm.shape = (1, 256)
@@ -208,7 +208,7 @@ def test_lookup_table(slm):
     # set a lookup table that is a random permutation of the gray values
     lut = np.arange(256)
     np.random.shuffle(lut)
-    slm.lut = lut
+    slm.lookup_table = lut
 
     # nothing changes until we call update
     assert np.alltrue(pixels == slm.get_pixels('gray_value'))
