@@ -2,7 +2,8 @@ import numpy as np
 import astropy.units as u
 import set_path  # noqa - needed for setting the module search path to find openwfs
 from openwfs.simulation import Microscope, MockSource
-from openwfs.utilities import grab_and_show, Transform
+from openwfs.utilities import Transform
+from openwfs.plot_utilities import grab_and_show
 
 """
 This script simulates a microscopic imaging system, generating a random noise image as a mock source and capturing it 

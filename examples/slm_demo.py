@@ -19,7 +19,7 @@ s2 = SLM(0, pos=(0, 300))
 g = geometry.square(numerical_aperture)
 g[1, 1, 1] = 0
 # p1 = Patch(s1, g)
-s1.primary_phase_patch.geometry = g
+s1.primary_patch.geometry = g
 pf = Patch(s1)
 p2 = Patch(s2)
 p3 = Patch(s2, geometry.square(0.2))

@@ -4,19 +4,46 @@ import glfw
 import warnings
 import astropy.units as u
 from numpy.typing import ArrayLike
-from typing import Union
+from typing import Union, Optional, List
 from astropy.units import Quantity
 from .patch import FrameBufferPatch, Patch, VertexArray
-from .geometry import fill_transform
 from weakref import WeakSet
 from ..core import PhaseSLM, Actuator
+from ..utilities import Transform
+
+TimeType = Union[Quantity[u.ms], int]
 
 
 class SLM(Actuator, PhaseSLM):
     """
-    Object representing a phase-only spatial light modulator. This object has many fancy functions that are important
-    in setting up the SLM layers and geometry before starting the experiment. However, the algorithms only access
-    a subset of functions and properties (see `SLM` protocol)
+    An OpenGL object to control a spatial light modulator connected to a graphics card.
+
+    The SLM can be created in windowed mode (useful for debugging), or full screen.
+    It is possible to have multiple windowed SLMs on the same monitor, but only one full-screen SLM per monitor.
+
+    An SLM holds a list of patches, which are shapes that can be drawn on the SLM.
+    Each of these patches can have a different texture, which is a 2D array of values that are drawn on the SLM.
+    In addition, each patch can have its own geometry, which determines how the texture is mapped onto the SLM window.
+    For more information, see the documentation of the Patch class.
+
+    If an SLM holds multiple patches, the patches are drawn in the order they are present in the `patches` list.
+    If patches overlap, the pixels of the previous patch are either overwritten (when the `additive_blend` property
+    of the patch is False), or added to the phase values of the previous patch (when `additive_blend` is True).
+
+    This way, a large range of use cases is enabled, including:
+    - Drawing a single square patch with a single texture (the default).
+    - Mapping the phase values to a disk, with an effective resolution depending on the distance to the center of the disk (see `geometry.disk`).
+    - Applying an additive patch (an offset layer) that corrects for system aberrations.
+    - etc.
+
+    The SLM object also holds a lookup table that maps the phase values to gray values.
+    By default, this is a linear table that maps wrapped phase values from 0-2pi to gray values from 0-255.
+    This table can be modified to correct for the non-linear response of the hardware, or to scale the range
+    of gray values that is used.
+
+    Attributes:
+        patches (list[openwfs.slm.Patch]): List of patches that are drawn on the SLM.
+
     """
 
     _active_slms = WeakSet()
@@ -26,8 +53,21 @@ class SLM(Actuator, PhaseSLM):
 
     WINDOWED = 0
 
-    def __init__(self, monitor_id=WINDOWED, shape=None, pos=(0, 0), refresh_rate=glfw.DONT_CARE * u.Hz,
-                 transform=None, latency=2, duration=1):
+    transform: Transform
+    patches: List[Patch]
+    _monitor_id: int
+    _pos: tuple[int, int]
+    _latency: TimeType
+    _duration: TimeType
+    _refresh_rate: Quantity[u.Hz]
+    _shape: tuple[int, int]
+    _window: object
+    _globals: int
+    _frame_buffer: 'Optional[FrameBufferPatch]'
+
+    def __init__(self, monitor_id: int = WINDOWED, shape: Optional[tuple[int, int]] = None,
+                 pos: tuple[int, int] = (0, 0), refresh_rate=glfw.DONT_CARE * u.Hz,
+                 latency: TimeType = 2, duration: TimeType = 1, transform: Union[Transform | str] = 'short'):
         """
         Constructs a new SLM window.
 
@@ -42,10 +82,8 @@ class SLM(Actuator, PhaseSLM):
                 Ignored for windowed SLMs.
                 When omitted, the current refresh rate of the monitor will be used.
                 Note that OpenGL does not seem to support non-integer refresh rates.
-                In these cases, it is better to set the refresh rate in the OS, and don't
+                In these cases, it is better to set the refresh rate in the OS, and not
                 explicitly specify a refresh rate.
-            transform (np.ndarray): 3x3 transformation matrix to convert from vertex coordinates to window coordinates,
-                see :py:attr:`~transform`
             latency (int): Time between the vertical retrace and the start of the SLM response to the new frame,
                 specified in milliseconds (u.ms) or multiples of the frame period (unitless).
                 see :py:attr:`~latency`
@@ -53,66 +91,159 @@ class SLM(Actuator, PhaseSLM):
                 where the SLM has stabilized.
                 Specified in milliseconds (u.ms) or multiples of the frame period (unitless).
                 see :py:attr:`~duration`
+            transform (Transform): Global transformation matrix, see :py:attr:`~transform`.
+                The `transform` determines how these vertex coordinates that make up the shape of a Patch (see
+                :class:`Patch`) are mapped to the SLM window.
+                By default, 'short' is used (see :attr:`transform`)
         """
 
         # construct window for displaying the SLM pattern
-        self.patches = []
+        SLM._init_glfw()
+        self._assert_window_available(monitor_id)
         self._monitor_id = monitor_id
-        self._shape = shape
         self._pos = pos
-        self._refresh_rate = refresh_rate
-        self._window = None
-        self._globals = None  # will be filled by __create_window
         self._latency = latency
         self._duration = duration
-        self._create_window()
-        SLM._active_slms.add(self)
-
-        self.transform = transform or fill_transform(self, 'short')
-
-        # Construct the frame buffer, this is the texture where all patches draw to. After all patches
-        # finish drawing, the frame buffer itself is drawn onto the screen.
-        self._frame_patch = FrameBufferPatch(self)
+        self._refresh_rate = refresh_rate
+        self._shape = SLM._default_shape(monitor_id) if shape is None else shape
+        self._frame_buffer = None
+        self._window = None
+        self._globals = -1
+        self.patches = []
+        self._create_window()  # sets self._window and self._globals and self._frame_patch
+        self.transform = transform
         self._vertex_array = VertexArray()
 
         # Create a single patch for displaying phase.
         # this default patch is square 1.0, and can be accessed through the 'primary_phase_patch' attribute
         # In advanced scenarios, the geometry of this patch may be modified, or it may be replaced altogether.
-        self.patches = [Patch(self)]  # note: this also removes the frame patch from list of patches
-        self.primary_phase_patch = self.patches[0]
+        self.patches.append(Patch(self))
+        self.primary_patch = self.patches[0]
+        SLM._active_slms.add(self)
         self.update()
 
-    @property
-    def monitor_id(self) -> int:
+    def _assert_window_available(self, monitor_id) -> None:
         """
-        Number of the monitor (1 for primary screen, 2 for secondary screen, etc.) to display a full screen SLM
-        window on. Each monitor can only hold a single full-screen window. Use MONITOR_ID_WINDOWED to show a windowed
-        SLM on the primary screen (for debugging and monitoring purposes). We can have multiple windowed SLMs on the
-        primary screen, but there cannot also be a fullscreen SLM on the primary screen at the same time.
+        Checks if the target monitor is available for displaying an SLM window.
 
-        `monitor_id` can be modified at run time, in which case the current SLM window is replaced by a new window
-        on a different monitor. When moving the SLM to a different window, width, height and refresh_rate are set
+        Raises:
+            Exception: If a full screen SLM is already present on the target monitor.
         """
-        return self._monitor_id
+        if monitor_id == SLM.WINDOWED:
+            if any([slm.monitor_id == 1 for slm in SLM._active_slms if slm is not self]):
+                raise RuntimeError(
+                    f"Cannot create an SLM window because a full-screen SLM is already active on monitor 1")
+        else:
+            # we cannot have multiple full screen windows on the same monitor. Also, we cannot have
+            # a full screen window on monitor 1 if there are already windowed SLMs.
+            if any([slm.monitor_id == monitor_id or
+                    (monitor_id == 1 and slm.monitor_id == SLM.WINDOWED)
+                    for slm in SLM._active_slms if slm is not self]):
+                raise RuntimeError(f"Cannot create a full-screen SLM window on monitor {monitor_id} because a "
+                                   f"window is already displayed on that monitor")
+            if monitor_id > len(glfw.get_monitors()):
+                raise IndexError(f"Monitor {monitor_id} not found, only {len(glfw.get_monitors())} monitor(s) "
+                                 f"are connected.")
 
-    @monitor_id.setter
-    def monitor_id(self, value):
-        if value == self._monitor_id:
-            return
+    @staticmethod
+    def _default_shape(monitor_id: int):
+        if monitor_id == SLM.WINDOWED:
+            return 300, 300
+        else:
+            monitor = glfw.get_monitors()[monitor_id - 1]
+            current_mode = glfw.get_video_mode(monitor)
+            return current_mode.size.height, current_mode.size.width
+
+    def _on_resize(self):
+        """Updates shape and refresh rate to the actual values of the window.
+
+        Note that these values are in pixels, which may be different from the window size because the window size is
+        in screen coordinates, which may not always the same as pixels (e.g. on a retina display).
+
+        For windowed SLMs, the refresh rate property is set to the refresh rate of the primary monitor.
+
+        If the width, height or refresh rate differ from the requested values, or if the bit depth is less than 8,
+        a warning is issued.
+
+        This function also sets the viewport to the full window size and creates a frame buffer.
+        """
+
+        # update the shape the actual value of the window
+        (fb_width, fb_height) = glfw.get_framebuffer_size(self._window)
+        fb_shape = (fb_height, fb_width)
+        if self._shape != fb_shape:
+            warnings.warn(f"Actual resolution {fb_shape} does not match requested resolution {self._shape}.")
+            self._shape = fb_shape
+
+        monitor = glfw.get_window_monitor(self._window)
+        current_mode = glfw.get_video_mode(monitor if bool(monitor) else glfw.get_primary_monitor())
+
+        # verify bit depth is at least 8 bit
+        if current_mode.bits.red < 8 or current_mode.bits.green < 8 or current_mode.bits.blue < 8:
+            warnings.warn(
+                f"Bit depth is less than 8 bits "
+                f"(RGB = {current_mode.bits.red},{current_mode.bits.green},{current_mode.bits.blue} bits). "
+                f"You may not be able to use the full phase resolution of your SLM.")
+
+        # verify refresh rate is correct
+        # Then update the refresh rate to the actual value
+        rate = int(self._refresh_rate.to_value(u.Hz))
+        if rate != glfw.DONT_CARE and rate != current_mode.refresh_rate:
+            warnings.warn(f"Actual refresh rate of {current_mode.refresh_rate} Hz does not match set rate "
+                          f"of {self.refresh_rate}")
+        self._refresh_rate = current_mode.refresh_rate * u.Hz
+
         self.activate()
-        self._monitor_id = value
-        self._shape = None
-        self._refresh_rate = 0.0 * u.Hz
-        monitor = self._set_default_video_mode()
-        glfw.set_window_monitor(self._window, monitor, self._pos[1], self._pos[0], self._shape[1], self._shape[0],
-                                int(self._refresh_rate / u.Hz))
-        self._set_actual_video_mode()
+
+        # create a new frame buffer, re-use the old one if one was present, otherwise use a default of range(256)
+        # re-use the lookup table if possible, otherwise create a default one ranging from 0 to 255.
+        lut = self._frame_buffer.lookup_table if self._frame_buffer is not None else range(256)
+        self._frame_buffer = FrameBufferPatch(self, lut)
         glViewport(0, 0, self._shape[1], self._shape[0])
-        # construct new frame buffer object, re-use LUT
-        lut = self.lookup_table
-        self._frame_patch = FrameBufferPatch(self)
-        self.lookup_table = lut
-        self.update()
+
+    @staticmethod
+    def _init_glfw():
+        ###
+        # initialize the GLFW library and set global configuration. Note that we never de-initialize it. This
+        # should be fine because each slm window releases its resources when it is destroyed. If we were to
+        # de-initialize the GLFW library (using glfw.terminate()) we run into trouble if the user of our library also
+        # uses glfw for something else.
+        glfw.init()
+        glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)  # Required on Mac. Doesn't hurt on Windows
+        glfw.window_hint(glfw.OPENGL_FORWARD_COMPAT, glfw.TRUE)  # Required on Mac. Useless on Windows
+        glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 4)  # request at least opengl 4.2
+        glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 2)
+        glfw.window_hint(glfw.FLOATING, glfw.TRUE)  # Keep window on top
+        glfw.window_hint(glfw.DECORATED, glfw.FALSE)  # Disable window border
+        glfw.window_hint(glfw.AUTO_ICONIFY, glfw.FALSE)  # Prevent window minimization during task switch
+        glfw.window_hint(glfw.FOCUSED, glfw.FALSE)
+        glfw.window_hint(glfw.DOUBLEBUFFER, glfw.TRUE)
+        glfw.window_hint(glfw.RED_BITS, 8)  # require at least 8 bits per color channel (256 gray values)
+        glfw.window_hint(glfw.GREEN_BITS, 8)
+        glfw.window_hint(glfw.BLUE_BITS, 8)
+        glfw.window_hint(glfw.COCOA_RETINA_FRAMEBUFFER, glfw.FALSE)  # disable retina multisampling on Mac (untested)
+        glfw.window_hint(glfw.SAMPLES, 0)  # disable multisampling
+
+    def _create_window(self):
+        """Constructs a new window and associated OpenGL context. Called by SLM.__init__()"""
+        # Try to re-use an already existing OpenGL context, so that we can share textures and shaders between
+        # SLM objects.
+        shared = next((slm._window for slm in SLM._active_slms), None)
+        monitor = glfw.get_monitors()[self._monitor_id - 1] if self._monitor_id != SLM.WINDOWED else None
+
+        glfw.window_hint(glfw.REFRESH_RATE, int(self._refresh_rate.to_value(u.Hz)))
+        self._window = glfw.create_window(self._shape[1], self._shape[0], "OpenWFS SLM", monitor, shared)
+        glfw.set_input_mode(self._window, glfw.CURSOR, glfw.CURSOR_HIDDEN)  # disable cursor
+        glfw.swap_interval(1)  # tell openGL to wait for the vertical retrace when swapping buffers
+        if monitor:  # full screen mode
+            glfw.set_gamma(monitor, 1.0)
+        else:  # windowed mode
+            glfw.set_window_pos(self._window, self._pos[1], self._pos[0])
+
+        self.activate()  # Before calling any OpenGL function on the window, the context must be activated.
+        self._globals = glGenBuffers(1)  # create buffer for storing globals
+        glClearColor(0.0, 0.0, 0.0, 1.0)  # set clear color to black
+        self._on_resize()
 
     @property
     def shape(self) -> tuple[int, int]:
@@ -168,114 +299,34 @@ class SLM(Actuator, PhaseSLM):
         """
         return self._refresh_rate
 
-    def _set_default_video_mode(self):
-        """Set default values for the width, height and refresh rate parameters if None was specified.
-        For windowed SLMs, width and height default to 300, and refresh rate is ignored.
-        For full screen SLMs, width, height and refresh rate default to the current video mode.
-        Returns the selected monitor (full screen SLMs) or None (windowed SLMs) for convenience.
-        This function also checks if the target monitor is available, and throws an error if an SLM window is already
-        present on that monitor."""
-        if self._monitor_id == SLM.WINDOWED:
-            for slm in SLM._active_slms:
-                if slm is not self and slm.monitor_id == 1:
-                    raise Exception(f"Cannot create an SLM window because a full-screen SLM is already active on "
-                                    f"monitor 1")
-            monitor = None
-            self._shape = self._shape or (300, 300)
-            self._refresh_rate = glfw.DONT_CARE * u.Hz
-        else:
-            # we cannot have multiple full screen windows on the same monitor. Also, we cannot have
-            # a full screen window on monitor 1 if there are already windowed SLMs.
-            for slm in SLM._active_slms:
-                if slm is not self and slm.monitor_id == self._monitor_id or \
-                        (self._monitor_id == 1 and slm.monitor_id == SLM.WINDOWED):
-                    raise Exception(f"Cannot create a full-screen SLM window on monitor {self.monitor_id} because a "
-                                    f"window is already displayed on that monitor")
-            try:
-                monitor = glfw.get_monitors()[self.monitor_id - 1]
-            except IndexError:
-                raise ValueError(f"Monitor {self.monitor_id} not found, only {len(glfw.get_monitors())} monitor("
-                                 f"s) "
-                                 f"are connected.")
-            current_mode = glfw.get_video_mode(monitor)
-            self._shape = self._shape or (current_mode.size.height, current_mode.size.width)
-            if self._refresh_rate.to_value(u.Hz) == glfw.DONT_CARE:
-                self._refresh_rate = current_mode.refresh_rate * u.Hz
-        return monitor
+    @property
+    def monitor_id(self) -> int:
+        """
+        Number of the monitor (1 for primary screen, 2 for secondary screen, etc.) to display a full screen SLM
+        window on. Each monitor can only hold a single full-screen window. Use MONITOR_ID_WINDOWED to show a windowed
+        SLM on the primary screen (for debugging and monitoring purposes). We can have multiple windowed SLMs on the
+        primary screen, but there cannot also be a fullscreen SLM on the primary screen at the same time.
 
-    def _set_actual_video_mode(self):
-        """Updates width, height, and refresh rate to the actual values of the window. Note that these values
-        are in pixels, which may be different from the window size because the window size is in screen coordinates,
-        which may not always the same as pixels (e.g. on a retina display).
-        If the width, height or refresh rate differ from the requested values, or if the bit depth is less than 8,
-        a warning is issued."""
-        (fb_width, fb_height) = glfw.get_framebuffer_size(self._window)
-        fb_shape = (fb_height, fb_width)
-        if self._shape != fb_shape:
-            warnings.warn(f"Actual resolution {fb_shape} does not match requested resolution {self._shape}.")
-            self._shape = fb_shape
+        `monitor_id` can be modified at run time, in which case the current SLM window is replaced by a new window
+        on a different monitor. When moving the SLM to a different window, width, height and refresh_rate are set
+        """
+        return self._monitor_id
 
-        monitor = glfw.get_window_monitor(self._window)
-        if monitor:
-            current_mode = glfw.get_video_mode(monitor)
-            if current_mode.bits.red < 8 or current_mode.bits.green < 8 or current_mode.bits.blue < 8:
-                warnings.warn(
-                    f"Bit depth is less than 8 bits "
-                    f"(RGB = {current_mode.bits.red},{current_mode.bits.green},{current_mode.bits.blue} bits). "
-                    f"You may not be able to use the full phase resolution of your SLM.")
-            if (self.refresh_rate != glfw.DONT_CARE * u.Hz and
-                    current_mode.refresh_rate != int(self._refresh_rate / u.Hz)):
-                warnings.warn(f"Actual refresh rate of {current_mode.refresh_rate} Hz does not match set rate "
-                              f"of {self.refresh_rate}")
-        else:
-            current_mode = glfw.get_video_mode(glfw.get_primary_monitor())
-        self._refresh_rate = current_mode.refresh_rate * u.Hz
+    @monitor_id.setter
+    def monitor_id(self, value):
+        if value == self._monitor_id:
+            return
 
-    def _create_window(self):
-        """Constructs a new window and associated OpenGL context. Called by SLM.__init__()"""
+        self._assert_window_available(value)
+        self._monitor_id = value
+        self._shape = SLM._default_shape(value)
+        self._refresh_rate = glfw.DONT_CARE * u.Hz
+        monitor = glfw.get_monitors()[value - 1] if value != SLM.WINDOWED else None
 
-        ###
-        # initialize the GLFW library and set global configuration. Note that we never de-initialize it. This
-        # should be fine because each slm window releases its resources when it is destroyed. If we were to
-        # de-initialize the GLFW library (using glfw.terminate()) we run into trouble if the user of our library also
-        # uses glfw for something else.
-        glfw.init()
-        glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)  # Required on Mac. Doesn't hurt on Windows
-        glfw.window_hint(glfw.OPENGL_FORWARD_COMPAT, glfw.TRUE)  # Required on Mac. Useless on Windows
-        glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 4)  # request at least opengl 4.2
-        glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 2)
-        glfw.window_hint(glfw.FLOATING, glfw.TRUE)  # Keep window on top
-        glfw.window_hint(glfw.DECORATED, glfw.FALSE)  # Disable window border
-        glfw.window_hint(glfw.AUTO_ICONIFY, glfw.FALSE)  # Prevent window minimization during task switch
-        glfw.window_hint(glfw.FOCUSED, glfw.FALSE)
-        glfw.window_hint(glfw.DOUBLEBUFFER, glfw.TRUE)
-        glfw.window_hint(glfw.RED_BITS, 8)  # require at least 8 bits per color channel (256 gray values)
-        glfw.window_hint(glfw.GREEN_BITS, 8)
-        glfw.window_hint(glfw.BLUE_BITS, 8)
-        glfw.window_hint(glfw.COCOA_RETINA_FRAMEBUFFER, glfw.FALSE)  # disable retina multisampling on Mac (untested)
-        glfw.window_hint(glfw.SAMPLES, 0)  # disable multisampling
-
-        # Construct the OpenGL window. This window also acts as a 'context' which holds all resources for the window
-        monitor = self._set_default_video_mode()
-        glfw.window_hint(glfw.REFRESH_RATE, int(self._refresh_rate / u.Hz))
-        shared = next(iter(SLM._active_slms), self)._window
-        self._window = glfw.create_window(self._shape[1], self._shape[0], "OpenWFS SLM", monitor, shared)
-        self.activate()  # Before calling any OpenGL function on the window, the context must be activated.
-        glfw.set_input_mode(self._window, glfw.CURSOR, glfw.CURSOR_HIDDEN)  # disable cursor
-        glfw.swap_interval(1)  # tell opengl to wait for the vertical retrace when swapping buffers
-        self._set_actual_video_mode()
-        glViewport(0, 0, self._shape[1], self._shape[0])
-
-        if monitor:  # full screen mode
-            glfw.set_gamma(monitor, 1.0)
-        else:  # windowed mode
-            glfw.set_window_pos(self._window, self._pos[1], self._pos[0])
-
-        # set clear color to black
-        glClearColor(0.0, 0.0, 0.0, 1.0)
-
-        # create buffer for storing globals, and update the global transform matrix
-        self._globals = glGenBuffers(1)  # no need to destroy explicitly, destroyed when window is destroyed
+        # move window to new monitor
+        glfw.set_window_monitor(self._window, monitor, self._pos[1], self._pos[0], self._shape[1], self._shape[0],
+                                int(self._refresh_rate.to_value(u.Hz)))
+        self._on_resize()
 
     def __del__(self):
         if self._window is not None:
@@ -301,14 +352,14 @@ class SLM(Actuator, PhaseSLM):
         self.activate()
 
         # first draw all patches into the frame buffer
-        glBindFramebuffer(GL_FRAMEBUFFER, self._frame_patch.frame_buffer)
+        glBindFramebuffer(GL_FRAMEBUFFER, self._frame_buffer._frame_buffer)
         glClear(GL_COLOR_BUFFER_BIT)
         for patch in self.patches:
             patch.draw()
 
         # then draw the frame buffer to the screen
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
-        self._frame_patch.draw()
+        self._frame_buffer.draw()
 
         glfw.poll_events()  # process window messages
 
@@ -353,32 +404,48 @@ class SLM(Actuator, PhaseSLM):
         self._duration = value
 
     @property
-    def transform(self):
+    def transform(self) -> Transform:
         """Global transformation matrix
-        for an SLM in a pupil-conjugate configuration, we use the following canonical mapping:
-         - x and y axes are aligned with x and y axes of the imaging system
-               (note: this compensates for a rotation along the z axis of the SLM, and any transpose or sign flips)
-         - x=0, y=0 corresponds to the center of the pupil
-         - sqrt(x^2 + y^2) = sin(theta), with theta the angle between the optical axis and the ray in the image plane.
-         - the NA of the objective is specified separately. A default (square) patch is created that spans the NA
-                exactly. If not needed, this patch can be deleted.
-        The matrix is a 3x3 transform matrix using homogeneous coordinates. The bottom-right element must equal 1.
+
+        The transform determines how the vertex coordinates that make up the shape of a Patch (see
+        :class:`Patch`) are mapped to the SLM window.
+
+        When setting a transform, alternatively a string value of 'full', 'short' or 'long' can be used.
+        Here, 'full' means that the coordinate range (-1,-1) to (1,1) is mapped to the entire SLM window.
+        If the window is not square, this means that the coordinates are anisotropic.
+
+        'short' and 'long' map the coordinate range (-1,-1) to (1,1) to a square.
+        'short' means that the square is scaled to fill the short side of the SLM (introducing zero-padding at the
+        edges).
+        'long' means that the square is scaled to fill the long side of the SLM
+        (causing part of the coordinate range to be cropped because these coordinates correspond to points outside
+        the SLM window).
+        For a square SLM, 'full', 'short' and 'long' are all equivalent.
+        In all three cases, (-1,-1) corresponds to the the top-left corner of the screen,
+        and (1,-1) to the bottom-left corner.
+        This convention is consistent with that used in numpy/matplotlib
         """
         return self._transform
 
     @transform.setter
-    def transform(self, value):
-        # store the transform matrix in the global data
-        # Note: the transformation matrix is stored in a global buffer that is used by all shaders.
-        # Unfortunately, we have to do the memory layout manually, so we add so that the vectors
-        # have length 4.
-        value = np.array(value, dtype=np.float32, order='C')
-        if value.shape != (3, 3) or value[2, 2] != 1.0:
-            raise ValueError("Transform matrix should be a 3 x 3 array, and the bottom-right element should equal 1")
-        self._transform = value
+    def transform(self, value: Union[Transform, str]):
+        width = self._shape[1]
+        height = self._shape[0]
+        if isinstance(value, Transform):
+            self._transform = value
+        elif value == 'full':
+            self._transform = Transform()
+        elif value == 'short' or value == 'long':
+            scale_width = (width > height) == (value == 'short')
+            if scale_width:
+                self._transform = Transform(np.array(((1.0, 0.0), (0.0, height / width))))
+            else:
+                self._transform = Transform(np.array(((width / height, 0.0), (0.0, 1.0))))
+        else:
+            raise ValueError("Unsupported transform type")
 
-        # apply padding to get 3x4 matrix, because OpenGL expects matrix to be stored with a stride of 4x4 bytes
-        padded = np.append(value, np.float32([[np.nan], [np.nan], [np.nan]]), 1)
+        # TODO: x/y convention!
+        padded = self._transform.opencl_matrix()
 
         self.activate()  # activate OpenGL context of current SLM window
         glBindBuffer(GL_UNIFORM_BUFFER, self._globals)
@@ -386,18 +453,15 @@ class SLM(Actuator, PhaseSLM):
         glBindBufferBase(GL_UNIFORM_BUFFER, 1, self._globals)  # connect buffer to binding point 1
 
     @property
-    def lookup_table(self):
+    def set_lookup_table(self, lut: np.ndarray, update=True):
         """Lookup table that is used to map the wrapped phase range of 0-2pi to gray values
         (represented in a range from 0 to 256). By default, this is just range(256)"""
-        return self._frame_patch.lookup_table
-
-    @lookup_table.setter
-    def lookup_table(self, value):
-        self._frame_patch.lookup_table = value
-        self.update()
+        self._frame_buffer.lookup_table = lut[:]
+        if update:
+            self.update()
 
     def set_phases(self, values: ArrayLike, update=True):
-        self.primary_phase_patch.set_phases(values, update)
+        self.primary_patch.set_phases(values, update)
 
     def get_pixels(self, type='phase'):
         """Read back the pixels currently displayed on the SLM."""
@@ -406,8 +470,11 @@ class SLM(Actuator, PhaseSLM):
             glReadBuffer(GL_FRONT)
             data = np.empty(self.shape, dtype='uint8')
             glReadPixels(0, 0, self._shape[1], self._shape[0], GL_RED, GL_UNSIGNED_BYTE, data)
-            return data
+
+            # flip data upside down, because the OpenGL convention is to have the origin at the bottom left
+            # but we want it at the top left (like in numpy)
+            return data[::-1, :]
         if type == 'phase':
-            return self._frame_patch.get_pixels()
+            return self._frame_buffer.get_pixels()
 
         raise ValueError(f"Unsupported pixel type {type}")

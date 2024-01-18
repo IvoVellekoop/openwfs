@@ -1,7 +1,7 @@
 import numpy as np
 from typing import Union, Sequence, Optional
 from astropy.units import Quantity
-from ..core import unitless, ExtentType
+from ..utilities import ExtentType, unitless
 
 # shape of a numpy array, or a single integer that is broadcasted to a square shape
 ShapeType = Union[int, Sequence[int]]
