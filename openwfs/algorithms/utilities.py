@@ -2,6 +2,9 @@ import numpy as np
 from numpy.fft import fft2, ifft2, fftfreq
 from enum import Enum
 from typing import Union
+import time
+
+from ..core import Detector
 
 
 class WFSResult:
@@ -267,6 +270,17 @@ def find_pixel_shift(f: np.ndarray, g: np.ndarray) -> tuple[np.intp, ...]:
     return pix_shift
 
 
+def frame_correlation(f: np.ndarray, g: np.ndarray) -> float:
+    """
+    Compute frame correlation, i.e. inner product of two frames, normalized by product of the L2 norms,
+    such that frame_correlation(f, s*f) == 1, where s is a scalar value.
+
+    Args:
+        f, g    Frames (or other arrays) to be correlated.
+    """
+    return np.vdot(f, g) / np.sqrt(np.vdot(f, f) * np.vdot(g, g))
+
+
 class WFSController:
     """
     Controller for Wavefront Shaping (WFS) operations using a specified algorithm in the MicroManager environment.
@@ -290,13 +304,14 @@ class WFSController:
         FLAT_WAVEFRONT = 0
         SHAPED_WAVEFRONT = 1
 
-    def __init__(self, algorithm, scanner):
+    def __init__(self, algorithm, source: Detector | None = None):
         """
         Args:
             algorithm: An instance of a wavefront shaping algorithm.
+            source (Detector): An image source, e.g. a camera or scanner.
         """
         self.algorithm = algorithm
-        self.scanner = scanner
+        self.source = source
         self._wavefront = WFSController.State.FLAT_WAVEFRONT
         self._result = None
         self._noise_factor = None
@@ -455,7 +470,7 @@ class WFSController:
         Read a single frame from the feedback function.
         TODO: Distinguish WFS feedback and full frame measurement.
         """
-        return self.scanner.read().copy()
+        return self.source.read().copy()
 
     def set_slm_random(self):
         """
@@ -496,6 +511,24 @@ class WFSController:
         self.wavefront = WFSController.State.SHAPED_WAVEFRONT
         return self.read_frame()
 
+    def test_setup_stability(self, wait_time_s, num_of_frames):
+        """Test the setup stability by repeatedly reading frames."""
+        first_frame = self.read_frame()
+        pixel_shifts = np.zeros(shape=(num_of_frames, 2))
+        correlations = np.zeros(shape=(num_of_frames,))
+
+        for n in range(num_of_frames):
+            # self.set_slm_random()
+            time.sleep(wait_time_s)
+            # self._wavefront = self.State.FLAT_WAVEFRONT
+
+            new_frame = self.read_frame()
+            pixel_shifts[n, :] = find_pixel_shift(first_frame, new_frame)
+            correlations[n] = frame_correlation(first_frame, new_frame)
+
+        return pixel_shifts, correlations
+
+
     @property
     def run_troubleshooter(self) -> bool:
         """Returns: bool that indiciates whether toubleshoot will be performed if set."""
@@ -522,45 +555,38 @@ class WFSController:
         ### TODO: some flags to indiciate which troubleshooting functions should run (especially ability to turn off
         ### long measurements)
 
+        assert self.source is not None
+
         # Capture frames before WFS
         dark_frame = self.read_dark_frame()                         # Dark frame
         before_frame = self.read_before_frame_flatwf()              # Frame before WFS
 
         self._frame_cnr = cnr(before_frame, dark_frame)             # Contrast to Noise Ratio
 
-        # WFS experiment
-        recompute_wf_flag = self.recompute_wavefront
-        self.recompute_wavefront = True
-        self.wavefront = WFSController.State.SHAPED_WAVEFRONT
-        self.recompute_wavefront = recompute_wf_flag
+        if True:   # TODO: Add flag
+            # WFS experiment
+            recompute_wf_flag = self.recompute_wavefront
+            self.recompute_wavefront = True
+            self.wavefront = WFSController.State.SHAPED_WAVEFRONT
+            self.recompute_wavefront = recompute_wf_flag
 
-        # Capture frames after WFS
-        after_frame_flatwf = self.read_after_frame_flatwf()         # After-frame flat wavefront
-        after_frame_shapedwf = self.read_after_frame_shapedwf()     # After-frame shaped wavefront
+            # Capture frames after WFS
+            after_frame_flatwf = self.read_after_frame_flatwf()         # After-frame flat wavefront
+            after_frame_shapedwf = self.read_after_frame_shapedwf()     # After-frame shaped wavefront
 
-        self._contrast_enhancement = contrast_enhancement(after_frame_shapedwf, after_frame_flatwf, dark_frame)
+            self._contrast_enhancement = contrast_enhancement(after_frame_shapedwf, after_frame_flatwf, dark_frame)
 
+        # Test setup stability
+        pixel_shifts, correlations = self.test_setup_stability(1, 5)
 
-        ### === Done: Corrected contrast function ===
-        ### Requirement: Input: measured darkframe and frame
-        ### Calculation: σ_signal = sqrt( var(signal) - var(darkframe) )
-        ### Result: signal contrast, corrected for darkframe noise
+        ### Debugging
+        import matplotlib.pyplot as plt
+        plt.plot(pixel_shifts[:, 0], label='x')
+        plt.plot(pixel_shifts[:, 1], label='y')
+        plt.plot(correlations, label='Corr. with first')
+        plt.legend()
+        plt.show()
 
-        ### === Done: Contrast enhancement function ===
-        ### Requirement: Input: measured darkframe, frame with shaped wavefront, and frame with flat wavefront
-        ### Calculation: η_σ = σ_shaped / σ_flat
-        ### Result: signal enhancement, robust against consistent noise and offsets
-
-        ### === Done: cross-correlation function ===
-        ### Calculation: https://mathworld.wolfram.com/Cross-CorrelationTheorem.html
-        ### Result: cross-correlation function
-        ### Implementation complexity: 2
-
-        ### === Done: Find-image-pixel-shift function ===
-        ### Requirement: cross-correlation function
-        ### Calculation: 2D argmax of crosscorr https://stackoverflow.com/questions/47726073/how-to-find-the-argmax-of-a-two-dimensional-array-in-numpy
-        ### Result: pixel shift between two images
-        ### Implementation complexity: 2
 
         ### === Test setup stability ===
         ### Requirement: find-image-pixel-shift function

@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from ..openwfs.algorithms.utilities import cnr, signal_std, find_pixel_shift
+from ..openwfs.algorithms.utilities import cnr, signal_std, find_pixel_shift, frame_correlation
 
 
 def test_signal_std():
@@ -52,3 +52,16 @@ def test_find_pixel_shift():
     assert ABshift_found == ABshift_gt
     assert CCshift_found == (0, 0)
     assert CDshift_found == CDshift_gt
+
+
+def test_frame_correlation():
+    a = np.zeros(shape=(2, 3))
+    a[1, 2] = 3.0
+    a[0, 0] = 2.0
+
+    b = np.ones(shape=(2, 3))
+    b[1, 2] = 0.0
+    b[0, 0] = 0.0
+    assert frame_correlation(a, a) == 1.0
+    assert frame_correlation(2*a, a) == 1.0
+    assert frame_correlation(a, b) == 0.0

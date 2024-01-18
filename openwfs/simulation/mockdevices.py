@@ -4,6 +4,7 @@ from astropy.units import Quantity
 from scipy.ndimage import zoom
 import time
 from typing import Sequence
+
 from ..processors import CropProcessor
 from ..core import Detector, Processor, PhaseSLM, Actuator, get_pixel_size
 
@@ -159,7 +160,7 @@ class ADCProcessor(Processor):
     """
 
     def __init__(self, source: Detector, analog_max: float = 0.0, digital_max: int = 0xFFFF,
-                 shot_noise: bool = False):
+                 shot_noise: bool = False, gaussian_noise_std: float = 0.0):
         """
         Initializes the ADCProcessor class, which mimics an analog-digital converter.
 
@@ -176,17 +177,29 @@ class ADCProcessor(Processor):
             shot_noise (bool):
                 Flag to determine if Poisson noise should be applied instead of rounding.
                 Useful for realistically simulating detectors.
+            
+            gaussian_noise_std (float):
+                If >0, add gaussian noise with std of this value to the data.
         """
         super().__init__(source)
         self._analog_max = None
         self._digital_max = None
         self._shot_noise = None
+        self._gaussian_noise_std = None
+        self.gaussian_noise_std = gaussian_noise_std
         self.shot_noise = shot_noise
         self.analog_max = analog_max  # check value
         self.digital_max = digital_max  # check value
 
     def _fetch(self, out: np.ndarray | None, data) -> np.ndarray:  # noqa
         """Clips the data to the range of the ADC, and digitizes the values."""
+        # Add gaussian noise if requested
+        if self._gaussian_noise_std > 0.0:
+            dtype = data.dtype
+            rng = np.random.default_rng()
+            gaussian_noise = self._gaussian_noise_std * rng.standard_normal(size=data.shape)
+            data = (data.astype('float64') + gaussian_noise).clip(0, 2**16-1).astype(dtype)
+
         if self.analog_max == 0.0:
             max = np.max(data)
             if max > 0.0:
@@ -234,6 +247,14 @@ class ADCProcessor(Processor):
     @shot_noise.setter
     def shot_noise(self, value: bool):
         self._shot_noise = value
+    
+    @property
+    def gaussian_noise_std(self) -> int:
+        return self._gaussian_noise_std
+    
+    @gaussian_noise_std.setter
+    def gaussian_noise_std(self, value: int):
+        self._gaussian_noise_std = value
 
 
 class MockCamera(ADCProcessor):
