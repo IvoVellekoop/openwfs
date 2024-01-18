@@ -151,8 +151,8 @@ def test_transform(slm):
     assert np.allclose(sub[20:, 40:], 3)
 
 
-@pytest.mark.skip(reason="This test is skipped by default because it causes the screen to flicker, which may "
-                         "affect people with epilepsy.")
+# @pytest.mark.skip(reason="This test is skipped by default because it causes the screen to flicker, which may "
+#                        "affect people with epilepsy.")
 def test_refresh_rate():
     slm = SLM(1)
     slm.latency = 0
@@ -193,6 +193,10 @@ def test_get_pixels():
 
 
 def test_lookup_table(slm):
+    # verify that we cannot set properties that do not exist on the object
+    with pytest.raises(AttributeError):
+        slm.lookup_table = np.arange(256)
+
     # resize the SLM and put a linear ramp on it
     slm.shape = (1, 256)
     slm.set_phases(np.arange(256).reshape(1, 256) * 2 * np.pi / 256)
@@ -201,7 +205,7 @@ def test_lookup_table(slm):
     pixels = slm.get_pixels('gray_value')
     assert np.allclose(pixels, np.arange(256))
 
-    # set a lookup table that is a random permutatioin of the gray values
+    # set a lookup table that is a random permutation of the gray values
     lut = np.arange(256)
     np.random.shuffle(lut)
     slm.lut = lut

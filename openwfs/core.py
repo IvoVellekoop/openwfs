@@ -87,6 +87,8 @@ class Device:
     _state_lock (Lock): Lock for switching global state (see _start)
     _devices (WeakSet[Device]): List of all Device objects
     """
+    __slots__ = ('_end_time_ns', '_timeout_margin', '_lock', '_locking_thread', '_error', '_base_initialized',
+                 '__weakref__')
     _workers = ThreadPoolExecutor(thread_name_prefix='Device._workers')
     _moving = False
     _state_lock = threading.Lock()
@@ -345,6 +347,7 @@ class Device:
 class Actuator(Device, ABC):
     """Base class for all actuators
     """
+    __slots__ = ()
 
     @final
     def is_actuator(self):
@@ -354,6 +357,7 @@ class Actuator(Device, ABC):
 class Detector(Device, ABC):
     """Base class for all detectors, cameras and other data sources with possible dynamic behavior.
     """
+    __slots__ = ('_measurements_pending', '_pending_count_lock')
 
     def __init__(self):
         super().__init__()
@@ -614,6 +618,7 @@ class Processor(Detector, ABC):
 class PhaseSLM(ABC):
     """Base class for phase-only SLMs
     """
+    __slots__ = ()
 
     @abstractmethod
     def update(self):
