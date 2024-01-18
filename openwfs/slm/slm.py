@@ -55,21 +55,8 @@ class SLM(Actuator, PhaseSLM):
 
     WINDOWED = 0
 
-    transform: Transform
-    patches: List[Patch]
-    _monitor_id: int
-    _pos: tuple[int, int]
-    _latency: TimeType
-    _duration: TimeType
-    _refresh_rate: Quantity[u.Hz]
-    _shape: tuple[int, int]
-    _window: object
-    _globals: int
-    _frame_buffer: 'Optional[FrameBufferPatch]'
-    _vertex_array: VertexArray
-
     def __init__(self, monitor_id: int = WINDOWED, shape: Optional[tuple[int, int]] = None,
-                 pos: tuple[int, int] = (0, 0), refresh_rate=None,
+                 pos: tuple[int, int] = (0, 0), refresh_rate: Optional[Quantity[u.Hz]] = None,
                  latency: TimeType = 2, duration: TimeType = 1, transform: Union[Transform | str] = 'short'):
         """
         Constructs a new SLM window.
@@ -109,7 +96,7 @@ class SLM(Actuator, PhaseSLM):
         self._duration = duration
         (default_shape, default_rate, _) = SLM._current_mode(monitor_id)
         self._shape = default_shape if shape is None else shape
-        self._refresh_rate = default_rate if refresh_rate is None else refresh_rate
+        self._refresh_rate = default_rate if refresh_rate is None else refresh_rate.to_value(u.Hz)
         self._frame_buffer = None
         self._window = None
         self._globals = -1
@@ -125,6 +112,7 @@ class SLM(Actuator, PhaseSLM):
         self.primary_patch = self.patches[0]
         SLM._active_slms.add(self)
         self.update()
+        super().__init__()
 
     def _assert_window_available(self, monitor_id) -> None:
         """
@@ -157,13 +145,13 @@ class SLM(Actuator, PhaseSLM):
         if monitor_id == SLM.WINDOWED:
             monitor = glfw.get_primary_monitor()
             mode = glfw.get_video_mode(monitor)
-            return ((300, 300), mode.refresh_rate * u.Hz,
-                    min([mode.bits.red, mode.bits.green, mode.bits.blue]))
+            shape = (300, 300)
         else:
             monitor = glfw.get_monitors()[monitor_id - 1]
             mode = glfw.get_video_mode(monitor)
-            return ((mode.size[1], mode.size[0]), mode.refresh_rate * u.Hz,
-                    min([mode.bits.red, mode.bits.green, mode.bits.blue]))
+            shape = (mode.size[1], mode.size[0])
+
+        return shape, mode.refresh_rate, min([mode.bits.red, mode.bits.green, mode.bits.blue])
 
     def _on_resize(self):
         """Updates shape and refresh rate to the actual values of the window.
@@ -206,9 +194,9 @@ class SLM(Actuator, PhaseSLM):
 
         # verify the refresh rate is correct
         # Then update the refresh rate to the actual value
-        if int(self.refresh_rate.to_value(u.Hz)) != current_rate.to_value(u.Hz):
+        if int(self._refresh_rate) != current_rate:
             warnings.warn(f"Actual refresh rate of {current_rate} Hz does not match set rate "
-                          f"of {self.refresh_rate}")
+                          f"of {self._refresh_rate} Hz")
         self._refresh_rate = current_rate
 
     @staticmethod
@@ -241,7 +229,7 @@ class SLM(Actuator, PhaseSLM):
         shared = next((slm._window for slm in SLM._active_slms), None)
         monitor = glfw.get_monitors()[self._monitor_id - 1] if self._monitor_id != SLM.WINDOWED else None
 
-        glfw.window_hint(glfw.REFRESH_RATE, int(self._refresh_rate.to_value(u.Hz)))
+        glfw.window_hint(glfw.REFRESH_RATE, int(self._refresh_rate))
         self._window = glfw.create_window(self._shape[1], self._shape[0], "OpenWFS SLM", monitor, shared)
         glfw.set_input_mode(self._window, glfw.CURSOR, glfw.CURSOR_HIDDEN)  # disable cursor
         if monitor:  # full screen mode
@@ -314,7 +302,7 @@ class SLM(Actuator, PhaseSLM):
             non-integer refresh rates. It is always best to not specify the refresh rate and set the video mode
             in the operating system before creating the SLM object.
         """
-        return self._refresh_rate
+        return self._refresh_rate * u.Hz
 
     @property
     def monitor_id(self) -> int:
@@ -341,7 +329,7 @@ class SLM(Actuator, PhaseSLM):
 
         # move window to new monitor
         glfw.set_window_monitor(self._window, monitor, self._pos[1], self._pos[0], self._shape[1], self._shape[0],
-                                int(self._refresh_rate.to_value(u.Hz)))
+                                int(self._refresh_rate))
         self._on_resize()
 
     def __del__(self):
