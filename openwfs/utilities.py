@@ -1,21 +1,20 @@
-import astropy
-import astropy.units as u
-import numpy
 from astropy import units as u
 from astropy.units import Quantity
-from numpy._typing import ArrayLike
+from numpy.typing import ArrayLike
 
 from typing import Union, Sequence, Optional
 import numpy as np
 import cv2
 
 # A coordinate is a sequence of two floats with an optional unit attached
-CoordinateType = Union[Sequence[float], Quantity]
+CoordinateType = Union[Sequence[float], np.ndarray, Quantity]
 
 # A transform is a 2x2 array with optional units attached
 TransformType = Union[np.ndarray, Quantity, Sequence[Sequence[float]]]
 
-ExtentType = Union[float, Sequence[float], np.ndarray, Quantity]
+# An extent is like a coordinate type.
+# If it has a single element, this element is automatically reproduced along all dimensions
+ExtentType = Union[float, CoordinateType]
 
 
 def unitless(data: ArrayLike) -> ArrayLike:

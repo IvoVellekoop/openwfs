@@ -19,7 +19,7 @@ VAL2 = 2 * np.pi / 256 * GVAL2
 
 
 @pytest.fixture
-def slm():
+def slm() -> SLM:
     slm = SLM(monitor_id=0, shape=(100, 200), pos=(20, 10), transform='full')
     return slm
 
@@ -179,26 +179,36 @@ def test_get_pixels():
     height = 99
     slm = SLM(SLM.WINDOWED, shape=(height, width))
     slm.transform = 'full'  # fill full screen exactly (anisotropic coordinates
-    pattern = numpy.eye(*slm.shape) * TestSLM.VAL1
-    pattern[-10:, -10:] = TestSLM.VAL1
-    slm.set_phases(np.array(pattern, dtype='float32'))
+    pattern = np.random.uniform(size=(height, width)) * 2 * np.pi
+    slm.set_phases(pattern)
     read_back = slm.get_pixels('gray_value')
-    assert np.allclose(pattern, read_back / 256 * 2 * np.pi)
+    diff = pattern - read_back / 256 * 2 * np.pi
+    diff[diff > np.pi] -= 2 * np.pi
+    assert np.allclose(diff, 0, atol=2 * np.pi / 256)
+
     read_back = slm.get_pixels('phase')
-    assert np.allclose(pattern, read_back)
+    diff = pattern - read_back
+    diff[diff > np.pi] -= 2 * np.pi
+    assert np.allclose(diff, 0, atol=1e-6)
 
 
-def test_lookup_table(windowed_slm):
-    (slm, mask) = windowed_slm
+def test_lookup_table(slm):
+    # resize the SLM and put a linear ramp on it
+    slm.shape = (1, 256)
+    slm.set_phases(np.arange(256).reshape(1, 256) * 2 * np.pi / 256)
 
-    # put homogeneous phase on slm and read back
-    slm.set_phases(TestSLM.VAL2)
-    assert np.allclose(slm.get_pixels('gray_value'), TestSLM.GVAL2 * mask)
+    # read back the pixels and verify conversion to gray values
+    pixels = slm.get_pixels('gray_value')
+    assert np.allclose(pixels, np.arange(256))
 
-    # change lookup table for one gray value
-    lut = slm.lookup_table
-    lut[TestSLM.GVAL2] = TestSLM.GVAL3
+    # set a lookup table that is a random permutatioin of the gray values
+    lut = np.arange(256)
+    np.random.shuffle(lut)
+    slm.lut = lut
+
+    # nothing changes until we call update
+    assert np.alltrue(pixels == slm.get_pixels('gray_value'))
+
     slm.update()
-    assert np.allclose(slm.get_pixels('gray_value'), TestSLM.GVAL2 * mask)
-    slm.lookup_table = lut
-    assert np.allclose(slm.get_pixels('gray_value'), TestSLM.GVAL3 * mask)
+    pixels = slm.get_pixels('gray_value')
+    assert np.allclose(pixels, lut)

@@ -32,10 +32,11 @@ post_process_fragment_shader = """
         out vec4 colorOut;
         layout(binding = 0) uniform sampler2D texSampler;
         layout(binding = 1) uniform sampler1D LUT;
-        const float scale = 0.15977908012362826f; // 1.0 corresponds to 255/256 * 2 pi.  scale = 256 / (2*255*pi)
+        const float scale = 0.15915494309189535f; // corresponds to 1/(2 pi).
+        const float offset = 0.00196078431372549f; // corresponds to 0.5/255.
 
         void main() {
-            float raw = texture(texSampler, texCoord).r * scale;
+            float raw = texture(texSampler, texCoord).r * scale + offset;
             float val = texture(LUT, raw).r;
             colorOut = vec4(val, val, val, 1.0);
         }

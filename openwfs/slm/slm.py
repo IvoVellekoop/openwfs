@@ -4,7 +4,7 @@ import glfw
 import warnings
 import astropy.units as u
 from numpy.typing import ArrayLike
-from typing import Union, Optional, List
+from typing import Union, Optional, List, Sequence
 from astropy.units import Quantity
 from .patch import FrameBufferPatch, Patch, VertexArray
 from weakref import WeakSet
@@ -254,12 +254,20 @@ class SLM(Actuator, PhaseSLM):
             Tuple[int, int]: The shape of the window in pixels.
 
         Note:
-            The size cannot be modified after the SLM is created. When moving
+            For windowed-mode SLMs, the The size cannot be modified after the SLM is created. When moving
             the SLM to a different monitor (see `monitor_id`), the SLM is sized to match the current resolution
             on that monitor. Note that this value may differ from the value passed as input, because the input value
             is specified in screen coordinates, whereas the reported width is in pixels.
         """
         return self._shape
+
+    @shape.setter
+    def shape(self, value: tuple[int, int]):
+        if self.monitor_id == SLM.WINDOWED and self._shape != value:
+            # self.activate()
+            glfw.set_window_size(self._window, value[1], value[0])
+            self._shape = value
+            self._on_resize()
 
     @property
     def pos(self) -> tuple[int, int]:
@@ -453,12 +461,18 @@ class SLM(Actuator, PhaseSLM):
         glBindBufferBase(GL_UNIFORM_BUFFER, 1, self._globals)  # connect buffer to binding point 1
 
     @property
-    def set_lookup_table(self, lut: np.ndarray, update=True):
+    def lut(self) -> Sequence[int]:
         """Lookup table that is used to map the wrapped phase range of 0-2pi to gray values
-        (represented in a range from 0 to 256). By default, this is just range(256)"""
+        (represented in a range from 0 to 256). By default, this is just range(256).
+        Note that the lookup table need not contain 256 elements.
+        A typlical scenario is to use something like `slm.lut=range(142)` to map the 0-2pi range
+        to only the first 142 gray values of the slm.
+        """
+        return self._frame_buffer.lookup_table
+
+    @lut.setter
+    def lut(self, lut: Sequence[int]):
         self._frame_buffer.lookup_table = lut[:]
-        if update:
-            self.update()
 
     def set_phases(self, values: ArrayLike, update=True):
         self.primary_patch.set_phases(values, update)
