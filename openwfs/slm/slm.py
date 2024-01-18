@@ -45,6 +45,8 @@ class SLM(Actuator, PhaseSLM):
         patches (list[openwfs.slm.Patch]): List of patches that are drawn on the SLM.
 
     """
+    __slots__ = ['_vertex_array', '_frame_buffer', '_monitor_id', '_pos', '_latency', '_duration', '_refresh_rate',
+                 '_transform', '_shape', '_window', '_globals', '_frame_buffer', 'patches', 'primary_patch']
 
     _active_slms = WeakSet()
     """Keep track of all active SLMs. This is done for two reasons. First, to check if we are not putting two
