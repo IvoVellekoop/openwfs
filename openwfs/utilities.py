@@ -5,6 +5,7 @@ from numpy.typing import ArrayLike
 from typing import Union, Sequence, Optional
 import numpy as np
 import cv2
+from dataclasses import dataclass
 
 # A coordinate is a sequence of two floats with an optional unit attached
 CoordinateType = Union[Sequence[float], np.ndarray, Quantity]
@@ -47,6 +48,7 @@ def unitless(data: ArrayLike) -> ArrayLike:
         return data
 
 
+@dataclass
 class Transform:
     """Represents a transformation from one coordinate system to the other.
 
@@ -192,6 +194,10 @@ class Transform:
     def _standard_input(self) -> Quantity:
         """Construct standard input points (1,0), (0,1) and (0,0) with the source unit of this transform.."""
         return Quantity(((1.0, 0.0, 0.0), (0.0, 1.0, 0.0)), self.source_origin)
+
+    @classmethod
+    def identity(cls):
+        return Transform()
 
 
 def place(out_shape: Sequence[int], out_pixel_size: Quantity, source: np.ndarray, offset: Optional[Quantity] = None,

@@ -5,9 +5,7 @@ import numpy.random
 import pytest
 from ..openwfs.slm import SLM, Patch
 from ..openwfs.utilities import Transform
-import numpy as np
 import astropy.units as u
-import matplotlib.pyplot as plt  # for debugging
 import numpy as np  # for debugging
 
 # just some values for testing different gray value levels
@@ -20,7 +18,7 @@ VAL2 = 2 * np.pi / 256 * GVAL2
 
 @pytest.fixture
 def slm() -> SLM:
-    slm = SLM(monitor_id=0, shape=(100, 200), pos=(20, 10), transform='full')
+    slm = SLM(monitor_id=0, shape=(100, 200), pos=(20, 10), coordinate_system='full')
     return slm
 
 
@@ -30,6 +28,8 @@ def test_create_windowed(slm):
     # check if size and position match the specification
     assert slm.shape == (100, 200)
     assert slm.pos == (20, 10)
+    assert slm.transform == Transform.identity()
+    assert slm.coordinate_system == 'full'
 
     # check if frame buffer has correct size
     fb_texture = slm._frame_buffer._textures[Patch._PHASES_TEXTURE]
@@ -43,7 +43,7 @@ def test_create_windowed(slm):
     assert slm.pos == (2, 1)
 
     # we should be able to construct a second windowed SLM
-    slm2 = SLM(0)
+    _slm2 = SLM(0)
 
     # but not a full screen SLM on this window
     with pytest.raises(RuntimeError):
@@ -58,7 +58,7 @@ def test_create_windowed(slm):
         slm.monitor_id = 1
 
     # but if we delete slm2 first, we can make the slm full screen
-    slm2 = None
+    _slm2 = None
     slm.monitor_id = 1
     full_screen_shape = slm.shape
     assert full_screen_shape[0] > 200  # assuming we don't have a tiny monitor
@@ -108,7 +108,7 @@ def test_transform(slm):
     # now change the transform to 'short' to fit the pattern to a centered square, with the height of the
     # SLM.
     # Then check if the pattern is displayed correctly
-    slm.transform = 'short'  # does not trigger an update
+    slm.coordinate_system = 'short'  # does not trigger an update
     assert np.alltrue(slm.get_pixels('gray_value') / 64 == pixels)
     slm.update()
 
@@ -124,7 +124,7 @@ def test_transform(slm):
 
     # now change the transform to 'long' to fit the pattern to a centered square, with the width of the
     # SLM, causing part of the texture to be mapped outside of the window.
-    slm.transform = 'long'  # does not trigger an update
+    slm.coordinate_system = 'long'  # does not trigger an update
     assert np.alltrue(slm.get_pixels('gray_value') / 64 == pixels)
     slm.update()
 
@@ -135,8 +135,8 @@ def test_transform(slm):
     assert np.allclose(pixels[:, 100:], 3)
 
     # test zooming the pattern
-    slm.transform = 'short'
-    slm.transform = Transform.zoom(0.8) @ slm.transform
+    slm.coordinate_system = 'short'
+    slm.transform = Transform.zoom(0.8)
     slm.update()
 
     pixels = slm.get_pixels('gray_value') / 64
@@ -176,7 +176,7 @@ def test_get_pixels():
     width = 73
     height = 99
     slm = SLM(SLM.WINDOWED, shape=(height, width))
-    slm.transform = 'full'  # fill full screen exactly (anisotropic coordinates
+    slm.coordinate_system = 'full'  # fill full screen exactly (anisotropic coordinates
     pattern = np.random.uniform(size=(height, width)) * 2 * np.pi
     slm.set_phases(pattern)
     read_back = slm.get_pixels('gray_value')

@@ -46,7 +46,8 @@ class SLM(Actuator, PhaseSLM):
 
     """
     __slots__ = ['_vertex_array', '_frame_buffer', '_monitor_id', '_pos', '_latency', '_duration', '_refresh_rate',
-                 '_transform', '_shape', '_window', '_globals', '_frame_buffer', 'patches', 'primary_patch']
+                 '_transform', '_shape', '_window', '_globals', '_frame_buffer', 'patches', 'primary_patch',
+                 '_coordinate_system']
 
     _active_slms = WeakSet()
     """Keep track of all active SLMs. This is done for two reasons. First, to check if we are not putting two
@@ -57,7 +58,8 @@ class SLM(Actuator, PhaseSLM):
 
     def __init__(self, monitor_id: int = WINDOWED, shape: Optional[tuple[int, int]] = None,
                  pos: tuple[int, int] = (0, 0), refresh_rate: Optional[Quantity[u.Hz]] = None,
-                 latency: TimeType = 2, duration: TimeType = 1, transform: Union[Transform | str] = 'short'):
+                 latency: TimeType = 2, duration: TimeType = 1, coordinate_system: str = 'short',
+                 transform: Optional[Transform] = None):
         """
         Constructs a new SLM window.
 
@@ -102,7 +104,8 @@ class SLM(Actuator, PhaseSLM):
         self._create_window()  # sets self._window and self._globals and self._frame_patch
         self._duration = duration if isinstance(duration, Quantity) else duration * self.period
         self._latency = latency if isinstance(duration, Quantity) else duration * self.period
-        self.transform = transform
+        self._coordinate_system = coordinate_system
+        self.transform = Transform() if transform is None else transform
         self._vertex_array = VertexArray()
 
         # Create a single patch for displaying phase.
@@ -424,50 +427,71 @@ class SLM(Actuator, PhaseSLM):
         self._duration = value
 
     @property
+    def coordinate_system(self) -> str:
+        """Specifies the base coordinate system that is used to map vertex coordinates to the SLM window.
+
+            Possible values are 'full', 'short' and 'long'.
+
+            'full' means that the coordinate range (-1,-1) to (1,1) is mapped to the entire SLM window.
+            If the window is not square, this means that the coordinates are anisotropic.
+
+            'short' and 'long' map the coordinate range (-1,-1) to (1,1) to a square.
+            'short' means that the square is scaled to fill the short side of the SLM (introducing zero-padding at the
+            edges).
+
+            'long' means that the square is scaled to fill the long side of the SLM
+            (causing part of the coordinate range to be cropped because these coordinates correspond to points outside
+            the SLM window).
+
+            For a square SLM, 'full', 'short' and 'long' are all equivalent.
+
+            In all three cases, (-1,-1) corresponds to the the top-left corner of the screen, and (1,-1) to the
+            bottom-left corner. This convention is consistent with that used in numpy/matplotlib
+
+            To further modify the mapping system, use the `transform` property.
+        """
+        return self._coordinate_system
+
+    @coordinate_system.setter
+    def coordinate_system(self, value: str):
+        if value not in ['full', 'short', 'long']:
+            raise ValueError(f"Unsupported coordinate system {value}")
+        self._coordinate_system = value
+        self.transform = self._transform  # trigger update of transform matrix on gpu
+
+    @property
     def transform(self) -> Transform:
         """Global transformation matrix
 
         The transform determines how the vertex coordinates that make up the shape of a Patch (see
-        :class:`Patch`) are mapped to the SLM window.
-
-        When setting a transform, alternatively a string value of 'full', 'short' or 'long' can be used.
-        Here, 'full' means that the coordinate range (-1,-1) to (1,1) is mapped to the entire SLM window.
-        If the window is not square, this means that the coordinates are anisotropic.
-
-        'short' and 'long' map the coordinate range (-1,-1) to (1,1) to a square.
-        'short' means that the square is scaled to fill the short side of the SLM (introducing zero-padding at the
-        edges).
-        'long' means that the square is scaled to fill the long side of the SLM
-        (causing part of the coordinate range to be cropped because these coordinates correspond to points outside
-        the SLM window).
-        For a square SLM, 'full', 'short' and 'long' are all equivalent.
-        In all three cases, (-1,-1) corresponds to the the top-left corner of the screen,
-        and (1,-1) to the bottom-left corner.
-        This convention is consistent with that used in numpy/matplotlib
+        :class:`Patch`) are mapped to the standard coordinate system.
+        In turn, the `coordinate_ststem` property determines how this coordinate system is mapped to the SLM window.
+        By default, this value is just the identity transformation `Transform()`.
         """
         return self._transform
 
     @transform.setter
-    def transform(self, value: Union[Transform, str]):
+    def transform(self, value: Transform):
+        # first compute the basic coordinate transform
         width = self._shape[1]
         height = self._shape[0]
-        if isinstance(value, Transform):
-            self._transform = value
-        elif value == 'full':
-            self._transform = Transform()
-        elif value == 'short' or value == 'long':
-            scale_width = (width > height) == (value == 'short')
-            if scale_width:
-                self._transform = Transform(np.array(((1.0, 0.0), (0.0, height / width))))
-            else:
-                self._transform = Transform(np.array(((width / height, 0.0), (0.0, 1.0))))
-        else:
-            raise ValueError("Unsupported transform type")
+        if not isinstance(value, Transform):
+            raise ValueError("Transform must be a Transform object")
+        self._transform = value
 
-        # TODO: x/y convention!
-        padded = self._transform.opencl_matrix()
+        # update matrix stored on the gpu
+        if self._coordinate_system == 'full':
+            transform = self._transform
+        else:
+            scale_width = (width > height) == (self._coordinate_system == 'short')
+            if scale_width:
+                root_transform = Transform(np.array(((1.0, 0.0), (0.0, height / width))))
+            else:
+                root_transform = Transform(np.array(((width / height, 0.0), (0.0, 1.0))))
+            transform = self._transform @ root_transform
 
         self.activate()  # activate OpenGL context of current SLM window
+        padded = transform.opencl_matrix()
         glBindBuffer(GL_UNIFORM_BUFFER, self._globals)
         glBufferData(GL_UNIFORM_BUFFER, padded.size * 4, padded, GL_STATIC_DRAW)
         glBindBufferBase(GL_UNIFORM_BUFFER, 1, self._globals)  # connect buffer to binding point 1
