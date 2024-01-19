@@ -216,3 +216,10 @@ def test_lookup_table(slm):
     slm.update()
     pixels = slm.get_pixels('gray_value')
     assert np.allclose(pixels, lut)
+
+
+def test_multi_patch(slm):
+    slm.size = (2, 2)
+    slm.patches.append(Patch(slm))
+    pattern1 = np.array(((5, 7), (11, 13)))
+    pattern2 = np.array(((5, 7), (11, 13)))

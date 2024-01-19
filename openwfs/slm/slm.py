@@ -250,11 +250,14 @@ class SLM(Actuator, PhaseSLM):
         Returns:
             Tuple[int, int]: The shape of the window in pixels.
 
-        Note:
-            For windowed-mode SLMs, the The size cannot be modified after the SLM is created. When moving
-            the SLM to a different monitor (see `monitor_id`), the SLM is sized to match the current resolution
-            on that monitor. Note that this value may differ from the value passed as input, because the input value
-            is specified in screen coordinates, whereas the reported width is in pixels.
+        Limitations:
+            - For windowed-mode SLMs, the size cannot be modified.
+            - When moving the SLM to a different monitor (see `monitor_id`), the SLM is sized to match the current
+            resolution on that monitor. Note that this value may differ from the value passed as input, because the
+            input value is specified in screen coordinates, whereas the reported width is in pixels.
+            In this case, the original the original value of shape will be lost.
+            - The `transform` property is not updated automatically, so if the aspect ratio changes
+            the transform needs to be set again.
         """
         return self._shape
 
