@@ -154,9 +154,7 @@ def test_transform(slm):
 # @pytest.mark.skip(reason="This test is skipped by default because it causes the screen to flicker, which may "
 #                        "affect people with epilepsy.")
 def test_refresh_rate():
-    slm = SLM(1)
-    slm.latency = 0
-    slm.duration = 0
+    slm = SLM(1, latency=0, duration=0)
     refresh_rate = slm.refresh_rate
     slm.update()
     frame_count = 100
@@ -219,7 +217,24 @@ def test_lookup_table(slm):
 
 
 def test_multi_patch(slm):
-    slm.size = (2, 2)
+    slm.shape = (2, 2)
     slm.patches.append(Patch(slm))
-    pattern1 = np.array(((5, 7), (11, 13)))
-    pattern2 = np.array(((5, 7), (11, 13)))
+    pattern1 = np.array(((5, 7), (111, 13)))
+    pattern2 = np.array(((29, 31), (137, 300)))
+    slm.patches[0].set_phases(pattern1 * 2 * np.pi / 256)
+    slm.patches[1].set_phases(pattern2 * 2 * np.pi / 256)
+
+    # with additive_blend, the patterns should be added and wrapped to 2 pi (256)
+    slm.patches[1].additive_blend = True
+    slm.update()
+    assert np.allclose(slm.get_pixels('gray_value'), (pattern1 + pattern2) % 256)
+
+    # without additive_blend, the second patch overwrites the pixels of the first one
+    slm.patches[1].additive_blend = False
+    slm.update()
+    assert np.allclose(slm.get_pixels('gray_value'), pattern2 % 256)
+
+    # disable the second patch and check if the first one is still there
+    slm.patches[1].enabled = False
+    slm.update()
+    assert np.allclose(slm.get_pixels('gray_value'), pattern1 % 256)

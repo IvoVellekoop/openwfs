@@ -4,7 +4,7 @@ import glfw
 import warnings
 import astropy.units as u
 from numpy.typing import ArrayLike
-from typing import Union, Optional, List, Sequence
+from typing import Union, Optional, Sequence
 from astropy.units import Quantity
 from .patch import FrameBufferPatch, Patch, VertexArray
 from weakref import WeakSet
@@ -92,8 +92,6 @@ class SLM(Actuator, PhaseSLM):
         self._assert_window_available(monitor_id)
         self._monitor_id = monitor_id
         self._pos = pos
-        self._latency = latency
-        self._duration = duration
         (default_shape, default_rate, _) = SLM._current_mode(monitor_id)
         self._shape = default_shape if shape is None else shape
         self._refresh_rate = default_rate if refresh_rate is None else refresh_rate.to_value(u.Hz)
@@ -102,6 +100,8 @@ class SLM(Actuator, PhaseSLM):
         self._globals = -1
         self.patches = []
         self._create_window()  # sets self._window and self._globals and self._frame_patch
+        self._duration = duration if isinstance(duration, Quantity) else duration * self.period
+        self._latency = latency if isinstance(duration, Quantity) else duration * self.period
         self.transform = transform
         self._vertex_array = VertexArray()
 
@@ -308,6 +308,15 @@ class SLM(Actuator, PhaseSLM):
         return self._refresh_rate * u.Hz
 
     @property
+    def period(self) -> Quantity[u.ms]:
+        """The period of the refresh rate in milliseconds (u.ms)
+
+        See Also:
+            `refresh_rate`
+        """
+        return (1 / self._refresh_rate) * u.s
+
+    @property
     def monitor_id(self) -> int:
         """
         Number of the monitor (1 for primary screen, 2 for secondary screen, etc.) to display a full screen SLM
@@ -388,13 +397,15 @@ class SLM(Actuator, PhaseSLM):
         represents the time delay between the vertical retrace
         and the start of the SLM response to then new frame.
 
-        The latency can be specified in milliseconds (u.ms) or multiples of the frame period (unitless).
+        The latency isspecified in milliseconds (u.ms).
+        Also See:
+            `period`.
         """
-        return (self._latency if isinstance(self._latency, Quantity) else self._latency / self.refresh_rate).to(u.ms)
+        return self._latency
 
     @latency.setter
-    def latency(self, value: Union[Quantity[u.ms], int]):
-        self._latency = value
+    def latency(self, value: Quantity[u.ms]):
+        self._latency = value.to(u.ms)
 
     @property
     def duration(self) -> Quantity[u.ms]:
@@ -402,12 +413,14 @@ class SLM(Actuator, PhaseSLM):
         represents the time between the the start of the SLM response
          and sufficient stabilization of the phase pattern.
 
-        The duration can be specified in milliseconds (u.ms) or multiples of the frame period (unitless).
+        The latency isspecified in milliseconds (u.ms).
+        Also See:
+            `period`.
         """
-        return (self._duration if isinstance(self._duration, Quantity) else self._duration / self.refresh_rate).to(u.ms)
+        return self._duration
 
     @duration.setter
-    def duration(self, value: Union[Quantity[u.ms], int]):
+    def duration(self, value: Quantity[u.ms]):
         self._duration = value
 
     @property
