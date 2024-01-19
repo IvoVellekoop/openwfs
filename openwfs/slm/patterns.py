@@ -1,7 +1,7 @@
 import numpy as np
 from typing import Union, Sequence, Optional
 from astropy.units import Quantity
-from ..utilities import ExtentType, unitless
+from ..utilities import ExtentType, CoordinateType, unitless
 
 # shape of a numpy array, or a single integer that is broadcasted to a square shape
 ShapeType = Union[int, Sequence[int]]
@@ -40,7 +40,7 @@ The returned array has a pixel_size property attached.
 """
 
 
-def coordinate_range(shape: ShapeType, extent: ExtentType, offset: Optional[ExtentType] = None) -> (Quantity,
+def coordinate_range(shape: ShapeType, extent: ExtentType, offset: Optional[CoordinateType] = None) -> (Quantity,
                                                                                                     Quantity):
     """
     Returns coordinate vectors for the two coordinates (y and x).
@@ -51,7 +51,7 @@ def coordinate_range(shape: ShapeType, extent: ExtentType, offset: Optional[Exte
     Arguments:
         shape (ShapeType): size of the full grid (y, x) in pixels
         extent (ExtentType): extent of the coordinate range
-        offset (Optional[ExtentType]): offset to be added to the coordinates (optional)
+        offset (Optional[CoordinateType]): offset to be added to the coordinates (optional)
 
     Returns:
         Tuple[Quantity, Quantity]: coordinate vectors for the two coordinates (y and x)
