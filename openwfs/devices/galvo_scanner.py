@@ -177,7 +177,7 @@ class ScanningMicroscope(Detector):
 
         self._write_task = ni.Task()
         self._read_task = ni.Task()
-        self._read_task.in_stream.timeout = self.timeout
+        self._read_task.in_stream.timeout = self.timeout.to_value(u.s)
 
         # Configure the sample clock task
         sample_rate = self._sample_rate.to_value(u.Hz)
