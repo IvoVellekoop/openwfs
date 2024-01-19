@@ -18,9 +18,10 @@ TransformType = Union[np.ndarray, Quantity, Sequence[Sequence[float]]]
 ExtentType = Union[float, CoordinateType]
 
 
-def unitless(data: ArrayLike) -> ArrayLike:
+def unitless(data: ArrayLike) -> np.ndarray:
     """
-    Converts unitless `Quanity` objects to numpy arrays.
+    Converts an object to a numpy array.
+    Especially useful to remove the scaling from a unitless Quantity.
 
     Args:
         data: The input data.
@@ -37,6 +38,7 @@ def unitless(data: ArrayLike) -> ArrayLike:
         Do NOT use `np.array(data)` to convert a Quantity to a numpy array,
         because this will drop the unit prefix.
         For example, ```np.array(1 * u.s / u.ms) == 1```.
+        Whereas `unitless(1 * u.s / u.ms) == 1000` gives the correct answer.
 
     Usage:
     >>> data = np.array([1.0, 2.0, 3.0]) * u.m
@@ -45,7 +47,7 @@ def unitless(data: ArrayLike) -> ArrayLike:
     if isinstance(data, Quantity):
         return data.to_value(u.dimensionless_unscaled)
     else:
-        return data
+        return np.array(data)
 
 
 @dataclass
