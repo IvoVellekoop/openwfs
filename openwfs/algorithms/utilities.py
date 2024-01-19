@@ -190,7 +190,7 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int, A: Optional[floa
                      non_linearity=non_linearity, n=n)
 
 
-def signal_std(signal_with_noise: np.ndarray, noise:np.ndarray) -> float:
+def signal_std(signal_with_noise: np.ndarray, noise: np.ndarray) -> float:
     """
     Compute noise corrected standard deviation of signal measurement.
 
@@ -207,7 +207,7 @@ def signal_std(signal_with_noise: np.ndarray, noise:np.ndarray) -> float:
     return float(np.sqrt(signal_with_noise.var() - noise.var()))
 
 
-def cnr(signal_with_noise: np.ndarray, noise:np.ndarray) -> float:
+def cnr(signal_with_noise: np.ndarray, noise: np.ndarray) -> float:
     """
     Compute the noise-corrected contrast-to-noise ratio of a measured signal. Contrast is computed as the standard
     deviation, corrected for noise. The noise variance is computed from a separate array, containing only noise.
@@ -260,11 +260,11 @@ def find_pixel_shift(f: np.ndarray, g: np.ndarray) -> tuple[np.intp, ...]:
     """
     Find the pixel shift between two images by performing a 2D FFT based cross-correlation.
     """
-    corr = cross_corr_fft2(f, g)                    # Compute cross-correlation with fft2
-    s = np.array(corr).shape                        # Get shape
-    index = np.unravel_index(np.argmax(corr), s)    # Find 2D indices of maximum
-    pix_shift = (fftfreq(s[0], 1/s[0])[index[0]],   # Correct negative pixel shifts
-                 fftfreq(s[1], 1/s[1])[index[1]])
+    corr = cross_corr_fft2(f, g)  # Compute cross-correlation with fft2
+    s = np.array(corr).shape  # Get shape
+    index = np.unravel_index(np.argmax(corr), s)  # Find 2D indices of maximum
+    pix_shift = (fftfreq(s[0], 1 / s[0])[index[0]],  # Correct negative pixel shifts
+                 fftfreq(s[1], 1 / s[1])[index[1]])
     return pix_shift
 
 
@@ -318,8 +318,8 @@ class WFSController:
         self._optimized_wavefront = None
         self._recompute_wavefront = False
         self._feedback_enhancement = None
-        self._test_wavefront = False        # Trigger to test the optimized wavefront
-        self._run_troubleshooter = False    # Trigger troubleshooter
+        self._test_wavefront = False  # Trigger to test the optimized wavefront
+        self._run_troubleshooter = False  # Trigger troubleshooter
         self._frame_cnr = None
         self._contrast_enhancement = None
         self.dark_frame = None
@@ -473,7 +473,7 @@ class WFSController:
         Set a pattern of random phases to the active SLM phase patch. Useful for extinguishing the
         laser light in multi-PEF setups.
         """
-        self.algorithm._slm.set_phases(2*np.pi * np.random.rand(300, 300))
+        self.algorithm.slm.set_phases(2 * np.pi * np.random.rand(300, 300))
 
     def read_dark_frame(self) -> np.ndarray:
         """
@@ -524,7 +524,6 @@ class WFSController:
 
         return pixel_shifts, correlations
 
-
     @property
     def run_troubleshooter(self) -> bool:
         """Returns: bool that indiciates whether toubleshoot will be performed if set."""
@@ -554,12 +553,12 @@ class WFSController:
         assert self.source is not None
 
         # Capture frames before WFS
-        dark_frame = self.read_dark_frame()                         # Dark frame
-        before_frame = self.read_before_frame_flatwf()              # Frame before WFS
+        dark_frame = self.read_dark_frame()  # Dark frame
+        before_frame = self.read_before_frame_flatwf()  # Frame before WFS
 
-        self._frame_cnr = cnr(before_frame, dark_frame)             # Contrast to Noise Ratio
+        self._frame_cnr = cnr(before_frame, dark_frame)  # Contrast to Noise Ratio
 
-        if True:   # TODO: Add flag
+        if True:  # TODO: Add flag
             # WFS experiment
             recompute_wf_flag = self.recompute_wavefront
             self.recompute_wavefront = True
@@ -567,8 +566,8 @@ class WFSController:
             self.recompute_wavefront = recompute_wf_flag
 
             # Capture frames after WFS
-            after_frame_flatwf = self.read_after_frame_flatwf()         # After-frame flat wavefront
-            after_frame_shapedwf = self.read_after_frame_shapedwf()     # After-frame shaped wavefront
+            after_frame_flatwf = self.read_after_frame_flatwf()  # After-frame flat wavefront
+            after_frame_shapedwf = self.read_after_frame_shapedwf()  # After-frame shaped wavefront
 
             self._contrast_enhancement = contrast_enhancement(after_frame_shapedwf, after_frame_flatwf, dark_frame)
 
@@ -582,7 +581,6 @@ class WFSController:
         plt.plot(correlations, label='Corr. with first')
         plt.legend()
         plt.show()
-
 
         ### === Test setup stability ===
         ### Requirement: find-image-pixel-shift function

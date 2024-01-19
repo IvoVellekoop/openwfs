@@ -219,7 +219,7 @@ class ADCProcessor(Processor):
             dtype = data.dtype
             rng = np.random.default_rng()
             gaussian_noise = self._gaussian_noise_std * rng.standard_normal(size=data.shape)
-            data = (data.astype('float64') + gaussian_noise).clip(0, 2**16-1).astype(dtype)
+            data = (data.astype('float64') + gaussian_noise).clip(0, 2 ** 16 - 1).astype(dtype)
 
         if self.analog_max == 0.0:
             max = np.max(data)
@@ -400,7 +400,7 @@ class MockXYStage(Actuator):
         return 0.0 * u.ms
 
 
-class MockSLM(PhaseSLM):
+class MockSLM(Actuator, PhaseSLM):
     """
     A mock version of a phase-only spatial light modulator.
 
