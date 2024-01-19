@@ -401,7 +401,7 @@ class MockXYStage(Actuator):
         return 0.0 * u.ms
 
 
-class MockSLM(Actuator, PhaseSLM):
+class MockSLM(PhaseSLM, Actuator):
     """
     A mock version of a phase-only spatial light modulator.
 
