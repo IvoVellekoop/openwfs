@@ -4,7 +4,7 @@ from numpy.typing import ArrayLike
 from typing import Sequence
 from OpenGL.GL import *
 from OpenGL.GL import shaders
-from .geometry import square, Geometry
+from .geometry import rectangle, Geometry
 from .shaders import default_vertex_shader, default_fragment_shader, \
     post_process_fragment_shader, post_process_vertex_shader
 from .texture import Texture
@@ -28,8 +28,10 @@ class Patch(PhaseSLM):
             Note, however, that Geometry objects cannot be shared between different SLMs.
         """
         slm.activate()  # make sure the opengl operations occur in the context of the specified slm window
+        self._vertices = None
+        self._indices = None
+        self._index_count = 0
         self._slm_window = weakref.ref(slm)  # keep weak reference to parent, to avoid cyclic references
-        self.geometry = geometry
 
         # construct vertex shader, fragment shader and program
         vs = shaders.compileShader(vertex_shader, GL_VERTEX_SHADER)
@@ -38,7 +40,11 @@ class Patch(PhaseSLM):
         self._textures = [Texture(slm)]
         self.additive_blend = True
         self.enabled = True
+        self.geometry = rectangle(2.0) if geometry is None else geometry
         super().__init__()
+
+    def __del__(self):
+        self._delete_buffers()
 
     def draw(self):
         """Never call directly, this is called from slm.update()"""
@@ -60,7 +66,10 @@ class Patch(PhaseSLM):
             glActiveTexture(GL_TEXTURE0 + idx)
             glBindTexture(texture.type, texture.handle)
 
-        self._geometry.draw()
+        # perform the actual drawing
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self._indices)
+        glBindVertexBuffer(0, self._vertices, 0, 16)
+        glDrawElements(GL_TRIANGLE_STRIP, self._index_count, GL_UNSIGNED_SHORT, None)
 
     def set_phases(self, values: ArrayLike, update=True):
         """
@@ -78,6 +87,11 @@ class Patch(PhaseSLM):
     def update(self):
         self._slm_window().update()
 
+    def _delete_buffers(self):
+        if self._slm_window() is not None and self._vertices is not None:
+            self._slm_window().activate()
+            glDeleteBuffers(2, [self._vertices, self._indices])
+
     @property
     def geometry(self):
         """Vertices that define the shape of the patch on the screen. Currently, this should be a NxMx4 numpy array
@@ -87,10 +101,19 @@ class Patch(PhaseSLM):
         return self._geometry
 
     @geometry.setter
-    def geometry(self, value):
+    def geometry(self, value: Geometry):
         if not isinstance(value, Geometry):
-            value = Geometry(self._slm_window(), value)
+            raise ValueError("Geometry should be a Geometry object")
+
+        # store the data on the GPU
+        self._slm_window().activate()
         self._geometry = value
+        (self._vertices, self._indices) = glGenBuffers(2)
+        self._index_count = value._indices.size
+        glBindBuffer(GL_ARRAY_BUFFER, self._vertices)
+        glBufferData(GL_ARRAY_BUFFER, value._vertices.size * 4, value._vertices, GL_DYNAMIC_DRAW)
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self._indices)
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, value._indices.size * 2, value._indices, GL_DYNAMIC_DRAW)
 
 
 class FrameBufferPatch(Patch):
@@ -101,7 +124,7 @@ class FrameBufferPatch(Patch):
     _LUT_TEXTURE = 1
 
     def __init__(self, slm, lookup_table: Sequence[int]):
-        super().__init__(slm, square(1.0), fragment_shader=post_process_fragment_shader,
+        super().__init__(slm, fragment_shader=post_process_fragment_shader,
                          vertex_shader=post_process_vertex_shader)
         # Create a frame buffer object to render to. The frame buffer holds a texture that is the same size as the
         # window. All patches are first rendered to this texture. The texture
