@@ -1,9 +1,10 @@
 import time
 
+import cv2
 import glfw
 import numpy.random
 import pytest
-from ..openwfs.slm import SLM, Patch
+from ..openwfs.slm import SLM, Patch, geometry
 from ..openwfs.utilities import Transform
 import astropy.units as u
 import numpy as np  # for debugging
@@ -238,3 +239,20 @@ def test_multi_patch(slm):
     slm.patches[1].enabled = False
     slm.update()
     assert np.allclose(slm.get_pixels('gray_value'), pattern1 % 256)
+
+
+def test_circular_geometry(slm):
+    slm.shape = (200, 200)
+    slm.set_phases(np.linspace(0, 2 * np.pi, 70, endpoint=False).reshape(1, -1))
+    radii = (0.0, 0.25, 0.50, 1.0)
+    segments = (10, 20, 40)
+    slm.patches[0].geometry = geometry.circular(radii=radii, segments_per_ring=segments)
+    slm.update()
+
+    # read back the pixels and verify conversion to gray values
+    pixels = np.rint(slm.get_pixels('gray_value') / 256 * 70)
+    polar_pixels = cv2.warpPolar(pixels, (100, 40), (99.5, 99.5), 100, cv2.WARP_POLAR_LINEAR)
+
+    assert np.allclose(polar_pixels[:, 3:24], np.repeat(np.flip(np.arange(0, 10)), 4).reshape((-1, 1)), atol=1)
+    assert np.allclose(polar_pixels[:, 27:47], np.repeat(np.flip(np.arange(10, 30)), 2).reshape((-1, 1)), atol=1)
+    assert np.allclose(polar_pixels[:, 53:97], np.repeat(np.flip(np.arange(30, 70)), 1).reshape((-1, 1)), atol=1)
