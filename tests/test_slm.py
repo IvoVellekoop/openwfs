@@ -34,7 +34,7 @@ def test_create_windowed(slm):
 
     # check if frame buffer has correct size
     fb_texture = slm._frame_buffer._textures[Patch._PHASES_TEXTURE]
-    assert fb_texture.shape == slm.shape
+    assert fb_texture.get_data().shape == slm.shape
 
     # check if the refresh rate got set
     assert int(slm.refresh_rate.to_value(u.Hz)) != glfw.DONT_CARE

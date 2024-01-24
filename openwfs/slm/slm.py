@@ -317,7 +317,7 @@ class SLM(Actuator, PhaseSLM):
         See Also:
             `refresh_rate`
         """
-        return (1 / self._refresh_rate) * u.s
+        return (1000 / self._refresh_rate) * u.ms
 
     @property
     def monitor_id(self) -> int:

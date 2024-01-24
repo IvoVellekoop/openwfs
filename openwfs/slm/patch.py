@@ -62,9 +62,7 @@ class Patch(PhaseSLM):
             glDisable(GL_BLEND)
 
         for idx, texture in enumerate(self._textures):
-            texture.synchronize()  # upload data again if it was modified
-            glActiveTexture(GL_TEXTURE0 + idx)
-            glBindTexture(texture.type, texture.handle)
+            texture.bind(idx)  # activate texture as texture unit idx
 
         # perform the actual drawing
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self._indices)
@@ -80,7 +78,7 @@ class Patch(PhaseSLM):
                 When False, the SLM is not updated, and the
                 caller is responsible for calling slm.update() to update the SLM.
         """
-        self._textures[Patch._PHASES_TEXTURE].data = values
+        self._textures[Patch._PHASES_TEXTURE].set_data(values)
         if update:
             self._slm_window().update()
 
@@ -109,11 +107,11 @@ class Patch(PhaseSLM):
         self._slm_window().activate()
         self._geometry = value
         (self._vertices, self._indices) = glGenBuffers(2)
-        self._index_count = value._indices.size
+        self._index_count = value.indices.size
         glBindBuffer(GL_ARRAY_BUFFER, self._vertices)
-        glBufferData(GL_ARRAY_BUFFER, value._vertices.size * 4, value._vertices, GL_DYNAMIC_DRAW)
+        glBufferData(GL_ARRAY_BUFFER, value.vertices.size * 4, value.vertices, GL_DYNAMIC_DRAW)
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self._indices)
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, value._indices.size * 2, value._indices, GL_DYNAMIC_DRAW)
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, value.indices.size * 2, value.indices, GL_DYNAMIC_DRAW)
 
 
 class FrameBufferPatch(Patch):
@@ -122,6 +120,7 @@ class FrameBufferPatch(Patch):
     implements the software lookup table."""
 
     _LUT_TEXTURE = 1
+    _textures: Sequence[Texture]
 
     def __init__(self, slm, lookup_table: Sequence[int]):
         super().__init__(slm, fragment_shader=post_process_fragment_shader,
@@ -132,7 +131,6 @@ class FrameBufferPatch(Patch):
         self._frame_buffer = glGenFramebuffers(1)
 
         self.set_phases(np.zeros(slm.shape, dtype=np.float32), update=False)
-        self._textures[Patch._PHASES_TEXTURE].synchronize()
         glBindFramebuffer(GL_FRAMEBUFFER, self._frame_buffer)
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
                                self._textures[Patch._PHASES_TEXTURE].handle, 0)
@@ -141,6 +139,7 @@ class FrameBufferPatch(Patch):
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
         self._textures.append(Texture(slm, GL_TEXTURE_1D))  # create texture for lookup table
+        self._lookup_table = None
         self.lookup_table = lookup_table
         self.additive_blend = False
 
@@ -152,18 +151,15 @@ class FrameBufferPatch(Patch):
     @property
     def lookup_table(self):
         """1-D array """
-        return self._textures[FrameBufferPatch._LUT_TEXTURE].data * 255
+        return self._lookup_table
 
     @lookup_table.setter
     def lookup_table(self, value):
-        self._slm_window().activate()
-        self._textures[FrameBufferPatch._LUT_TEXTURE].data = np.array(value) / 255
+        self._lookup_table = np.array(value)
+        self._textures[FrameBufferPatch._LUT_TEXTURE].set_data(self._lookup_table / 255)
 
     def get_pixels(self):
-        self._slm_window().activate()
-        tex = self._textures[FrameBufferPatch._PHASES_TEXTURE]
-        data = np.empty(tex.shape, dtype='float32')
-        glGetTextureImage(tex.handle, 0, GL_RED, GL_FLOAT, data.size * 4, data)
+        data = self._textures[FrameBufferPatch._PHASES_TEXTURE].get_data()
 
         # flip data upside down, because the OpenGL convention is to have the origin at the bottom left
         # but we want it at the top left (like in numpy)
