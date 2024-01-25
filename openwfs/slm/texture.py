@@ -11,8 +11,11 @@ class Texture:
         self.synchronized = False  # self.data is not yet synchronized with texture in GPU memory
         self._data_shape = None  # current size of the texture, to see if we need to make a new texture or
         # overwrite the exiting one
-        self.set_data(0)  # create a single pixel texture as default
-        glBindTexture(self.type, self.handle)
+
+        # create a single pixel texture as default (also activates the OpenGL context and binds the texture
+        self.set_data(0)
+
+        # set wrapping and interpolation options
         glTexParameteri(self.type, GL_TEXTURE_WRAP_S, GL_REPEAT)
         glTexParameteri(self.type, GL_TEXTURE_WRAP_T, GL_REPEAT)
         glTexParameteri(self.type, GL_TEXTURE_WRAP_R, GL_REPEAT)
@@ -20,8 +23,9 @@ class Texture:
         glTexParameteri(self.type, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
 
     def __del__(self):
-        if self.context() is not None and hasattr(self, 'handle'):
-            self.context().activate()
+        context = self.context()
+        if context is not None and hasattr(self, 'handle'):
+            context.activate()
             glDeleteTextures(1, [self.handle])
 
     def bind(self, idx):
@@ -47,7 +51,7 @@ class Texture:
             if value.ndim == 0:
                 value = value.reshape((1,))
             elif value.ndim != 1:
-                raise ValueError("Data should be 1-d array or scalar")
+                raise ValueError("Data should be a 1-d array or a scalar")
             if value.shape != self._data_shape:
                 # create a new texture
                 glTexImage1D(GL_TEXTURE_1D, 0, internal_format, value.shape[0], 0, data_format, data_type, value)
@@ -60,7 +64,7 @@ class Texture:
             if value.ndim == 0:
                 value = value.reshape((1, 1))
             elif value.ndim != 2:
-                raise ValueError("Data should be 2-d array or scalar")
+                raise ValueError("Data should be a 2-d array or a scalar")
             if value.shape != self._data_shape:
                 glTexImage2D(GL_TEXTURE_2D, 0, internal_format, value.shape[1], value.shape[0], 0,
                              data_format, data_type, value)
