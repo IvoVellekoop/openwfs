@@ -6,7 +6,8 @@ from numpy.typing import ArrayLike
 import time
 from typing import Sequence, Optional
 from ..processors import CropProcessor
-from ..core import Detector, Processor, PhaseSLM, Actuator, get_pixel_size, ExtentType
+from ..core import Detector, Processor, PhaseSLM, Actuator
+from ..utilities import ExtentType, get_pixel_size
 
 
 class Generator(Detector):
@@ -400,7 +401,7 @@ class MockXYStage(Actuator):
         return 0.0 * u.ms
 
 
-class MockSLM(Actuator, PhaseSLM):
+class MockSLM(PhaseSLM, Actuator):
     """
     A mock version of a phase-only spatial light modulator.
 

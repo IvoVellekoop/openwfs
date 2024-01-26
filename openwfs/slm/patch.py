@@ -1,9 +1,10 @@
 import numpy as np
 import weakref
 from numpy.typing import ArrayLike
+from typing import Sequence
 from OpenGL.GL import *
 from OpenGL.GL import shaders
-from .geometry import square
+from .geometry import rectangle, Geometry
 from .shaders import default_vertex_shader, default_fragment_shader, \
     post_process_fragment_shader, post_process_vertex_shader
 from .texture import Texture
@@ -11,9 +12,9 @@ from ..core import PhaseSLM
 
 
 class Patch(PhaseSLM):
-    PHASES_TEXTURE = 0  # indices of the phases texture in the _texture array
+    _PHASES_TEXTURE = 0  # indices of the phases texture in the _texture array
 
-    def __init__(self, slm, geometry=None, vertex_shader=default_vertex_shader,
+    def __init__(self, slm: 'SLM', geometry=None, vertex_shader=default_vertex_shader,
                  fragment_shader=default_fragment_shader):
         """
         Constructs a new patch (a shape) that can be drawn on the screen.
@@ -26,11 +27,11 @@ class Patch(PhaseSLM):
           - an existing Geometry object. It is possible to attach the same Geometry object to multiple patches.
             Note, however, that Geometry objects cannot be shared between different SLMs.
         """
-
-        slm.patches.append(self)
         slm.activate()  # make sure the opengl operations occur in the context of the specified slm window
-        self.slm_window = weakref.ref(slm)  # keep weak reference to parent, to avoid cyclic references
-        self.geometry = geometry
+        self._vertices = None
+        self._indices = None
+        self._index_count = 0
+        self._slm_window = weakref.ref(slm)  # keep weak reference to parent, to avoid cyclic references
 
         # construct vertex shader, fragment shader and program
         vs = shaders.compileShader(vertex_shader, GL_VERTEX_SHADER)
@@ -39,7 +40,11 @@ class Patch(PhaseSLM):
         self._textures = [Texture(slm)]
         self.additive_blend = True
         self.enabled = True
+        self.geometry = rectangle(2.0) if geometry is None else geometry
         super().__init__()
+
+    def __del__(self):
+        self._delete_buffers()
 
     def draw(self):
         """Never call directly, this is called from slm.update()"""
@@ -57,11 +62,12 @@ class Patch(PhaseSLM):
             glDisable(GL_BLEND)
 
         for idx, texture in enumerate(self._textures):
-            texture.synchronize()  # upload data again if it was modified
-            glActiveTexture(GL_TEXTURE0 + idx)
-            glBindTexture(texture.type, texture.handle)
+            texture.bind(idx)  # activate texture as texture unit idx
 
-        self._geometry.draw()
+        # perform the actual drawing
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self._indices)
+        glBindVertexBuffer(0, self._vertices, 0, 16)
+        glDrawElements(GL_TRIANGLE_STRIP, self._index_count, GL_UNSIGNED_SHORT, None)
 
     def set_phases(self, values: ArrayLike, update=True):
         """
@@ -72,12 +78,17 @@ class Patch(PhaseSLM):
                 When False, the SLM is not updated, and the
                 caller is responsible for calling slm.update() to update the SLM.
         """
-        self._textures[Patch.PHASES_TEXTURE].data = values
+        self._textures[Patch._PHASES_TEXTURE].set_data(values)
         if update:
-            self.slm_window().update()
+            self._slm_window().update()
 
     def update(self):
-        self.slm_window().update()
+        self._slm_window().update()
+
+    def _delete_buffers(self):
+        if self._slm_window() is not None and self._vertices is not None:
+            self._slm_window().activate()
+            glDeleteBuffers(2, [self._vertices, self._indices])
 
     @property
     def geometry(self):
@@ -88,65 +99,19 @@ class Patch(PhaseSLM):
         return self._geometry
 
     @geometry.setter
-    def geometry(self, value):
+    def geometry(self, value: Geometry):
         if not isinstance(value, Geometry):
-            value = Geometry(self.slm_window(), value)
-        self._geometry = value
-
-
-class Geometry:
-    def __init__(self, context, vertices):
-        self.context = weakref.ref(context)  # keep weak reference to parent, to avoid cyclic references
-
-        if vertices is None:
-            self.vertices = square(1.0)
-            self.indices = Geometry.compute_indices_for_grid(self.vertices.shape)
-        elif isinstance(vertices, tuple):
-            self.vertices = np.array(vertices[0], dtype=np.float32, copy=False)
-            self.indices = np.array(vertices[1], dtype=np.uint16, copy=False)
-        else:
-            self.vertices = np.array(vertices, dtype=np.float32, copy=False)
-            self.indices = Geometry.compute_indices_for_grid(self.vertices.shape)
+            raise ValueError("Geometry should be a Geometry object")
 
         # store the data on the GPU
-        self.context().activate()
+        self._slm_window().activate()
+        self._geometry = value
         (self._vertices, self._indices) = glGenBuffers(2)
+        self._index_count = value.indices.size
         glBindBuffer(GL_ARRAY_BUFFER, self._vertices)
-        glBufferData(GL_ARRAY_BUFFER, self.vertices.size * 4, self.vertices, GL_DYNAMIC_DRAW)
+        glBufferData(GL_ARRAY_BUFFER, value.vertices.size * 4, value.vertices, GL_DYNAMIC_DRAW)
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self._indices)
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, self.indices.size * 2, self.indices, GL_DYNAMIC_DRAW)
-
-    def __del__(self):
-        if self.context() is not None and hasattr(self, '_vertices'):
-            self.context().activate()
-            glDeleteBuffers(2, [self._vertices, self._indices])
-
-    @staticmethod
-    def compute_indices_for_grid(shape):
-        # construct the indices that convert the vertices to a set of triangle strips (see triangle strip in OpenGL
-        # specification)
-        assert len(shape) == 3  # expect 2-D array of vertices
-        assert shape[2] == 4  # where each vertex holds 4 floats
-        i = 0
-        nr = shape[0]
-        nc = shape[1]
-        index_count = (nr - 1) * (2 * nc + 1)
-        indices = np.zeros(index_count, np.uint16)
-        for r in range(nr - 1):
-            # emit triangle strip (single row)
-            row_start = r * nc
-            for c in range(nc):
-                indices[i] = row_start + c
-                indices[i + 1] = row_start + c + nc
-                i += 2
-            indices[i] = 0xFFFF
-            i += 1
-        return indices
-
-    def draw(self):
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self._indices)
-        glBindVertexBuffer(0, self._vertices, 0, 16)
-        glDrawElements(GL_TRIANGLE_STRIP, self.indices.size, GL_UNSIGNED_SHORT, None)
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, value.indices.size * 2, value.indices, GL_DYNAMIC_DRAW)
 
 
 class FrameBufferPatch(Patch):
@@ -154,50 +119,51 @@ class FrameBufferPatch(Patch):
     and this buffer is rendered to the screen through a  final post-processing step that does the phase wrapping and
     implements the software lookup table."""
 
-    LUT_TEXTURE = 1
+    _LUT_TEXTURE = 1
+    _textures: Sequence[Texture]
 
-    def __init__(self, slm):
-        super().__init__(slm, square(1.0), fragment_shader=post_process_fragment_shader,
+    def __init__(self, slm, lookup_table: Sequence[int]):
+        super().__init__(slm, fragment_shader=post_process_fragment_shader,
                          vertex_shader=post_process_vertex_shader)
         # Create a frame buffer object to render to. The frame buffer holds a texture that is the same size as the
         # window. All patches are first rendered to this texture. The texture
         # is then processed as a whole (applying the software lookup table) and displayed on the screen.
-        self.frame_buffer = glGenFramebuffers(1)
+        self._frame_buffer = glGenFramebuffers(1)
 
         self.set_phases(np.zeros(slm.shape, dtype=np.float32), update=False)
-        self._textures[Patch.PHASES_TEXTURE].synchronize()
-        glBindFramebuffer(GL_FRAMEBUFFER, self.frame_buffer)
+        glBindFramebuffer(GL_FRAMEBUFFER, self._frame_buffer)
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
-                               self._textures[Patch.PHASES_TEXTURE].handle, 0)
+                               self._textures[Patch._PHASES_TEXTURE].handle, 0)
         if glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE:
             raise Exception("Could not construct frame buffer")
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
         self._textures.append(Texture(slm, GL_TEXTURE_1D))  # create texture for lookup table
-        self.lookup_table = range(256)
+        self._lookup_table = None
+        self.lookup_table = lookup_table
         self.additive_blend = False
 
     def __del__(self):
-        if self.slm_window() is not None and hasattr(self, 'frame_buffer'):
-            self.slm_window().activate()
-            glDeleteFramebuffers(1, [self.frame_buffer])
+        if self._slm_window() is not None and hasattr(self, 'frame_buffer'):
+            self._slm_window().activate()
+            glDeleteFramebuffers(1, [self._frame_buffer])
 
     @property
     def lookup_table(self):
         """1-D array """
-        return self._textures[FrameBufferPatch.LUT_TEXTURE].data * 255
+        return self._lookup_table
 
     @lookup_table.setter
     def lookup_table(self, value):
-        self.slm_window().activate()
-        self._textures[FrameBufferPatch.LUT_TEXTURE].data = np.array(value) / 255
+        self._lookup_table = np.array(value)
+        self._textures[FrameBufferPatch._LUT_TEXTURE].set_data(self._lookup_table / 255)
 
     def get_pixels(self):
-        self.slm_window().activate()
-        tex = self._textures[FrameBufferPatch.PHASES_TEXTURE]
-        data = np.empty(tex.shape, dtype='float32')
-        glGetTextureImage(tex.handle, 0, GL_RED, GL_FLOAT, data.size * 4, data)
-        return data
+        data = self._textures[FrameBufferPatch._PHASES_TEXTURE].get_data()
+
+        # flip data upside down, because the OpenGL convention is to have the origin at the bottom left
+        # but we want it at the top left (like in numpy)
+        return data[::-1, :]
 
 
 class VertexArray:

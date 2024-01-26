@@ -7,7 +7,7 @@ from ..openwfs.algorithms import FourierDualReference
 from ..openwfs.algorithms.utilities import WFSController
 from ..openwfs.processors import SingleRoi
 from ..openwfs.simulation import Microscope, MockSource, MockSLM, SimulatedWFS, MockCamera
-from ..openwfs.utilities import imshow
+from ..openwfs.plot_utilities import imshow
 
 
 @pytest.mark.skip(reason="This test does not test anything yet and gives a popop graph.")
