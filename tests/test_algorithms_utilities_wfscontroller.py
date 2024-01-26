@@ -1,6 +1,7 @@
 import numpy as np
 import skimage
 import astropy.units as u
+import pytest
 
 from ..openwfs.algorithms import FourierDualReference
 from ..openwfs.algorithms.utilities import WFSController
@@ -9,6 +10,7 @@ from ..openwfs.simulation import Microscope, MockSource, MockSLM, SimulatedWFS, 
 from ..openwfs.utilities import imshow
 
 
+@pytest.mark.skip(reason="This test does not test anything yet and gives a popop graph.")
 def test_wfs_troubleshooter():
     # Define mock hardware
     numerical_aperture = 1.0
@@ -29,7 +31,7 @@ def test_wfs_troubleshooter():
     slm = MockSLM(shape=slm_shape)
 
     sim = Microscope(source=src, slm=slm.pixels(), magnification=1, numerical_aperture=numerical_aperture,
-                    aberrations=aberration, wavelength=800 * u.nm)
+                     aberrations=aberration, wavelength=800 * u.nm)
 
     cam = sim.get_camera(analog_max=100.0, gaussian_noise_std=0.000)
     roi_detector = SingleRoi(cam, radius=0)  # Only measure that specific point

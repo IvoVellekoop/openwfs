@@ -6,6 +6,8 @@ import skimage as sk
 import astropy.units as u
 
 
+@pytest.mark.skip(reason="This is an interactive test: skip by default. TODO: actually test if the roi was "
+                         "selected correctly.")
 def test_croppers():
     img = sk.data.camera()
     src = MockSource(img, 50 * u.nm)

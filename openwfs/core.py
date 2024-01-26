@@ -97,7 +97,7 @@ def unitless(data: ArrayLike) -> ArrayLike:
         return data
 
 
-class Device:
+class Device(ABC):
     """Base class for detectors and actuators
 
     Multi-threading:
@@ -205,12 +205,9 @@ class Device:
         Note that this is not thread-safe and should be done with care!!
         """
         if hasattr(self, '_base_initialized') and not key.startswith('_'):
-            logging.debug("acquiring lock to set attribute `%s` %s (tid: %i). ", key, self, threading.get_ident())
             new_lock = self._lock_acquire()
             try:
-                logging.debug("setting attribute `%s` %s (tid: %i). ", key, self, threading.get_ident())
                 super().__setattr__(key, value)
-                logging.debug("releasing lock %s (tid: %i).", self, threading.get_ident())
             finally:
                 if new_lock:
                     self._lock_release()
@@ -219,7 +216,7 @@ class Device:
 
     @property
     @abstractmethod
-    def is_actuator(self):
+    def _is_actuator(self):
         """True for actuators, False for detectors"""
         ...
 
@@ -236,14 +233,14 @@ class Device:
         # acquire a global lock, to prevent multiple threads to switch moving/measuring state simultaneously
         with Device._state_lock:
             # check if transition from moving/measuring or vice versa is needed
-            if Device._moving != self.is_actuator():
+            if Device._moving != self._is_actuator():
                 if Device._moving:
                     logging.debug("switch to MEASURING requested by %s.", self)
                 else:
                     logging.debug("switch to MOVING requested by %s.", self)
 
-                same_type = [device for device in Device._devices if device.is_actuator == self.is_actuator]
-                other_type = [device for device in Device._devices if device.is_actuator != self.is_actuator]
+                same_type = [device for device in Device._devices if device._is_actuator == self._is_actuator]
+                other_type = [device for device in Device._devices if device._is_actuator != self._is_actuator]
 
                 # compute the minimum latency of same_type
                 # for instance, when switching to 'measuring', this number tells us how long it takes before any of the
@@ -304,7 +301,7 @@ class Device:
         )` and the stabilization of the device.
 
         If the duration of an operation is not known in advance,
-        (e.g., when waiting for a hardware trigger), this function should return `np.inf`.
+        (e.g., when waiting for a hardware trigger), this function should return `np.inf * u.ms`.
 
         Note: A device may update the duration dynamically.
         For example, a stage may compute the required time to
@@ -315,7 +312,7 @@ class Device:
         """
         ...
 
-    def wait(self, up_to: Quantity[u.ms] = 0 * u.ns, await_data=True):
+    def wait(self, up_to: Quantity[u.ms] = 0 * u.ns, await_data=True) -> None:
         """Waits until the device is (almost) in the `ready` state, i.e., has finished measuring or moving.
 
         This function is called by `_start` automatically to ensure proper synchronization between detectors and
@@ -424,7 +421,7 @@ class Actuator(Device, ABC):
     """
 
     @final
-    def is_actuator(self):
+    def _is_actuator(self):
         return True
 
 
@@ -439,7 +436,7 @@ class Detector(Device, ABC):
         self._error = None
 
     @final
-    def is_actuator(self):
+    def _is_actuator(self):
         return False
 
     def _lock_persistent(self):
@@ -506,12 +503,12 @@ class Detector(Device, ABC):
         logging.debug("triggering %s (tid: %i).", self, threading.get_ident())
         if immediate or not Device.multi_threading:
             result = Future()
-            result.set_result(self._do_fetch(out, *args, **kwargs))  # noqa
+            result.set_result(self.__do_fetch(out, *args, **kwargs))  # noqa
             return result
         else:
-            return Device._workers.submit(self._do_fetch, out, *args, **kwargs)
+            return Device._workers.submit(self.__do_fetch, out, *args, **kwargs)
 
-    def _do_fetch(self, out_, *args_, **kwargs_):
+    def __do_fetch(self, out_, *args_, **kwargs_):
         """Helper function that awaits all futures in the keyword argument list, and then calls _fetch"""
         try:
             if len(args_) > 0 or len(kwargs_) > 0:
@@ -535,7 +532,7 @@ class Detector(Device, ABC):
         finally:
             self._unlock_persistent()
 
-    def _do_trigger(self):
+    def _do_trigger(self) -> None:
         """Override this function to perform the actual hardware trigger."""
         pass
 
@@ -595,7 +592,7 @@ class Detector(Device, ABC):
         return None
 
     @final
-    def coordinates(self, dim):
+    def coordinates(self, dim: int) -> Quantity:
         """Coordinate values along the d-th axis.
 
         The coordinates represent the center of the pixels (or sample intervals),
@@ -613,9 +610,8 @@ class Detector(Device, ABC):
         Returns:
             Quantity: An array holding the coordinates.
         """
-        c = np.arange(0.5, 0.5 + self.data_shape[dim], 1.0)
-        if self.pixel_size is not None:
-            c = c * self.pixel_size[dim]
+        unit = u.dimensionless_unscaled if self.pixel_size is None else self.pixel_size[dim]
+        c = np.arange(0.5, 0.5 + self.data_shape[dim], 1.0) * unit
         shape = np.ones_like(self.data_shape)
         shape[dim] = self.data_shape[dim]
         return c.reshape(shape)
@@ -693,7 +689,7 @@ class PhaseSLM(ABC):
     """
 
     @abstractmethod
-    def update(self):
+    def update(self) -> None:
         """Sends the new phase pattern to be displayed on the SLM.
 
         Implementations should call _start() before triggering the SLM.
@@ -706,7 +702,7 @@ class PhaseSLM(ABC):
         """
 
     @abstractmethod
-    def set_phases(self, values: ArrayLike, update=True):
+    def set_phases(self, values: ArrayLike, update=True) -> None:
         """Sets the phase pattern on the SLM.
 
         Args:

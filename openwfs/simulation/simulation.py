@@ -36,9 +36,12 @@ class SimulatedWFS(Processor):
         system with these parameters.
         """
         self.slm = MockSLM(aberrations.shape[0:2])
-        self.E_input_slm = np.exp(1.0j * aberrations) / np.sqrt(np.prod(self.slm.pixels().data_shape))
+        self.E_input_slm = np.exp(1.0j * aberrations)  # electric field incident at the SLM
         if beam_profile_waist is not None:
             self.E_input_slm *= gaussian(aberrations.shape, waist=beam_profile_waist)
+
+        # normalize the field
+        self.E_input_slm *= 1 / np.linalg.norm(self.E_input_slm.ravel())
         super().__init__(self.slm.pixels())
 
     def _fetch(self, out: Optional[np.ndarray], slm_phases):  # noqa

@@ -26,9 +26,9 @@ class StepwiseSequential:
         """
         self._n_x = n_x
         self._n_y = n_x if n_y is None else n_y
-        self.slm = slm
-        self._feedback = feedback
         self._phase_steps = phase_steps
+        self.slm = slm
+        self.feedback = feedback
 
     def execute(self) -> WFSResult:
         """
@@ -36,18 +36,17 @@ class StepwiseSequential:
             WFSResult: An object containing the computed SLM transmission matrix and related data.
         """
         phase_pattern = np.zeros((self.n_y, self.n_x), 'float32')
-        measurements = np.zeros((self.n_y, self.n_x, self._phase_steps, *self._feedback.data_shape))
+        measurements = np.zeros((self.n_y, self.n_x, self.phase_steps, *self.feedback.data_shape))
 
-        for n_y in range(self.n_y):
-            for n_x in range(self.n_x):
-                for p in range(self._phase_steps):
-                    phase_pattern[n_y, n_x] = p * 2 * np.pi / self._phase_steps
+        for y in range(self.n_y):
+            for x in range(self.n_x):
+                for p in range(self.phase_steps):
+                    phase_pattern[y, x] = p * 2 * np.pi / self.phase_steps
                     self.slm.set_phases(phase_pattern)
-                    self._feedback.trigger(out=measurements[n_y, n_x, p, ...])
-                    self._feedback.wait()
-                phase_pattern[n_y, n_x] = 0
+                    self.feedback.trigger(out=measurements[y, x, p, ...])
+                phase_pattern[y, x] = 0
 
-        self._feedback.wait()
+        self.feedback.wait()
         starting_intensity = np.mean(measurements[:, :, 0])  # flat wavefront intensity
         return analyze_phase_stepping(measurements, axis=2, A=np.sqrt(starting_intensity))
 

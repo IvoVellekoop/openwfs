@@ -128,7 +128,7 @@ Naming Convention <https://www.emva.org/wp-content/uploads/GenICam_SFNC_2_3.pdf>
         buffer = self._camera.fetch()
         frame = buffer.payload.components[0].data.reshape(self.data_shape)
         if frame.size == 0:
-            raise Exception('Camera returned empty frame')
+            raise Exception('Camera returned an empty frame')
         if out is not None:
             np.copyto(out, frame)
         else:
