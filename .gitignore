@@ -12,3 +12,5 @@ PyDevice.sln
 AutoConfig.props
 x64
 *.gif
+dist
+*.egg-info
