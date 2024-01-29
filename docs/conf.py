@@ -9,19 +9,21 @@ import os
 import sys
 
 sys.path.append(os.path.abspath('myst_parser'))
-sys.path.insert(0, os.path.abspath('../../openwfs'))
+sys.path.insert(0, os.path.abspath('../openwfs'))
 p = os.path.dirname(os.path.dirname(__file__))
 sys.path.append(p)
 
 project = 'OpenWFS'
-copyright = '2023, Ivo Vellekoop and Jeroen Doornbos'
+copyright = '2023-, Ivo Vellekoop and Jeroen Doornbos'
 author = 'Ivo Vellekoop and Jeroen Doornbos'
-release = '0.0.1'
+release = '0.1.0rc'
+add_module_names = False
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
-extensions = ['sphinx.ext.napoleon', 'sphinx.ext.autodoc', 'recommonmark', 'sphinx.ext.mathjax']
+extensions = ['sphinx.ext.napoleon', 'sphinx.ext.autodoc', 'sphinx_mdinclude', 'sphinx.ext.mathjax',
+              'sphinx.ext.viewcode', 'sphinx_autodoc_typehints']
 
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
@@ -34,4 +36,4 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = 'alabaster'
+html_theme = 'furo'
