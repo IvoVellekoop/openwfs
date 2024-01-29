@@ -16,7 +16,7 @@ sys.path.append(p)
 project = 'OpenWFS'
 copyright = '2023-, Ivo Vellekoop and Jeroen Doornbos'
 author = 'Ivo Vellekoop and Jeroen Doornbos'
-release = '0.1.0rc'
+release = '0.1.0a'
 add_module_names = False
 
 # -- General configuration ---------------------------------------------------

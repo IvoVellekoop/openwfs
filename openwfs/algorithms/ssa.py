@@ -5,11 +5,13 @@ from .utilities import analyze_phase_stepping, WFSResult
 
 class StepwiseSequential:
     """
-    Class definition for stepwise sequential algorithm for wavefront shaping, as described by Vellekoop [2].
+    Class definition for stepwise sequential algorithm for wavefront shaping, as described by Vellekoop [1] [2].
 
     TODO: enable low-res pre-optimization (as in Vellekoop & Mosk 2007)
     TODO: modulate segments in pupil (circle) only
 
+    [^1]:Vellekoop, I. M., & Mosk, A. P. (2007). Focusing coherent light through opaque strongly scattering media. Optics
+    letters, 32(16), 2309-2311.
     [2]: Ivo M. Vellekoop, "Feedback-based wavefront shaping," Opt. Express 23, 12189-12206 (2015)
     """
 
