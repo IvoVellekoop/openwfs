@@ -58,7 +58,10 @@ class Device(ABC):
         For detectors, `_start` is called automatically by `trigger()`, so there is never a need to call it.
         Implementations of an actuator should call `_start` explicitly before starting to move the actuator.
 
-    Usage:
+    Attributes:
+        multi_threading (bool): Option to globally disable multi-threading.
+            This is particularly useful for debugging.
+    Usage::
         >>> f1 = np.zeros((N, P, *cam1.data_shape))
         >>> f2 = np.zeros((N, P, *cam2.data_shape))
         >>> for n in range(N):
@@ -78,14 +81,6 @@ class Device(ABC):
         >>> cam2.wait() # wait until camera 2 is done grabbing frames
         >>> fields = (f2 - f1) * np.exp(-j * phase)
 
-    Attributes:
-    multi_threading (bool): Option to globally disable multi-threading.
-        This is particularly useful for debugging.
-    _workers (ThreadPoolExecutor): A thread pool for awaiting detector input, actuator stabilization,
-       or for processing data in a non-deterministic order.
-    _moving (bool): Global state: 'moving'=True or 'measuring'=False
-    _state_lock (Lock): Lock for switching global state (see _start)
-    _devices (WeakSet[Device]): List of all Device objects
     """
     __slots__ = ('_end_time_ns', '_timeout_margin', '_lock', '_locking_thread', '_error', '_base_initialized',
                  '__weakref__')
@@ -514,7 +509,7 @@ class Detector(Device, ABC):
 
         By default, the pixel size cannot be set.
         However, in some cases (such as when the `pixel_size` is actually a sampling interval),
-            it makes sense for the child class to implement a setter.
+        it makes sense for the child class to implement a setter.
         """
         return None
 

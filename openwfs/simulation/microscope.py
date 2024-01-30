@@ -42,22 +42,8 @@ class Microscope(Processor):
         truncation_factor (float): is used to simulate a gaussian beam illumination of the SLM/back pupil.
             Corresponds to w/r, with w the beam waist (1/e² intensity) and r the pupil radius.
             Defaults to None for a flat intensity distribution.
-
-     numerical_aperture (float):
-                numerical
-            magnification:
-            wavelength:
-            xy_stage:
-            z_stage:
-            camera_resolution (tuple(float, float)): size of the image sensor in pixels.
-                Defaults to 1024 pixels.
-            camera_pixel_size (astropy distance unit): pixel pitch of the image sensor.
-                Defaults to 10 μm.
-            truncation_factor:
-        Note:
-            The aberration map and slm phase map are cropped/padded to the NA of the microscope objective, and
-            scaled to have the same pixel resolution so that they can be added.
-
+        xy_stage:
+        z_stage:
     """
 
     def __init__(self, source: Detector, *, data_shape=None, numerical_aperture: float, wavelength: Quantity[u.nm],
@@ -105,6 +91,10 @@ class Microscope(Processor):
                 When set to a value > 0.0,
                 the microscope pupil is illuminated by a Gaussian beam (instead of a flat intensity).
                 The value corresponds to the beam waist relative to the full pupil (the full NA).
+
+        Note:
+            The aberration map and slm phase map are cropped/padded to the NA of the microscope objective, and
+            scaled to have the same pixel resolution so that they can be added.
         """
         if not isinstance(source, Detector):
             raise ValueError("`source` should be a Detector object.")
@@ -231,9 +221,6 @@ class Microscope(Processor):
 
         Note that, as in a real microscope, the magnification does not affect the effective resolution of the image.
         The resolution is determined by the Abbe diffraction limit λ/2NA.
-
-        Returns:
-
         """
         return self._magnification
 

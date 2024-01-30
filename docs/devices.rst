@@ -1,5 +1,5 @@
 openwfs.devices
-------------
+-------------------
 .. automodule:: openwfs.devices
    :members:
    :imported-members:

@@ -4,7 +4,7 @@ import glfw
 import warnings
 import astropy.units as u
 from numpy.typing import ArrayLike
-from typing import Union, Optional, Sequence
+from typing import Union, Optional, Sequence, List
 from astropy.units import Quantity
 from .patch import FrameBufferPatch, Patch, VertexArray
 from weakref import WeakSet
@@ -42,7 +42,7 @@ class SLM(Actuator, PhaseSLM):
     of gray values that is used.
 
     Attributes:
-        patches (list[openwfs.slm.Patch]): List of patches that are drawn on the SLM.
+        patches (List[Patch]): List of patches that are drawn on the SLM.
 
     """
     __slots__ = ['_vertex_array', '_frame_buffer', '_monitor_id', '_pos', '_latency', '_duration', '_refresh_rate',
@@ -143,8 +143,10 @@ class SLM(Actuator, PhaseSLM):
     @staticmethod
     def _current_mode(monitor_id: int):
         """Returns the current video mode resolution (height, width), refresh rate and bit depth of the specified
-        monitor. For monitor_id == SLM.WINDOWED (windowed mode SLM), always returns the default window size
-        of (300, 300)"""
+        monitor.
+        For monitor_id == SLM.WINDOWED (windowed mode SLM), always returns the default window size
+        of (300, 300)
+        """
         if monitor_id == SLM.WINDOWED:
             monitor = glfw.get_primary_monitor()
             mode = glfw.get_video_mode(monitor)
@@ -204,11 +206,13 @@ class SLM(Actuator, PhaseSLM):
 
     @staticmethod
     def _init_glfw():
-        ###
-        # initialize the GLFW library and set global configuration. Note that we never de-initialize it. This
-        # should be fine because each slm window releases its resources when it is destroyed. If we were to
-        # de-initialize the GLFW library (using glfw.terminate()) we run into trouble if the user of our library also
-        # uses glfw for something else.
+        """Initializes the GLFW library and sets global configuration.
+
+        Note:
+            We never de-initialize the library. This should be fine because each slm window releases its resources
+            when it is destroyed. If we were to de-initialize the GLFW library (using glfw.terminate()) we run into trouble
+            if the user of our library also uses glfw for something else.
+        """
         glfw.init()
         glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)  # Required on Mac. Doesn't hurt on Windows
         glfw.window_hint(glfw.OPENGL_FORWARD_COMPAT, glfw.TRUE)  # Required on Mac. Useless on Windows
@@ -247,20 +251,16 @@ class SLM(Actuator, PhaseSLM):
 
     @property
     def shape(self) -> tuple[int, int]:
-        """
-        Returns the shape (height x width) of the window in pixels.
+        """Shape (height × width) of the window in pixels.
 
-        Returns:
-            Tuple[int, int]: The shape of the window in pixels.
-
-        Limitations:
+        Limitations :
             - For windowed-mode SLMs, the size cannot be modified.
             - When moving the SLM to a different monitor (see `monitor_id`), the SLM is sized to match the current
-            resolution on that monitor. Note that this value may differ from the value passed as input, because the
-            input value is specified in screen coordinates, whereas the reported width is in pixels.
-            In this case, the original the original value of shape will be lost.
+                resolution on that monitor. Note that this value may differ from the value passed as input, because the
+                input value is specified in screen coordinates, whereas the reported width is in pixels.
+                In this case, the original the original value of shape will be lost.
             - The `transform` property is not updated automatically, so if the aspect ratio changes
-            the transform needs to be set again.
+                the transform needs to be set again.
         """
         return self._shape
 
@@ -275,14 +275,10 @@ class SLM(Actuator, PhaseSLM):
     @property
     def pos(self) -> tuple[int, int]:
         """
-        Returns the position of the top-left corner of the SLM window.
-
-        Returns:
-            Tuple[int, int]: The position of the top-left corner of the SLM window as (y, x) coordinates.
+        The position of the top-left corner of the SLM window as (y, x) coordinates.
 
         Note:
-            The position can be modified by assigning a new tuple of (y, x) coordinates to the `pos` property.
-            When moving the SLM window to a different position, the SLM is activated and the window position is updated.
+            This property is used for windowed SLMs only.
         """
         return self._pos
 
@@ -296,10 +292,7 @@ class SLM(Actuator, PhaseSLM):
     @property
     def refresh_rate(self) -> Quantity[u.Hz]:
         """
-        Returns the refresh rate of the SLM in Hz.
-
-        Returns:
-            Quantity[u.Hz]: The refresh rate of the SLM.
+        Refresh rate of the SLM in Hz (read only).
 
         Note:
             The refresh rate cannot be modified after the SLM is created. When moving
@@ -312,19 +305,19 @@ class SLM(Actuator, PhaseSLM):
 
     @property
     def period(self) -> Quantity[u.ms]:
-        """The period of the refresh rate in milliseconds (u.ms)
-
-        See Also:
-            `refresh_rate`
+        """The period of the refresh rate in milliseconds (read only).
         """
         return (1000 / self._refresh_rate) * u.ms
 
     @property
     def monitor_id(self) -> int:
         """
-        Number of the monitor (1 for primary screen, 2 for secondary screen, etc.) to display a full screen SLM
-        window on. Each monitor can only hold a single full-screen window. Use MONITOR_ID_WINDOWED to show a windowed
-        SLM on the primary screen (for debugging and monitoring purposes). We can have multiple windowed SLMs on the
+        Number of the monitor (1 for primary screen, 2 for secondary screen, etc.) for the SLM SLM.
+
+        Each monitor can only hold a single full-screen window.
+        Use monitor_id=SLM.WINDOWED to show a windowed SLM on the primary screen
+        (for debugging and monitoring purposes).
+        There can be multiple windowed SLMs on the
         primary screen, but there cannot also be a fullscreen SLM on the primary screen at the same time.
 
         `monitor_id` can be modified at run time, in which case the current SLM window is replaced by a new window
@@ -359,12 +352,13 @@ class SLM(Actuator, PhaseSLM):
 
     def update(self):
         """Sends the new phase pattern to be displayed on the SLM.
-        Note:
-            This function waits for the vsync, and returns directly after it.
-            Therefore, it can be used as software synchronization to the SLM.
+
+        This function waits for the vsync, and returns directly after it.
+        Therefore, it can be used as software synchronization to the SLM.
+
         Note:
             This function *does not* wait for the image to appear on the SLM.
-            To wait for the image stabilization explicitly, use 'wait_finished'.
+            To wait for the image stabilization explicitly, use 'wait()'.
             However, this should rarely be needed since all Detectors
             already call wait_finished before starting a measurement.
         """
@@ -396,13 +390,10 @@ class SLM(Actuator, PhaseSLM):
 
     @property
     def latency(self) -> Quantity[u.ms]:
-        """The latency (a.k.a. 'idle time')
-        represents the time delay between the vertical retrace
-        and the start of the SLM response to then new frame.
+        """Latency (a.k.a. 'idle time')
 
-        The latency isspecified in milliseconds (u.ms).
-        Also See:
-            `period`.
+        Tepresents the time delay between the vertical retrace
+        and the start of the SLM response to then new frame.
         """
         return self._latency
 
@@ -412,13 +403,9 @@ class SLM(Actuator, PhaseSLM):
 
     @property
     def duration(self) -> Quantity[u.ms]:
-        """The duration (a.k.a. 'settle time')
-        represents the time between the the start of the SLM response
-         and sufficient stabilization of the phase pattern.
-
-        The latency isspecified in milliseconds (u.ms).
-        Also See:
-            `period`.
+        """Time between the the start of the SLM response
+        and sufficient stabilization of the phase pattern (a.k.a.
+        settle time)
         """
         return self._duration
 

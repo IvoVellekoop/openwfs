@@ -131,7 +131,7 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int, A: Optional[floa
 
     .. math::
 
-        I_p = \lvert A + B \\exp(i 2\pi p / phase_{steps})\\rvert^2,
+        I_p = \\lvert A + B \\exp(i 2\\pi p / phase_{steps})\\rvert^2,
 
     This function computes the Fourier transform.
 
@@ -284,15 +284,6 @@ class WFSController:
     Controller for Wavefront Shaping (WFS) operations using a specified algorithm in the MicroManager environment.
     Manages the state of the wavefront and executes the algorithm to optimize and apply wavefront corrections, while
     exposing all these parameters to MicroManager.
-
-    Attributes:
-        wavefront (State): Current state of the wavefront.
-        recompute_wavefront (bool): Flag to indicate if the wavefront needs to be recomputed.
-        feedback_enhancement (float): Measured feedback enhancement.
-        test_wavefront (bool): Flag indicating if the wavefront is in test mode.
-        snr (float): Average signal-to-noise ratio computed during wavefront optimization.
-        algorithm: The wavefront shaping algorithm instance.
-        _optimized_wavefront (numpy.ndarray): Optimized wavefront data.
     """
 
     class State(Enum):

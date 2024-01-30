@@ -1,5 +1,5 @@
 openwfs.algorithms
-------------
+----------------------
 .. automodule:: openwfs.algorithms
    :members:
    :imported-members:

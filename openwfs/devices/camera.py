@@ -5,35 +5,32 @@ from harvesters.core import Harvester
 import numpy as np
 import astropy.units as u
 
-"""Adapter for GenICam/GenTL cameras"""
-
 
 class Camera(Detector):
-    """
-        Adapter for GenICam/GenTL cameras.
+    """Adapter for GenICam/GenTL cameras.
 
-        Attributes:
-            _nodes: The GenICam node map of the camera.
-                This map can be used to access camera properties,
-                see the `GenICam/GenAPI documentation <https://www.emva.org/standards-technology/genicam/>`_
-                and the `Standard Features
-Naming Convention <https://www.emva.org/wp-content/uploads/GenICam_SFNC_2_3.pdf>` for more details.
+    Attributes:
+        _nodes: The GenICam node map of the camera.
+            This map can be used to access camera properties,
+            see the `GenICam/GenAPI documentation <https://www.emva.org/standards-technology/genicam/>`_
+            and the `Standard Features Naming Convention
+            <https://www.emva.org/wp-content/uploads/GenICam_SFNC_2_3.pdf>` for more details.
 
-                The node map should not be used to set properties that are available as properties in the Camera object,
-                such as `duration` (exposure time), `width`, `height`, `binning`, etc.
+            The node map should not be used to set properties that are available as properties in the Camera object,
+            such as `duration` (exposure time), `width`, `height`, `binning`, etc.
 
-                Also, the node map should not be used to set properties while the camera is fetching a frame (i.e.,
-                between `trigger()` and calling `result()` on the returned concurrent.futures.Future obect.
+            Also, the node map should not be used to set properties while the camera is fetching a frame (i.e.,
+            between `trigger()` and calling `result()` on the returned concurrent.futures.Future obect.
 
-        Note:
-            This class is a thin wrapper around the Harvesters module,
-            which is a generic adapter for GenICam/GenTL cameras.
+    Note:
+        This class is a thin wrapper around the Harvesters module,
+        which is a generic adapter for GenICam/GenTL cameras.
 
-        Example:
-            camera = Camera(serial_number='12345678')
-            camera.start()
-            frame = camera.capture_frame()
-            camera.stop()'
+    Example:
+        >>> camera = Camera(serial_number='12345678')
+        >>> camera.start()
+        >>> frame = camera.capture_frame()
+        >>> camera.stop()'
         """
 
     def __init__(self, cti_file: str, serial_number: Optional[str] = None, **kwargs):
@@ -44,7 +41,7 @@ Naming Convention <https://www.emva.org/wp-content/uploads/GenICam_SFNC_2_3.pdf>
                 cti_file: The path to the GenTL producer file.
                     This path depends on where the driver for the camera is installed.
                     For Basler cameras, this is typically located in
-                    R"C:\Program Files\Basler\pylon 7\Runtime\x64\ProducerU3V.cti".
+                    R"C:\\Program Files\\Basler\\pylon 7\\Runtime\\x64\\ProducerU3V.cti".
 
                 serial_number: The serial number of the camera.
                     When omitted, the first camera found is selected.
@@ -118,9 +115,10 @@ Naming Convention <https://www.emva.org/wp-content/uploads/GenICam_SFNC_2_3.pdf>
 
     def paused(self):
         """Returns a context manager for pausing the camera.
-        Usage:
-            with camera.paused():
-                camera.nodes.SomeNode.value = 10
+
+        Usage ::
+            >>> with camera.paused():
+            >>>     camera.nodes.SomeNode.value = 10
         """
         return _CameraPause(self._camera)
 
@@ -155,8 +153,8 @@ Naming Convention <https://www.emva.org/wp-content/uploads/GenICam_SFNC_2_3.pdf>
 
     @property
     def binning(self) -> int:
-        """
-        Pixel binning factor
+        """Pixel binning factor
+
         Note:
             setting horizontal and vertical binning separately is not supported.
         """

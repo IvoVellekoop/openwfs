@@ -9,12 +9,13 @@ from .shaders import default_vertex_shader, default_fragment_shader, \
     post_process_fragment_shader, post_process_vertex_shader
 from .texture import Texture
 from ..core import PhaseSLM
+from .. import slm
 
 
 class Patch(PhaseSLM):
     _PHASES_TEXTURE = 0  # indices of the phases texture in the _texture array
 
-    def __init__(self, slm: 'SLM', geometry=None, vertex_shader=default_vertex_shader,
+    def __init__(self, parent: 'slm.SLM', geometry=None, vertex_shader=default_vertex_shader,
                  fragment_shader=default_fragment_shader):
         """
         Constructs a new patch (a shape) that can be drawn on the screen.
@@ -27,17 +28,17 @@ class Patch(PhaseSLM):
           - an existing Geometry object. It is possible to attach the same Geometry object to multiple patches.
             Note, however, that Geometry objects cannot be shared between different SLMs.
         """
-        slm.activate()  # make sure the opengl operations occur in the context of the specified slm window
+        parent.activate()  # make sure the opengl operations occur in the context of the specified slm window
         self._vertices = None
         self._indices = None
         self._index_count = 0
-        self._slm_window = weakref.ref(slm)  # keep weak reference to parent, to avoid cyclic references
+        self._parent = weakref.ref(parent)  # keep weak reference to parent, to avoid cyclic references
 
         # construct vertex shader, fragment shader and program
         vs = shaders.compileShader(vertex_shader, GL_VERTEX_SHADER)
         fs = shaders.compileShader(fragment_shader, GL_FRAGMENT_SHADER)
         self._program = shaders.compileProgram(vs, fs)
-        self._textures = [Texture(slm)]
+        self._textures = [Texture(parent)]
         self.additive_blend = True
         self.enabled = True
         self.geometry = rectangle(2.0) if geometry is None else geometry
@@ -80,14 +81,14 @@ class Patch(PhaseSLM):
         """
         self._textures[Patch._PHASES_TEXTURE].set_data(values)
         if update:
-            self._slm_window().update()
+            self._parent().update()
 
     def update(self):
-        self._slm_window().update()
+        self._parent().update()
 
     def _delete_buffers(self):
-        if self._slm_window() is not None and self._vertices is not None:
-            self._slm_window().activate()
+        if self._parent() is not None and self._vertices is not None:
+            self._parent().activate()
             glDeleteBuffers(2, [self._vertices, self._indices])
 
     @property
@@ -104,7 +105,7 @@ class Patch(PhaseSLM):
             raise ValueError("Geometry should be a Geometry object")
 
         # store the data on the GPU
-        self._slm_window().activate()
+        self._parent().activate()
         self._geometry = value
         (self._vertices, self._indices) = glGenBuffers(2)
         self._index_count = value.indices.size
@@ -144,8 +145,8 @@ class FrameBufferPatch(Patch):
         self.additive_blend = False
 
     def __del__(self):
-        if self._slm_window() is not None and hasattr(self, 'frame_buffer'):
-            self._slm_window().activate()
+        if self._parent() is not None and hasattr(self, 'frame_buffer'):
+            self._parent().activate()
             glDeleteFramebuffers(1, [self._frame_buffer])
 
     @property

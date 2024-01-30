@@ -1,10 +1,12 @@
-openwfs
+API Reference
 ==============
-.. automodule:: openwfs
-   :members:
-   :imported-members:
-   :undoc-members:
-   :show-inheritance:
+.. toctree::
+   :maxdepth: 2
 
+   core
+   algorithms
+   devices
+   simulation
+   slm
 
 

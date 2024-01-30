@@ -18,6 +18,7 @@ copyright = '2023-, Ivo Vellekoop and Jeroen Doornbos'
 author = 'Ivo Vellekoop and Jeroen Doornbos'
 release = '0.1.0a'
 add_module_names = False
+autodoc_preserve_defaults = True
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -27,6 +28,12 @@ extensions = ['sphinx.ext.napoleon', 'sphinx.ext.autodoc', 'sphinx_mdinclude', '
 
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+napoleon_use_rtype = False  # True
+
+# autodoc_typehints = "none"
+typehints_use_signature = True
+typehints_use_rtype = False
+typehints_document_rtype = False
 
 # source_suffix = {
 #     '.rst': 'restructuredtext',

@@ -397,7 +397,9 @@ class ScanningMicroscope(Detector):
 
         Increasing the binning reduces the number of pixels in the image while keeping dwell time the same.
         As a result, the total duration of a scan decreases.
-        Note: this behavior is different from that of a real camera.
+
+        Note:
+            This behavior is different from that of a real camera.
             No actual binning is performed, the scanner just takes fewer steps in x and y
 
         Note: the ROI is kept the same as much as possible.

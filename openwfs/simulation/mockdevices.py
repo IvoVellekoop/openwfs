@@ -170,15 +170,6 @@ class ADCProcessor(Processor):
     """Mimics an analog-digital converter.
 
     At the moment, only positive input and output values are supported.
-
-    Attributes:
-        analog_max(float or None): maximum value that the ADC can handle as input,
-            this value and all higher values are converted to `digital_max`.
-            When set to 0.0, the input signal is scaled automatically so that the maximum corresponds to
-            `digital_max`
-        digital_max(int): maximum value that the ADC can output.
-            Default value is 0xFFFF (16 bits)
-        shot_noise(bool): when True, apply Poisson noise to the data instead of rounding
     """
 
     def __init__(self, source: Detector, analog_max: float = 0.0, digital_max: int = 0xFFFF,
@@ -243,7 +234,13 @@ class ADCProcessor(Processor):
         return out
 
     @property
-    def analog_max(self) -> float:
+    def analog_max(self) -> Optional[float]:
+        """Maximum value that the ADC can handle as input
+
+        This value and all higher values are converted to `digital_max`.
+        When set to 0.0, the input signal is scaled automatically so that the maximum corresponds to
+        `digital_max`
+        """
         return self._analog_max
 
     @analog_max.setter
@@ -254,6 +251,10 @@ class ADCProcessor(Processor):
 
     @property
     def digital_max(self) -> int:
+        """Maximum value that the ADC can output.
+
+        Default value is 0xFFFF (16 bits)
+        """
         return self._digital_max
 
     @digital_max.setter
@@ -264,6 +265,7 @@ class ADCProcessor(Processor):
 
     @property
     def shot_noise(self) -> bool:
+        """when True, apply Poisson noise to the data instead of rounding"""
         return self._shot_noise
 
     @shot_noise.setter
@@ -404,9 +406,6 @@ class MockXYStage(Actuator):
 class MockSLM(PhaseSLM, Actuator):
     """
     A mock version of a phase-only spatial light modulator.
-
-    Attributes:
-        phases (np.ndarray): Current phase pattern on the SLM.
     """
 
     def __init__(self, shape):
@@ -437,7 +436,8 @@ class MockSLM(PhaseSLM, Actuator):
             self.update()
 
     @property
-    def phases(self):
+    def phases(self) -> np.ndarray:
+        """Current phase pattern on the SLM."""
         return self._monitor.data
 
     def pixels(self) -> Detector:

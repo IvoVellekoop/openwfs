@@ -1,5 +1,5 @@
 openwfs.simulation
-------------
+----------------------
 .. automodule:: openwfs.simulation
    :members:
    :imported-members:
