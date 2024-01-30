@@ -12,3 +12,4 @@ nidaqmx>=0.8.0
 harvesters~=1.4.2
 
 pytest~=7.0.0
+twine>=3.4.2
