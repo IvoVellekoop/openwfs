@@ -9,7 +9,7 @@ import os
 import sys
 
 sys.path.append(os.path.abspath('myst_parser'))
-sys.path.insert(0, os.path.abspath('../openwfs'))
+sys.path.insert(0, os.path.abspath('../../openwfs'))
 p = os.path.dirname(os.path.dirname(__file__))
 sys.path.append(p)
 

@@ -45,7 +45,7 @@ class SLM(Actuator, PhaseSLM):
         patches (List[Patch]): List of patches that are drawn on the SLM.
 
     """
-    __slots__ = ['_vertex_array', '_frame_buffer', '_monitor_id', '_pos', '_latency', '_duration', '_refresh_rate',
+    __slots__ = ['_vertex_array', '_frame_buffer', '_monitor_id', '_position', '_latency', '_duration', '_refresh_rate',
                  '_transform', '_shape', '_window', '_globals', '_frame_buffer', 'patches', 'primary_patch',
                  '_coordinate_system']
 
@@ -93,7 +93,7 @@ class SLM(Actuator, PhaseSLM):
         SLM._init_glfw()
         self._assert_window_available(monitor_id)
         self._monitor_id = monitor_id
-        self._pos = pos
+        self._position = pos
         (default_shape, default_rate, _) = SLM._current_mode(monitor_id)
         self._shape = default_shape if shape is None else shape
         self._refresh_rate = default_rate if refresh_rate is None else refresh_rate.to_value(u.Hz)
@@ -242,7 +242,7 @@ class SLM(Actuator, PhaseSLM):
         if monitor:  # full screen mode
             glfw.set_gamma(monitor, 1.0)
         else:  # windowed mode
-            glfw.set_window_pos(self._window, self._pos[1], self._pos[0])
+            glfw.set_window_pos(self._window, self._position[1], self._position[0])
 
         self.activate()  # Before calling any OpenGL function on the window, the context must be activated.
         self._globals = glGenBuffers(1)  # create buffer for storing globals
@@ -273,21 +273,21 @@ class SLM(Actuator, PhaseSLM):
             self._on_resize()
 
     @property
-    def pos(self) -> tuple[int, int]:
+    def position(self) -> tuple[int, int]:
         """
-        The position of the top-left corner of the SLM window as (y, x) coordinates.
+        The position of the top-left corner of the SLM window as (y, x) screen coordinates.
 
         Note:
-            This property is used for windowed SLMs only.
+            This property is ignored for full-screen SLMs.
         """
-        return self._pos
+        return self._position
 
-    @pos.setter
-    def pos(self, value: tuple[int, int]):
-        if self.monitor_id == SLM.WINDOWED and self._pos != value:
+    @position.setter
+    def position(self, value: tuple[int, int]):
+        if self.monitor_id == SLM.WINDOWED and self._position != value:
             self.activate()
             glfw.set_window_pos(self._window, value[1], value[0])
-            self._pos = value
+            self._position = value
 
     @property
     def refresh_rate(self) -> Quantity[u.Hz]:
@@ -336,7 +336,8 @@ class SLM(Actuator, PhaseSLM):
         monitor = glfw.get_monitors()[value - 1] if value != SLM.WINDOWED else None
 
         # move window to new monitor
-        glfw.set_window_monitor(self._window, monitor, self._pos[1], self._pos[0], self._shape[1], self._shape[0],
+        glfw.set_window_monitor(self._window, monitor, self._position[1], self._position[0], self._shape[1],
+                                self._shape[0],
                                 int(self._refresh_rate))
         self._on_resize()
 

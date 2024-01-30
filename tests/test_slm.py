@@ -28,7 +28,7 @@ def test_create_windowed(slm):
 
     # check if size and position match the specification
     assert slm.shape == (100, 200)
-    assert slm.pos == (20, 10)
+    assert slm.position == (20, 10)
     assert slm.transform == Transform.identity()
     assert slm.coordinate_system == 'full'
 
@@ -40,8 +40,8 @@ def test_create_windowed(slm):
     assert int(slm.refresh_rate.to_value(u.Hz)) != glfw.DONT_CARE
 
     # move window (we cannot really check this, but we just check if no error occurs)
-    slm.pos = (2, 1)
-    assert slm.pos == (2, 1)
+    slm.position = (2, 1)
+    assert slm.position == (2, 1)
 
     # we should be able to construct a second windowed SLM
     _slm2 = SLM(0)
