@@ -3,7 +3,7 @@ import threading
 import time
 from abc import ABC, abstractmethod
 from concurrent.futures import Future, ThreadPoolExecutor
-from typing import Set, final, Tuple, Optional
+from typing import Set, final, Tuple, Optional, Union
 from weakref import WeakSet
 
 import astropy.units as u
@@ -487,20 +487,16 @@ class Detector(Device, ABC):
     @property
     @abstractmethod
     def data_shape(self) -> Tuple[int, ...]:
-        """Returns a tuple corresponding to the shape of the returned data array.
+        """The shape of the data array that `read()` will return.
 
-        Must be implemented by the child class.
-        Note:
-            This value matches the `shape` property of the array returned when calling `trigger` followed by `read`.
-            The property may change, for example, when the ROI of a camera is changed.
-            In any case, the value of `data_shape`
-            just before calling `trigger` must match the size of the data returned by the corresponding `result` call.
+        For some detectors this property may be mutable, for example, for a camera it
+        represents the height and width of the ROI, which can be changed.
         """
         ...
 
     @property
     def pixel_size(self) -> Optional[Quantity]:
-        """Dimension of one element in the returned data array.
+        """Physical dimension of one element in the returned data array.
 
         For cameras, this is the pixel size (in astropy length units).
         For detectors returning a time trace, this value is specified in astropy time units.
@@ -515,12 +511,12 @@ class Detector(Device, ABC):
 
     @final
     def coordinates(self, dim: int) -> Quantity:
-        """Coordinate values along the d-th axis.
+        """Returns an array with the coordinate values along the d-th axis.
 
-        The coordinates represent the center of the pixels (or sample intervals),
-        so they range from 0.5*pixel_size to (data_shape[d]-0.5) * pixel_size.
+        The coordinates represent the center of the pixels (or sample intervals
+        in case the detector returns a time signal).
+        Therefore, the coordinates range from `0.5 * pixel_size` to `(data_shape[d]-0.5) * pixel_size`.
         Coordinates have the same astropy base unit as pixel_size.
-
         The coordinates are returned as an array with the same number of dimensions as the returned data,
         with the d-th dimension holding the coordinates.
         This faclilitates meshgrid-like computations, e.g.
@@ -528,9 +524,6 @@ class Detector(Device, ABC):
 
         Args:
             dim: Dimension for which to return the coordinates.
-
-        Returns:
-            Quantity: An array holding the coordinates.
         """
         unit = u.dimensionless_unscaled if self.pixel_size is None else self.pixel_size[dim]
         c = np.arange(0.5, 0.5 + self.data_shape[dim], 1.0) * unit
@@ -541,26 +534,27 @@ class Detector(Device, ABC):
     @final
     @property
     def extent(self) -> Quantity:
-        """Returns the physical size of the data: data_shape * pixel_size.
+        """Physical size of the data array
 
-        Note:
-            The value is returned as a numpy array with astropy unit rather than as a tuple to allow easy manipulation.
-            If `self.pixel_size is None`, just returns `self.data_shape`.
+        If a `pixel_size` is set, this function returns `data_shape * pixel_size`
+        as an `astropy.units.Quantity`.
+        If no `pixel_size` is set, this function uses  the
+        `dimensionless_unscaled` unit.
         """
-        return self.data_shape * self.pixel_size if self.pixel_size is not None else self.data_shape
+        unit = u.dimensionless_unscaled if self.pixel_size is None else self.pixel_size.unit
+        return self.data_shape * unit
 
 
 class Processor(Detector, ABC):
-    """Helper base class for chaining Detectors.
+    """Base class for all Processors.
 
     Processors can be used to build data processing graphs, where each Processor takes input from one or
     more input Detectors and processes that data (e.g., cropping an image, averaging over an ROI, etc.).
     A processor, itself, is a Detector to allow chaining multiple processors together to combine functionality.
 
-    To implement a processor, implement _fetch, and optionally override data_shape, pixel_size, and __init__.
-
+    To implement a processor, implement `_fetch`, and optionally override `data_shape`, `pixel_size`, and `__init__`.
     The `latency` and `duration` properties are computed from the latency and duration of the inputs and cannot be set.
-    By default, the `pixel_size` and `data_shape` are the same as the pixel_size and data_shape of the first input.
+    By default, the `pixel_size` and `data_shape` are the same as the `pixel_size` and `data_shape` of the first input.
     To override this behavior, override the `pixel_size` and `data_shape` properties.
     """
 
@@ -625,13 +619,13 @@ class PhaseSLM(ABC):
         """
 
     @abstractmethod
-    def set_phases(self, values: ArrayLike, update=True) -> None:
+    def set_phases(self, values: ArrayLike, update: bool = True) -> None:
         """Sets the phase pattern on the SLM.
 
         Args:
             values(ArrayLike): phase pattern, in radians.
                 The pattern is automatically stretched to fill the full SLM.
-            update(bool): when True, calls `update` after setting the phase pattern.
+            update: when True, calls `update` after setting the phase pattern.
                 Set to `False` to suppress the call to `update`.
                 This is useful in advanced scenarios where multiple parameters of the SLM need to be changed
                 before updating the displayed image.

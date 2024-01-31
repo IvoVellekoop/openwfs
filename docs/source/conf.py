@@ -28,12 +28,21 @@ extensions = ['sphinx.ext.napoleon', 'sphinx.ext.autodoc', 'sphinx_mdinclude', '
 
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
-napoleon_use_rtype = False  # True
-
-# autodoc_typehints = "none"
-typehints_use_signature = True
-typehints_use_rtype = False
+napoleon_use_rtype = False
+napoleon_use_param = True
 typehints_document_rtype = False
+
+
+## Hide some classes that are not production ready yet
+def skip(app, what, name, obj, skip, options):
+    if name in ("WFSController", "Gain"):
+        return True
+    return skip
+
+
+def setup(app: Sphinx):
+    app.connect("autodoc-skip-member", skip)
+
 
 # source_suffix = {
 #     '.rst': 'restructuredtext',
@@ -43,4 +52,4 @@ typehints_document_rtype = False
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = 'furo'
+html_theme = 'sphinx_rtd_theme'

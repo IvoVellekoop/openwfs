@@ -42,19 +42,16 @@ class ScanningMicroscope(Detector):
     Note: the padding affects the physical size of the ROI, and hence the pixel_size
     The padding does not affect the number of pixels (`data_shape`) in the returned image.
 
-    Properties:
-        left (int): The leftmost pixel of the Region of Interest (ROI) in the scan range.
-        top (int): The topmost pixel of the ROI in the scan range.
-        height (int): The number of pixels in the vertical dimension of the ROI.
-        width (int): The number of pixels in the horizontal dimension of the ROI.
-        dwell_time (Quantity[u.us]): The time spent on each pixel during scanning.
-        duration (Quantity[u.ms]): Total duration of scanning for one frame.
-        delay (Quantity[u.us]): Delay between the control signal to the mirrors and the start of data acquisition.
-        binning (int): Factor by which the resolution is reduced; lower binning increases resolution.
-        padding (float): Fraction of the scan range at the edges to discard to reduce edge artifacts.
-        bidirectional (bool): Whether scanning is bidirectional along the fast axis.
-        zoom (float): Used to zoom in at the center of the ROI.
-
+    Example:
+        >>> scanner = ScanningMicroscope(
+                                bidirectional=True,
+                                sample_rate=0.5 * u.MHz,
+                                axis0=('Dev4/ao0', -2.0 * u.V, 2.0 * u.V),
+                                axis1=('Dev4/ao1', -2.0 * u.V, 2.0 * u.V),
+                                input=('Dev4/ai0', -1.0 * u.V, 1.0 * u.V),
+                                data_shape=(1000, 1000),
+                                scale=440 * u.um / u.V)
+        >>> frame = scanner.read()
     """
 
     # LaserScanner(input=("ai/8", -1.0 * u.V, 1.0 * u.V))
@@ -67,6 +64,7 @@ class ScanningMicroscope(Detector):
                  sample_rate: Quantity[u.Hz],
                  delay: float = 0.0,
                  padding: float = 0.05,
+                 binning: int = 1,
                  bidirectional: bool = True,
                  simulation: Optional[str] = None):
         """
@@ -117,7 +115,7 @@ class ScanningMicroscope(Detector):
         self._roi_end = v_width * (1.0 - self._padding)  # ROI end position relative to origin
 
         self._resized = True  # indicate that the output signals need to be recomputed
-        self._binning = 1
+        self._binning = binning
         self._original_data_shape = data_shape
         self._data_shape = data_shape
 
