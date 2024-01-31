@@ -9,8 +9,10 @@ import os
 import sys
 
 # sys.path.append(os.path.abspath('myst_parser'))
-sys.path.append(os.path.abspath('../../../openwfs/'))
-sys.path.append(os.path.dirname(__file__))
+docs_source_dir = os.path.dirname(__file__)
+root_dir = os.path.dirname(os.path.dirname(docs_source_dir))
+sys.path.append(docs_source_dir)
+sys.path.append(root_dir)
 print(sys.path)
 
 project = 'OpenWFS'
