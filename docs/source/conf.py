@@ -8,10 +8,9 @@
 import os
 import sys
 
-sys.path.append(os.path.abspath('myst_parser'))
-sys.path.insert(0, os.path.abspath('../../openwfs'))
-p = os.path.dirname(os.path.dirname(__file__))
-sys.path.append(p)
+# sys.path.append(os.path.abspath('myst_parser'))
+# sys.path.insert(0, os.path.abspath('../../openwfs'))
+sys.path.append(os.path.dirname(__file__))
 
 project = 'OpenWFS'
 copyright = '2023-, Ivo Vellekoop and Jeroen Doornbos'
@@ -31,6 +30,9 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 napoleon_use_rtype = False
 napoleon_use_param = True
 typehints_document_rtype = False
+
+
+# nitpicky = True
 
 
 ## Hide some classes that are not production ready yet

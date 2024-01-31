@@ -2,7 +2,7 @@ import numpy as np
 import cv2
 from typing import Sequence, Optional, Union
 from .core import Processor, Detector
-from .slm.patterns import disk, gaussian
+from utilities.patterns import disk, gaussian
 from .utilities import project
 from enum import Enum
 from astropy.units import Quantity

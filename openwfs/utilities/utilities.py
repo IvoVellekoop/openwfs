@@ -1,7 +1,6 @@
 from astropy import units as u
 from astropy.units import Quantity
 from numpy.typing import ArrayLike
-
 from typing import Union, Sequence, Optional
 import numpy as np
 import cv2

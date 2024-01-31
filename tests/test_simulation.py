@@ -1,12 +1,11 @@
 import logging  # noqa
-from ..openwfs.plot_utilities import imshow
 import pytest
 import numpy as np
 from ..openwfs.algorithms import StepwiseSequential
 from ..openwfs.processors import SingleRoi
 from ..openwfs.simulation import Microscope, MockCamera, MockSource, MockSLM
 import skimage
-from ..openwfs.slm.patterns import tilt
+from utilities.patterns import tilt
 import astropy.units as u
 
 

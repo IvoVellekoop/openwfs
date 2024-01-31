@@ -6,7 +6,10 @@ API Reference
    core
    algorithms
    devices
+   processors
    simulation
    slm
+   utilities
+
 
 

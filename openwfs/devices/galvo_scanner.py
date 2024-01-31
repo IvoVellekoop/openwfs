@@ -4,7 +4,7 @@ import nidaqmx.system
 import numpy as np
 from astropy.units import Quantity
 from ..core import Detector
-from ..slm.patterns import coordinate_range
+from utilities.patterns import coordinate_range
 import nidaqmx as ni
 from nidaqmx.constants import TaskMode
 

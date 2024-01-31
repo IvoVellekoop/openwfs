@@ -1,7 +1,7 @@
 import numpy as np
 from ..core import Detector, PhaseSLM
 from .utilities import analyze_phase_stepping, WFSResult
-from ..slm.patterns import tilt
+from utilities.patterns import tilt
 
 
 class FourierBase:

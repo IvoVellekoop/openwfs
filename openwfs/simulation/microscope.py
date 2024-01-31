@@ -4,7 +4,7 @@ from astropy.units import Quantity
 from scipy.signal import fftconvolve
 from typing import Optional
 from ..simulation.mockdevices import MockXYStage, MockCamera
-from ..slm import patterns
+from utilities import patterns
 from ..core import Processor, Detector
 from ..utilities import project, place, Transform, set_pixel_size, get_pixel_size
 from ..processors import TransformProcessor
