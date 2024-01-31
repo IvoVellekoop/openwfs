@@ -12,8 +12,6 @@ import sys
 sys.path.append(os.path.abspath('../../../openwfs/'))
 sys.path.append(os.path.dirname(__file__))
 print(sys.path)
-import openwfs
-from openwfs import utilities, processors, simulation, devices
 
 project = 'OpenWFS'
 copyright = '2023-, Ivo Vellekoop and Jeroen Doornbos'
