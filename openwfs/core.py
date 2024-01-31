@@ -317,7 +317,7 @@ class Device(ABC):
 
     @property
     def timeout(self) -> Quantity[u.ms]:
-        """timeout (Quantity[u.ms]): time after which a timeout error is raised when waiting for the device.
+        """Time after which a timeout error is raised when waiting for the device.
 
         The timeout is automatically adjusted if the `duration` changes.
         The default value is `duration + 5 s`."""
@@ -541,8 +541,8 @@ class Detector(Device, ABC):
         If no `pixel_size` is set, this function uses  the
         `dimensionless_unscaled` unit.
         """
-        unit = u.dimensionless_unscaled if self.pixel_size is None else self.pixel_size.unit
-        return self.data_shape * unit
+        unit = u.dimensionless_unscaled if self.pixel_size is None else self.pixel_size
+        return np.array(self.data_shape) * unit
 
 
 class Processor(Detector, ABC):
