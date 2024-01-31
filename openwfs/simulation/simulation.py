@@ -1,6 +1,6 @@
 import numpy as np
 from typing import Optional
-from utilities.patterns import gaussian
+from ..utilities.patterns import gaussian
 from .mockdevices import MockSLM, Processor
 
 

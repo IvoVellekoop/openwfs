@@ -1,6 +1,6 @@
-openwfs.patterns
+openwfs.utilities
 ----------------------
-.. automodule:: openwfs.patterns
+.. automodule:: openwfs.utilities
    :members:
    :imported-members:
    :undoc-members:

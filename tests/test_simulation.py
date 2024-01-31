@@ -4,8 +4,8 @@ import numpy as np
 from ..openwfs.algorithms import StepwiseSequential
 from ..openwfs.processors import SingleRoi
 from ..openwfs.simulation import Microscope, MockCamera, MockSource, MockSLM
+from ..openwfs.utilities.patterns import tilt
 import skimage
-from utilities.patterns import tilt
 import astropy.units as u
 
 

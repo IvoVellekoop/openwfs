@@ -2,7 +2,7 @@ import numpy as np
 import time
 import set_path  # noqa - needed for setting the module search path to find openwfs
 from openwfs.slm import SLM, Patch, geometry
-from utilities import patterns
+from openwfs.utilities import patterns
 from skimage import data
 import astropy.units as u
 
