@@ -1,0 +1,36 @@
+[tool.poetry]
+name = "openwfs"
+version = "0.1.0a1"
+description = 'A libary for performing wavefront shaping experiments and simulations'
+authors = ["Ivo Vellekoop <i.m.vellekoop@utwente.nl>", "Jeroen Doornbos"]
+license = "BSD-3-Clause"
+readme = "README.rst"
+repository = "https://github.com/ivovellekoop/openwfs"
+documentation = "https://openwfs.readthedocs.io/en/latest/"
+classifiers = [
+    'Programming Language :: Python :: 3',
+    'Development Status :: 3 - Alpha',
+    'License :: OSI Approved :: BSD License',
+    'Operating System :: OS Independent',
+]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+numpy = ">=1.25.2"
+astropy = ">=5.3.4"
+glfw = ">=2.5.9"
+opencv-python = ">=4.9.0.80"
+matplotlib = ">=3.7.3"
+scipy = ">=1.11.3"
+scikit-image = ">=0.21.0"
+Pillow = ">=10.0.1"
+PyOpenGL = ">=3.1.7"
+nidaqmx = ">=0.8.0"
+harvesters = "~1.4.2"
+
+[tool.poetry.dev-dependencies]
+pytest = "~7.0.0"

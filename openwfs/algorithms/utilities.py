@@ -5,7 +5,7 @@ from typing import Optional
 
 import numpy as np
 from numpy.typing import ArrayLike
-from typing import Union
+from typing import Union, Optional
 import time
 
 from ..core import Detector
@@ -290,7 +290,7 @@ class WFSController:
         FLAT_WAVEFRONT = 0
         SHAPED_WAVEFRONT = 1
 
-    def __init__(self, algorithm, source: Detector | None = None):
+    def __init__(self, algorithm, source: Optional[Detector] = None):
         """
         Args:
             algorithm: An instance of a wavefront shaping algorithm.

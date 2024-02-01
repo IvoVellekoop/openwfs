@@ -18,7 +18,7 @@ print(sys.path)
 project = 'OpenWFS'
 copyright = '2023-, Ivo Vellekoop and Jeroen Doornbos'
 author = 'Ivo Vellekoop and Jeroen Doornbos'
-release = '0.1.0a'
+release = '0.1.0a1'
 add_module_names = False
 autodoc_preserve_defaults = True
 

@@ -14,3 +14,4 @@ x64
 *.gif
 dist
 *.egg-info
+/poetry.lock
