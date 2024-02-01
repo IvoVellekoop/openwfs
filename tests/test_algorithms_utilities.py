@@ -101,7 +101,7 @@ def test_frame_correlation():
     """
     Test the frame correlation, i.e. g_2 normalized second order correlation function.
     Test the following:
-        g_2 correlation with self (distribution from random.rand) == 1/3
+        g_2 correlation with self == 1/3 for distribution from random.rand
         g_2 correlation with other == 0
     """
     a = np.random.rand(1000000)

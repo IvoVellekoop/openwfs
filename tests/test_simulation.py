@@ -155,3 +155,38 @@ def test_microscope_wavefront_shaping(caplog):
 
     # test if the modes differ. The error causes them not to differ
     assert np.std(t[:][1:]) > 0
+
+
+def phase_response_test_function(phi, b, gamma):
+    """Compute actual phase from intended phase with the equation 2π*(b + (phi/2π)^gamma)"""
+    return 2*np.pi * (b + (phi/(2*np.pi))**gamma)
+
+
+def inverse_phase_response_test_function(f, b, gamma):
+    """
+    Compute the input phase for the requested actual phase.
+    Inverse of the equation 2π*(b + (phi/2π)^gamma)
+    """
+    return 2*np.pi * np.log(f/(2*np.pi) - b) / np.log(gamma)
+
+
+def test_mock_slm_lut_and_phase_response():
+    """
+    Test the lookup table and phase response of the MockSLM.
+    """
+    # For default settings, test lookup table and phase response. Includes edge cases.
+    input_phases_a = np.asarray((-1, -0.501, -0.499, 0, 1, 64, 128, 192, 255, 255.499, 255.501, 256, 257, 511, 512)) * 2*np.pi/256
+    expected_output_phases_a = np.asarray((255, 255, 0, 0, 1, 64, 128, 192, 255, 255, 0, 0, 1, 255, 0)) * 2*np.pi/256
+    slm1 = MockSLM(shape=(3, input_phases_a.shape[0]))
+    slm1.set_phases(input_phases_a)
+    assert np.all(np.abs(slm1.phases - expected_output_phases_a) < 1e6)
+
+    # Test if custom phase response of SLM is indeed the given phase response
+    b = -0.02
+    gamma = 1.6
+    linear_phase = np.arange(0, 2*np.pi, 2*np.pi/256)
+    expected_output_phases_b = np.mod(phase_response_test_function(linear_phase, b, gamma), 2 * np.pi)
+    slm2 = MockSLM(shape=(3, 256))
+    slm2.phase_response = phase_response_test_function(linear_phase, b, gamma)
+    slm2.set_phases(linear_phase)
+    assert np.all(np.abs(slm2.phases - expected_output_phases_b) < 1e-6)
