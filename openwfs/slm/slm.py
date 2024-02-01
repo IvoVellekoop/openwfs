@@ -1,13 +1,17 @@
-from OpenGL.GL import *
 import numpy as np
+from numpy.typing import ArrayLike
 import glfw
 import warnings
-import astropy.units as u
-from numpy.typing import ArrayLike
 from typing import Union, Optional, Sequence, List
 from astropy.units import Quantity
-from .patch import FrameBufferPatch, Patch, VertexArray
 from weakref import WeakSet
+import astropy.units as u
+
+try:
+    from OpenGL.GL import *
+except AttributeError:
+    warnings.warn("OpenGL not found, SLM will not work")
+from .patch import FrameBufferPatch, Patch, VertexArray
 from ..core import PhaseSLM, Actuator
 from ..utilities import Transform
 
@@ -344,7 +348,7 @@ class SLM(Actuator, PhaseSLM):
     def __del__(self):
         if self._window is not None:
             self.activate()
-            self.patches.clear()
+            # self.patches.clear()
             glfw.destroy_window(self._window)
 
     def activate(self):

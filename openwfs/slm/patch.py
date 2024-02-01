@@ -1,9 +1,14 @@
 import numpy as np
-import weakref
 from numpy.typing import ArrayLike
 from typing import Sequence
-from OpenGL.GL import *
-from OpenGL.GL import shaders
+import weakref
+import warnings
+
+try:
+    from OpenGL.GL import *
+    from OpenGL.GL import shaders
+except AttributeError:
+    warnings.warn("OpenGL not found, SLM will not work")
 from .geometry import rectangle, Geometry
 from .shaders import default_vertex_shader, default_fragment_shader, \
     post_process_fragment_shader, post_process_vertex_shader
