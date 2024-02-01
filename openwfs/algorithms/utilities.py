@@ -190,6 +190,16 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int, A: Optional[floa
                      non_linearity=non_linearity, n=n)
 
 
+class WFSTroubleshootResult:
+    """
+    Data structure for holding wavefront shaping results, statistics, and additional troubleshooting information.
+    """
+    def __init__(self):
+        self.fidelity_non_modulated = None
+        self.fidelity_phase_calibration = None
+        self.fidelity_phase_jitter = None
+
+
 def signal_std(signal_with_noise: np.ndarray, noise: np.ndarray) -> float:
     """
     Compute noise corrected standard deviation of signal measurement.
@@ -268,15 +278,34 @@ def find_pixel_shift(f: np.ndarray, g: np.ndarray) -> tuple[np.intp, ...]:
     return pix_shift
 
 
-def frame_correlation(f: np.ndarray, g: np.ndarray) -> float:
+def field_correlation(A: np.ndarray, B: np.ndarray) -> float:
     """
-    Compute frame correlation, i.e. inner product of two frames, normalized by product of the L2 norms,
-    such that frame_correlation(f, s*f) == 1, where s is a scalar value.
+    Compute field correlation, i.e. inner product of two fields, normalized by the product of the L2 norms,
+    such that field_correlation(f, s*f) == 1, where s is a scalar value.
+    Also known as normalized first order correlation :math:`g_1`.
 
     Args:
-        f, g    Frames (or other arrays) to be correlated.
+        A, B    Real or complex fields (or other arrays) to be correlated.
+                A and B must have the same shape.
     """
-    return np.vdot(f, g) / np.sqrt(np.vdot(f, f) * np.vdot(g, g))
+    return np.vdot(A, B) / np.sqrt(np.vdot(A, A) * np.vdot(B, B))
+
+
+def frame_correlation(A: np.ndarray, B: np.ndarray) -> float:
+    """
+    Compute frame correlation between two frames.
+    This is the normalized second order correlation :math:`g_2`.
+    Note: This function computes the correlation between two frames. The output is a single value.
+
+    Args:
+        A, B    Real-valued intensity arrays of the (such as camera frames) to be correlated.
+                A and B must have the same shape.
+
+    This correlation function can be used to estimate the lowered fidelity due to speckle decorrelation.
+    See also:
+         [Jang et al. 2015] https://opg.optica.org/boe/fulltext.cfm?uri=boe-6-1-72&id=306198
+    """
+    return np.mean(A * B) / (np.mean(A)*np.mean(B)) - 1
 
 
 class WFSController:

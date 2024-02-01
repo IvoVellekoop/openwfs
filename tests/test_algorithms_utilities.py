@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from ..openwfs.algorithms.utilities import cnr, signal_std, find_pixel_shift, frame_correlation
+from ..openwfs.algorithms.utilities import cnr, signal_std, find_pixel_shift, field_correlation, frame_correlation
 
 
 def test_signal_std():
@@ -54,14 +54,58 @@ def test_find_pixel_shift():
     assert CDshift_found == CDshift_gt
 
 
-def test_frame_correlation():
+def test_field_correlation():
     a = np.zeros(shape=(2, 3))
-    a[1, 2] = 3.0
-    a[0, 0] = 2.0
+    a[1, 2] = 2.0
+    a[0, 0] = 0.0
 
     b = np.ones(shape=(2, 3))
     b[1, 2] = 0.0
     b[0, 0] = 0.0
-    assert frame_correlation(a, a) == 1.0
-    assert frame_correlation(2*a, a) == 1.0
-    assert frame_correlation(a, b) == 0.0
+    assert field_correlation(a, a) == 1.0
+    assert field_correlation(2*a, a) == 1.0
+    assert field_correlation(a, b) == 0.0
+    assert np.abs(field_correlation(a+b, b) - np.sqrt(0.5)) < 1e6
+
+
+def test_field_correlation():
+    """
+    Test the field correlation, i.e. g_1 normalized first order correlation function.
+    Test the following:
+        self-correlation == 1
+        invariant under scalar multiplication
+        correlation with orthogonal array == 0
+        correlation with arguments swapped
+        correlation with self + orthogonal array
+    """
+    a = np.zeros(shape=(2, 3))
+    a[1, 2] = 2.0
+    a[0, 0] = 0.0
+
+    b = np.ones(shape=(2, 3))
+    b[1, 2] = 0.0
+    b[0, 0] = 0.0
+
+    c = np.ones(shape=(2, 3), dtype=np.cdouble)
+    c[1, 0] = 1 + 1j
+    c[0, 1] = 2 - 3j
+
+    assert field_correlation(a, a) == 1.0
+    assert field_correlation(2*a, a) == 1.0
+    assert field_correlation(a, b) == 0.0
+    assert np.abs(field_correlation(b, c) - field_correlation(c, b)) < 1e8
+    assert np.abs(field_correlation(a+b, b) - np.sqrt(0.5)) < 1e8
+
+
+def test_frame_correlation():
+    """
+    Test the frame correlation, i.e. g_2 normalized second order correlation function.
+    Test the following:
+        g_2 correlation with self (distribution from random.rand) == 1/3
+        g_2 correlation with other == 0
+    """
+    a = np.random.rand(1000000)
+    b = np.random.rand(1000000)
+
+    assert np.abs(frame_correlation(a, a) - 1/3) < 1e-3
+    assert np.abs(frame_correlation(a, b)) < 1e-3
