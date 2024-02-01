@@ -4,3 +4,4 @@ from . import shaders
 from . import slm
 from .slm import SLM
 from .patch import Patch
+from .geometry import Geometry, circular, rectangle

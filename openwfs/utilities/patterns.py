@@ -159,15 +159,15 @@ def gaussian(shape: ShapeType, waist: ScalarType,
     """Constructs an image of a centered Gaussian
 
     `waist`, `extent` and the optional `truncation_radius` should all have the same unit.
-    Arguments:
+
+    Args:
         shape: see module documentation
-        waist (ScalarType):
-            location of the beam waist (1/e value)
+        waist (ScalarType): location of the beam waist (1/e value)
             relative to half of the size of the pattern (i.e. relative to the `radius` of the square)
-        truncation_radius (ScalarType):
-            when not None, specifies the radius of a disk that is used to truncate the Gaussian.
-            All values outside the disk are set to 0.
+        truncation_radius (ScalarType): when not None, specifies the radius of a disk that is used to truncate the
+            Gaussian. All values outside the disk are set to 0.
         extent: see module documentation
+
     """
     r_sqr = r2_range(shape, extent)
     w2inv = -1.0 / waist ** 2
