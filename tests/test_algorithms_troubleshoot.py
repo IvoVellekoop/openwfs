@@ -6,8 +6,13 @@ import pytest
 from ..openwfs.processors import SingleRoi
 from ..openwfs.simulation import Microscope, MockSource, MockSLM
 from ..openwfs.algorithms import FourierDualReference
-from ..openwfs.algorithms.utilities import WFSController
 from ..openwfs.algorithms.troubleshoot import cnr, signal_std, find_pixel_shift, field_correlation, frame_correlation
+
+
+from ..openwfs.algorithms import StepwiseSequential, FourierDualReference, WFSController
+from ..openwfs.processors import SingleRoi
+from ..openwfs.simulation import SimulatedWFS, MockSource, MockSLM, Microscope, ADCProcessor
+from ..openwfs.algorithms.troubleshoot import analyze_phase_calibration
 
 
 def test_signal_std():
@@ -101,6 +106,23 @@ def test_frame_correlation():
 
     assert np.abs(frame_correlation(a, a) - 1/3) < 2e-3
     assert np.abs(frame_correlation(a, b)) < 2e-3
+
+
+@pytest.mark.parametrize("n_y, n_x", [(5, 5), (7, 11), (6, 4), (30, 20)])
+def test_fidelity_phase_calibration_ssa(n_y, n_x):
+    """
+    Test the enhancement performance of the SSA algorithm.
+    Note, for low N, the improvement estimate is not accurate,
+    and the test may sometimes fail due to statistical fluctuations.
+    """
+    aberrations = np.random.uniform(0.0, 2 * np.pi, (n_y, n_x))
+    sim = SimulatedWFS(aberrations)
+    alg = StepwiseSequential(feedback=sim, slm=sim.slm, n_x=n_x, n_y=n_y, phase_steps=12)
+    result = alg.execute()
+    fidelity_phase_calibration = analyze_phase_calibration(result)
+    print(fidelity_phase_calibration)
+    assert fidelity_phase_calibration <= 1
+
 
 
 @pytest.mark.skip(reason="This test does not test anything yet and gives a popop graph.")

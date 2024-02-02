@@ -1,128 +1,11 @@
 import time
+from collections.abc import Callable
 
 import numpy as np
 from numpy.fft import fft2, ifft2, fftfreq
 
-
-def troubleshoot(algorithm, frame_source, light_on, light_off):
-    """
-    Run a series of basic checks to find common sources of error in a WFS experiment.
-    Quantifies several types of fidelity reduction.
-    """
-
-    ### An outline of the to be written troubleshooting code.
-    ### Each block indicates a step; i.e. a particular action or calculation, and may depend on
-    ### previous steps (e.g. darkframe measurement). This indication helps with selecting the
-    ### required order of steps.
-    ### All steps where images are taken, must take images of the same part of the sample and
-    ### some features in the image must be visible.
-    ### TODO: some flags to indiciate which troubleshooting functions should run (especially ability to turn off
-    ### long measurements)
-
-    # Capture frames before WFS
-    # Dark frame
-    # Before frame
-
-    # Frame CNR
-
-    if True:  # TODO: Add flag
-        # WFS experiment
-        recompute_wf_flag = self.recompute_wavefront
-        self.recompute_wavefront = True
-        self.wavefront = WFSController.State.SHAPED_WAVEFRONT
-        self.recompute_wavefront = recompute_wf_flag
-
-        # Capture frames after WFS
-        after_frame_flatwf = self.read_after_frame_flatwf()  # After-frame flat wavefront
-        after_frame_shapedwf = self.read_after_frame_shapedwf()  # After-frame shaped wavefront
-
-        self._contrast_enhancement = contrast_enhancement(after_frame_shapedwf, after_frame_flatwf, dark_frame)
-
-    # Test setup stability
-    pixel_shifts, correlations = self.test_setup_stability(1, 5)
-
-    ### Debugging
-    import matplotlib.pyplot as plt
-    plt.plot(pixel_shifts[:, 0], label='x')
-    plt.plot(pixel_shifts[:, 1], label='y')
-    plt.plot(correlations, label='Corr. with first')
-    plt.legend()
-    plt.show()
-
-    ### === Test setup stability ===
-    ### Requirement: find-image-pixel-shift function
-    ### Preconfig: Flat wavefront
-    ### Measurement: Snap multiple images over a long period of time
-    ### Calculation: Cross-correlation between images
-    ### Result: xdrift, ydrift, intensity drift, warning if >threshold
-    ### Note 1: measurement should take a long time, could result in significant photobleaching
-    ### Note 2: larger image size for more precise x,y cross correlation
-    ### Implementation complexity: 3
-
-    ### === Check SLM timing ===
-    ### Measurement: Quick measurement, change SLM pattern, quick measurement, wait,
-    ### later measurement
-    ### Calculation: do quick measurement and later measurement correspond
-    ### Result 1: Warning if timing seems incorrect
-    ### Result 2: Plot graph
-    ### Implementation complexity: 5
-
-    ### === SLM illumination ===
-    ### Requirement: Depends on it's own experiment
-    ### Measurement: WFS experiment on entire SLM
-    ### Calculation: amplitude from WFS (from e.g. Hadamard to SLM x,y basis)
-    ### Result: SLM illumination map
-    ### Implementation complexity: 4
-
-    ### === Measure unmodulated light ===
-    ### Requirement: Depends on it's own experiment
-    ### Measurement: 2-mode phase stepping checkerboard.
-    ### Calculation:
-    ###    |A⋅exp(iθ) + B⋅exp(iφ) + C|² + b.g.noise
-    ### Result: fraction of modulated and fraction of unmodulated light, warning if >threshold
-    ### Note: large fraction of unmodulated light could indicate wrong illumination
-    ### Implementation complexity: 7
-
-    ### === Check calibration LUT ===
-    ### Requirement: Phase stepping measurement light modulation done
-    ### Calculation: Check higher phasestep frequencies. Is response cosine?
-    ### Result 1: Nonlinearity value. Warning if very not cosine
-    ### Result 2: Plot graph
-    ### Implementation complexity: 5
-
-    ### === Done: Quantify CNR ===
-    ### Requirement: darkframe, before frame, noise corrected std function
-    ### Calculation: noise corrected std / std of darkframe
-    ### Result: 'measured signal when dark is noise'-SNR
-
-    ### === Quantify SNR - with frame correlation ===
-    ### Requirement: cross-corr
-    ### Measurement: Snap multiple images in short time
-    ### Calculation: how do consecutive frames correlate?
-    ### Result: 'everything not reproducible is noise'-SNR
-    ### Note: How can we distinguish from slm phase jitter?
-    ### Implementation complexity: 2
-
-    ### === Done: Quantify noise in signal - from phase stepping ===
-    ### Requirement: phase-stepping measurement
-    ### Calculation: from phase-stepping measurements
-    ### Result: 'non-linearity in phase response is noise'-SNR
-
-    ### === Quantify photobleaching ===
-    ### Requirement: WFS experiment done, frames before and after WFS experiment
-    ### Calculation: loss of intensity -> % photobleached
-    ### Result: Value for amount of photobleaching
-    ### Implementation complexity: 2
-
-
-class WFSTroubleshootResult:
-    """
-    Data structure for holding wavefront shaping results, statistics, and additional troubleshooting information.
-    """
-    def __init__(self):
-        self.fidelity_non_modulated = None
-        self.fidelity_phase_calibration = None
-        self.fidelity_phase_jitter = None
+from ..algorithms.utilities import WFSResult
+from ..core import Detector
 
 
 def signal_std(signal_with_noise: np.ndarray, noise: np.ndarray) -> float:
@@ -233,9 +116,9 @@ def frame_correlation(A: np.ndarray, B: np.ndarray) -> float:
     return np.mean(A * B) / (np.mean(A)*np.mean(B)) - 1
 
 
-def measure_setup_stability(self, wait_time_s, num_of_frames):
+def measure_setup_stability(frame_source, wait_time_s, num_of_frames):
     """Test the setup stability by repeatedly reading frames."""
-    first_frame = self.read_frame()
+    first_frame = frame_source.read()
     pixel_shifts = np.zeros(shape=(num_of_frames, 2))
     correlations = np.zeros(shape=(num_of_frames,))
 
@@ -244,8 +127,178 @@ def measure_setup_stability(self, wait_time_s, num_of_frames):
         time.sleep(wait_time_s)
         # self._wavefront = self.State.FLAT_WAVEFRONT
 
-        new_frame = self.read_frame()
+        new_frame = frame_source.read()
         pixel_shifts[n, :] = find_pixel_shift(first_frame, new_frame)
         correlations[n] = frame_correlation(first_frame, new_frame)
 
     return pixel_shifts, correlations
+
+
+def analyze_phase_calibration(wfs_result: WFSResult):
+    """
+    Analyze phase calibration
+
+    Args:
+
+    Returns:
+        Fidelity reduction estimate due to wrong phase calibration
+    """
+    F = wfs_result.t_f  # Fourier transform of phase stepping measurements
+    axis_k = wfs_result.axis  # Axis of phase stepping
+    k_nyquist = int(np.floor((F.shape[axis_k] - 1) / 2))  # Nyquist frequency
+    F1 = np.expand_dims(np.take(F, 1, axis=axis_k), axis=axis_k)
+    Fk_high = np.take(F, range(2, k_nyquist), axis=axis_k)
+    axis_not_k = list(range(F.ndim))
+    axis_not_k.pop(axis_k)
+    inner_sum = np.sum(Fk_high * F1.conj(), axis=tuple(axis_not_k), keepdims=True)
+    return np.sum((np.abs(F1)**2))**2 / np.sum(np.abs(inner_sum)**2, axis=axis_k)
+
+
+class WFSTroubleshootResult:
+    """
+    Data structure for holding wavefront shaping statistics and additional troubleshooting information.
+    """
+    def __init__(self):
+        # Fidelities
+        self.fidelity_non_modulated = None
+        self.fidelity_phase_calibration = None
+
+        # Frames
+        self.dark_frame = None
+        self.before_frame = None
+        self.after_frame = None
+        self.shaped_frame = None
+
+        # Metrics
+        self.frame_cnr = None
+        self.frame_signal_std = None
+        self.contrast_enhancement = None
+        self.stability = None
+        self.photobleaching = None
+        self.slm_timing = None
+
+        # WFS result
+        self.wfs_result = None
+
+
+def troubleshoot(algorithm, frame_source: Detector,
+                 laser_unblock: Callable, laser_block: Callable) -> WFSTroubleshootResult:
+    """
+    Run a series of basic checks to find common sources of error in a WFS experiment.
+    Quantifies several types of fidelity reduction.
+
+    Args:
+        algorithm: Wavefront Shaping algorithm object, e.g. StepwiseSequential.
+        frame_source: Source object for reading frames, e.g. Camera.
+        laser_unblock: Function to run for unblocking the laser light.
+        laser_block: Function to run for blocking the laser light.
+
+    Returns:
+        trouble: WFSTroubleshootResult object containing troubleshoot information.
+    """
+
+    # Initialize an empty WFS troubleshoot result
+    trouble = WFSTroubleshootResult()
+
+    # Capture frames before WFS
+    algorithm.slm.set_phases(0.0)  # Flat wavefront
+    laser_block()
+    trouble.dark_frame = frame_source.read()  # Dark frame
+    laser_unblock()
+    trouble.before_frame = frame_source.read()  # Before frame (flat wf)
+
+    # Frame CNR
+    trouble.frame_cnr = cnr(trouble.before_frame, trouble.dark_frame)
+
+    # WFS experiment
+    trouble.wfs_result = algorithm.execute().select_target(0)  # Execute WFS algorithm
+
+    # Capture frames after WFS
+    algorithm.slm.set_phases(0.0)  # Flat wavefront
+    trouble.after_frame = frame_source.read()  # After frame (flat wf)
+    algorithm.slm.set_phases(-np.angle(trouble.wfs_result.t))  # Shaped wavefront
+    trouble.shaped_wf_frame = frame_source.read()  # Shaped wavefront frame
+
+    # Contrast enhancement
+    trouble.contrast_enhancement = contrast_enhancement(trouble.shaped_wf_frame, trouble.after_frame, trouble.dark_frame)
+
+    trouble.fidelity_phase_calibration = analyze_phase_calibration(trouble.wfs_result)
+
+    # Test setup stability
+    pixel_shifts, correlations = measure_setup_stability()
+
+    ### Debugging
+    import matplotlib.pyplot as plt
+    plt.plot(pixel_shifts[:, 0], label='x')
+    plt.plot(pixel_shifts[:, 1], label='y')
+    plt.plot(correlations, label='Corr. with first')
+    plt.legend()
+    plt.show()
+
+    return trouble
+
+
+    ### === Test setup stability ===
+    ### Requirement: find-image-pixel-shift function
+    ### Preconfig: Flat wavefront
+    ### Measurement: Snap multiple images over a long period of time
+    ### Calculation: Cross-correlation between images
+    ### Result: xdrift, ydrift, intensity drift, warning if >threshold
+    ### Note 1: measurement should take a long time, could trouble in significant photobleaching
+    ### Note 2: larger image size for more precise x,y cross correlation
+    ### Implementation complexity: 3
+
+    ### === Check SLM timing ===
+    ### Measurement: Quick measurement, change SLM pattern, quick measurement, wait,
+    ### later measurement
+    ### Calculation: do quick measurement and later measurement correspond
+    ### Result 1: Warning if timing seems incorrect
+    ### Result 2: Plot graph
+    ### Implementation complexity: 5
+
+    ### === SLM illumination ===
+    ### Requirement: Depends on it's own experiment
+    ### Measurement: WFS experiment on entire SLM
+    ### Calculation: amplitude from WFS (from e.g. Hadamard to SLM x,y basis)
+    ### Result: SLM illumination map
+    ### Implementation complexity: 4
+
+    ### === Measure unmodulated light ===
+    ### Requirement: Depends on it's own experiment
+    ### Measurement: 2-mode phase stepping checkerboard.
+    ### Calculation:
+    ###    |A⋅exp(iθ) + B⋅exp(iφ) + C|² + b.g.noise
+    ### Result: fraction of modulated and fraction of unmodulated light, warning if >threshold
+    ### Note: large fraction of unmodulated light could indicate wrong illumination
+    ### Implementation complexity: 7
+
+    ### === Check calibration LUT ===
+    ### Requirement: Phase stepping measurement light modulation done
+    ### Calculation: Check higher phasestep frequencies. Is response cosine?
+    ### Result 1: Nonlinearity value. Warning if very not cosine
+    ### Result 2: Plot graph
+    ### Implementation complexity: 5
+
+    ### === Done: Quantify CNR ===
+    ### Requirement: darkframe, before frame, noise corrected std function
+    ### Calculation: noise corrected std / std of darkframe
+    ### Result: 'measured signal when dark is noise'-SNR
+
+    ### === Quantify SNR - with frame correlation ===
+    ### Requirement: cross-corr
+    ### Measurement: Snap multiple images in short time
+    ### Calculation: how do consecutive frames correlate?
+    ### Result: 'everything not reproducible is noise'-SNR
+    ### Note: How can we distinguish from slm phase jitter?
+    ### Implementation complexity: 2
+
+    ### === Done: Quantify noise in signal - from phase stepping ===
+    ### Requirement: phase-stepping measurement
+    ### Calculation: from phase-stepping measurements
+    ### Result: 'non-linearity in phase response is noise'-SNR
+
+    ### === Quantify photobleaching ===
+    ### Requirement: WFS experiment done, frames before and after WFS experiment
+    ### Calculation: loss of intensity -> % photobleached
+    ### Result: Value for amount of photobleaching
+    ### Implementation complexity: 2

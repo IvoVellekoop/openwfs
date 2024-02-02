@@ -31,6 +31,7 @@ class WFSResult:
 
     def __init__(self,
                  t: np.ndarray,
+                 t_f: np.ndarray,
                  axis: int,
                  noise_factor: ArrayLike,
                  amplitude_factor: ArrayLike,
@@ -59,6 +60,7 @@ class WFSResult:
 
         """
         self.t = t
+        self.t_f = t_f
         self.axis = axis
         self.noise_factor = np.atleast_1d(noise_factor)
         self.n = np.prod(t.shape[0:axis]) if n is None else n
@@ -95,12 +97,13 @@ class WFSResult:
         Returns: WFSResults data for the specified target
         """
         return WFSResult(t=self.t.reshape((*self.t.shape[0:2], -1))[:, :, b],
+                         t_f=self.t_f.reshape((*self.t.shape[0:2], -1))[:, :, b],
                          axis=self.axis,
                          intensity_offset=self.intensity_offset[:][b],
                          noise_factor=self.noise_factor[:][b],
                          amplitude_factor=self.amplitude_factor[:][b],
                          non_linearity=self.non_linearity[:][b],
-                         n=self.n
+                         n=self.n,
                          )
 
 
@@ -182,7 +185,7 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int, A: Optional[floa
     # for perfectly developed speckle, and homogeneous illumination, this factor will be pi/4
     amplitude_factor = np.mean(np.abs(t), segments) ** 2 / np.mean(np.abs(t) ** 2, segments)
 
-    return WFSResult(t, axis=axis, amplitude_factor=amplitude_factor, noise_factor=noise_factor,
+    return WFSResult(t, t_f=t_f, axis=axis, amplitude_factor=amplitude_factor, noise_factor=noise_factor,
                      non_linearity=non_linearity, n=n)
 
 
@@ -197,7 +200,7 @@ class WFSController:
         FLAT_WAVEFRONT = 0
         SHAPED_WAVEFRONT = 1
 
-    def __init__(self, algorithm, source: Optional[Detector] = None):
+    def __init__(self, algorithm):
         """
         Args:
             algorithm: An instance of a wavefront shaping algorithm.
