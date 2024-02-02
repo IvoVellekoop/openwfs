@@ -418,20 +418,55 @@ class MockSLM(PhaseSLM, Actuator):
         if len(shape) != 2:
             raise ValueError("Shape of the SLM should be 2-dimensional.")
 
-        self._back_buffer = np.zeros(shape, 'float32')
-        self._monitor = MockSource(self._back_buffer, pixel_size=2.0 / np.min(shape) * u.dimensionless_unscaled)
+        self._requested_phases = np.zeros(shape, 'float32')
+        self._grey_values = np.zeros(shape, 'uint8')  # Stored grey value: 0 -> 0rad, 255 -> almost 2π
+        self._monitor = MockSource(self._requested_phases, pixel_size=2.0 / np.min(shape) * u.dimensionless_unscaled)  # Actual phase
+        self._phase_response = np.arange(0, 2*np.pi, 2*np.pi/256)  # index = input grey value, value = output phase
+        self.lookup_table = range(256)  # index = input phase (scaled to -> [0, 255]), value = grey value
 
     def update(self):
         self._start()  # wait for detectors to finish
-        self._monitor.data = self._back_buffer.copy()
-        self._back_buffer[:] = 0.0
+
+        # Apply lookup table and compute grey values from intended phases
+        lookup_index = (np.mod(self._requested_phases, 2 * np.pi) * 256 / (2 * np.pi) + 0.5).astype(np.uint8)
+        self._grey_values = self._lookup_table[lookup_index]
+
+        # Apply phase_response and return actual phases
+        self._monitor.data = self._phase_response[self._grey_values]
+
+        self._requested_phases[:] = 0.0
+
+    @property
+    def lookup_table(self) -> Sequence[int]:
+        """Lookup table that is used to map the wrapped phase range of 0-2pi to gray values
+        (represented in a range from 0 to 256). By default, this is just range(256).
+        Note that the lookup table need not contain 256 elements.
+        A typical scenario is to use something like `slm.lookup_table=range(142)` to map the 0-2pi range
+        to only the first 142 gray values of the slm.
+        """
+        return self._lookup_table
+
+    @lookup_table.setter
+    def lookup_table(self, value: Sequence[int]):
+        self._lookup_table = np.asarray(value)
+
+    @property
+    def phase_response(self) -> Sequence[float]:
+        """
+        phase_response function: The phase response of the SLM.
+        """
+        return self._phase_response
+
+    @phase_response.setter
+    def phase_response(self, value: Sequence[float]):
+        self._phase_response = value
 
     def set_phases(self, values: ArrayLike, update=True):
         # no docstring, use documentation from base class
         values = np.atleast_2d(values)
-        scale = np.array(self._back_buffer.shape) / np.array(values.shape)
+        scale = np.array(self._requested_phases.shape) / np.array(values.shape)
         # TODO: replace by cv2, with area interpolation
-        zoom(values, scale, output=self._back_buffer, order=0)
+        zoom(values, scale, output=self._requested_phases, order=0)
         if update:
             self.update()
 

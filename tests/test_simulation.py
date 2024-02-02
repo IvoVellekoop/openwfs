@@ -155,3 +155,64 @@ def test_microscope_wavefront_shaping(caplog):
 
     # test if the modes differ. The error causes them not to differ
     assert np.std(t[:][1:]) > 0
+
+
+def phase_response_test_function(phi, b, c, gamma):
+    """A synthetic phase response function: 2π*(b + c*(phi/2π)^gamma)"""
+    return np.clip(2*np.pi * (b + c*(phi/(2*np.pi))**gamma), 0, None)
+
+
+def inverse_phase_response_test_function(f, b, c, gamma):
+    """Inverse of the synthetic phase response function: 2π*(b + c*(phi/2π)^gamma)"""
+    return 2*np.pi * ((f/(2*np.pi) - b) / c)**(1/gamma)
+
+
+def lookup_table_test_function(f, b, c, gamma):
+    """
+    Compute the lookup indices (i.e. a lookup table)
+    for countering the synthetic phase response test function: 2π*(b + c*(phi/2π)^gamma).
+    """
+    phase = inverse_phase_response_test_function(f, b, c, gamma)
+    return (np.mod(phase, 2 * np.pi) * 256 / (2 * np.pi) + 0.5).astype(np.uint8)
+
+
+def test_mock_slm_lut_and_phase_response():
+    """
+    Test the lookup table and phase response of the MockSLM.
+    """
+    # === Test default lookup table and phase response ===
+    # Includes edge cases like rounding/wrapping: -0.501 -> 255, -0.499 -> 0
+    input_phases_a = np.asarray((-1, -0.501, -0.499, 0, 1, 64, 128, 192, 255, 255.499, 255.501, 256, 257, 511, 512)) * 2*np.pi/256
+    expected_output_phases_a = np.asarray((255, 255, 0, 0, 1, 64, 128, 192, 255, 255, 0, 0, 1, 255, 0)) * 2*np.pi/256
+    slm1 = MockSLM(shape=(3, input_phases_a.shape[0]))
+    slm1.set_phases(input_phases_a)
+    assert np.all(np.abs(slm1.phases - expected_output_phases_a) < 1e6)
+
+    # === Test setting custom phase response of SLM ===
+    # Construct custom phase response
+    b = -0.02
+    c = 1.2
+    gamma = 1.6
+    linear_phase = np.arange(0, 2*np.pi, 2*np.pi/256)
+    phase_response = phase_response_test_function(linear_phase, b, c, gamma)
+
+    # Apply and test custom synthetic phase response
+    slm2 = MockSLM(shape=(3, 256))
+    slm2.phase_response = phase_response
+    slm2.set_phases(linear_phase)
+    assert np.all(np.abs(slm2.phases - phase_response) < 1e-6)
+
+    # === Test custom lookup table ===
+    lookup_table = lookup_table_test_function(linear_phase, b, c, gamma)
+    slm3 = MockSLM(shape=(3, 256))
+    slm3.lookup_table = lookup_table
+    slm3.set_phases(linear_phase)
+    assert np.all(np.abs(slm3.phases - inverse_phase_response_test_function(linear_phase, b, c, gamma)) < (1.1*np.pi/256))
+
+    # === Test custom lookup table that counters custom synthetic phase response
+    linear_phase_highres = np.arange(0, 2*np.pi*255.49/256, 0.25*2*np.pi/256)
+    slm4 = MockSLM(shape=(3, linear_phase_highres.shape[0]))
+    slm4.phase_response = phase_response
+    slm4.lookup_table = lookup_table
+    slm4.set_phases(linear_phase_highres)
+    assert np.all(np.abs(slm4.phases[0] - linear_phase_highres) < (3*np.pi/256))
