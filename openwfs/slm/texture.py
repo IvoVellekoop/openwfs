@@ -1,6 +1,11 @@
 import numpy as np
 import weakref
-from OpenGL.GL import *
+import warnings
+
+try:
+    from OpenGL.GL import *
+except AttributeError:
+    warnings.warn("OpenGL not found, SLM will not work")
 
 
 class Texture:
