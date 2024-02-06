@@ -144,7 +144,7 @@ def test_fidelity_phase_calibration_ssa_noise_free(n_y, n_x, phase_steps, b, c, 
     assert np.abs(fidelity_phase_cal_lut - 1) < 1e-3
 
 
-@pytest.mark.parametrize("n_y, n_x, phase_steps, gaussian_noise_std", [(9, 9, 20, 0*0.2), (5, 5, 12, 2.0)])
+@pytest.mark.parametrize("n_y, n_x, phase_steps, gaussian_noise_std", [(4, 4, 10, 0.2), (6, 6, 12, 1.0)])
 def test_fidelity_phase_calibration_ssa_with_noise(n_y, n_x, phase_steps, gaussian_noise_std):
     """
     Test estimation of phase calibration fidelity factor, with the SSA algorithm. With noise.
@@ -165,15 +165,18 @@ def test_fidelity_phase_calibration_ssa_with_noise(n_y, n_x, phase_steps, gaussi
     cam = sim.get_camera(analog_max=1e4, gaussian_noise_std=gaussian_noise_std)
     roi_detector = SingleRoi(cam, radius=0)  # Only measure that specific point
 
-    linear_phase = np.arange(0, 2*np.pi, 2*np.pi/256)
-    slm.phase_response = phase_response_test_function(linear_phase, b=0.05, c=0.7, gamma=1.4)
-
     # Define and run WFS algorithm
     alg = StepwiseSequential(feedback=roi_detector, slm=slm, n_x=n_x, n_y=n_y, phase_steps=phase_steps)
     result_good = alg.execute()
-    phase_pattern_good = np.angle(result_good.t)
     fidelity_phase_cal_noise = analyze_phase_calibration(result_good)
     assert np.abs(fidelity_phase_cal_noise - 1) < 0.005
+
+    # SLM with incorrect phase response
+    linear_phase = np.arange(0, 2*np.pi, 2*np.pi/256)
+    slm.phase_response = phase_response_test_function(linear_phase, b=0.05, c=0.6, gamma=1.5)
+    result_good = alg.execute()
+    fidelity_phase_cal_noise = analyze_phase_calibration(result_good)
+    assert np.abs(fidelity_phase_cal_noise) < 0.9
 
 
 @pytest.mark.skip(reason="This test does not test anything yet and gives a popup graph.")
