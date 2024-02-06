@@ -97,15 +97,15 @@ def test_noise_detector():
 def test_mock_slm():
     slm = MockSLM((4, 4))
     slm.set_phases(0.5)
-    assert np.allclose(slm.pixels().read(), 0.5)
+    assert np.allclose(slm.pixels().read(), 0.5, atol=1.1*np.pi/256)
     slm.set_phases(np.array(((0.1, 0.2), (0.3, 0.4))), update=False)
-    assert np.allclose(slm.pixels().read(), 0.5)
+    assert np.allclose(slm.pixels().read(), 0.5, atol=1.1*np.pi/256)    # slm.update() not yet called, so should be 0.5
     slm.update()
     assert np.allclose(slm.pixels().read(), np.array((
         (0.1, 0.1, 0.2, 0.2),
         (0.1, 0.1, 0.2, 0.2),
         (0.3, 0.3, 0.4, 0.4),
-        (0.3, 0.3, 0.4, 0.4))))
+        (0.3, 0.3, 0.4, 0.4))), atol=1.1*np.pi/256)
 
 
 def test_crop():

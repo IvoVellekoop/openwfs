@@ -31,13 +31,13 @@ class WFSResult:
 
     def __init__(self,
                  t: np.ndarray,
-                 t_f: np.ndarray,
                  axis: int,
                  noise_factor: ArrayLike,
                  amplitude_factor: ArrayLike,
                  non_linearity: ArrayLike,
                  n: Optional[int] = None,
-                 intensity_offset: Optional[ArrayLike] = 0.0):
+                 intensity_offset: Optional[ArrayLike] = 0.0,
+                 t_f: np.ndarray = None):
         """
         Args:
             t(ndarray): measured transmission matrix.
