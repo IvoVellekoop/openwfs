@@ -134,24 +134,35 @@ def measure_setup_stability(frame_source, wait_time_s, num_of_frames):
     return pixel_shifts, correlations
 
 
-def analyze_phase_calibration(wfs_result: WFSResult):
-    """
-    Analyze phase calibration
+def analyze_phase_calibration(wfs_result: WFSResult) -> float:
+    r"""
+    Analyze phase calibration.
+    Estimate the fidelity reduction factor due to wrong phase calibration
+    :math:`\langle|\gamma_\phi|^2\rangle = |c_1|^2 / \sum_{k\neq0} |c_k|^2`,
+    where :math:`c_k` are components of the Fourier transform of phase stepping measurements. For perfectly calibrated
+    SLMs, :math:`\langle|\gamma_\phi|^2\rangle` should converge to 1.
 
     Args:
+        wfs_result: The WFSResult object containing the Fourier transform of the phase stepping measurements.
+            Minimum number of phase steps=5, but a significantly higher number of phase steps is recommended for more
+            accurate estimation.
 
     Returns:
-        Fidelity reduction estimate due to wrong phase calibration
+        Estimate of fidelity reduction due to wrong phase calibration.
     """
     F = wfs_result.t_f  # Fourier transform of phase stepping measurements
+
+    # Prepare indexing
     axis_k = wfs_result.axis  # Axis of phase stepping
-    k_nyquist = int(np.floor((F.shape[axis_k] - 1) / 2))  # Nyquist frequency
-    F1 = np.expand_dims(np.take(F, 1, axis=axis_k), axis=axis_k)
-    Fk_high = np.take(F, range(2, k_nyquist), axis=axis_k)
-    axis_not_k = list(range(F.ndim))
-    axis_not_k.pop(axis_k)
-    inner_sum = np.sum(Fk_high * F1.conj(), axis=tuple(axis_not_k), keepdims=True)
-    return np.sum((np.abs(F1)**2))**2 / np.sum(np.abs(inner_sum)**2, axis=axis_k)
+    axis_not_k = list(range(F.ndim))  # List of all axis indices
+    axis_not_k.pop(axis_k)  # Remove axis of phase stepping
+    k_nyquist = int(np.floor((F.shape[axis_k] - 1) / 2))  # Nyquist frequency index
+
+    # Compute components
+    F1 = np.expand_dims(np.take(F, 1, axis=axis_k), axis=axis_k)  # Base frequency
+    Fk = np.take(F, range(1, k_nyquist), axis=axis_k)  # All frequencies from base to Nyquist
+    inner_sum = np.sum(Fk * F1.conj(), axis=tuple(axis_not_k), keepdims=True)  # Sum over all axes except phase stepping
+    return np.sum((np.abs(F1)**2))**2 / np.sum(np.abs(inner_sum)**2, axis=axis_k)  # Compute |c1|²/∑|ck|²
 
 
 class WFSTroubleshootResult:

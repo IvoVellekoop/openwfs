@@ -209,7 +209,7 @@ def test_mock_slm_lut_and_phase_response():
     slm3.set_phases(linear_phase)
     assert np.all(np.abs(slm3.phases - inverse_phase_response_test_function(linear_phase, b, c, gamma)) < (1.1*np.pi/256))
 
-    # === Test custom lookup table that counters custom synthetic phase response
+    # === Test custom lookup table that counters custom synthetic phase response ===
     linear_phase_highres = np.arange(0, 2*np.pi*255.49/256, 0.25*2*np.pi/256)
     slm4 = MockSLM(shape=(3, linear_phase_highres.shape[0]))
     slm4.phase_response = phase_response
