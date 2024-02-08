@@ -116,22 +116,32 @@ def frame_correlation(A: np.ndarray, B: np.ndarray) -> float:
     return np.mean(A * B) / (np.mean(A)*np.mean(B)) - 1
 
 
-def measure_setup_stability(frame_source, wait_time_s, num_of_frames):
+class StabilityResult:
+    """
+    Result of a stability measurement.
+    """
+    def __init__(self, pixel_shifts, correlations, contrast_ratios):
+        self.pixel_shifts = pixel_shifts
+        self.correlations = correlations
+        self.contrast_ratios = contrast_ratios
+
+
+def measure_setup_stability(frame_source, sleep_time_s, num_of_frames, dark_frame) -> StabilityResult:
     """Test the setup stability by repeatedly reading frames."""
     first_frame = frame_source.read()
     pixel_shifts = np.zeros(shape=(num_of_frames, 2))
     correlations = np.zeros(shape=(num_of_frames,))
+    contrast_ratios = np.zeros(shape=(num_of_frames,))
 
+    # Start capturing frames
     for n in range(num_of_frames):
-        # self.set_slm_random()
-        time.sleep(wait_time_s)
-        # self._wavefront = self.State.FLAT_WAVEFRONT
-
+        time.sleep(sleep_time_s)
         new_frame = frame_source.read()
         pixel_shifts[n, :] = find_pixel_shift(first_frame, new_frame)
         correlations[n] = frame_correlation(first_frame, new_frame)
+        contrast_ratios[n] = contrast_enhancement(new_frame, first_frame, dark_frame)
 
-    return pixel_shifts, correlations
+    return StabilityResult(pixel_shifts=pixel_shifts, correlations=correlations, contrast_ratios=contrast_ratios)
 
 
 def analyze_phase_calibration(wfs_result: WFSResult) -> float:
@@ -168,11 +178,43 @@ def analyze_phase_calibration(wfs_result: WFSResult) -> float:
 class WFSTroubleshootResult:
     """
     Data structure for holding wavefront shaping statistics and additional troubleshooting information.
+
+    Properties:
+        fidelity_non_modulated: The estimated fidelity reduction factor due to the presence of non-modulated light.
+        phase_calibration_ratio: A ratio indicating the correctness of the SLM phase response. An incorrect phase
+            response produces a value < 1.
+        wfs_result (WFSResult): Object containing the analyzed result of running the WFS algorithm.
+        frame_signal_std_before: Signal unbiased standard deviation of frame captured before running the WFS algorithm.
+        frame_signal_std_after: Signal unbiased standard deviation of frame captured after running the WFS algorithm.
+        frame_cnr_before: Unbiased contrast ratio of frame captured before running the WFS algorithm.
+        frame_cnr_after: Unbiased contrast ratio of frame captured after running the WFS algorithm.
+        frame_contrast_enhancement: The unbiased contrast enhancement due to WFS. A frame taken with a flat wavefront is
+            compared to a frame taken with a shaped wavefront. Both frames are taken after the WFS algorithm has run.
+        frame_photobleaching_ratio: The signal degradation after WFS, typically caused by photo-bleaching in fluorescent
+            experiments. A frame from before and after running the WFS are compared by computing the unbiased contrast
+            enhancement factor. If this value is < 1, it means the signal has degraded by this factor.
+        dark_frame: Frame taken with the laser blocked, before running the WFS algorithm.
+        before_frame: Frame taken with the laser unblocked, before running the WFS algorithm, with a flat wavefront.
+        after_frame: Frame taken with the laser unblocked, after running the WFS algorithm, with a flat wavefront.
+        shaped_frame: Frame taken with the laser unblocked, after running the WFS algorithm, with a shaped wavefront.
+        stability (StabilityResult): Object containing the result of the stability test.
     """
     def __init__(self):
-        # Fidelities
+        # Fidelities and WFS metrics
         self.fidelity_non_modulated = None
-        self.fidelity_phase_calibration = None
+        self.phase_calibration_ratio = None
+
+        # WFS result
+        self.wfs_result = None
+
+        # Frame metrics
+        self.frame_signal_std_before = None
+        self.frame_signal_std_after = None
+        self.frame_cnr_before = None
+        self.frame_cnr_after = None
+        self.frame_contrast_enhancement = None
+        self.stability = None
+        self.photobleaching_ratio = None
 
         # Frames
         self.dark_frame = None
@@ -180,20 +222,12 @@ class WFSTroubleshootResult:
         self.after_frame = None
         self.shaped_frame = None
 
-        # Metrics
-        self.frame_cnr = None
-        self.frame_signal_std = None
-        self.contrast_enhancement = None
-        self.stability = None
-        self.photobleaching = None
-        self.slm_timing = None
-
-        # WFS result
-        self.wfs_result = None
-
 
 def troubleshoot(algorithm, frame_source: Detector,
-                 laser_unblock: Callable, laser_block: Callable) -> WFSTroubleshootResult:
+                 laser_unblock: Callable, laser_block: Callable,
+                 do_frame_capture=True, do_stability_test=True,
+                 stability_sleep_time_s=0.5,
+                 stability_num_of_frames=500) -> WFSTroubleshootResult:
     """
     Run a series of basic checks to find common sources of error in a WFS experiment.
     Quantifies several types of fidelity reduction.
@@ -203,6 +237,12 @@ def troubleshoot(algorithm, frame_source: Detector,
         frame_source: Source object for reading frames, e.g. Camera.
         laser_unblock: Function to run for unblocking the laser light.
         laser_block: Function to run for blocking the laser light.
+        do_frame_capture: Boolean. If False, skip frame capture before and after running the WFS algorithm.
+            Also skips computation of corresponding metrics. Also skips stability test.
+        do_stability_test: Boolean. If False, skip stability test.
+        stability_sleep_time_s: Float. Sleep time in seconds in between capturing frames.
+        stability_num_of_frames: Integer. Number of frames to take in the stability test.
+
 
     Returns:
         trouble: WFSTroubleshootResult object containing troubleshoot information.
@@ -211,105 +251,45 @@ def troubleshoot(algorithm, frame_source: Detector,
     # Initialize an empty WFS troubleshoot result
     trouble = WFSTroubleshootResult()
 
-    # Capture frames before WFS
-    algorithm.slm.set_phases(0.0)  # Flat wavefront
-    laser_block()
-    trouble.dark_frame = frame_source.read()  # Dark frame
-    laser_unblock()
-    trouble.before_frame = frame_source.read()  # Before frame (flat wf)
+    if do_frame_capture:
+        # Capture frames before WFS
+        algorithm.slm.set_phases(0.0)  # Flat wavefront
+        laser_block()
+        trouble.dark_frame = frame_source.read()  # Dark frame
+        laser_unblock()
+        trouble.before_frame = frame_source.read()  # Before frame (flat wf)
 
-    # Frame CNR
-    trouble.frame_cnr = cnr(trouble.before_frame, trouble.dark_frame)
+        # Frame metrics
+        trouble.frame_signal_std_before = signal_std(trouble.before_frame, trouble.dark_frame)
+        trouble.frame_cnr_before = cnr(trouble.before_frame, trouble.dark_frame)
 
     # WFS experiment
     trouble.wfs_result = algorithm.execute().select_target(0)  # Execute WFS algorithm
 
-    # Capture frames after WFS
-    algorithm.slm.set_phases(0.0)  # Flat wavefront
-    trouble.after_frame = frame_source.read()  # After frame (flat wf)
-    algorithm.slm.set_phases(-np.angle(trouble.wfs_result.t))  # Shaped wavefront
-    trouble.shaped_wf_frame = frame_source.read()  # Shaped wavefront frame
+    if do_frame_capture:
+        # Capture frames after WFS
+        algorithm.slm.set_phases(0.0)  # Flat wavefront
+        trouble.after_frame = frame_source.read()  # After frame (flat wf)
+        algorithm.slm.set_phases(-np.angle(trouble.wfs_result.t))  # Shaped wavefront
+        trouble.shaped_wf_frame = frame_source.read()  # Shaped wavefront frame
 
-    # Contrast enhancement
-    trouble.contrast_enhancement = contrast_enhancement(trouble.shaped_wf_frame, trouble.after_frame, trouble.dark_frame)
+        # Frame metrics
+        trouble.frame_signal_std_after = signal_std(trouble.before_frame, trouble.dark_frame)
+        trouble.frame_cnr_after = cnr(trouble.after_frame, trouble.dark_frame)  # Frame CNR after
+        trouble.frame_contrast_enhancement = \
+            contrast_enhancement(trouble.shaped_wf_frame, trouble.after_frame, trouble.dark_frame)
+        trouble.frame_photobleaching_ratio = \
+            contrast_enhancement(trouble.after_frame, trouble.before_frame, trouble.dark_frame)
 
+    if do_stability_test and do_frame_capture:
+        # Test setup stability
+        trouble.stability = measure_setup_stability(
+            frame_source=frame_source,
+            sleep_time_s=stability_sleep_time_s,
+            num_of_frames=stability_num_of_frames,
+            dark_frame=trouble.dark_frame)
+
+    # Analyze the WFS result
     trouble.fidelity_phase_calibration = analyze_phase_calibration(trouble.wfs_result)
 
-    # Test setup stability
-    pixel_shifts, correlations = measure_setup_stability()
-
-    ### Debugging
-    import matplotlib.pyplot as plt
-    plt.plot(pixel_shifts[:, 0], label='x')
-    plt.plot(pixel_shifts[:, 1], label='y')
-    plt.plot(correlations, label='Corr. with first')
-    plt.legend()
-    plt.show()
-
     return trouble
-
-
-    ### === Test setup stability ===
-    ### Requirement: find-image-pixel-shift function
-    ### Preconfig: Flat wavefront
-    ### Measurement: Snap multiple images over a long period of time
-    ### Calculation: Cross-correlation between images
-    ### Result: xdrift, ydrift, intensity drift, warning if >threshold
-    ### Note 1: measurement should take a long time, could trouble in significant photobleaching
-    ### Note 2: larger image size for more precise x,y cross correlation
-    ### Implementation complexity: 3
-
-    ### === Check SLM timing ===
-    ### Measurement: Quick measurement, change SLM pattern, quick measurement, wait,
-    ### later measurement
-    ### Calculation: do quick measurement and later measurement correspond
-    ### Result 1: Warning if timing seems incorrect
-    ### Result 2: Plot graph
-    ### Implementation complexity: 5
-
-    ### === SLM illumination ===
-    ### Requirement: Depends on it's own experiment
-    ### Measurement: WFS experiment on entire SLM
-    ### Calculation: amplitude from WFS (from e.g. Hadamard to SLM x,y basis)
-    ### Result: SLM illumination map
-    ### Implementation complexity: 4
-
-    ### === Measure unmodulated light ===
-    ### Requirement: Depends on it's own experiment
-    ### Measurement: 2-mode phase stepping checkerboard.
-    ### Calculation:
-    ###    |A⋅exp(iθ) + B⋅exp(iφ) + C|² + b.g.noise
-    ### Result: fraction of modulated and fraction of unmodulated light, warning if >threshold
-    ### Note: large fraction of unmodulated light could indicate wrong illumination
-    ### Implementation complexity: 7
-
-    ### === Check calibration LUT ===
-    ### Requirement: Phase stepping measurement light modulation done
-    ### Calculation: Check higher phasestep frequencies. Is response cosine?
-    ### Result 1: Nonlinearity value. Warning if very not cosine
-    ### Result 2: Plot graph
-    ### Implementation complexity: 5
-
-    ### === Done: Quantify CNR ===
-    ### Requirement: darkframe, before frame, noise corrected std function
-    ### Calculation: noise corrected std / std of darkframe
-    ### Result: 'measured signal when dark is noise'-SNR
-
-    ### === Quantify SNR - with frame correlation ===
-    ### Requirement: cross-corr
-    ### Measurement: Snap multiple images in short time
-    ### Calculation: how do consecutive frames correlate?
-    ### Result: 'everything not reproducible is noise'-SNR
-    ### Note: How can we distinguish from slm phase jitter?
-    ### Implementation complexity: 2
-
-    ### === Done: Quantify noise in signal - from phase stepping ===
-    ### Requirement: phase-stepping measurement
-    ### Calculation: from phase-stepping measurements
-    ### Result: 'non-linearity in phase response is noise'-SNR
-
-    ### === Quantify photobleaching ===
-    ### Requirement: WFS experiment done, frames before and after WFS experiment
-    ### Calculation: loss of intensity -> % photobleached
-    ### Result: Value for amount of photobleaching
-    ### Implementation complexity: 2
