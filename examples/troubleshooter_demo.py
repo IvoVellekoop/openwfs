@@ -5,7 +5,7 @@ import astropy.units as u
 from openwfs.processors import SingleRoi
 from openwfs.simulation import SimulatedWFS, MockSource, MockSLM, Microscope
 from openwfs.algorithms import StepwiseSequential
-from openwfs.algorithms.troubleshoot import troubleshoot
+from openwfs.algorithms.troubleshoot import troubleshoot, field_correlation
 
 
 def phase_response_test_function(phi, b, c, gamma):
@@ -26,36 +26,38 @@ def lookup_table_test_function(f, b, c, gamma):
     phase = inverse_phase_response_test_function(f, b, c, gamma)
     return (np.mod(phase, 2 * np.pi) * 256 / (2 * np.pi) + 0.5).astype(np.uint8)
 
-n_x = 5
-n_y = 6
-num_phase_steps = 8
 
 # === Define mock hardware ===
+n_x = 10
+n_y = 10
+num_phase_steps = 8
+
 # Aberration and image source
-gaussian_noise_std = 0.1
+gaussian_noise_std = 1.0
 numerical_aperture = 1.0
-aberration_phase = np.random.uniform(0.0, 2 * np.pi, (n_y, n_x))
+aberration_phase = np.random.uniform(0.0, 2*np.pi, (n_y, n_x))
 aberration = MockSource(aberration_phase, extent=2 * numerical_aperture)
 img_off = np.zeros((120, 120), dtype=np.int16)
 img_on = img_off.copy()
-img_on[60, 60] = 200
-img_on[60, 65] = 200
-img_on[60, 70] = 200
-img_on[60, 75] = 200
-img_on[60, 80] = 200
-src = MockSource(img_on, 50 * u.nm)
+img_on[60, 60] = 1000
+img_on[60, 70] = 1000
+img_on[60, 80] = 1000
+img_on[60, 90] = 1000
+img_on[60, 100] = 1000
+img_on[60, 110] = 1000
+src = MockSource(img_on, pixel_size=200 * u.nm)
 
 
 # SLM with incorrect phase response
 slm = MockSLM(shape=(100, 100))
-linear_phase = np.arange(0, 2*np.pi, 2*np.pi/256)
-slm.phase_response = phase_response_test_function(linear_phase, b=0.02, c=0.9, gamma=1.2)
+# linear_phase = np.arange(0, 2*np.pi, 2*np.pi/256)
+# slm.phase_response = phase_response_test_function(linear_phase, b=0.02, c=0.9, gamma=1.2)
 
 # Simulation with noise, camera, ROI detector
 sim = Microscope(source=src, slm=slm.pixels(), magnification=1, numerical_aperture=numerical_aperture,
                  aberrations=aberration, wavelength=800 * u.nm)
-cam = sim.get_camera(analog_max=1e4, gaussian_noise_std=gaussian_noise_std)
-roi_detector = SingleRoi(cam, radius=0)  # Only measure that specific point
+cam = sim.get_camera(analog_max=2e4, gaussian_noise_std=gaussian_noise_std)
+roi_detector = SingleRoi(cam, radius=1)  # Only measure that specific point
 
 # === Define and run WFS algorithm ===
 alg = StepwiseSequential(feedback=roi_detector, slm=slm, n_x=n_x, n_y=n_y, phase_steps=num_phase_steps)
@@ -64,5 +66,30 @@ trouble = troubleshoot(algorithm=alg,
                        frame_source=cam,
                        laser_block=cam.laser_block, laser_unblock=cam.laser_unblock,
                        stability_sleep_time_s=0.1, stability_num_of_frames=30)
+cam.laser_block()
 
-trouble.report()
+trouble.report(do_plots=False)
+
+
+print(f'{np.abs(field_correlation(np.exp(1j * trouble.wfs_result.t), np.exp(1j * aberration_phase)))**2:.4f}')
+
+import matplotlib.pyplot as plt
+
+plt.figure()
+plt.imshow(trouble.after_frame, vmin=0, vmax=500)
+plt.title('After')
+plt.colorbar()
+
+plt.figure()
+plt.imshow(trouble.shaped_wf_frame, vmin=0, vmax=500)
+plt.title('Shaped WF')
+plt.colorbar()
+
+plt.figure()
+cam.laser_unblock()
+slm.set_phases(-aberration_phase)
+plt.imshow(cam.read(), vmin=0, vmax=500)
+plt.title('Perfect WF')
+plt.colorbar()
+
+plt.show()

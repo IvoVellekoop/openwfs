@@ -9,7 +9,7 @@ from ..algorithms.utilities import WFSResult
 from ..core import Detector
 
 
-def signal_std(signal_with_noise: np.ndarray, noise: np.ndarray) -> float:
+def signal_std(signal_with_noise: np.ndarray, noise: np.ndarray) -> np.float64:
     """
     Compute noise corrected standard deviation of signal measurement.
 
@@ -23,10 +23,11 @@ def signal_std(signal_with_noise: np.ndarray, noise: np.ndarray) -> float:
     Returns:
         Standard deviation of the signal, corrected for the variance due to given noise.
     """
-    return float(np.sqrt(signal_with_noise.var() - noise.var()))
+    signal_var = signal_with_noise.var() - noise.var()
+    return np.sqrt(signal_var)
 
 
-def cnr(signal_with_noise: np.ndarray, noise: np.ndarray) -> float:
+def cnr(signal_with_noise: np.ndarray, noise: np.ndarray) -> np.float64:
     """
     Compute the noise-corrected contrast-to-noise ratio of a measured signal. Contrast is computed as the standard
     deviation, corrected for noise. The noise variance is computed from a separate array, containing only noise.
@@ -41,10 +42,10 @@ def cnr(signal_with_noise: np.ndarray, noise: np.ndarray) -> float:
     Returns:
         Standard deviation of the signal, corrected for the variance due to given noise.
     """
-    return float(signal_std(signal_with_noise, noise) / noise.std())
+    return signal_std(signal_with_noise, noise) / noise.std()
 
 
-def contrast_enhancement(signal_with_noise: np.ndarray, reference_with_noise: np.ndarray, noise: np.ndarray) -> float:
+def contrast_enhancement(signal_with_noise: np.ndarray, reference_with_noise: np.ndarray, noise: np.ndarray) -> np.float64:
     """
     Compute noise corrected contrast enhancement. The noise is assumed to be uncorrelated with the signal, such that
     var(measured) = var(signal) + var(noise).
@@ -60,7 +61,9 @@ def contrast_enhancement(signal_with_noise: np.ndarray, reference_with_noise: np
     Returns:
         Standard deviation of the signal, corrected for the variance due to given noise.
     """
-    return float(signal_std(signal_with_noise, noise) / signal_std(reference_with_noise, noise))
+    signal_std_sig = np.asarray(signal_std(signal_with_noise, noise))
+    signal_std_ref = np.asarray(signal_std(reference_with_noise, noise))
+    return signal_std_sig / signal_std_ref
 
 
 def cross_corr_fft2(f: np.ndarray, g: np.ndarray) -> np.ndarray:
@@ -218,16 +221,21 @@ class WFSTroubleshootResult:
     def __init__(self):
         # Fidelities and WFS metrics
         self.fidelity_non_modulated = None
-        self.phase_calibration_ratio = None
+        self.fidelity_phase_calibration = None
 
-        # WFS result
+        # WFS
         self.wfs_result = None
+        self.feedback_after = None
+        self.feedback_before = None
+        self.enhancement = None
 
         # Frame metrics
         self.frame_signal_std_before = None
         self.frame_signal_std_after = None
+        self.frame_signal_std_shaped_wf = None
         self.frame_cnr_before = None
         self.frame_cnr_after = None
+        self.frame_cnr_shaped_wf = None
         self.frame_contrast_enhancement = None
         self.frame_photobleaching_ratio = None
         self.stability = None
@@ -236,30 +244,38 @@ class WFSTroubleshootResult:
         self.dark_frame = None
         self.before_frame = None
         self.after_frame = None
-        self.shaped_frame = None
+        self.shaped_wf_frame = None
 
         # Other
         self.timestamp = time.time()
 
-    def report(self):
+    def report(self, do_plots=True):
         """
         Print a report of all results to the console.
+
+        Args:
+            do_plots (bool): Plot some results as graphs.
         """
         print(f'\n===========================')
         print(f'{time.ctime(self.timestamp)}\n')
-        print(f'=== Measurement metrics ===')
-        print(f'fidelity_non_modulated = {self.fidelity_non_modulated}:.3f')
-        print(f'fidelity_phase_calibration = {self.phase_calibration_ratio}:.3f')
+        print(f'=== Feedback metrics ===')
+        print(f'fidelity_amplitude: {self.wfs_result.amplitude_factor.squeeze():.3f}')
+        print(f'fidelity_noise: {self.wfs_result.noise_factor.squeeze():.3f}')
+        print(f'fidelity_non_modulated: {self.fidelity_non_modulated}:.3f')
+        print(f'fidelity_phase_calibration: {self.fidelity_phase_calibration.squeeze():.3f}')
+        print(f'enhancement: {self.enhancement:.3f}')
         print(f'')
         print(f'=== Frame metrics ===')
-        print(f'σ_signal, before = {self.frame_signal_std_before:.3f}')
-        print(f'σ_signal, after = {self.frame_signal_std_after:.3f}')
-        print(f'CNR before = {self.frame_cnr_before:.3f}')
-        print(f'CNR after = {self.frame_cnr_after:.3f}')
-        print(f'Contrast enhancement η_σ = {self.frame_contrast_enhancement:.3f}')
-        print(f'Photobleaching ratio = {self.frame_photobleaching_ratio:.3f}')
+        print(f'signal std (σ), before: {self.frame_signal_std_before:.3f}')
+        print(f'signal std (σ), after: {self.frame_signal_std_after:.3f}')
+        print(f'signal std (σ), with shaped wavefront: {self.frame_signal_std_shaped_wf:.3f}')
+        print(f'Contrast to Noise Ratio before: {self.frame_cnr_before:.3f}')
+        print(f'Contrast to Noise Ratio after: {self.frame_cnr_after:.3f}')
+        print(f'Contrast to Noise Ratio with shaped wavefront: {self.frame_cnr_shaped_wf:.3f}')
+        print(f'Contrast enhancement (η_σ): {self.frame_contrast_enhancement:.3f}')
+        print(f'Photobleaching ratio: {self.frame_photobleaching_ratio:.3f}')
 
-        if self.stability is not None:
+        if do_plots and self.stability is not None:
             self.stability.plot()
 
 
@@ -310,19 +326,29 @@ def troubleshoot(algorithm, frame_source: Detector,
     if do_log: print('Run WFS algorithm...')
     trouble.wfs_result = algorithm.execute()                                # Execute WFS algorithm
 
+    # Flat wavefront
+    algorithm.slm.set_phases(0.0)
+    trouble.feedback_after = algorithm.feedback.read()
+
     if do_frame_capture:
         if do_log: print('Capturing frames after WFS...')
-
-        # Capture frames after WFS
-        algorithm.slm.set_phases(0.0)                                       # Flat wavefront
         trouble.after_frame = frame_source.read()                           # After frame (flat wf)
-        algorithm.slm.set_phases(-np.angle(trouble.wfs_result.t))           # Shaped wavefront
+
+    # Shaped wavefront
+    algorithm.slm.set_phases(-np.angle(trouble.wfs_result.t))
+    trouble.feedback_shaped_wf = algorithm.feedback.read()
+
+    trouble.enhancement = trouble.feedback_shaped_wf / trouble.feedback_after
+
+    if do_frame_capture:
         trouble.shaped_wf_frame = frame_source.read()                       # Shaped wavefront frame
 
         # Frame metrics
         if do_log: print('Compute frame metrics...')
-        trouble.frame_signal_std_after = signal_std(trouble.before_frame, trouble.dark_frame)
+        trouble.frame_signal_std_after = signal_std(trouble.after_frame, trouble.dark_frame)
+        trouble.frame_signal_std_shaped_wf = signal_std(trouble.shaped_wf_frame, trouble.dark_frame)
         trouble.frame_cnr_after = cnr(trouble.after_frame, trouble.dark_frame)  # Frame CNR after
+        trouble.frame_cnr_shaped_wf = cnr(trouble.shaped_wf_frame, trouble.dark_frame)  # Frame CNR shaped wf
         trouble.frame_contrast_enhancement = \
             contrast_enhancement(trouble.shaped_wf_frame, trouble.after_frame, trouble.dark_frame)
         trouble.frame_photobleaching_ratio = \

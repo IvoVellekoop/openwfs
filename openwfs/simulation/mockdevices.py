@@ -212,7 +212,7 @@ class ADCProcessor(Processor):
             dtype = data.dtype
             rng = np.random.default_rng()
             gaussian_noise = self._gaussian_noise_std * rng.standard_normal(size=data.shape)
-            data = (self._signal_multiplier*data.astype('float64') + gaussian_noise).clip(0, 2 ** 16 - 1).astype(dtype)
+            data = (self._signal_multiplier*data.astype('float64') + gaussian_noise).clip(0, self.digital_max).astype(dtype)
 
         if self.analog_max == 0.0:
             max = np.max(data)
