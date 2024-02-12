@@ -117,7 +117,7 @@ def lookup_table_test_function(f, b, c, gamma):
 
 
 @pytest.mark.parametrize("n_y, n_x, phase_steps, b, c, gamma",
-                         [(15, 13, 8, -0.05, 1.5, 0.8), (4, 4, 10, -0.05, 1.5, 0.8)])
+                         [(11, 9, 8, -0.05, 1.5, 0.8), (4, 4, 10, -0.05, 1.5, 0.8)])
 def test_fidelity_phase_calibration_ssa_noise_free(n_y, n_x, phase_steps, b, c, gamma):
     """
     Test computing phase calibration fidelity factor, with the SSA algorithm. Noise-free scenarios.
@@ -135,7 +135,7 @@ def test_fidelity_phase_calibration_ssa_noise_free(n_y, n_x, phase_steps, b, c, 
     sim.slm.phase_response = phase_response_test_function(linear_phase, b, c, gamma)
     result = alg.execute()
     fidelity_wrong_phase_response = analyze_phase_calibration(result)
-    assert fidelity_wrong_phase_response < 0.9
+    assert fidelity_wrong_phase_response < 0.8
 
     # SLM calibrated with phase response corrected by LUT, noise-free
     sim.slm.lookup_table = lookup_table_test_function(linear_phase, b, c, gamma)

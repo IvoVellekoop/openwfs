@@ -3,6 +3,7 @@ from collections.abc import Callable
 
 import numpy as np
 from numpy.fft import fft2, ifft2, fftfreq
+import matplotlib.pyplot as plt
 
 from ..algorithms.utilities import WFSResult
 from ..core import Detector
@@ -120,10 +121,20 @@ class StabilityResult:
     """
     Result of a stability measurement.
     """
-    def __init__(self, pixel_shifts, correlations, contrast_ratios):
+    def __init__(self, pixel_shifts, correlations, contrast_ratios, timestamps):
         self.pixel_shifts = pixel_shifts
         self.correlations = correlations
         self.contrast_ratios = contrast_ratios
+        self.timestamps = timestamps
+        self.relative_timestamps = timestamps - timestamps[0]
+
+    def plot(self):
+        plt.plot(self.relative_timestamps, self.pixel_shifts, '.-', label='image-shift (pix)')
+        plt.plot(self.relative_timestamps, self.contrast_ratios, '.-', label='contrast ratio')
+        plt.plot(self.relative_timestamps, self.correlations, '.-', label='correlation')
+        plt.xlabel('time (s)')
+        plt.legend()
+        plt.show()
 
 
 def measure_setup_stability(frame_source, sleep_time_s, num_of_frames, dark_frame) -> StabilityResult:
@@ -132,6 +143,7 @@ def measure_setup_stability(frame_source, sleep_time_s, num_of_frames, dark_fram
     pixel_shifts = np.zeros(shape=(num_of_frames, 2))
     correlations = np.zeros(shape=(num_of_frames,))
     contrast_ratios = np.zeros(shape=(num_of_frames,))
+    timestamps = np.zeros(shape=(num_of_frames,))
 
     # Start capturing frames
     for n in range(num_of_frames):
@@ -140,8 +152,12 @@ def measure_setup_stability(frame_source, sleep_time_s, num_of_frames, dark_fram
         pixel_shifts[n, :] = find_pixel_shift(first_frame, new_frame)
         correlations[n] = frame_correlation(first_frame, new_frame)
         contrast_ratios[n] = contrast_enhancement(new_frame, first_frame, dark_frame)
+        timestamps[n] = time.perf_counter()
 
-    return StabilityResult(pixel_shifts=pixel_shifts, correlations=correlations, contrast_ratios=contrast_ratios)
+    return StabilityResult(pixel_shifts=pixel_shifts,
+                           correlations=correlations,
+                           contrast_ratios=contrast_ratios,
+                           timestamps=timestamps)
 
 
 def analyze_phase_calibration(wfs_result: WFSResult) -> float:
@@ -213,8 +229,8 @@ class WFSTroubleshootResult:
         self.frame_cnr_before = None
         self.frame_cnr_after = None
         self.frame_contrast_enhancement = None
+        self.frame_photobleaching_ratio = None
         self.stability = None
-        self.photobleaching_ratio = None
 
         # Frames
         self.dark_frame = None
@@ -222,10 +238,34 @@ class WFSTroubleshootResult:
         self.after_frame = None
         self.shaped_frame = None
 
+        # Other
+        self.timestamp = time.time()
+
+    def report(self):
+        """
+        Print a report of all results to the console.
+        """
+        print(f'\n===========================')
+        print(f'{time.ctime(self.timestamp)}\n')
+        print(f'=== Measurement metrics ===')
+        print(f'fidelity_non_modulated = {self.fidelity_non_modulated}:.3f')
+        print(f'fidelity_phase_calibration = {self.phase_calibration_ratio}:.3f')
+        print(f'')
+        print(f'=== Frame metrics ===')
+        print(f'σ_signal, before = {self.frame_signal_std_before:.3f}')
+        print(f'σ_signal, after = {self.frame_signal_std_after:.3f}')
+        print(f'CNR before = {self.frame_cnr_before:.3f}')
+        print(f'CNR after = {self.frame_cnr_after:.3f}')
+        print(f'Contrast enhancement η_σ = {self.frame_contrast_enhancement:.3f}')
+        print(f'Photobleaching ratio = {self.frame_photobleaching_ratio:.3f}')
+
+        if self.stability is not None:
+            self.stability.plot()
+
 
 def troubleshoot(algorithm, frame_source: Detector,
                  laser_unblock: Callable, laser_block: Callable,
-                 do_frame_capture=True, do_stability_test=True,
+                 do_frame_capture=True, do_stability_test=True, do_log=True,
                  stability_sleep_time_s=0.5,
                  stability_num_of_frames=500) -> WFSTroubleshootResult:
     """
@@ -240,6 +280,7 @@ def troubleshoot(algorithm, frame_source: Detector,
         do_frame_capture: Boolean. If False, skip frame capture before and after running the WFS algorithm.
             Also skips computation of corresponding metrics. Also skips stability test.
         do_stability_test: Boolean. If False, skip stability test.
+        do_log: Report what the troubleshooter is doing on the console.
         stability_sleep_time_s: Float. Sleep time in seconds in between capturing frames.
         stability_num_of_frames: Integer. Number of frames to take in the stability test.
 
@@ -252,28 +293,34 @@ def troubleshoot(algorithm, frame_source: Detector,
     trouble = WFSTroubleshootResult()
 
     if do_frame_capture:
+        if do_log: print('Capturing frames before WFS...')
+
         # Capture frames before WFS
-        algorithm.slm.set_phases(0.0)  # Flat wavefront
+        algorithm.slm.set_phases(0.0)                                       # Flat wavefront
         laser_block()
-        trouble.dark_frame = frame_source.read()  # Dark frame
+        trouble.dark_frame = frame_source.read()                            # Dark frame
         laser_unblock()
-        trouble.before_frame = frame_source.read()  # Before frame (flat wf)
+        trouble.before_frame = frame_source.read()                          # Before frame (flat wf)
 
         # Frame metrics
         trouble.frame_signal_std_before = signal_std(trouble.before_frame, trouble.dark_frame)
         trouble.frame_cnr_before = cnr(trouble.before_frame, trouble.dark_frame)
 
     # WFS experiment
-    trouble.wfs_result = algorithm.execute().select_target(0)  # Execute WFS algorithm
+    if do_log: print('Run WFS algorithm...')
+    trouble.wfs_result = algorithm.execute()                                # Execute WFS algorithm
 
     if do_frame_capture:
+        if do_log: print('Capturing frames after WFS...')
+
         # Capture frames after WFS
-        algorithm.slm.set_phases(0.0)  # Flat wavefront
-        trouble.after_frame = frame_source.read()  # After frame (flat wf)
-        algorithm.slm.set_phases(-np.angle(trouble.wfs_result.t))  # Shaped wavefront
-        trouble.shaped_wf_frame = frame_source.read()  # Shaped wavefront frame
+        algorithm.slm.set_phases(0.0)                                       # Flat wavefront
+        trouble.after_frame = frame_source.read()                           # After frame (flat wf)
+        algorithm.slm.set_phases(-np.angle(trouble.wfs_result.t))           # Shaped wavefront
+        trouble.shaped_wf_frame = frame_source.read()                       # Shaped wavefront frame
 
         # Frame metrics
+        if do_log: print('Compute frame metrics...')
         trouble.frame_signal_std_after = signal_std(trouble.before_frame, trouble.dark_frame)
         trouble.frame_cnr_after = cnr(trouble.after_frame, trouble.dark_frame)  # Frame CNR after
         trouble.frame_contrast_enhancement = \
@@ -282,6 +329,8 @@ def troubleshoot(algorithm, frame_source: Detector,
             contrast_enhancement(trouble.after_frame, trouble.before_frame, trouble.dark_frame)
 
     if do_stability_test and do_frame_capture:
+        if do_log: print('Run stability test...')
+
         # Test setup stability
         trouble.stability = measure_setup_stability(
             frame_source=frame_source,
@@ -290,6 +339,7 @@ def troubleshoot(algorithm, frame_source: Detector,
             dark_frame=trouble.dark_frame)
 
     # Analyze the WFS result
+    if do_log: print('Analyze phase calibration...')
     trouble.fidelity_phase_calibration = analyze_phase_calibration(trouble.wfs_result)
 
     return trouble

@@ -203,6 +203,7 @@ class ADCProcessor(Processor):
         self.shot_noise = shot_noise
         self.analog_max = analog_max  # check value
         self.digital_max = digital_max  # check value
+        self._signal_multiplier = 1  # Signal multiplier. Can e.g. be used to turn off the virtual laser
 
     def _fetch(self, out: Optional[np.ndarray], data) -> np.ndarray:  # noqa
         """Clips the data to the range of the ADC, and digitizes the values."""
@@ -211,7 +212,7 @@ class ADCProcessor(Processor):
             dtype = data.dtype
             rng = np.random.default_rng()
             gaussian_noise = self._gaussian_noise_std * rng.standard_normal(size=data.shape)
-            data = (data.astype('float64') + gaussian_noise).clip(0, 2 ** 16 - 1).astype(dtype)
+            data = (self._signal_multiplier*data.astype('float64') + gaussian_noise).clip(0, 2 ** 16 - 1).astype(dtype)
 
         if self.analog_max == 0.0:
             max = np.max(data)
@@ -279,6 +280,12 @@ class ADCProcessor(Processor):
     @gaussian_noise_std.setter
     def gaussian_noise_std(self, value: int):
         self._gaussian_noise_std = value
+
+    def laser_block(self):
+        self._signal_multiplier = 0
+
+    def laser_unblock(self):
+        self._signal_multiplier = 1
 
 
 class MockCamera(ADCProcessor):
