@@ -80,6 +80,12 @@ def test_place():
     assert np.allclose(dst_shift[:, 0], 0.0)
     assert np.allclose(dst_shift[2:, 1:], src[:-2, :-1])
 
+    # place image in output with same extent and different pixel size
+    ps2 = (0.25, 1.0) * u.um
+    dst_resample = place((14, 16), ps2, src)
+    src_resample = np.repeat(np.repeat(src, 2, axis=0), 2, axis=1)
+    assert np.allclose(dst_resample, src_resample)
+
 
 def test_transform():
     ps1 = (0.5, 2) * u.um

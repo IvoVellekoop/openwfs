@@ -68,7 +68,7 @@ def test_scan_pattern(direction):
     scaled = place(zoomed.shape, 0.5 * ps, set_pixel_size(roi, ps))
     assert np.allclose(get_pixel_size(scaled), 0.5 * ps)
     step = zoomed[1, 1] - zoomed[0, 0]
-    assert np.allclose(zoomed, scaled, atol=0.5 * step)
+    assert np.allclose(zoomed, scaled - step / 2, atol=0.5 * step)
 
     scanner.zoom = 1.0
     reset_zoom = scanner.read().astype('float32') - 0x8000
