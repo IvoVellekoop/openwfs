@@ -17,14 +17,14 @@ EPILEPSY WARNING: YOUR PRIMARY SCREEN MAY QUICKLY FLASH DURING RUNNING THIS FILE
 numerical_aperture = 0.8
 s1 = SLM(0, shape=(300, 200))
 s2 = SLM(0, pos=(0, 300))
-g = geometry.square(numerical_aperture)
-g[1, 1, 1] = 0
+g = geometry.rectangle(numerical_aperture)
+
 # p1 = Patch(s1, g)
 s1.primary_patch.geometry = g
 pf = Patch(s1)
 p2 = Patch(s2)
-p3 = Patch(s2, geometry.square(0.2))
-p4 = Patch(s2, geometry.square(0.1))
+p3 = Patch(s2, geometry.rectangle(0.2))
+p4 = Patch(s2, geometry.rectangle(0.1))
 p3.phases = 0.25
 p4.phases = 1
 p4.additive_blend = False
@@ -46,10 +46,6 @@ s3.monitor_id = 0  # test switching monitor id
 time.sleep(0.5)
 
 s = SLM(0)
-s.phases = (data.camera() / 255) * 2 * np.pi
+s.set_phases(data.camera() / 255 * 2 * np.pi)
 
 s.update()
-time.sleep(1)
-s.wavelength = 503 * u.nm
-s.update()
-time.sleep(1)

@@ -204,10 +204,8 @@ class WFSController:
         """
         Args:
             algorithm: An instance of a wavefront shaping algorithm.
-            source (Detector): An image source, e.g. a camera or scanner.
         """
         self.algorithm = algorithm
-        self.source = source
         self._wavefront = WFSController.State.FLAT_WAVEFRONT
         self._result = None
         self._noise_factor = None
