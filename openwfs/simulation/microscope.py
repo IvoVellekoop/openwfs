@@ -8,6 +8,7 @@ from ..core import Processor, Detector
 from ..utilities import project, place, Transform, set_pixel_size, get_pixel_size, patterns
 from ..processors import TransformProcessor
 import warnings
+from ..plot_utilities import imshow  # noqa - for debugging
 
 
 class Microscope(Processor):
@@ -173,7 +174,6 @@ class Microscope(Processor):
 
         # condition 2. Minimum number of pixels in x and y should be data_shape
         pupil_shape = self.data_shape
-        pupil_pixel_size = pupil_extent / pupil_shape
 
         # Compute the field in the pupil plane
         # The aberrations and the SLM phase pattern are both mapped to the pupil plane coordinates
@@ -185,13 +185,16 @@ class Microscope(Processor):
 
         if aberrations is not None and slm is not None:
             pupil_field = pupil_field * np.exp(1.0j * (
-                    project(pupil_shape, pupil_pixel_size, aberrations, self.aberration_transform) +
-                    project(pupil_shape, pupil_pixel_size, slm, self.slm_transform)))
+                    project(aberrations, out_extent=pupil_extent, out_shape=pupil_shape,
+                            transform=self.aberration_transform) +
+                    project(slm, out_extent=pupil_extent, out_shape=pupil_shape, transform=self.slm_transform)))
         elif slm is not None:
-            pupil_field = pupil_field * np.exp(1.0j * project(pupil_shape, pupil_pixel_size, slm, self.slm_transform))
+            pupil_field = pupil_field * np.exp(
+                1.0j * project(slm, out_shape=pupil_shape, out_extent=pupil_extent, transform=self.slm_transform))
         elif aberrations is not None:
             pupil_field = pupil_field * np.exp(
-                1.0j * project(pupil_shape, pupil_pixel_size, aberrations, self.aberration_transform))
+                1.0j * project(aberrations, out_extent=pupil_extent, out_shape=pupil_shape,
+                               transform=self.aberration_transform))
 
         # Compute the point spread function
         # This is done by Fourier transforming the pupil field and taking the absolute value squared

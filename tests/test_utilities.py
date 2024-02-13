@@ -20,18 +20,11 @@ def test_to_matrix():
     result_matrix = transform.to_matrix((0.5, 4) * u.um, (1, 2) * u.um)
     assert np.allclose(result_matrix, expected_matrix)
 
-    # Check if we get the correct matrix in CV2 format without center correction
-    expected_matrix = ((8, 1.5, 1), (4, 0.5, 1))
-    result_matrix = transform.cv2_matrix(source_shape=(0, 0),
-                                         source_pixel_size=(0.5, 4) * u.um, destination_shape=(0, 0),
-                                         destination_pixel_size=(1, 2) * u.um)
-    assert np.allclose(result_matrix, expected_matrix)
-
     # Test center correction. The center of the source image should be mapped to the center of the destination image
     src = (17, 18)
     dst = (13, 14)
-    src_center = np.array((0.5 * src[1], 0.5 * src[0], 1.0))
-    dst_center = np.array((0.5 * dst[1], 0.5 * dst[0]))
+    src_center = np.array((0.5 * (src[1] - 1), 0.5 * (src[0] - 1), 1.0))
+    dst_center = np.array((0.5 * (dst[1] - 1), 0.5 * (dst[0] - 1)))
     transform = Transform()
     result_matrix = transform.cv2_matrix(source_shape=src,
                                          source_pixel_size=(1, 1), destination_shape=dst,
@@ -98,13 +91,15 @@ def test_transform():
 
     # shift both origins by same distance
     t0 = Transform(source_origin=-ps1 * (1.7, 2.2), destination_origin=-ps1 * (1.7, 2.2))
-    dst0 = project(src.shape, ps1, src, t0)
+    dst0 = project(src, source_extent=ps1 * np.array(src.shape), transform=t0, out_extent=ps1 * np.array(src.shape),
+                   out_shape=src.shape)
     assert np.allclose(dst0, src)
 
     # shift source by (1,2) pixel
     t1 = Transform(source_origin=-ps1 * (1, 2))
     dst1a = place(src.shape, ps1, src, offset=ps1 * (1, 2))
-    dst1b = project(src.shape, ps1, src, t1)
+    dst1b = project(src, source_extent=ps1 * np.array(src.shape), transform=t1, out_extent=ps1 * np.array(src.shape),
+                    out_shape=src.shape)
     assert np.allclose(dst1a, dst1b)
 
 

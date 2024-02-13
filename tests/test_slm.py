@@ -216,6 +216,11 @@ def test_lookup_table(slm):
     pixels = slm.get_pixels('gray_value')
     assert np.allclose(pixels, lut)
 
+    # test phase wrapping
+    slm.set_phases(np.arange(256).reshape(1, 256) * 2 * np.pi / 256 + 2 * np.pi)
+    pixels_wrapped = slm.get_pixels('gray_value')
+    assert np.allclose(pixels, pixels_wrapped)
+
 
 def test_multi_patch(slm):
     slm.shape = (2, 2)

@@ -1,13 +1,12 @@
 import numpy as np
 import astropy.units as u
 from astropy.units import Quantity
-from scipy.ndimage import zoom
 from numpy.typing import ArrayLike
 import time
 from typing import Sequence, Optional
 from ..processors import CropProcessor
 from ..core import Detector, Processor, PhaseSLM, Actuator
-from ..utilities import ExtentType, get_pixel_size
+from ..utilities import ExtentType, get_pixel_size, project, set_extent, get_extent
 
 
 class Generator(Detector):
@@ -212,7 +211,8 @@ class ADCProcessor(Processor):
             dtype = data.dtype
             rng = np.random.default_rng()
             gaussian_noise = self._gaussian_noise_std * rng.standard_normal(size=data.shape)
-            data = (self._signal_multiplier*data.astype('float64') + gaussian_noise).clip(0, self.digital_max).astype(dtype)
+            data = (self._signal_multiplier * data.astype('float64') + gaussian_noise).clip(0, self.digital_max).astype(
+                dtype)
 
         if self.analog_max == 0.0:
             max = np.max(data)
@@ -424,18 +424,27 @@ class MockSLM(PhaseSLM, Actuator):
         super().__init__()
         if len(shape) != 2:
             raise ValueError("Shape of the SLM should be 2-dimensional.")
-
+        self.shape = shape
         self._requested_phases = np.zeros(shape, 'float32')
         self._grey_values = np.zeros(shape, 'uint8')  # Stored grey value: 0 -> 0rad, 255 -> almost 2π
-        self._monitor = MockSource(self._requested_phases, pixel_size=2.0 / np.min(shape) * u.dimensionless_unscaled)  # Actual phase
-        self._phase_response = np.arange(0, 2*np.pi, 2*np.pi/256)  # index = input grey value, value = output phase
+        self._monitor = MockSource(self._requested_phases,
+                                   pixel_size=2.0 / np.min(shape) * u.dimensionless_unscaled)  # Actual phase
+        self._phase_response = np.arange(0, 2 * np.pi,
+                                         2 * np.pi / 256)  # index = input grey value, value = output phase
         self.lookup_table = range(256)  # index = input phase (scaled to -> [0, 255]), value = grey value
 
     def update(self):
         self._start()  # wait for detectors to finish
 
         # Apply lookup table and compute grey values from intended phases
-        lookup_index = (np.mod(self._requested_phases, 2 * np.pi) * 256 / (2 * np.pi) + 0.5).astype(np.uint8)
+        # This uses the same conversion as in the shader:
+        # first compute tx = phi * / (2 * pi) + 0.5 / 256
+        # use the fractional part of tx to index the lookup table, where:
+        # - tx =0 maps to the start of the first element
+        # - tx=1-δ maps to the end of the last element
+        tx = self._requested_phases * (1 / (2 * np.pi)) + (0.5 / 256)
+        tx = tx - np.floor(tx)  # fractional part of tx
+        lookup_index = np.floor(self._lookup_table.shape[0] * tx).astype(np.uint8)  # index into lookup table
         self._grey_values = self._lookup_table[lookup_index]
 
         # Apply phase_response and return actual phases
@@ -470,10 +479,9 @@ class MockSLM(PhaseSLM, Actuator):
 
     def set_phases(self, values: ArrayLike, update=True):
         # no docstring, use documentation from base class
-        values = np.atleast_2d(values)
-        scale = np.array(self._requested_phases.shape) / np.array(values.shape)
-        # TODO: replace by cv2, with area interpolation
-        zoom(values, scale, output=self._requested_phases, order=0)
+
+        project(np.atleast_2d(values).astype('float32'), out=self._requested_phases, source_extent=(2.0, 2.0),
+                out_extent=(2.0, 2.0))
         if update:
             self.update()
 

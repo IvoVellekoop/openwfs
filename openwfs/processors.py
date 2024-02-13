@@ -375,8 +375,9 @@ class TransformProcessor(Processor):
         Args:
             out(ndarray) optional numpy array or view of an array that will receive the data
                 when present, the data will be stored in `out`, and `out` is returned.
-            source (Detector): A Dectector object as described in openwfs.core.Detector
+            source (Detector): A Detector object as described in openwfs.core.Detector
 
         Returns: ndarray that has been transformed
         """
-        return project(self.data_shape, self.pixel_size, source, self.transform, out)
+        return project(source, source, transform=self.transform, out=out, out_shape=self.data_shape,
+                       out_extent=self.extent)
