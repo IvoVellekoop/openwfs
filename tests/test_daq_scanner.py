@@ -6,6 +6,10 @@ import astropy.units as u
 import matplotlib.pyplot as plt
 import nidaqmx
 
+# older versions of nidaqmx report a FileNotFoundError instead of a DaqNotFoundError
+DaqNotFoundError = nidaqmx.errors.DaqNotFoundError if (
+            hasattr(nidaqmx, 'errors') and hasattr(nidaqmx.errors, 'DaqNotFoundError')) else FileNotFoundError
+
 
 def test_scan_pattern_delay():
     try:
@@ -15,7 +19,7 @@ def test_scan_pattern_delay():
                                      data_shape=(5, 5), scale=440 * u.um / u.V)
         pattern = scanner._scan_pattern
         print(pattern)
-    except (nidaqmx.DaqError, nidaqmx.errors.DaqNotFoundError, FileNotFoundError):
+    except (nidaqmx.DaqError, DaqNotFoundError):
         print('No nidaq card found or NI-DAQ MAX not installed')
         pytest.skip()
 
@@ -60,6 +64,6 @@ def test_daq_connection():
         plt.imshow(scanner.read())
         plt.colorbar()
         plt.show()
-    except (nidaqmx.DaqError, nidaqmx.errors.DaqNotFoundError, FileNotFoundError):
+    except (nidaqmx.DaqError, DaqNotFoundError):
         print('No nidaq card found or NI-DAQ MAX not installed')
         pytest.skip()
