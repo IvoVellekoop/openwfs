@@ -97,12 +97,17 @@ class Transform:
                    destination_pixel_size: CoordinateType) -> np.ndarray:
         """Returns the transformation matrix in the format used by cv2.warpAffine."""
 
-        # first construct a transform that is relative to the center of the image, as required by cv2.warpAffine
-        source_origin = 0.5 * np.array(source_shape) * source_pixel_size
+        # correct the origin. OpenCV uses the _center_ of teh top-left corner as the origin
+        # and openwfs uses the center of the image as the origin, so we need to shift the origin
+        # by half the image size minus half a pixel.
+        if min(source_shape) < 1 or min(destination_shape) < 1:
+            raise ValueError("Image size must be positive")
+
+        source_origin = 0.5 * (np.array(source_shape) - 1.0) * source_pixel_size
         if self.source_origin is not None:
             source_origin += self.source_origin
 
-        destination_origin = 0.5 * np.array(destination_shape) * destination_pixel_size
+        destination_origin = 0.5 * (np.array(destination_shape) - 1.0) * destination_pixel_size
         if self.destination_origin is not None:
             destination_origin += self.destination_origin
 
@@ -218,12 +223,17 @@ def place(out_shape: Sequence[int], out_pixel_size: Quantity, source: np.ndarray
     Args:
 
     """
+    out_extent = out_pixel_size * np.array(out_shape)
     transform = Transform(destination_origin=offset)
-    return project(out_shape, out_pixel_size, source, transform, out)
+    return project(source, out_extent=out_extent, out_shape=out_shape, transform=transform, out=out)
 
 
-def project(out_shape: Sequence[int], out_pixel_size: Quantity, source: np.ndarray,
-            transform: Transform, out: Optional[np.ndarray] = None):
+def project(source: np.ndarray, *,
+            transform: Optional[Transform] = None,
+            out: Optional[np.ndarray] = None,
+            source_extent: Optional[ExtentType] = None,
+            out_extent: Optional[ExtentType] = None,
+            out_shape: Optional[tuple[int, ...]] = None) -> ArrayLike:
     """Projects the input image onto an array with specified shape and resolution.
 
     The input image is scaled so that the pixel sizes match those of the output,
@@ -232,8 +242,6 @@ def project(out_shape: Sequence[int], out_pixel_size: Quantity, source: np.ndarr
     This transformation is specified as a 2x3 transformation matrix in homogeneous coordinates.
 
     Args:
-        out_shape (tuple[int, int]): number of pixels in the output array
-        out_pixel_size (Quantity): pixel size of the output array, 2-element array
         source (np.ndarray): input image.
             Must have the pixel_size set (see set_pixel_size)
         transform: transformation to appy to the source image before placing it in the output
@@ -241,16 +249,32 @@ def project(out_shape: Sequence[int], out_pixel_size: Quantity, source: np.ndarr
             If specified, `out_shape` is ignored.
 
     Returns:
-
+        np.ndarray: the projected image (`out` if specified, otherwise a new array)
     """
-    if transform is None:
-        transform = Transform()
-    t = transform.cv2_matrix(source.shape, get_pixel_size(source), out_shape, out_pixel_size)
+    transform = transform if transform is not None else Transform()
+    if out is not None:
+        if out_shape is not None and out_shape != out.shape:
+            raise ValueError("out_shape and out.shape must match. Note that out_shape may be omitted")
+        if out.dtype != source.dtype:
+            raise ValueError("out and source must have the same dtype")
+        out_shape = out.shape
+        out_extent = out_extent or get_extent(out)
+    if out_shape is None:
+        raise ValueError("Either out_shape or out must be specified")
+    if out_extent is None:
+        raise ValueError("Either out_extent or the pixel_size metadata of out must be specified")
+    source_extent = source_extent if source_extent is not None else get_extent(source)
+    source_ps = source_extent / np.array(source.shape)
+    out_ps = out_extent / np.array(out_shape)
+
+    t = transform.cv2_matrix(source.shape, source_ps, out_shape, out_ps)
     # swap x and y in matrix and size, since cv2 uses the (x,y) convention.
     out_size = (out_shape[1], out_shape[0])
-    dst = cv2.warpAffine(source, t, out_size, dst=out, flags=cv2.INTER_AREA,
+    dst = cv2.warpAffine(source, t, out_size, dst=out, flags=cv2.INTER_NEAREST,
                          borderMode=cv2.BORDER_CONSTANT, borderValue=(0.0,))
-    return set_pixel_size(dst, out_pixel_size)
+    if out is not None and out is not dst:
+        raise ValueError("OpenCV did not use the specified output array. This should not happen.")
+    return set_pixel_size(dst, out_ps)
 
 
 def set_pixel_size(data: ArrayLike, pixel_size: Optional[Quantity]) -> np.ndarray:
@@ -295,8 +319,42 @@ def get_pixel_size(data: np.ndarray) -> Optional[Quantity]:
     >>> import numpy as np
     >>> data = set_pixel_size(((1, 2), (3, 4)), 5 * u.um)
     >>> pixel_size = get_pixel_size(data)
+
+    TODO: return 1 if no pixel size is present
     """
     metadata = data.dtype.metadata
     if metadata is None:
         return None
     return data.dtype.metadata.get('pixel_size', None)
+
+
+def get_extent(data: np.ndarray) -> Quantity:
+    """
+    Extracts the extent from the data array.
+    The extent is always equal to `shape * pixel_size`.
+    """
+    pixel_size = get_pixel_size(data)
+    if pixel_size is None:
+        return data.shape
+    return data.shape * pixel_size
+
+
+def set_extent(data, extent: ArrayLike):
+    """
+    Sets the extent metadata for the given data array.
+
+    Args:
+        data (ArrayLike): The input data array.
+        extent (ArrayLike): The extent to be set. When a single-element extent is given,
+            it is broadcasted to all dimensions of the data array.
+            Passing None sets the extent metadata to None.
+
+    Returns:
+        np.ndarray: The modified data array with the extent metadata.
+
+    Usage:
+    >>> data = np.array([[1, 2], [3, 4]])
+    >>> extent = 0.1 * u.m
+    >>> modified_data = set_extent(data, extent)
+    """
+    return set_pixel_size(data, extent / np.array(data.shape))

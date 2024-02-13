@@ -26,6 +26,15 @@ default_fragment_shader = """
         }
     """
 
+# This shader is used to apply a software lookup table to phase image.
+# The phase in radians is converted to a coordinate in the lookup table
+# using the equation: texCoord = phase / (2 * pi) + 0.5 / 256
+# where the offset is used for proper rounding, so that with the standard lookup table
+# the range -δ to δ maps to a gray value 0 instead of
+# negative values mapping to 255 and positive values mapping to 0.
+# Since the lookup table texture is configured to use GL_WRAP,
+# only the fractional part of texCoord is used (i.e., texCoord - floor(texCoord)).
+#
 post_process_fragment_shader = """
         #version 440 core
         in vec2 texCoord;
@@ -33,7 +42,7 @@ post_process_fragment_shader = """
         layout(binding = 0) uniform sampler2D texSampler;
         layout(binding = 1) uniform sampler1D LUT;
         const float scale = 0.15915494309189535f; // corresponds to 1/(2 pi).
-        const float offset = 0.00196078431372549f; // corresponds to 0.5/255.
+        const float offset = 0.001953125f; // corresponds to 0.5/256.
 
         void main() {
             float raw = texture(texSampler, texCoord).r * scale + offset;

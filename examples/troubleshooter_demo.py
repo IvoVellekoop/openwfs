@@ -7,15 +7,19 @@ from openwfs.simulation import SimulatedWFS, MockSource, MockSLM, Microscope
 from openwfs.algorithms import StepwiseSequential
 from openwfs.algorithms.troubleshoot import troubleshoot, field_correlation
 
+from openwfs.core import Device
+
+Device.multi_threading = False  # for easier debugging
+
 
 def phase_response_test_function(phi, b, c, gamma):
     """A synthetic phase response function: 2π*(b + c*(phi/2π)^gamma)"""
-    return np.clip(2*np.pi * (b + c*(phi/(2*np.pi))**gamma), 0, None)
+    return np.clip(2 * np.pi * (b + c * (phi / (2 * np.pi)) ** gamma), 0, None)
 
 
 def inverse_phase_response_test_function(f, b, c, gamma):
     """Inverse of the synthetic phase response function: 2π*(b + c*(phi/2π)^gamma)"""
-    return 2*np.pi * ((f/(2*np.pi) - b) / c)**(1/gamma)
+    return 2 * np.pi * ((f / (2 * np.pi) - b) / c) ** (1 / gamma)
 
 
 def lookup_table_test_function(f, b, c, gamma):
@@ -35,7 +39,7 @@ num_phase_steps = 8
 # Aberration and image source
 gaussian_noise_std = 1.0
 numerical_aperture = 1.0
-aberration_phase = np.random.uniform(0.0, 2*np.pi, (n_y, n_x))
+aberration_phase = np.random.uniform(0.0, 2 * np.pi, (n_y, n_x))
 aberration = MockSource(aberration_phase, extent=2 * numerical_aperture)
 img_off = np.zeros((120, 120), dtype=np.int16)
 img_on = img_off.copy()
@@ -46,7 +50,6 @@ img_on[60, 90] = 1000
 img_on[60, 100] = 1000
 img_on[60, 110] = 1000
 src = MockSource(img_on, pixel_size=200 * u.nm)
-
 
 # SLM with incorrect phase response
 slm = MockSLM(shape=(100, 100))
@@ -70,8 +73,7 @@ cam.laser_block()
 
 trouble.report(do_plots=False)
 
-
-print(f'{np.abs(field_correlation(np.exp(1j * trouble.wfs_result.t), np.exp(1j * aberration_phase)))**2:.4f}')
+print(f'{np.abs(field_correlation(trouble.wfs_result.t, np.exp(1j * aberration_phase))) ** 2:.4f}')
 
 import matplotlib.pyplot as plt
 
@@ -88,6 +90,11 @@ plt.colorbar()
 plt.figure()
 cam.laser_unblock()
 slm.set_phases(-aberration_phase)
+cam.read()
+slm.set_phases(-aberration_phase)
+cam.read()
+slm.set_phases(-aberration_phase)
+cam.read()
 plt.imshow(cam.read(), vmin=0, vmax=500)
 plt.title('Perfect WF')
 plt.colorbar()

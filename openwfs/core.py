@@ -112,8 +112,9 @@ class Device(ABC):
             This can cause problems if `wait` calls a function form a module that is already unloaded, such as `numpy`.
             In this case, a 'NoneType is not callable' error occurs.
         """
-        if hasattr(self, '_base_initialized'):
-            self.wait()
+
+    #        if hasattr(self, '_base_initialized'):
+    #           self.wait()
 
     def __setattr__(self, key, value):
         """Prevents modification of public attributes and properties while the device is locked.
