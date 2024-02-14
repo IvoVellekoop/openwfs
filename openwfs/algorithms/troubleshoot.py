@@ -216,8 +216,8 @@ def measure_modulated_light(slm: PhaseSLM, feedback: Detector, phase_steps: int,
 
     # Initialization
     check_lin = np.arange(num_blocks).reshape(num_blocks, 1)
-    block_pattern1 = np.mod(check_lin + check_lin.T, 2)
-    block_pattern2 = 1 - block_pattern1
+    block_pattern_p = np.mod(check_lin + check_lin.T, 2)
+    block_pattern_q = 1 - block_pattern_p
     measurements = np.zeros((phase_steps, phase_steps))
 
     # Dual phase stepping
@@ -225,11 +225,9 @@ def measure_modulated_light(slm: PhaseSLM, feedback: Detector, phase_steps: int,
         phase_p = p * 2*np.pi / phase_steps
         for q in range(phase_steps):
             phase_q = q * 2*np.pi / phase_steps
-            phase_pattern = block_pattern1 * phase_p + block_pattern2 * phase_q
+            phase_pattern = block_pattern_p * phase_p + block_pattern_q * phase_q
             slm.set_phases(phase_pattern)
             measurements[p, q] = feedback.read()
-
-    feedback.wait()
 
     # 2D Fourier transform the modulation measurements
     F = np.fft.fft2(measurements) / phase_steps**2

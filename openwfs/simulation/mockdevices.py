@@ -282,9 +282,11 @@ class ADCProcessor(Processor):
         self._gaussian_noise_std = value
 
     def laser_block(self):
+        """Simulate blocking of the light source by setting signal multiplier to 0."""
         self._signal_multiplier = 0
 
     def laser_unblock(self):
+        """Simulate blocking of the light source by setting signal multiplier to 1."""
         self._signal_multiplier = 1
 
 
@@ -412,7 +414,12 @@ class MockXYStage(Actuator):
 
 class MockSLM(PhaseSLM, Actuator):
     """
-    A mock version of a phase-only spatial light modulator.
+    A mock version of a phase-only spatial light modulator. Some properties are available to simulate physical
+    phenomena such as imperfect phase response, and front reflections (which cause unmodulated light).
+
+    Properties:
+        modulated_field_amplitude (float): Field amplitude of the modulated light.
+        unmodulated_field (complex): Unmodulated field, e.g. due to front reflection.
     """
 
     def __init__(self, shape):
@@ -432,6 +439,8 @@ class MockSLM(PhaseSLM, Actuator):
         self._phase_response = np.arange(0, 2 * np.pi,
                                          2 * np.pi / 256)  # index = input grey value, value = output phase
         self.lookup_table = range(256)  # index = input phase (scaled to -> [0, 255]), value = grey value
+        self.modulated_field_amplitude = 1.0
+        self.unmodulated_field_amplitude = 0.0 + 0.0j
 
     def update(self):
         self._start()  # wait for detectors to finish
@@ -489,6 +498,11 @@ class MockSLM(PhaseSLM, Actuator):
     def phases(self) -> np.ndarray:
         """Current phase pattern on the SLM."""
         return self._monitor.data
+
+    @property
+    def fields(self) -> np.ndarray:
+        """Current field output by the SLM. Sum of modulated and unmodulated field."""
+        return self.modulated_field_amplitude * np.exp(1j * self.phases) + self.unmodulated_field_amplitude
 
     def pixels(self) -> Detector:
         """Returns a `camera` that returns the current phase on the SLM.
