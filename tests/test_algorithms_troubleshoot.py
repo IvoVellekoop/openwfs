@@ -7,7 +7,8 @@ from ..openwfs.processors import SingleRoi
 from ..openwfs.simulation import SimulatedWFS, MockSource, MockSLM, Microscope
 from ..openwfs.algorithms import StepwiseSequential
 from ..openwfs.algorithms.troubleshoot \
-    import cnr, signal_std, find_pixel_shift, field_correlation, frame_correlation, analyze_phase_calibration
+    import cnr, signal_std, find_pixel_shift, field_correlation, frame_correlation, \
+    analyze_phase_calibration, measure_modulated_light
 
 
 def test_signal_std():
@@ -25,8 +26,8 @@ def test_cnr():
     """
     Test Contrast to Noise Ratio, corrected for (uncorrelated) noise in the signal.
     """
-    A = np.random.randn(500, 500)
-    B = np.random.randn(500, 500)
+    A = np.random.randn(800, 800)
+    B = np.random.randn(800, 800)
     cnr_gt = 3.0                                                                # Ground Truth
     assert cnr(A, A) < 1e-6                                                     # Test noise only
     assert np.abs(cnr(cnr_gt*A + B, B) - cnr_gt) < 0.01                         # Test signal+uncorrelated noise
@@ -178,3 +179,23 @@ def test_fidelity_phase_calibration_ssa_with_noise(n_y, n_x, phase_steps, gaussi
     fidelity_phase_cal_noise = analyze_phase_calibration(result_good)
     assert np.abs(fidelity_phase_cal_noise) < 0.9
 
+
+@pytest.mark.parametrize("num_blocks, phase_steps, gaussian_noise_std, atol", [(10, 4, 0.0, 1e-6), (5, 6, 5.0, 1e-3)])
+def test_measure_modulated_light(num_blocks, phase_steps, gaussian_noise_std, atol):
+    """Test fidelity estimation due to amount of modulated light."""
+    # === Define mock hardware, perfect SLM ===
+    # Aberration and image source
+    img = np.zeros((32, 32), dtype=np.int16)
+    img[16, 16] = 100
+    src = MockSource(img, 500 * u.nm)
+
+    # SLM, simulation, camera, ROI detector
+    slm = MockSLM(shape=(100, 100))
+    sim = Microscope(source=src, slm=slm.pixels(), magnification=1, numerical_aperture=1.0, wavelength=800 * u.nm)
+    cam = sim.get_camera(analog_max=1e4, gaussian_noise_std=gaussian_noise_std)
+    roi_detector = SingleRoi(cam, radius=0)  # Only measure that specific point
+
+    # Measure the amount of modulated light (no unmodulated light present)
+    fidelity_modulated = measure_modulated_light(
+        slm=slm, feedback=roi_detector, phase_steps=phase_steps, num_blocks=num_blocks)
+    assert np.isclose(fidelity_modulated, 1, atol=atol)
