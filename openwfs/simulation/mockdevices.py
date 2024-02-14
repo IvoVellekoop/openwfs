@@ -1,3 +1,5 @@
+from collections import deque
+
 import numpy as np
 import astropy.units as u
 from astropy.units import Quantity
@@ -6,7 +8,7 @@ import time
 from typing import Sequence, Optional
 from ..processors import CropProcessor
 from ..core import Detector, Processor, PhaseSLM, Actuator
-from ..utilities import ExtentType, get_pixel_size, project, set_extent, get_extent
+from ..utilities import ExtentType, get_pixel_size, project, set_extent, get_extent, unitless
 
 
 class Generator(Detector):
@@ -410,31 +412,132 @@ class MockXYStage(Actuator):
         return 0.0 * u.ms
 
 
+class _MockSLMHardware(Generator):
+    def __init__(self,
+                 shape: Sequence[int],
+                 update_latency: Quantity[u.ms] = 0.0 * u.ms,
+                 update_duration: Quantity[u.ms] = 0.0 * u.ms):
+
+        if len(shape) != 2:
+            raise ValueError("Shape of the SLM should be 2-dimensional.")
+        super().__init__(self._generate, data_shape=shape, pixel_size=Quantity(2.0 / np.min(shape)))
+        self.update_latency = update_latency
+        self.update_duration = update_duration
+
+        # _set_point are the voltages that the SLM hardware is currently sending to the display.
+        #   The display may not have stabilized yet
+        # _state are the voltages currently on the display. They will asymptotically approach _set_point
+        # _state_timestamp is the time when the state was last updated
+        # _queue is the queue of upcoming frames (set points and their timestamps)
+        # that are sent from the PC to the SLM, but not yet displayed.
+        self._set_point = np.zeros(shape, dtype=np.float32)
+        self._state = np.zeros(shape, dtype=np.float32)
+        self._state_timestamp = 0.0
+        self._queue = deque()  # Queue to hold phase images and their timestamps
+        self.phase_response = None
+
+    def _generate(self, shape):
+        grey_values = self._update(include_current_time=True)
+
+        # Apply phase_response and return actual phases
+        if self.phase_response is None:
+            return grey_values * (2 * np.pi / 256)
+        else:
+            return self.phase_response[np.rint(grey_values).astype(np.uint8)]
+
+    def _update(self, include_current_time):
+        """Computes the currently displayed voltage image, based on the queue of set points and their timestamps.
+
+        This function takes the frames from the queue. The ones that have a time stamp corresponding to
+        the current time or earlier are merged into the current _state. The rest is kept.
+        """
+        current_time = time.time_ns() * u.ns
+        while True:
+            # peek the first element in the queue
+            if not self._queue:
+                break
+            set_point, timestamp = self._queue[0]
+            if timestamp > current_time:
+                break
+
+            # we found a frame that is or has been displayed
+            # we step the simulation forward to the time of the frame
+            self._step_to_time(timestamp)
+            self._set_point = set_point
+            self._queue.popleft()
+
+        # finally, compute the current state
+        if include_current_time:
+            self._step_to_time(current_time)
+
+        return self._state
+
+    def _step_to_time(self, time):
+        """Step the simulation forward to a given time."""
+        if self.update_duration > 0:
+            a = np.exp(-(time - self._state_timestamp) / self.update_duration)
+            self._state = a * self._state + (1 - a) * self._set_point
+        else:
+            self._state = self._set_point
+        self._state_timestamp = time
+
+    def send(self, phase_image):
+        """Send a phase image to the SLM. This method is called by the SLM object.
+
+        The image is not displayed directly. Instead, it is added to a queue with a timestamp
+        attached, and it only takes effect after update_latency seconds have passed.
+
+        All old images in the queue are merged with the new image, using an exponential decay.
+        """
+        display_time = time.time_ns() * u.ns + self.update_latency
+        self._queue.append((phase_image, display_time))
+        self._update(False)
+
+
 class MockSLM(PhaseSLM, Actuator):
     """
     A mock version of a phase-only spatial light modulator.
+
+    This object can simulate many properties of a real SLM, including the phase response function and the lookup table.
+    It mimics the timing behavior of a real SLM, including the latency (idle time) and update duration (settle time).
     """
 
-    def __init__(self, shape):
+    def __init__(self,
+                 shape: Sequence[int],
+                 latency: Quantity[u.ms] = 0.0 * u.ms,
+                 duration: Quantity[u.ms] = 0.0 * u.ms,
+                 update_latency: Quantity[u.ms] = 0.0 * u.ms,
+                 update_duration: Quantity[u.ms] = 0.0 * u.ms,
+                 refresh_rate: Quantity[u.Hz] = 0 * u.Hz):
         """
-
         Args:
-            shape (Sequence[int]): The 2D shape of the SLM.
-        """
+            shape: The shape (height, width) of the SLM in pixels
+            latency: The latency that the OpenWFS framework uses for synchronization.
+            duration: The duration that the OpenWFS framework uses for synchronization.
+            update_latency: The latency of the simulated SLM. 
+                Choose a value different than `latency` to simulate incorrect timing.
+            update_duration: The duration of the simulated SLM.
+                Choose a value different than `duration` to simulate incorrect timing.
+            refresh_rate: Simulated refresh rate. Affects the timing of the `update` method,
+                since this will wait until the next vertical retrace. Keep at 0 to disable this feature.
+            """
         super().__init__()
-        if len(shape) != 2:
-            raise ValueError("Shape of the SLM should be 2-dimensional.")
-        self.shape = shape
-        self._requested_phases = np.zeros(shape, 'float32')
-        self._grey_values = np.zeros(shape, 'uint8')  # Stored grey value: 0 -> 0rad, 255 -> almost 2π
-        self._monitor = MockSource(self._requested_phases,
-                                   pixel_size=2.0 / np.min(shape) * u.dimensionless_unscaled)  # Actual phase
-        self._phase_response = np.arange(0, 2 * np.pi,
-                                         2 * np.pi / 256)  # index = input grey value, value = output phase
-        self.lookup_table = range(256)  # index = input phase (scaled to -> [0, 255]), value = grey value
+        self.refresh_rate = refresh_rate
+        self._hardware = _MockSLMHardware(shape, update_latency, update_duration)  # Actual phase
+        self._lookup_table = None  # index = input phase (scaled to -> [0, 255]), value = grey value
+        self._first_update_ns = time.time_ns()
+        self._back_buffer = np.zeros(shape, dtype=np.float32)
 
     def update(self):
         self._start()  # wait for detectors to finish
+
+        if self.refresh_rate > 0:
+            # wait for the vertical retrace
+            time_in_frames = unitless((time.time_ns() - self._first_update_ns) * u.ns * self.refresh_rate)
+            time_to_next_frame = (np.ceil(time_in_frames) - time_in_frames) / self.refresh_rate
+            time.sleep(time_to_next_frame.tovalue(u.s))
+            # update the start time (this is also done in the actual SLM)
+            self._start()
 
         # Apply lookup table and compute grey values from intended phases
         # This uses the same conversion as in the shader:
@@ -442,15 +545,15 @@ class MockSLM(PhaseSLM, Actuator):
         # use the fractional part of tx to index the lookup table, where:
         # - tx =0 maps to the start of the first element
         # - tx=1-δ maps to the end of the last element
-        tx = self._requested_phases * (1 / (2 * np.pi)) + (0.5 / 256)
+        tx = self._back_buffer * (1 / (2 * np.pi)) + (0.5 / 256)
         tx = tx - np.floor(tx)  # fractional part of tx
-        lookup_index = np.floor(self._lookup_table.shape[0] * tx).astype(np.uint8)  # index into lookup table
-        self._grey_values = self._lookup_table[lookup_index]
+        if self._lookup_table is None:
+            grey_values = np.floor(256 * tx).astype(np.uint8)  # TODO: remove np.floor here and below
+        else:
+            lookup_index = np.floor(self._lookup_table.shape[0] * tx).astype(np.uint8)  # index into lookup table
+            grey_values = self._lookup_table[lookup_index]
 
-        # Apply phase_response and return actual phases
-        self._monitor.data = self._phase_response[self._grey_values]
-
-        self._requested_phases[:] = 0.0
+        self._hardware.send(grey_values)
 
     @property
     def lookup_table(self) -> Sequence[int]:
@@ -471,16 +574,16 @@ class MockSLM(PhaseSLM, Actuator):
         """
         phase_response function: The phase response of the SLM.
         """
-        return self._phase_response
+        return self._hardware.phase_response
 
     @phase_response.setter
     def phase_response(self, value: Sequence[float]):
-        self._phase_response = value
+        self._hardware.phase_response = value
 
     def set_phases(self, values: ArrayLike, update=True):
         # no docstring, use documentation from base class
 
-        project(np.atleast_2d(values).astype('float32'), out=self._requested_phases, source_extent=(2.0, 2.0),
+        project(np.atleast_2d(values).astype('float32'), out=self._back_buffer, source_extent=(2.0, 2.0),
                 out_extent=(2.0, 2.0))
         if update:
             self.update()
@@ -488,13 +591,13 @@ class MockSLM(PhaseSLM, Actuator):
     @property
     def phases(self) -> np.ndarray:
         """Current phase pattern on the SLM."""
-        return self._monitor.data
+        return self._hardware.read()
 
     def pixels(self) -> Detector:
         """Returns a `camera` that returns the current phase on the SLM.
 
         The camera coordinates are spanning the [-1,1] range by default."""
-        return self._monitor
+        return self._hardware
 
     @property
     def duration(self) -> Quantity[u.ms]:
