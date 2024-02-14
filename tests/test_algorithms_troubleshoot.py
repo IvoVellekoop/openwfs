@@ -128,20 +128,20 @@ def test_fidelity_phase_calibration_ssa_noise_free(n_y, n_x, phase_steps, b, c, 
     alg = StepwiseSequential(feedback=sim, slm=sim.slm, n_x=n_x, n_y=n_y, phase_steps=phase_steps)
     result = alg.execute()
     fidelity_phase_cal_perfect = analyze_phase_calibration(result)
-    assert np.abs(fidelity_phase_cal_perfect - 1) < 1e-4
+    assert np.isclose(fidelity_phase_cal_perfect, 1, atol=1e-6)
 
     # SLM with incorrect phase response, noise-free
     linear_phase = np.arange(0, 2*np.pi, 2*np.pi/256)
     sim.slm.phase_response = phase_response_test_function(linear_phase, b, c, gamma)
     result = alg.execute()
     fidelity_wrong_phase_response = analyze_phase_calibration(result)
-    assert fidelity_wrong_phase_response < 0.8
+    assert np.abs(fidelity_wrong_phase_response) < 0.7
 
     # SLM calibrated with phase response corrected by LUT, noise-free
     sim.slm.lookup_table = lookup_table_test_function(linear_phase, b, c, gamma)
     result = alg.execute()
     fidelity_phase_cal_lut = analyze_phase_calibration(result)
-    assert np.abs(fidelity_phase_cal_lut - 1) < 1e-3
+    assert np.isclose(fidelity_phase_cal_lut, 1, atol=1e-4)
 
 
 @pytest.mark.parametrize("n_y, n_x, phase_steps, gaussian_noise_std", [(4, 4, 10, 0.2), (6, 6, 12, 1.0)])
