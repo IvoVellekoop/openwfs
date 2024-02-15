@@ -270,11 +270,23 @@ def project(source: np.ndarray, *,
     t = transform.cv2_matrix(source.shape, source_ps, out_shape, out_ps)
     # swap x and y in matrix and size, since cv2 uses the (x,y) convention.
     out_size = (out_shape[1], out_shape[0])
-    dst = cv2.warpAffine(source, t, out_size, dst=out, flags=cv2.INTER_NEAREST,
-                         borderMode=cv2.BORDER_CONSTANT, borderValue=(0.0,))
-    if out is not None and out is not dst:
-        raise ValueError("OpenCV did not use the specified output array. This should not happen.")
-    return set_pixel_size(dst, out_ps)
+    if (source.dtype == np.complex128) or (source.dtype == np.complex64):
+        if out is None:
+            out = np.zeros(out_shape, dtype=source.dtype)
+        # real part
+        out.real = cv2.warpAffine(source.real, t, out_size, flags=cv2.INTER_NEAREST,
+                                  borderMode=cv2.BORDER_CONSTANT, borderValue=(0.0,))
+        # imaginary part
+        out.imag = cv2.warpAffine(source.imag, t, out_size, flags=cv2.INTER_NEAREST,
+                                  borderMode=cv2.BORDER_CONSTANT, borderValue=(0.0,))
+
+    else:
+        dst = cv2.warpAffine(source, t, out_size, dst=out, flags=cv2.INTER_NEAREST,
+                             borderMode=cv2.BORDER_CONSTANT, borderValue=(0.0,))
+        if out is not None and out is not dst:
+            raise ValueError("OpenCV did not use the specified output array. This should not happen.")
+        out = dst
+    return set_pixel_size(out, out_ps)
 
 
 def set_pixel_size(data: ArrayLike, pixel_size: Optional[Quantity]) -> np.ndarray:
