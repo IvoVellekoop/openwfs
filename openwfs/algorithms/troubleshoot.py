@@ -194,9 +194,9 @@ def analyze_phase_calibration(wfs_result: WFSResult) -> float:
     return np.sum((np.abs(F1)**2))**2 / np.sum(np.abs(inner_sum)**2, axis=axis_k)  # Compute |c1|²/∑|ck|²
 
 
-def measure_modulated_light(slm: PhaseSLM, feedback: Detector, phase_steps: int, num_blocks: int):
+def measure_modulated_light_dual_phase_stepping(slm: PhaseSLM, feedback: Detector, phase_steps: int, num_blocks: int):
     """
-    Measure the amount of unmodulated light with the dual phase stepping method.
+    Measure the ratio of modulated light with the dual phase stepping method.
 
     Args:
         slm: The SLM that will be used to modulate the light.
@@ -205,7 +205,6 @@ def measure_modulated_light(slm: PhaseSLM, feedback: Detector, phase_steps: int,
             phase_steps².
         num_blocks: Number of blocks in each dimension of the checkerboard pattern that is used to create the
             modulated groups.
-        unmod_threshold: Threshold for unmodulated intensity. If t
 
     Returns:
         An estimate of the ratio of modulated light. Independent of any uncorrelated intensity offset.
@@ -236,6 +235,41 @@ def measure_modulated_light(slm: PhaseSLM, feedback: Detector, phase_steps: int,
     eps = 1e-6  # Epsilon term to prevent division by zero
     M1M2_ratio = (np.abs(F[0, 1])**2 + eps) / (np.abs(F[1, 0])**2 + eps)  # Ratio of modulated intensities
     fidelity_modulated = (1 + M1M2_ratio) / (1 + M1M2_ratio + np.abs(F[0, 1])**2 / np.abs(F[1, -1])**2)
+
+    return fidelity_modulated
+
+
+def measure_modulated_light(slm: PhaseSLM, feedback: Detector, phase_steps: int):
+    """
+    Measure the ratio of modulated light by phase stepping the entire SLM.
+
+    Args:
+        slm: The SLM that will be used to modulate the light.
+        feedback: The Detector providing the feedback.
+        phase_steps: Number of phase steps. Must be >=3.
+
+    Returns:
+        fidelity_modulated: An estimate of the ratio of modulated light.
+
+    Note: It is not possible to detect which field is modulated and which is static. This calculation assumes
+        the modulated intensity is greater than the non-modulated intensity.
+    """
+    assert phase_steps >= 3
+
+    # Initialization
+    measurements = np.zeros((phase_steps,))
+
+    # Dual phase stepping
+    for p in range(phase_steps):
+        slm.set_phases(p * 2*np.pi / phase_steps)
+        measurements[p] = feedback.read()
+
+    # 2D Fourier transform the modulation measurements
+    F = np.fft.fft(measurements) / phase_steps
+
+    # Compute ratio of modulated light over total
+    modulated_intensity = 0.5 * (np.abs(F[0]) + np.sqrt(np.clip(np.abs(F[0])**2 - 4*np.abs(F[1])**2, 0, None)))
+    fidelity_modulated = modulated_intensity / np.abs(F[0])
 
     return fidelity_modulated
 
