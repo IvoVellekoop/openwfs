@@ -8,7 +8,7 @@ from ..openwfs.simulation import SimulatedWFS, MockSource, MockSLM, Microscope
 from ..openwfs.algorithms import StepwiseSequential
 from ..openwfs.algorithms.troubleshoot \
     import cnr, signal_std, find_pixel_shift, field_correlation, frame_correlation, \
-    analyze_phase_calibration, measure_modulated_light
+    analyze_phase_calibration, measure_modulated_light, measure_modulated_light_dual_phase_stepping
 
 
 def test_signal_std():
@@ -182,22 +182,20 @@ def test_fidelity_phase_calibration_ssa_with_noise(n_y, n_x, phase_steps, gaussi
 
 @pytest.mark.parametrize("num_blocks, phase_steps, expected_fid, atol", [(10, 8, 1, 1e-6)])
 def test_measure_modulated_light_dual_phase_stepping_noise_free(num_blocks, phase_steps, expected_fid, atol):
-    """
-    Test computing phase calibration fidelity factor, with the SSA algorithm. Noise-free scenarios.
-    """
+    """Test fidelity estimation due to amount of modulated light. Noise-free."""
     # Perfect SLM, noise-free
     aberrations = np.random.uniform(0.0, 2 * np.pi, (20, 20))
     sim = SimulatedWFS(aberrations)
 
     # Measure the amount of modulated light (no non-modulated light present)
-    fidelity_modulated = measure_modulated_light(
+    fidelity_modulated = measure_modulated_light_dual_phase_stepping(
         slm=sim.slm, feedback=sim, phase_steps=phase_steps, num_blocks=num_blocks)
     assert np.isclose(fidelity_modulated, expected_fid, atol=atol)
 
 
 @pytest.mark.parametrize("num_blocks, phase_steps, gaussian_noise_std, atol", [(10, 6, 0.0, 1e-6), (6, 8, 2.0, 1e-3)])
 def test_measure_modulated_light_dual_phase_stepping_with_noise(num_blocks, phase_steps, gaussian_noise_std, atol):
-    """Test fidelity estimation due to amount of modulated light."""
+    """Test fidelity estimation due to amount of modulated light. Can test with noise."""
     # === Define mock hardware, perfect SLM ===
     # Aberration and image source
     img = np.zeros((64, 64), dtype=np.int16)
@@ -211,6 +209,22 @@ def test_measure_modulated_light_dual_phase_stepping_with_noise(num_blocks, phas
     roi_detector = SingleRoi(cam, radius=0)  # Only measure that specific point
 
     # Measure the amount of modulated light (no non-modulated light present)
-    fidelity_modulated = measure_modulated_light(
+    fidelity_modulated = measure_modulated_light_dual_phase_stepping(
         slm=slm, feedback=roi_detector, phase_steps=phase_steps, num_blocks=num_blocks)
     assert np.isclose(fidelity_modulated, 1, atol=atol)
+
+
+@pytest.mark.parametrize("phase_steps, expected_fid, atol, modulated_field_amplitude, non_modulated_field",
+                         [(6, 1, 1e-6, 1.0, 0.0), (8, 0.5, 1e-6, 0.5, 0.5), (8, 1/(1+0.25), 1e-6, 1.0, 0.5)])
+def test_measure_modulated_light_noise_free(
+        phase_steps, expected_fid, atol, modulated_field_amplitude, non_modulated_field):
+    """Test fidelity estimation due to amount of modulated light. Noise-free."""
+    # Perfect SLM, noise-free
+    aberrations = np.random.uniform(0.0, 2 * np.pi, (20, 20))
+    sim = SimulatedWFS(aberrations)
+    sim.slm.fields().modulated_field_amplitude = modulated_field_amplitude
+    sim.slm.fields().non_modulated_field = non_modulated_field
+
+    # Measure the amount of modulated light (no non-modulated light present)
+    fidelity_modulated = measure_modulated_light(slm=sim.slm, feedback=sim, phase_steps=phase_steps)
+    assert np.isclose(fidelity_modulated, expected_fid, atol=atol)

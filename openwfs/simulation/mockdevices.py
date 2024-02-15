@@ -423,15 +423,15 @@ class MockSLMField(Processor):
             non_modulated_field: Non-modulated field (e.g. a front reflection).
         """
         super().__init__(slm_pixels)  # Register sources
-        self._modulated_field_amplitude = modulated_field_amplitude
-        self._non_modulated_field = non_modulated_field
+        self.modulated_field_amplitude = modulated_field_amplitude
+        self.non_modulated_field = non_modulated_field
 
     def _fetch(self, out: Optional[np.ndarray], slm_pixel_phases: np.ndarray) -> np.ndarray:  # noqa
         """
         Updates the complex field output of the SLM. The output field is the sum of the modulated field and the
         non-modulated field.
         """
-        fields = self._modulated_field_amplitude * np.exp(1j * slm_pixel_phases) + self._non_modulated_field
+        fields = self.modulated_field_amplitude * np.exp(1j * slm_pixel_phases) + self.non_modulated_field
         if out is None:
             out = fields
         else:
