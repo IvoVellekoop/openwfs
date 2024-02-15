@@ -5,7 +5,7 @@ import astropy.units as u
 from astropy.units import Quantity
 from numpy.typing import ArrayLike
 import time
-from typing import Sequence, Optional
+from typing import Sequence, Optional, Union
 from ..processors import CropProcessor
 from ..core import Detector, Processor, PhaseSLM, Actuator
 from ..utilities import ExtentType, get_pixel_size, project, set_extent, get_extent, unitless
@@ -535,7 +535,10 @@ class MockSLM(PhaseSLM, Actuator):
                  duration: Quantity[u.ms] = 0.0 * u.ms,
                  update_latency: Quantity[u.ms] = 0.0 * u.ms,
                  update_duration: Quantity[u.ms] = 0.0 * u.ms,
-                 refresh_rate: Quantity[u.Hz] = 0 * u.Hz):
+                 refresh_rate: Quantity[u.Hz] = 0 * u.Hz,
+                 field_amplitude: Union[np.ndarray, float, None] = 1.0,
+                 non_modulated_field_fraction: float = 0.0,
+                 ):
         """
 
         Args:
@@ -546,9 +549,9 @@ class MockSLM(PhaseSLM, Actuator):
             latency: The latency that the OpenWFS framework uses for synchronization.
             duration: The duration that the OpenWFS framework uses for synchronization.
             update_latency: The latency of the simulated SLM.
-                Choose a value different than `latency` to simulate incorrect timing.
+                Choose a value different from `latency` to simulate incorrect timing.
             update_duration: The duration of the simulated SLM.
-                Choose a value different than `duration` to simulate incorrect timing.
+                Choose a value different from `duration` to simulate incorrect timing.
             refresh_rate: Simulated refresh rate. Affects the timing of the `update` method,
                 since this will wait until the next vertical retrace. Keep at 0 to disable this feature.
             """
@@ -558,6 +561,8 @@ class MockSLM(PhaseSLM, Actuator):
         self._lookup_table = None  # index = input phase (scaled to -> [0, 255]), value = grey value
         self._first_update_ns = time.time_ns()
         self._back_buffer = np.zeros(shape, dtype=np.float32)
+        self._field_amplitude = field_amplitude
+        self._non_modulated_field_fraction = non_modulated_field_fraction
 
     def update(self):
         self._start()  # wait for detectors to finish
@@ -579,9 +584,9 @@ class MockSLM(PhaseSLM, Actuator):
         tx = self._back_buffer * (1 / (2 * np.pi)) + (0.5 / 256)
         tx = tx - np.floor(tx)  # fractional part of tx
         if self._lookup_table is None:
-            grey_values = np.floor(256 * tx).astype(np.uint8)  # TODO: remove np.floor here and below
+            grey_values = (256 * tx).astype(np.uint8)
         else:
-            lookup_index = np.floor(self._lookup_table.shape[0] * tx).astype(np.uint8)  # index into lookup table
+            lookup_index = (self._lookup_table.shape[0] * tx).astype(np.uint8)  # index into lookup table
             grey_values = self._lookup_table[lookup_index]
 
         self._hardware.send(grey_values)

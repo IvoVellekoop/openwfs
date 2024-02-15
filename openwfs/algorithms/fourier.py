@@ -186,4 +186,4 @@ class FourierBase:
                          axis=2,
                          noise_factor=weighted_average(left.noise_factor, right.noise_factor),
                          amplitude_factor=weighted_average(left.amplitude_factor, right.amplitude_factor),
-                         non_linearity=weighted_average(left.non_linearity, right.non_linearity))
+                         calibration_fidelity=weighted_average(left.calibration_fidelity, right.calibration_fidelity))

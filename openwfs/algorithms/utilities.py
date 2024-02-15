@@ -20,7 +20,7 @@ class WFSResult:
         noise_factor (ndarray): The estimated loss in fidelity caused by the limited SNR (for each target).
         amplitude_factor (ndarray): Estimated reduction of the fidelity due to phase-only modulation (for each target)
             (≈ π/4 for fully developed speckle).
-        non_linearity (ndarray): Estimated deviation from a sinusoid response (TODO: experimental, untested).
+        calibration_fidelity (ndarray): Estimated deviation from a sinusoid response (TODO: experimental, untested).
         n (int): Total number of segments used in the optimization. When missing, this value is set to the number of
             elements in the first `axis` dimensions of `t`.
         estimated_optimized_intensity (ndarray): When missing, estimated intensity in the target(s) after displaying the
@@ -34,7 +34,7 @@ class WFSResult:
                  axis: int,
                  noise_factor: ArrayLike,
                  amplitude_factor: ArrayLike,
-                 non_linearity: ArrayLike,
+                 calibration_fidelity: ArrayLike,
                  n: Optional[int] = None,
                  intensity_offset: Optional[ArrayLike] = 0.0,
                  t_f: np.ndarray = None):
@@ -49,7 +49,7 @@ class WFSResult:
             amplitude_factor(ArrayLike):
                 estimated reduction of the fidelity due to phase-only modulation (for each target)
                 (≈ π/4 for fully developed speckle)
-            non_linearity(ArrayLike):
+            calibration_fidelity(ArrayLike):
                 estimated deviation from a sinusoid responds (TODO: experimental, untested)
             n(Optional[int]): total number of segments used in the optimization.
                 when missing, this value is set to the number of elements in the first `axis` dimensions of `t`.
@@ -66,8 +66,9 @@ class WFSResult:
         self.n = np.prod(t.shape[0:axis]) if n is None else n
         self.amplitude_factor = np.atleast_1d(amplitude_factor)
         self.estimated_enhancement = np.atleast_1d(1.0 + (self.n - 1) * self.amplitude_factor * self.noise_factor)
-        self.non_linearity = np.atleast_1d(non_linearity)
-        self.intensity_offset = intensity_offset * np.ones(self.non_linearity.shape) if np.isscalar(intensity_offset) \
+        self.calibration_fidelity = np.atleast_1d(calibration_fidelity)
+        self.intensity_offset = intensity_offset * np.ones(self.calibration_fidelity.shape) if np.isscalar(
+            intensity_offset) \
             else intensity_offset
         after = np.sum(np.abs(t), tuple(range(self.axis))) ** 2 * self.noise_factor + intensity_offset
         self.estimated_optimized_intensity = np.atleast_1d(after)
@@ -75,13 +76,14 @@ class WFSResult:
     def __str__(self) -> str:
         noise_warning = "OK" if self.noise_factor > 0.5 else "WARNING low signal quality."
         amplitude_warning = "OK" if self.amplitude_factor > 0.5 else "WARNING uneven contribution of optical modes."
-        non_linearity_warning = "OK" if self.non_linearity < 0.3 else ("WARNING non-linear phase response, check "
-                                                                       "lookup table.")
+        calibration_fidelity_warning = "OK" if self.calibration_fidelity > 0.5 else (
+            "WARNING non-linear phase response, check "
+            "lookup table.")
         return f"""
         Wavefront shaping results:
             noise_factor: {self.noise_factor} {noise_warning}
             amplitude_factor: {self.amplitude_factor} {amplitude_warning}
-            non_linearity: {self.non_linearity} {non_linearity_warning}
+            calibration_fidelity: {self.calibration_fidelity} {calibration_fidelity_warning}
             estimated_enhancement: {self.estimated_enhancement}
             estimated_optimized_intensity: {self.estimated_optimized_intensity}
             """
@@ -102,7 +104,7 @@ class WFSResult:
                          intensity_offset=self.intensity_offset[:][b],
                          noise_factor=self.noise_factor[:][b],
                          amplitude_factor=self.amplitude_factor[:][b],
-                         non_linearity=self.non_linearity[:][b],
+                         calibration_fidelity=self.calibration_fidelity[:][b],
                          n=self.n,
                          )
 
@@ -168,9 +170,9 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int, A: Optional[floa
         noise_factor = 1.0  # cannot estimate reliably
 
     if phase_steps > 6 and (I_f[2, ...] + I_f[3, ...]) != 0.0:
-        non_linearity = (I_f[2, ...] - I_f[3, ...]) / (I_f[2, ...] + I_f[3, ...])
+        calibration_fidelity = (I_f[2, ...] - I_f[3, ...]) / (I_f[2, ...] + I_f[3, ...])
     else:
-        non_linearity = 0.0  # cannot estimate reliably, or I_f[2] + I_f[3] == 0 (happens in simulation)
+        calibration_fidelity = 0.0  # cannot estimate reliably, or I_f[2] + I_f[3] == 0 (happens in simulation)
 
     if A is None:  # reference field strength not known: estimate from data
         t_abs = np.abs(np.take(t_f, 1, axis=axis))
@@ -185,8 +187,18 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int, A: Optional[floa
     # for perfectly developed speckle, and homogeneous illumination, this factor will be pi/4
     amplitude_factor = np.mean(np.abs(t), segments) ** 2 / np.mean(np.abs(t) ** 2, segments)
 
+    # estimate the calibration error
+    # we first construct a matrix that can be used to fit
+    # parameters a and b such that a·t(:) + b·t^*(:) ≈ t_f(:, k, :)
+    M_inv = np.linalg.pinv(np.vstack((t.ravel(), np.conj(t.ravel()))).T)
+    c = np.zeros(phase_steps)
+    for k in range(phase_steps):
+        c[k] = (M_inv @ np.take(t_f, k, axis=axis).ravel())[0]
+
+    calibration_fidelity = np.abs(c[1]) ** 2 / np.sum(np.abs(c[1:]) ** 2)
+
     return WFSResult(t, t_f=t_f, axis=axis, amplitude_factor=amplitude_factor, noise_factor=noise_factor,
-                     non_linearity=non_linearity, n=n)
+                     calibration_fidelity=calibration_fidelity, n=n)
 
 
 class WFSController:
@@ -211,7 +223,7 @@ class WFSController:
         self._noise_factor = None
         self._amplitude_factor = None
         self._estimated_enhancement = None
-        self._non_linearity = None
+        self._calibration_fidelity = None
         self._estimated_optimized_intensity = None
         self._snr = None  # Average SNR. Computed when wavefront is computed.
         self._optimized_wavefront = None
@@ -251,7 +263,7 @@ class WFSController:
                 self._noise_factor = result.noise_factor
                 self._amplitude_factor = result.amplitude_factor
                 self._estimated_enhancement = result.estimated_enhancement
-                self._non_linearity = result.non_linearity
+                self._calibration_fidelity = result.calibration_fidelity
                 self._estimated_optimized_intensity = result.estimated_optimized_intensity
                 self._snr = 1.0 / (1.0 / result.noise_factor - 1.0)
                 self._result = result
@@ -284,12 +296,12 @@ class WFSController:
         return self._estimated_enhancement
 
     @property
-    def non_linearity(self) -> float:
+    def calibration_fidelity(self) -> float:
         """
         Returns:
             float: non-linearity.
         """
-        return self._non_linearity
+        return self._calibration_fidelity
 
     @property
     def estimated_optimized_intensity(self) -> float:
