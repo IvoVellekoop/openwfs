@@ -42,9 +42,9 @@ class SimulatedWFS(Processor):
 
         # normalize the field
         self.E_input_slm *= 1 / np.linalg.norm(self.E_input_slm.ravel())
-        super().__init__(self.slm.pixels())
+        super().__init__(self.slm.fields())
 
-    def _fetch(self, out: Optional[np.ndarray], slm_phases):  # noqa
+    def _fetch(self, out: Optional[np.ndarray], slm_fields):  # noqa
         """
         Computes the intensity in the focus by applying phase corrections to the input electric field.
 
@@ -63,8 +63,7 @@ class SimulatedWFS(Processor):
             np.ndarray: A numpy array containing the calculated intensity in the focus.
 
         """
-        correction = np.exp(1.0j * slm_phases)
-        field = np.tensordot(correction, self.E_input_slm, 2)
+        field = np.tensordot(slm_fields, self.E_input_slm, 2)
         intensity = np.abs(field) ** 2
         if out is not None:
             out[...] = intensity

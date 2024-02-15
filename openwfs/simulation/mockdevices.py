@@ -6,7 +6,7 @@ import time
 from typing import Sequence, Optional
 from ..processors import CropProcessor
 from ..core import Detector, Processor, PhaseSLM, Actuator
-from ..utilities import ExtentType, get_pixel_size, project, set_extent, get_extent
+from ..utilities import ExtentType, get_pixel_size, project
 
 
 class Generator(Detector):
@@ -412,35 +412,60 @@ class MockXYStage(Actuator):
         return 0.0 * u.ms
 
 
+class MockSLMField(Processor):
+    """Computes the field reflected by a MockSLM."""
+
+    def __init__(self, slm_pixels: Detector, modulated_field_amplitude: float, non_modulated_field: complex):
+        """
+        Args:
+            slm_pixels (Detector): The `Detector` that returns the phases of the slm pixels.
+            modulated_field_amplitude: Field amplitude of the modulated pixels.
+            non_modulated_field: Non-modulated field (e.g. a front reflection).
+        """
+        super().__init__(slm_pixels)  # Register sources
+        self._modulated_field_amplitude = modulated_field_amplitude
+        self._non_modulated_field = non_modulated_field
+
+    def _fetch(self, out: Optional[np.ndarray], slm_pixel_phases: np.ndarray) -> np.ndarray:  # noqa
+        """
+        Updates the complex field output of the SLM. The output field is the sum of the modulated field and the
+        non-modulated field.
+        """
+        fields = self._modulated_field_amplitude * np.exp(1j * slm_pixel_phases) + self._non_modulated_field
+        if out is None:
+            out = fields
+        else:
+            out[...] = fields
+        return out
+
+
 class MockSLM(PhaseSLM, Actuator):
     """
     A mock version of a phase-only spatial light modulator. Some properties are available to simulate physical
-    phenomena such as imperfect phase response, and front reflections (which cause unmodulated light).
-
-    Properties:
-        modulated_field_amplitude (float): Field amplitude of the modulated light.
-        unmodulated_field (complex): Unmodulated field, e.g. due to front reflection.
+    phenomena such as imperfect phase response, and front reflections (which cause non-modulated light).
     """
 
-    def __init__(self, shape):
+    def __init__(self, shape, modulated_field_amplitude: float = 1.0, non_modulated_field: complex = 0.0 + 0.0j):
         """
-
         Args:
             shape (Sequence[int]): The 2D shape of the SLM.
+            modulated_field_amplitude (float): Field amplitude of the modulated light.
+            non_modulated_field (complex): non_modulated field, e.g. due to front reflection.
         """
         super().__init__()
         if len(shape) != 2:
             raise ValueError("Shape of the SLM should be 2-dimensional.")
         self.shape = shape
         self._requested_phases = np.zeros(shape, 'float32')
-        self._grey_values = np.zeros(shape, 'uint8')  # Stored grey value: 0 -> 0rad, 255 -> almost 2π
-        self._monitor = MockSource(self._requested_phases,
-                                   pixel_size=2.0 / np.min(shape) * u.dimensionless_unscaled)  # Actual phase
-        self._phase_response = np.arange(0, 2 * np.pi,
-                                         2 * np.pi / 256)  # index = input grey value, value = output phase
+        self._grey_values = np.zeros(shape, 'uint8')  # Stored grey value, e.g.: 0 -> 0rad, 255 -> almost 2π
+        self._monitor = MockSource(self._requested_phases, pixel_size=2.0 / np.min(shape) * u.dimensionless_unscaled)
+        self._field_monitor = MockSLMField(
+            slm_pixels=self._monitor,
+            modulated_field_amplitude=modulated_field_amplitude,
+            non_modulated_field=non_modulated_field)
+
+        self._phase_response = np.arange(0, 2*np.pi, 2*np.pi / 256)  # index = input grey value, value = output phase
         self.lookup_table = range(256)  # index = input phase (scaled to -> [0, 255]), value = grey value
-        self.modulated_field_amplitude = 1.0
-        self.unmodulated_field_amplitude = 0.0 + 0.0j
 
     def update(self):
         self._start()  # wait for detectors to finish
@@ -456,7 +481,7 @@ class MockSLM(PhaseSLM, Actuator):
         lookup_index = np.floor(self._lookup_table.shape[0] * tx).astype(np.uint8)  # index into lookup table
         self._grey_values = self._lookup_table[lookup_index]
 
-        # Apply phase_response and return actual phases
+        # Set the actual phases based on the phase response
         self._monitor.data = self._phase_response[self._grey_values]
 
         self._requested_phases[:] = 0.0
@@ -499,10 +524,9 @@ class MockSLM(PhaseSLM, Actuator):
         """Current phase pattern on the SLM."""
         return self._monitor.data
 
-    @property
-    def fields(self) -> np.ndarray:
-        """Current field output by the SLM. Sum of modulated and unmodulated field."""
-        return self.modulated_field_amplitude * np.exp(1j * self.phases) + self.unmodulated_field_amplitude
+    def fields(self) -> MockSLMField:
+        """Returns a `Processor` that returns the current field output by the SLM."""
+        return self._field_monitor
 
     def pixels(self) -> Detector:
         """Returns a `camera` that returns the current phase on the SLM.
