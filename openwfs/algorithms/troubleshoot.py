@@ -6,7 +6,7 @@ from numpy.fft import fft2, ifft2, fftfreq
 import matplotlib.pyplot as plt
 
 from ..algorithms.utilities import WFSResult
-from ..core import Detector
+from ..core import Detector, PhaseSLM
 
 
 def signal_std(signal_with_noise: np.ndarray, noise: np.ndarray) -> np.float64:
@@ -192,6 +192,52 @@ def analyze_phase_calibration(wfs_result: WFSResult) -> float:
     Fk = np.take(F, range(1, k_nyquist), axis=axis_k)  # All frequencies from base to Nyquist
     inner_sum = np.sum(Fk * F1.conj(), axis=tuple(axis_not_k), keepdims=True)  # Sum over all axes except phase stepping
     return np.sum((np.abs(F1)**2))**2 / np.sum(np.abs(inner_sum)**2, axis=axis_k)  # Compute |c1|²/∑|ck|²
+
+
+def measure_modulated_light(slm: PhaseSLM, feedback: Detector, phase_steps: int, num_blocks: int):
+    """
+    Measure the amount of unmodulated light with the dual phase stepping method.
+
+    Args:
+        slm: The SLM that will be used to modulate the light.
+        feedback: The Detector providing the feedback.
+        phase_steps: Number of phase steps for each group. Must be >=3. Total number of measurements will be
+            phase_steps².
+        num_blocks: Number of blocks in each dimension of the checkerboard pattern that is used to create the
+            modulated groups.
+        unmod_threshold: Threshold for unmodulated intensity. If t
+
+    Returns:
+        An estimate of the ratio of modulated light. Independent of any uncorrelated intensity offset.
+
+    Note: In the calculation of the ratio of modulated light, a small epsilon term is added to prevent division by zero.
+    """
+    assert phase_steps >= 3
+
+    # Initialization
+    check_lin = np.arange(num_blocks).reshape(num_blocks, 1)
+    block_pattern_p = np.mod(check_lin + check_lin.T, 2)
+    block_pattern_q = 1 - block_pattern_p
+    measurements = np.zeros((phase_steps, phase_steps))
+
+    # Dual phase stepping
+    for p in range(phase_steps):
+        phase_p = p * 2*np.pi / phase_steps
+        for q in range(phase_steps):
+            phase_q = q * 2*np.pi / phase_steps
+            phase_pattern = block_pattern_p * phase_p + block_pattern_q * phase_q
+            slm.set_phases(phase_pattern)
+            measurements[p, q] = feedback.read()
+
+    # 2D Fourier transform the modulation measurements
+    F = np.fft.fft2(measurements) / phase_steps**2
+
+    # Compute fidelity factor due to modulated light
+    eps = 1e-6  # Epsilon term to prevent division by zero
+    M1M2_ratio = (np.abs(F[0, 1])**2 + eps) / (np.abs(F[1, 0])**2 + eps)  # Ratio of modulated intensities
+    fidelity_modulated = (1 + M1M2_ratio) / (1 + M1M2_ratio + np.abs(F[0, 1])**2 / np.abs(F[1, -1])**2)
+
+    return fidelity_modulated
 
 
 class WFSTroubleshootResult:

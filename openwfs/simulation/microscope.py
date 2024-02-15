@@ -3,7 +3,7 @@ import astropy.units as u
 from astropy.units import Quantity
 from scipy.signal import fftconvolve
 from typing import Optional
-from ..simulation.mockdevices import MockXYStage, MockCamera
+from ..simulation.mockdevices import MockXYStage, MockCamera, MockSLM
 from ..core import Processor, Detector
 from ..utilities import project, place, Transform, set_pixel_size, get_pixel_size, patterns
 from ..processors import TransformProcessor
@@ -48,7 +48,7 @@ class Microscope(Processor):
 
     def __init__(self, source: Detector, *, data_shape=None, numerical_aperture: float, wavelength: Quantity[u.nm],
                  magnification: float = 1.0, xy_stage=None, z_stage=None,
-                 slm: Optional[Detector] = None, slm_transform: Optional[Transform] = None,
+                 slm: Optional[MockSLM] = None, slm_transform: Optional[Transform] = None,
                  aberrations: Optional[Detector] = None, aberration_transform: Optional[Transform] = None,
                  truncation_factor: Optional[float] = None):
         """
@@ -69,7 +69,8 @@ class Microscope(Processor):
             z_stage (Stage): Optional stage object that moves the sample up and down to focus the microscope.
                 Higher values are further away from the microscope objective.
                 Defaults to a MockStage.
-            slm (Detector): Detector that produces 2-d images containing the phase (in radians) as displayed on the SLM.
+            slm (MockSLM): MockSLM that produces 2-d images containing the phase (in radians) as displayed on
+            the SLM.
                 If no `slm_transform` is specified, the `pixel_size` attribute should
                  correspond to normalized pupil coordinates
                 (e.g. with a disk of radius 1.0, i.e. an extent of 2.0, corresponding to an NA of 1.0)
@@ -99,7 +100,7 @@ class Microscope(Processor):
         if not isinstance(source, Detector):
             raise ValueError("`source` should be a Detector object.")
 
-        super().__init__(source, aberrations, slm)
+        super().__init__(source, aberrations, slm.pixels())
         self._magnification = magnification
         self._data_shape = data_shape if data_shape is not None else source.data_shape
         self.numerical_aperture = numerical_aperture
@@ -183,14 +184,20 @@ class Microscope(Processor):
             pupil_field = patterns.gaussian(pupil_shape, waist=self.truncation_factor * self.numerical_aperture,
                                             truncation_radius=self.numerical_aperture, extent=pupil_extent)
 
-        if aberrations is not None and slm is not None:
-            pupil_field = pupil_field * np.exp(1.0j * (
-                    project(aberrations, out_extent=pupil_extent, out_shape=pupil_shape,
-                            transform=self.aberration_transform) +
-                    project(slm, out_extent=pupil_extent, out_shape=pupil_shape, transform=self.slm_transform)))
-        elif slm is not None:
-            pupil_field = pupil_field * np.exp(
-                1.0j * project(slm, out_shape=pupil_shape, out_extent=pupil_extent, transform=self.slm_transform))
+        slm_fields = self.slm.fields
+
+        if aberrations is not None and slm_fields is not None:
+            slm_fields_projected = \
+                project(slm_fields.real, out_extent=pupil_extent, out_shape=pupil_shape, transform=self.slm_transform) \
+                + 1.0j * project(slm_fields.imag, out_extent=pupil_extent, out_shape=pupil_shape, transform=self.slm_transform)
+            aberrations_field = np.exp(1.0j * project(aberrations, out_extent=pupil_extent, out_shape=pupil_shape,
+                                                      transform=self.aberration_transform))
+            pupil_field = pupil_field * slm_fields_projected * aberrations_field
+        elif slm_fields is not None:
+            slm_fields_projected = \
+                project(slm_fields.real, out_extent=pupil_extent, out_shape=pupil_shape, transform=self.slm_transform) \
+                + 1.0j * project(slm_fields.imag, out_extent=pupil_extent, out_shape=pupil_shape, transform=self.slm_transform)
+            pupil_field = pupil_field * slm_fields_projected
         elif aberrations is not None:
             pupil_field = pupil_field * np.exp(
                 1.0j * project(aberrations, out_extent=pupil_extent, out_shape=pupil_shape,

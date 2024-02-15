@@ -30,7 +30,7 @@ class Device(ABC):
         See `__setattr__` for details.
 
     Detector locking:
-        For detectors, an additional synchonization mechanism is implemented.
+        For detectors, an additional synchronization mechanism is implemented.
         It prevents modification of the detector settings while a measurement is in progress.
         See Detector for details.
 
@@ -109,7 +109,7 @@ class Device(ABC):
 
         Note:
             When closing Python, all modules are unloaded in an undefined order.
-            This can cause problems if `wait` calls a function form a module that is already unloaded, such as `numpy`.
+            This can cause problems if `wait` calls a function from a module that is already unloaded, such as `numpy`.
             In this case, a 'NoneType is not callable' error occurs.
         """
 

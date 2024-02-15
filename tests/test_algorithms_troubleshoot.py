@@ -7,7 +7,8 @@ from ..openwfs.processors import SingleRoi
 from ..openwfs.simulation import SimulatedWFS, MockSource, MockSLM, Microscope
 from ..openwfs.algorithms import StepwiseSequential
 from ..openwfs.algorithms.troubleshoot \
-    import cnr, signal_std, find_pixel_shift, field_correlation, frame_correlation, analyze_phase_calibration
+    import cnr, signal_std, find_pixel_shift, field_correlation, frame_correlation, \
+    analyze_phase_calibration, measure_modulated_light
 
 
 def test_signal_std():
@@ -25,8 +26,8 @@ def test_cnr():
     """
     Test Contrast to Noise Ratio, corrected for (uncorrelated) noise in the signal.
     """
-    A = np.random.randn(500, 500)
-    B = np.random.randn(500, 500)
+    A = np.random.randn(800, 800)
+    B = np.random.randn(800, 800)
     cnr_gt = 3.0                                                                # Ground Truth
     assert cnr(A, A) < 1e-6                                                     # Test noise only
     assert np.abs(cnr(cnr_gt*A + B, B) - cnr_gt) < 0.01                         # Test signal+uncorrelated noise
@@ -128,20 +129,20 @@ def test_fidelity_phase_calibration_ssa_noise_free(n_y, n_x, phase_steps, b, c, 
     alg = StepwiseSequential(feedback=sim, slm=sim.slm, n_x=n_x, n_y=n_y, phase_steps=phase_steps)
     result = alg.execute()
     fidelity_phase_cal_perfect = analyze_phase_calibration(result)
-    assert np.abs(fidelity_phase_cal_perfect - 1) < 1e-4
+    assert np.isclose(fidelity_phase_cal_perfect, 1, atol=1e-6)
 
     # SLM with incorrect phase response, noise-free
     linear_phase = np.arange(0, 2*np.pi, 2*np.pi/256)
     sim.slm.phase_response = phase_response_test_function(linear_phase, b, c, gamma)
     result = alg.execute()
     fidelity_wrong_phase_response = analyze_phase_calibration(result)
-    assert fidelity_wrong_phase_response < 0.8
+    assert np.abs(fidelity_wrong_phase_response) < 0.7
 
     # SLM calibrated with phase response corrected by LUT, noise-free
     sim.slm.lookup_table = lookup_table_test_function(linear_phase, b, c, gamma)
     result = alg.execute()
     fidelity_phase_cal_lut = analyze_phase_calibration(result)
-    assert np.abs(fidelity_phase_cal_lut - 1) < 1e-3
+    assert np.isclose(fidelity_phase_cal_lut, 1, atol=1e-4)
 
 
 @pytest.mark.parametrize("n_y, n_x, phase_steps, gaussian_noise_std", [(4, 4, 10, 0.2), (6, 6, 12, 1.0)])
@@ -178,3 +179,53 @@ def test_fidelity_phase_calibration_ssa_with_noise(n_y, n_x, phase_steps, gaussi
     fidelity_phase_cal_noise = analyze_phase_calibration(result_good)
     assert np.abs(fidelity_phase_cal_noise) < 0.9
 
+
+def test_measure_modulated_light_noise_free(phase_steps=8, num_blocks=10, atol=1e-6):
+    """
+    Test computing phase calibration fidelity factor, with the SSA algorithm. Noise-free scenarios.
+    """
+    # Perfect SLM, noise-free
+    aberrations = np.random.uniform(0.0, 2 * np.pi, (20, 20))
+    sim = SimulatedWFS(aberrations)
+    alg = StepwiseSequential(feedback=sim, slm=sim.slm, phase_steps=phase_steps)
+
+    # Measure the amount of modulated light (no unmodulated light present)
+    fidelity_modulated = measure_modulated_light(
+        slm=sim.slm, feedback=sim, phase_steps=phase_steps, num_blocks=num_blocks)
+    assert np.isclose(fidelity_modulated, 1, atol=atol)
+
+    # Measure the amount of modulated light (unmodulated light present)
+    sim.slm.modulated_field_amplitude = 0.6
+    sim.slm.unmodulated_field_amplitude = 0.4
+    fidelity_modulated = measure_modulated_light(
+        slm=sim.slm, feedback=sim, phase_steps=phase_steps, num_blocks=num_blocks)
+    assert fidelity_modulated < 0.8
+    ### TODO: SimulatedWFS should use field instead of phases
+
+
+@pytest.mark.parametrize("num_blocks, phase_steps, gaussian_noise_std, atol", [(10, 16, 0.0, 1e-6), (5, 6, 5.0, 1e-3)])
+def test_measure_modulated_light_with_noise(num_blocks, phase_steps, gaussian_noise_std, atol):
+    """Test fidelity estimation due to amount of modulated light."""
+    # === Define mock hardware, perfect SLM ===
+    # Aberration and image source
+    img = np.zeros((64, 64), dtype=np.int16)
+    img[32, 32] = 100
+    src = MockSource(img, 200 * u.nm)
+
+    # SLM, simulation, camera, ROI detector
+    slm = MockSLM(shape=(100, 100))
+    sim = Microscope(source=src, slm=slm, magnification=1, numerical_aperture=1.0, wavelength=800 * u.nm)
+    cam = sim.get_camera(analog_max=1e4, gaussian_noise_std=gaussian_noise_std)
+    roi_detector = SingleRoi(cam, radius=0)  # Only measure that specific point
+
+    # Measure the amount of modulated light (no unmodulated light present)
+    fidelity_modulated = measure_modulated_light(
+        slm=slm, feedback=roi_detector, phase_steps=phase_steps, num_blocks=num_blocks)
+    assert np.isclose(fidelity_modulated, 1, atol=atol)
+
+    # Measure the amount of modulated light (unmodulated light present)
+    slm.modulated_field_amplitude = 0.6
+    slm.unmodulated_field_amplitude = 0.4
+    fidelity_modulated = measure_modulated_light(
+        slm=slm, feedback=roi_detector, phase_steps=phase_steps, num_blocks=num_blocks)
+    assert fidelity_modulated < 0.8

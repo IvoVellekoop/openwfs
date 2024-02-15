@@ -284,9 +284,11 @@ class ADCProcessor(Processor):
         self._gaussian_noise_std = value
 
     def laser_block(self):
+        """Simulate blocking of the light source by setting signal multiplier to 0."""
         self._signal_multiplier = 0
 
     def laser_unblock(self):
+        """Simulate blocking of the light source by setting signal multiplier to 1."""
         self._signal_multiplier = 1
 
 
@@ -592,6 +594,11 @@ class MockSLM(PhaseSLM, Actuator):
     def phases(self) -> np.ndarray:
         """Current phase pattern on the SLM."""
         return self._hardware.read()
+
+    @property
+    def fields(self) -> np.ndarray:
+        """Current field output by the SLM. Sum of modulated and unmodulated field."""
+        return self.modulated_field_amplitude * np.exp(1j * self.phases) + self.unmodulated_field_amplitude
 
     def pixels(self) -> Detector:
         """Returns a `camera` that returns the current phase on the SLM.
