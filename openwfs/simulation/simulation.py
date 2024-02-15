@@ -42,7 +42,7 @@ class SimulatedWFS(Processor):
 
         # normalize the field
         self.E_input_slm *= 1 / np.linalg.norm(self.E_input_slm.ravel())
-        super().__init__(self.slm.fields())
+        super().__init__(self.slm.get_monitor('field'))
 
     def _fetch(self, out: Optional[np.ndarray], slm_fields):  # noqa
         """

@@ -417,23 +417,24 @@ class MockXYStage(Actuator):
 class MockSLMField(Processor):
     """Computes the field reflected by a MockSLM."""
 
-    def __init__(self, slm_pixels: Detector, modulated_field_amplitude: float, non_modulated_field: complex):
+    def __init__(self, slm_phases: Detector, field_amplitude: ArrayLike = 1.0,
+                 non_modulated_field_fraction: float = 0.0):
         """
         Args:
             slm_pixels (Detector): The `Detector` that returns the phases of the slm pixels.
-            modulated_field_amplitude: Field amplitude of the modulated pixels.
-            non_modulated_field: Non-modulated field (e.g. a front reflection).
+            field_amplitude: Field amplitude of the modulated pixels.
+            non_modulated_field_fraction: Non-modulated field (e.g. a front reflection).
         """
-        super().__init__(slm_pixels)  # Register sources
-        self.modulated_field_amplitude = modulated_field_amplitude
-        self.non_modulated_field = non_modulated_field
+        super().__init__(slm_phases)
+        self.modulated_field_amplitude = field_amplitude
+        self.non_modulated_field = non_modulated_field_fraction
 
-    def _fetch(self, out: Optional[np.ndarray], slm_pixel_phases: np.ndarray) -> np.ndarray:  # noqa
+    def _fetch(self, out: Optional[np.ndarray], slm_phases: np.ndarray) -> np.ndarray:  # noqa
         """
         Updates the complex field output of the SLM. The output field is the sum of the modulated field and the
         non-modulated field.
         """
-        fields = self.modulated_field_amplitude * np.exp(1j * slm_pixel_phases) + self.non_modulated_field
+        fields = self.modulated_field_amplitude * (np.exp(1j * slm_phases) + self.non_modulated_field)
         if out is None:
             out = fields
         else:
@@ -441,7 +442,14 @@ class MockSLMField(Processor):
         return out
 
 
-class _MockSLMHardware(Generator):
+class _MockSLMTiming(Generator):
+    """Class to simulate the timing of an SLM.
+
+    This class simulates latency (`update_latency`) and
+    stabilization (`update_duration`) of the SLM. It does not simulate
+    the refresh rate, or the conversion of gray values to phases.
+    """
+
     def __init__(self,
                  shape: Sequence[int],
                  update_latency: Quantity[u.ms] = 0.0 * u.ms,
@@ -463,16 +471,9 @@ class _MockSLMHardware(Generator):
         self._state = np.zeros(shape, dtype=np.float32)
         self._state_timestamp = 0.0
         self._queue = deque()  # Queue to hold phase images and their timestamps
-        self.phase_response = None
 
     def _generate(self, shape):
-        grey_values = self._update(include_current_time=True)
-
-        # Apply phase_response and return actual phases
-        if self.phase_response is None:
-            return grey_values * (2 * np.pi / 256)
-        else:
-            return self.phase_response[np.rint(grey_values).astype(np.uint8)]
+        return self._update(include_current_time=True)
 
     def _update(self, include_current_time):
         """Computes the currently displayed voltage image, based on the queue of set points and their timestamps.
@@ -523,6 +524,23 @@ class _MockSLMHardware(Generator):
         self._update(False)
 
 
+class _MockSLMPhaseResponse(Processor):
+    def __init__(self, source: _MockSLMTiming, phase_response: Optional[np.ndarray] = None):
+        super().__init__(source)
+        self.phase_response = phase_response
+
+    def _fetch(self, out: Optional[np.ndarray], grey_values: np.ndarray) -> np.ndarray:  # noqa
+        if self.phase_response is None:
+            phases = grey_values * (2 * np.pi / 256)
+        else:
+            phases = self.phase_response[np.rint(grey_values).astype(np.uint8)]
+        if out is None:
+            out = phases
+        else:
+            out[...] = phases
+        return out
+
+
 class MockSLM(PhaseSLM, Actuator):
     """
     A mock version of a phase-only spatial light modulator. Some properties are available to simulate physical
@@ -538,13 +556,15 @@ class MockSLM(PhaseSLM, Actuator):
                  refresh_rate: Quantity[u.Hz] = 0 * u.Hz,
                  field_amplitude: Union[np.ndarray, float, None] = 1.0,
                  non_modulated_field_fraction: float = 0.0,
+                 phase_response: Optional[np.ndarray] = None,
                  ):
         """
 
         Args:
-            shape (Sequence[int]): The 2D shape of the SLM.
-            modulated_field_amplitude (float): Field amplitude of the modulated light.
-            non_modulated_field (complex): non_modulated field, e.g. due to front reflection.
+            shape: The 2D shape of the SLM.
+            field_amplitude: Field amplitude of the modulated light.
+            non_modulated_field_fraction (float): fraction of the field that is not modulated,
+                typically due to reflection at the front surface of the SLM.
             shape: The shape (height, width) of the SLM in pixels
             latency: The latency that the OpenWFS framework uses for synchronization.
             duration: The duration that the OpenWFS framework uses for synchronization.
@@ -557,16 +577,20 @@ class MockSLM(PhaseSLM, Actuator):
             """
         super().__init__()
         self.refresh_rate = refresh_rate
-        self._hardware = _MockSLMHardware(shape, update_latency, update_duration)  # Actual phase
+        # Simulates transferring frames to the SLM
+        self._hardware_timing = _MockSLMTiming(shape, update_latency, update_duration)
+        self._hardware_phases = _MockSLMPhaseResponse(self._hardware_timing,
+                                                      phase_response)  # Simulates reading the phase from the SLM
+        self._hardware_fields = MockSLMField(self._hardware_phases, field_amplitude,
+                                             non_modulated_field_fraction)  # Simulates reading the field from the SLM
         self._lookup_table = None  # index = input phase (scaled to -> [0, 255]), value = grey value
         self._first_update_ns = time.time_ns()
         self._back_buffer = np.zeros(shape, dtype=np.float32)
-        self._field_amplitude = field_amplitude
-        self._non_modulated_field_fraction = non_modulated_field_fraction
 
     def update(self):
-        self._start()  # wait for detectors to finish
+        """Sends the current phase image to the simulated SLM hardware."""
 
+        self._start()  # wait for detectors to finish
         if self.refresh_rate > 0:
             # wait for the vertical retrace
             time_in_frames = unitless((time.time_ns() - self._first_update_ns) * u.ns * self.refresh_rate)
@@ -589,7 +613,7 @@ class MockSLM(PhaseSLM, Actuator):
             lookup_index = (self._lookup_table.shape[0] * tx).astype(np.uint8)  # index into lookup table
             grey_values = self._lookup_table[lookup_index]
 
-        self._hardware.send(grey_values)
+        self._hardware_timing.send(grey_values)
 
     @property
     def lookup_table(self) -> Sequence[int]:
@@ -606,38 +630,76 @@ class MockSLM(PhaseSLM, Actuator):
         self._lookup_table = np.asarray(value)
 
     @property
-    def phase_response(self) -> Sequence[float]:
+    def phase_response(self) -> Optional[np.ndarray]:
+        """Phase as a function of pixel gray value.
+
+        This lookup table mimics the phase response of the SLM hardware.
+        When it is omitted, the phase response is assumed to be linear:
+        phase = 2 * pi * grey_value / 256
         """
-        phase_response function: The phase response of the SLM.
-        """
-        return self._hardware.phase_response
+        return self._hardware_phases.phase_response
 
     @phase_response.setter
     def phase_response(self, value: Sequence[float]):
-        self._hardware.phase_response = value
+        self._hardware_phases.phase_response = value
 
     def set_phases(self, values: ArrayLike, update=True):
         # no docstring, use documentation from base class
 
+        # Copy the phase image to the back buffer, scaling it as necessary
         project(np.atleast_2d(values).astype('float32'), out=self._back_buffer, source_extent=(2.0, 2.0),
                 out_extent=(2.0, 2.0))
         if update:
             self.update()
 
+    def get_monitor(self, monitor_type: str = 'phase') -> Detector:
+        """Returns an object to monitor the current state of the SLM.
+
+        The monitor object acts as a camera, that can be used like any camera in the framework.
+        Args:
+            monitor_type (str): Type of the monitor. May be:
+            - 'phase': returns the simulated phase that is currently on the SLM.
+               This takes into account the simulated settle time and latency, refresh rate, lookup table and phase response.
+            - 'field': returns the simulated field that is currently on the SLM.
+               Equal to `(exp(1j * phase) + non_modulated_field_fraction) * field_amplitude`
+            - 'pixel_value': returns the effective pixel values that are currently displayed on the slm,
+               taking into account the simulated settle time and latency, refresh rate and lookup table
+
+        To disable simulating the time-dependent behavior of the SLM,
+        leave refresh_rage, update_latency and update_duration at their default values of 0.
+        """
+        if monitor_type == 'phase':
+            return self.phases
+        elif monitor_type == 'field':
+            return self.field
+        elif monitor_type == 'pixel_value':
+            return self.pixels
+        else:
+            raise ValueError(f"Unknown monitor type: {monitor_type}")
+
     @property
-    def phases(self) -> np.ndarray:
-        """Current phase pattern on the SLM."""
-        return self._hardware.read()
-
-    def fields(self) -> MockSLMField:
-        """Returns a `Processor` that returns the current field output by the SLM."""
-        return self._field_monitor
-
     def pixels(self) -> Detector:
-        """Returns a `camera` that returns the current phase on the SLM.
+        """Returns an object to monitor the current state of the SLM.
 
-        The camera coordinates are spanning the [-1,1] range by default."""
-        return self._monitor
+        If transient behavior is simulated, these are the effective gray values that are currently displayed on the SLM.
+        """
+        return self._hardware_timing
+
+    @property
+    def field(self) -> Detector:
+        """Returns an object to monitor the current state of the SLM.
+
+        If transient behavior is simulated, this is the effective field that is currently on the SLM.
+        """
+        return self._hardware_fields
+
+    @property
+    def phases(self) -> Detector:
+        """Returns an object to monitor the current state of the SLM.
+
+        If transient behavior is simulated, this is the effective phase that is currently on the SLM.
+        """
+        return self._hardware_phases
 
     @property
     def duration(self) -> Quantity[u.ms]:

@@ -1,8 +1,9 @@
 import numpy as np
 import astropy.units as u
 from astropy.units import Quantity
+from numpy.typing import ArrayLike
 from scipy.signal import fftconvolve
-from typing import Optional
+from typing import Optional, Union
 from ..simulation.mockdevices import MockXYStage, MockCamera, MockSLM, MockSLMField
 from ..core import Processor, Detector
 from ..utilities import project, place, Transform, set_pixel_size, get_pixel_size, patterns
@@ -48,9 +49,10 @@ class Microscope(Processor):
 
     def __init__(self, source: Detector, *, data_shape=None, numerical_aperture: float, wavelength: Quantity[u.nm],
                  magnification: float = 1.0, xy_stage=None, z_stage=None,
-                 slm: Optional[MockSLM] = None, slm_transform: Optional[Transform] = None,
-                 aberrations: Optional[Detector] = None, aberration_transform: Optional[Transform] = None,
-                 truncation_factor: Optional[float] = None):
+                 incident_field: Union[Detector, ArrayLike, None] = None,
+                 incident_transform: Optional[Transform] = None,
+                 aberrations: Union[Detector, ArrayLike, None] = None,
+                 aberration_transform: Optional[Transform] = None):
         """
         Args:
             source (Detector): Detector that produces 2-d images of the original 'specimen'
@@ -69,11 +71,11 @@ class Microscope(Processor):
             z_stage (Stage): Optional stage object that moves the sample up and down to focus the microscope.
                 Higher values are further away from the microscope objective.
                 Defaults to a MockStage.
-            slm_field (MockSLMField): Produces 2-d complex images containing the field output of the SLM.
+            incident_field (MockSLMField): Produces 2-d complex images containing the field output of the SLM.
                 If no `slm_transform` is specified, the `pixel_size` attribute should
                  correspond to normalized pupil coordinates
                 (e.g. with a disk of radius 1.0, i.e. an extent of 2.0, corresponding to an NA of 1.0)
-            slm_transform (Optional[Transform]):
+            incident_transform (Optional[Transform]):
                 Optional Transform that transforms the phase pattern from the slm object
                 (in slm.pixel_size units) to normalized pupil coordinates.
                 Typically, the slm image is already in normalized pupil coordinates,
@@ -87,10 +89,6 @@ class Microscope(Processor):
                 Typically, the slm image is already in normalized pupil coordinates,
                 but this transform may e.g., be used to scale an aberration pattern
                 from extent 2.0 to 2.0 * NA.
-            truncation_factor (Optional[float]):
-                When set to a value > 0.0,
-                the microscope pupil is illuminated by a Gaussian beam (instead of a flat intensity).
-                The value corresponds to the beam waist relative to the full pupil (the full NA).
 
         Note:
             The aberration map and slm phase map are cropped/padded to the NA of the microscope objective, and
@@ -99,18 +97,16 @@ class Microscope(Processor):
         if not isinstance(source, Detector):
             raise ValueError("`source` should be a Detector object.")
 
-        super().__init__(source, aberrations, slm.fields())
+        super().__init__(source, aberrations, incident_field)
         self._magnification = magnification
         self._data_shape = data_shape if data_shape is not None else source.data_shape
         self.numerical_aperture = numerical_aperture
         self.aberration_transform = aberration_transform
-        self.slm_transform = slm_transform
-        self.slm = slm
+        self.slm_transform = incident_transform
         self.wavelength = wavelength.to(u.nm)
         self.oversampling_factor = 2.0
         self.xy_stage = xy_stage or MockXYStage(0.1 * u.um, 0.1 * u.um)
         self.z_stage = z_stage  # or MockStage()
-        self.truncation_factor = truncation_factor
         self._psf = None
 
     def _fetch(self, out: Optional[np.ndarray], source: np.ndarray, aberrations: np.ndarray,  # noqa
@@ -177,28 +173,24 @@ class Microscope(Processor):
 
         # Compute the field in the pupil plane
         # The aberrations and the SLM phase pattern are both mapped to the pupil plane coordinates
-        if self.truncation_factor is None:
-            pupil_field_amplitude = patterns.disk(pupil_shape, radius=self.numerical_aperture, extent=pupil_extent)
-        else:
-            pupil_field_amplitude = patterns.gaussian(pupil_shape, waist=self.truncation_factor
-                * self.numerical_aperture, truncation_radius=self.numerical_aperture, extent=pupil_extent)
+        pupil_mask = patterns.disk(pupil_shape, radius=self.numerical_aperture, extent=pupil_extent)
 
         # Project aberrations
         if aberrations is None:
             aberration_fields_projected = 1.0
         else:
             aberration_fields_projected = np.exp(1.0j * project(aberrations, out_extent=pupil_extent,
-                out_shape=pupil_shape, transform=self.aberration_transform))
+                                                                out_shape=pupil_shape,
+                                                                transform=self.aberration_transform))
 
         # Project SLM fields
         if slm_field is None:
             slm_fields_projected = 1.0
         else:
-            slm_fields_projected = project(slm_field.real, out_extent=pupil_extent, out_shape=pupil_shape,
-                transform=self.slm_transform) + 1.0j * project(slm_field.imag, out_extent=pupil_extent,
-                out_shape=pupil_shape, transform=self.slm_transform)
+            slm_fields_projected = project(slm_field, out_extent=pupil_extent, out_shape=pupil_shape,
+                                           transform=self.slm_transform)
 
-        pupil_field = pupil_field_amplitude * slm_fields_projected * aberration_fields_projected
+        pupil_field = pupil_mask * slm_fields_projected * aberration_fields_projected
 
         # Compute the point spread function
         # This is done by Fourier transforming the pupil field and taking the absolute value squared
@@ -209,11 +201,8 @@ class Microscope(Processor):
         psf = np.fft.ifftshift(psf) / np.sum(psf)
         self._psf = psf  # store psf for later inspection
 
-        # todo: test if the convolution does not introduce an offset
         source = fftconvolve(source, psf, 'same')
-        # apply magnification by just adjusting the pixel size
-        # note, this is not needed as it happens automatically in the _do_fetch function
-        source = set_pixel_size(source, self.pixel_size)
+
         if out is None:
             out = source
         else:
