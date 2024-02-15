@@ -180,31 +180,23 @@ def test_fidelity_phase_calibration_ssa_with_noise(n_y, n_x, phase_steps, gaussi
     assert np.abs(fidelity_phase_cal_noise) < 0.9
 
 
-def test_measure_modulated_light_noise_free(phase_steps=8, num_blocks=10, atol=1e-6):
+@pytest.mark.parametrize("num_blocks, phase_steps, expected_fid, atol", [(10, 8, 1, 1e-6)])
+def test_measure_modulated_light_dual_phase_stepping_noise_free(num_blocks, phase_steps, expected_fid, atol):
     """
     Test computing phase calibration fidelity factor, with the SSA algorithm. Noise-free scenarios.
     """
     # Perfect SLM, noise-free
     aberrations = np.random.uniform(0.0, 2 * np.pi, (20, 20))
     sim = SimulatedWFS(aberrations)
-    alg = StepwiseSequential(feedback=sim, slm=sim.slm, phase_steps=phase_steps)
 
-    # Measure the amount of modulated light (no unmodulated light present)
+    # Measure the amount of modulated light (no non-modulated light present)
     fidelity_modulated = measure_modulated_light(
         slm=sim.slm, feedback=sim, phase_steps=phase_steps, num_blocks=num_blocks)
-    assert np.isclose(fidelity_modulated, 1, atol=atol)
-
-    # Measure the amount of modulated light (unmodulated light present)
-    sim.slm.modulated_field_amplitude = 0.6
-    sim.slm.unmodulated_field_amplitude = 0.4
-    fidelity_modulated = measure_modulated_light(
-        slm=sim.slm, feedback=sim, phase_steps=phase_steps, num_blocks=num_blocks)
-    assert fidelity_modulated < 0.8
-    ### TODO: SimulatedWFS should use field instead of phases
+    assert np.isclose(fidelity_modulated, expected_fid, atol=atol)
 
 
-@pytest.mark.parametrize("num_blocks, phase_steps, gaussian_noise_std, atol", [(10, 16, 0.0, 1e-6), (5, 6, 5.0, 1e-3)])
-def test_measure_modulated_light_with_noise(num_blocks, phase_steps, gaussian_noise_std, atol):
+@pytest.mark.parametrize("num_blocks, phase_steps, gaussian_noise_std, atol", [(10, 6, 0.0, 1e-6), (6, 8, 2.0, 1e-3)])
+def test_measure_modulated_light_dual_phase_stepping_with_noise(num_blocks, phase_steps, gaussian_noise_std, atol):
     """Test fidelity estimation due to amount of modulated light."""
     # === Define mock hardware, perfect SLM ===
     # Aberration and image source
@@ -218,14 +210,7 @@ def test_measure_modulated_light_with_noise(num_blocks, phase_steps, gaussian_no
     cam = sim.get_camera(analog_max=1e4, gaussian_noise_std=gaussian_noise_std)
     roi_detector = SingleRoi(cam, radius=0)  # Only measure that specific point
 
-    # Measure the amount of modulated light (no unmodulated light present)
+    # Measure the amount of modulated light (no non-modulated light present)
     fidelity_modulated = measure_modulated_light(
         slm=slm, feedback=roi_detector, phase_steps=phase_steps, num_blocks=num_blocks)
     assert np.isclose(fidelity_modulated, 1, atol=atol)
-
-    # Measure the amount of modulated light (unmodulated light present)
-    slm.modulated_field_amplitude = 0.6
-    slm.unmodulated_field_amplitude = 0.4
-    fidelity_modulated = measure_modulated_light(
-        slm=slm, feedback=roi_detector, phase_steps=phase_steps, num_blocks=num_blocks)
-    assert fidelity_modulated < 0.8

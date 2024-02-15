@@ -414,6 +414,33 @@ class MockXYStage(Actuator):
         return 0.0 * u.ms
 
 
+class MockSLMField(Processor):
+    """Computes the field reflected by a MockSLM."""
+
+    def __init__(self, slm_pixels: Detector, modulated_field_amplitude: float, non_modulated_field: complex):
+        """
+        Args:
+            slm_pixels (Detector): The `Detector` that returns the phases of the slm pixels.
+            modulated_field_amplitude: Field amplitude of the modulated pixels.
+            non_modulated_field: Non-modulated field (e.g. a front reflection).
+        """
+        super().__init__(slm_pixels)  # Register sources
+        self._modulated_field_amplitude = modulated_field_amplitude
+        self._non_modulated_field = non_modulated_field
+
+    def _fetch(self, out: Optional[np.ndarray], slm_pixel_phases: np.ndarray) -> np.ndarray:  # noqa
+        """
+        Updates the complex field output of the SLM. The output field is the sum of the modulated field and the
+        non-modulated field.
+        """
+        fields = self._modulated_field_amplitude * np.exp(1j * slm_pixel_phases) + self._non_modulated_field
+        if out is None:
+            out = fields
+        else:
+            out[...] = fields
+        return out
+
+
 class _MockSLMHardware(Generator):
     def __init__(self,
                  shape: Sequence[int],
@@ -498,10 +525,8 @@ class _MockSLMHardware(Generator):
 
 class MockSLM(PhaseSLM, Actuator):
     """
-    A mock version of a phase-only spatial light modulator.
-
-    This object can simulate many properties of a real SLM, including the phase response function and the lookup table.
-    It mimics the timing behavior of a real SLM, including the latency (idle time) and update duration (settle time).
+    A mock version of a phase-only spatial light modulator. Some properties are available to simulate physical
+    phenomena such as imperfect phase response, and front reflections (which cause non-modulated light).
     """
 
     def __init__(self,
@@ -512,11 +537,15 @@ class MockSLM(PhaseSLM, Actuator):
                  update_duration: Quantity[u.ms] = 0.0 * u.ms,
                  refresh_rate: Quantity[u.Hz] = 0 * u.Hz):
         """
+
         Args:
+            shape (Sequence[int]): The 2D shape of the SLM.
+            modulated_field_amplitude (float): Field amplitude of the modulated light.
+            non_modulated_field (complex): non_modulated field, e.g. due to front reflection.
             shape: The shape (height, width) of the SLM in pixels
             latency: The latency that the OpenWFS framework uses for synchronization.
             duration: The duration that the OpenWFS framework uses for synchronization.
-            update_latency: The latency of the simulated SLM. 
+            update_latency: The latency of the simulated SLM.
                 Choose a value different than `latency` to simulate incorrect timing.
             update_duration: The duration of the simulated SLM.
                 Choose a value different than `duration` to simulate incorrect timing.
@@ -595,16 +624,15 @@ class MockSLM(PhaseSLM, Actuator):
         """Current phase pattern on the SLM."""
         return self._hardware.read()
 
-    @property
-    def fields(self) -> np.ndarray:
-        """Current field output by the SLM. Sum of modulated and unmodulated field."""
-        return self.modulated_field_amplitude * np.exp(1j * self.phases) + self.unmodulated_field_amplitude
+    def fields(self) -> MockSLMField:
+        """Returns a `Processor` that returns the current field output by the SLM."""
+        return self._field_monitor
 
     def pixels(self) -> Detector:
         """Returns a `camera` that returns the current phase on the SLM.
 
         The camera coordinates are spanning the [-1,1] range by default."""
-        return self._hardware
+        return self._monitor
 
     @property
     def duration(self) -> Quantity[u.ms]:
