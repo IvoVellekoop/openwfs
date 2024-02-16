@@ -14,12 +14,6 @@ from astropy.units import Quantity
 from .utilities import set_pixel_size
 
 
-# Aliases for commonly used type hints
-
-# An extent is a sequence of two floats with an optional unit attached,
-# or a single float with optional unit attached, which is broadcasted to a sequence of two floats.
-
-
 class Device(ABC):
     """Base class for detectors and actuators
 
