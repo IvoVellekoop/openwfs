@@ -1,7 +1,7 @@
 import numpy as np
 import astropy.units as u
 from openwfs.processors import SingleRoi
-from openwfs.simulation import MockSLM, Microscope, MockShutter
+from openwfs.simulation import SLM, Microscope, Shutter
 from openwfs.algorithms import StepwiseSequential, troubleshoot
 from openwfs.utilities import set_pixel_size
 
@@ -20,8 +20,8 @@ specimen = set_pixel_size(specimen, pixel_size=200 * u.nm)
 # Simulate an SLM with incorrect phase response
 # Also simulate a shutter that can turn off the light
 # The SLM is conjugated to the back pupil plane
-slm = MockSLM(shape=(100, 100), phase_response=(np.arange(256) / 128 * np.pi) ** 1.2)
-shutter = MockShutter(slm.field)
+slm = SLM(shape=(100, 100), phase_response=(np.arange(256) / 128 * np.pi) ** 1.2)
+shutter = Shutter(slm.field)
 
 # Simulate a WFS microscope looking at the specimen
 sim = Microscope(source=specimen, incident_field=shutter, aberrations=aberrations, wavelength=800 * u.nm)

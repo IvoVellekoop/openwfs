@@ -3,7 +3,7 @@ import astropy.units as u
 import pytest
 
 from ..openwfs.processors import SingleRoi
-from ..openwfs.simulation import SimulatedWFS, StaticSource, MockSLM, Microscope
+from ..openwfs.simulation import SimulatedWFS, StaticSource, SLM, Microscope
 from ..openwfs.algorithms import StepwiseSequential
 from ..openwfs.algorithms.troubleshoot \
     import cnr, signal_std, find_pixel_shift, field_correlation, frame_correlation, \
@@ -159,7 +159,7 @@ def test_fidelity_phase_calibration_ssa_with_noise(n_y, n_x, phase_steps, gaussi
     src = StaticSource(img, 500 * u.nm)
 
     # SLM, simulation, camera, ROI detector
-    slm = MockSLM(shape=(80, 80))
+    slm = SLM(shape=(80, 80))
     sim = Microscope(source=src, incident_field=slm.get_monitor('field'), magnification=1,
                      numerical_aperture=numerical_aperture,
                      aberrations=aberration, wavelength=800 * u.nm)
@@ -205,7 +205,7 @@ def test_measure_modulated_light_dual_phase_stepping_with_noise(num_blocks, phas
     src = StaticSource(img, 200 * u.nm)
 
     # SLM, simulation, camera, ROI detector
-    slm = MockSLM(shape=(100, 100))
+    slm = SLM(shape=(100, 100))
     sim = Microscope(source=src, incident_field=slm.get_monitor('field'), magnification=1, numerical_aperture=1.0,
                      wavelength=800 * u.nm)
     cam = sim.get_camera(analog_max=1e4, gaussian_noise_std=gaussian_noise_std)
@@ -223,8 +223,8 @@ def test_measure_modulated_light_noise_free(phase_steps, modulated_field_amplitu
     """Test fidelity estimation due to amount of modulated light. Noise-free."""
     # Perfect SLM, noise-free
     aberrations = np.random.uniform(0.0, 2 * np.pi, (20, 20))
-    slm = MockSLM(aberrations.shape, field_amplitude=modulated_field_amplitude,
-                  non_modulated_field_fraction=non_modulated_field)
+    slm = SLM(aberrations.shape, field_amplitude=modulated_field_amplitude,
+              non_modulated_field_fraction=non_modulated_field)
     sim = SimulatedWFS(aberrations, slm=slm)
 
     # Measure the amount of modulated light (no non-modulated light present)
@@ -246,9 +246,9 @@ def test_measure_modulated_light_dual_phase_stepping_with_noise(
     src = StaticSource(img, 200 * u.nm)
 
     # SLM, simulation, camera, ROI detector
-    slm = MockSLM(shape=(100, 100),
-                  field_amplitude=modulated_field_amplitude,
-                  non_modulated_field_fraction=non_modulated_field)
+    slm = SLM(shape=(100, 100),
+              field_amplitude=modulated_field_amplitude,
+              non_modulated_field_fraction=non_modulated_field)
     sim = Microscope(source=src, incident_field=slm.field, wavelength=800 * u.nm)
     cam = sim.get_camera(analog_max=1e3, gaussian_noise_std=gaussian_noise_std)
     roi_detector = SingleRoi(cam, radius=0)  # Only measure that specific point

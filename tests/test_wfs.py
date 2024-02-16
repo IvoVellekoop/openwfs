@@ -7,7 +7,7 @@ from scipy.ndimage import zoom
 from ..openwfs.core import Device
 from ..openwfs.algorithms import StepwiseSequential, FourierDualReference, WFSController
 from ..openwfs.processors import SingleRoi
-from ..openwfs.simulation import SimulatedWFS, StaticSource, MockSLM, Microscope, ADCProcessor
+from ..openwfs.simulation import SimulatedWFS, StaticSource, SLM, Microscope, ADCProcessor
 
 
 def assert_enhancement(slm, feedback, wfs_results, t_correct=None):
@@ -122,7 +122,7 @@ def test_fourier_microscope():
     slm_shape = (1000, 1000)
 
     src = StaticSource(img, 400 * u.nm)
-    slm = MockSLM(shape=(1000, 1000))
+    slm = SLM(shape=(1000, 1000))
     sim = Microscope(source=src, incident_field=slm.field, magnification=1, numerical_aperture=1,
                      aberrations=aberration,
                      wavelength=800 * u.nm)

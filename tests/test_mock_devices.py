@@ -1,13 +1,13 @@
 import numpy as np
 
-from ..openwfs.simulation import MockSLM
+from ..openwfs.simulation import SLM
 from ..openwfs.plot_utilities import imshow
 
 
 def test_mock_slm():
     # TODO: at some point, merge this with the test_slm.py file
     # create a mock SLM object with a given shape
-    slm = MockSLM(shape=(480, 640))
+    slm = SLM(shape=(480, 640))
 
     # clear the slm
     slm.set_phases(0)

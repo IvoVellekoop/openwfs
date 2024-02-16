@@ -3,7 +3,7 @@ import numpy as np
 from openwfs.algorithms import FourierDualReference
 from openwfs.algorithms.utilities import WFSController
 from openwfs.processors import SingleRoi
-from openwfs.simulation import Microscope, StaticSource, MockSLM
+from openwfs.simulation import Microscope, StaticSource, SLM
 import skimage
 import astropy.units as u
 
@@ -41,7 +41,7 @@ img[400, 20] = 20
 
 src = StaticSource(img, 400 * u.nm)
 
-slm = MockSLM(shape=(1000, 1000))
+slm = SLM(shape=(1000, 1000))
 
 sim = Microscope(source=src, slm=slm.pixels(), magnification=1, numerical_aperture=numerical_aperture,
                  aberrations=aberration,

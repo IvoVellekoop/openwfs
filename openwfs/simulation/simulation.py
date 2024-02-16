@@ -1,7 +1,7 @@
 import numpy as np
 from typing import Optional
 from ..utilities.patterns import gaussian
-from .mockdevices import MockSLM, Processor
+from .mockdevices import SLM, Processor
 
 
 class SimulatedWFS(Processor):
@@ -35,7 +35,7 @@ class SimulatedWFS(Processor):
         field at the SLM considering the aberrations and optionally the Gaussian beam profile, and initializes the
         system with these parameters.
         """
-        self.slm = slm if slm is not None else MockSLM(aberrations.shape[0:2])
+        self.slm = slm if slm is not None else SLM(aberrations.shape[0:2])
         self.E_input_slm = np.exp(1.0j * aberrations)  # electric field incident at the SLM
         if beam_profile_waist is not None:
             self.E_input_slm *= gaussian(aberrations.shape, waist=beam_profile_waist)

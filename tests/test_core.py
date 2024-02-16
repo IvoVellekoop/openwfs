@@ -1,7 +1,7 @@
 import logging
 import time
 import pytest
-from ..openwfs.simulation.mockdevices import StaticSource, NoiseSource, MockSLM
+from ..openwfs.simulation.mockdevices import StaticSource, NoiseSource, SLM
 from ..openwfs.utilities import set_pixel_size, get_pixel_size
 from ..openwfs.processors import CropProcessor
 import numpy as np
@@ -96,7 +96,7 @@ def test_noise_detector():
 
 
 def test_mock_slm():
-    slm = MockSLM((4, 4))
+    slm = SLM((4, 4))
     slm.set_phases(0.5)
     assert np.allclose(slm.pixels.read(), round(0.5 * 256 / (2 * np.pi)), atol=0.5 / 256)
     discretized_phase = slm.phases.read()

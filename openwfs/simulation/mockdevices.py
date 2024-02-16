@@ -213,7 +213,7 @@ class ADCProcessor(Processor):
         self._signal_multiplier = 1
 
 
-class MockCamera(ADCProcessor):
+class Camera(ADCProcessor):
     """Wraps any 2-d image source as a camera.
 
     To implement the camera interface, in addition to the Detector interface,
@@ -292,7 +292,7 @@ class MockCamera(ADCProcessor):
         self._crop.data_shape = value
 
 
-class MockXYStage(Actuator):
+class XYStage(Actuator):
     """
     Mimics an XY stage actuator
     """
@@ -331,7 +331,7 @@ class MockXYStage(Actuator):
         self._y = 0.0 * u.um
 
 
-class _MockSLMField(Processor):
+class _SLMField(Processor):
     """Computes the field reflected by a MockSLM."""
 
     def __init__(self, slm_phases: Detector, field_amplitude: ArrayLike = 1.0,
@@ -354,7 +354,7 @@ class _MockSLMField(Processor):
         return self.modulated_field_amplitude * (np.exp(1j * slm_phases) + self.non_modulated_field)
 
 
-class _MockSLMTiming(Detector):
+class _SLMTiming(Detector):
     """Class to simulate the timing of an SLM.
 
     This class simulates latency (`update_latency`) and
@@ -439,8 +439,8 @@ class _MockSLMTiming(Detector):
         self._update((phase_image, display_time))
 
 
-class _MockSLMPhaseResponse(Processor):
-    def __init__(self, source: _MockSLMTiming, phase_response: Optional[np.ndarray] = None):
+class _SLMPhaseResponse(Processor):
+    def __init__(self, source: _SLMTiming, phase_response: Optional[np.ndarray] = None):
         super().__init__(source, multi_threaded=False)
         self.phase_response = phase_response
 
@@ -451,7 +451,7 @@ class _MockSLMPhaseResponse(Processor):
             return self.phase_response[np.rint(grey_values).astype(np.uint8)]
 
 
-class MockSLM(PhaseSLM, Actuator):
+class SLM(PhaseSLM, Actuator):
     """
     A mock version of a phase-only spatial light modulator. Some properties are available to simulate physical
     phenomena such as imperfect phase response, and front reflections (which cause non-modulated light).
@@ -490,11 +490,11 @@ class MockSLM(PhaseSLM, Actuator):
         super().__init__(latency=latency, duration=duration)
         self.refresh_rate = refresh_rate
         # Simulates transferring frames to the SLM
-        self._hardware_timing = _MockSLMTiming(shape, update_latency, update_duration)
-        self._hardware_phases = _MockSLMPhaseResponse(self._hardware_timing,
-                                                      phase_response)  # Simulates reading the phase from the SLM
-        self._hardware_fields = _MockSLMField(self._hardware_phases, field_amplitude,
-                                              non_modulated_field_fraction)  # Simulates reading the field from the SLM
+        self._hardware_timing = _SLMTiming(shape, update_latency, update_duration)
+        self._hardware_phases = _SLMPhaseResponse(self._hardware_timing,
+                                                  phase_response)  # Simulates reading the phase from the SLM
+        self._hardware_fields = _SLMField(self._hardware_phases, field_amplitude,
+                                          non_modulated_field_fraction)  # Simulates reading the field from the SLM
         self._lookup_table = None  # index = input phase (scaled to -> [0, 255]), value = grey value
         self._first_update_ns = time.time_ns()
         self._back_buffer = np.zeros(shape, dtype=np.float32)
@@ -618,7 +618,7 @@ class MockSLM(PhaseSLM, Actuator):
         return 0.0 * u.ms
 
 
-class MockShutter(Processor):
+class Shutter(Processor):
     """
     A mock version of a shutter.
     When open, passes through the input field
