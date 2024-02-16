@@ -333,7 +333,7 @@ class MockSLMField(Processor):
                  non_modulated_field_fraction: float = 0.0):
         """
         Args:
-            slm_pixels (Detector): The `Detector` that returns the phases of the slm pixels.
+            slm_phases (Detector): The `Detector` that returns the phases of the slm pixels.
             field_amplitude: Field amplitude of the modulated pixels.
             non_modulated_field_fraction: Non-modulated field (e.g. a front reflection).
         """
