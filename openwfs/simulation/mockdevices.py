@@ -475,9 +475,9 @@ class _MockSLMTiming(Generator):
         self._queue_lock = threading.Lock()  # Lock for critical section
 
     def _generate(self, shape):
-        return self._update(include_current_time=True)
+        return self._update(None)
 
-    def _update(self, include_current_time):
+    def _update(self, append):
         """Computes the currently displayed voltage image, based on the queue of set points and their timestamps.
 
         This function takes the frames from the queue. The ones that have a time stamp corresponding to
@@ -500,8 +500,10 @@ class _MockSLMTiming(Generator):
                 self._queue.popleft()
 
             # finally, compute the current state
-            if include_current_time:
+            if append is None:
                 self._step_to_time(current_time)
+            else:
+                self._queue.append(append)
 
             return self._state
 
@@ -523,8 +525,7 @@ class _MockSLMTiming(Generator):
         All old images in the queue are merged with the new image, using an exponential decay.
         """
         display_time = time.time_ns() * u.ns + self.update_latency
-        self._queue.append((phase_image, display_time))
-        self._update(False)
+        self._update((phase_image, display_time))
 
 
 class _MockSLMPhaseResponse(Processor):

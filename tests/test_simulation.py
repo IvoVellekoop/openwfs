@@ -1,6 +1,8 @@
 import logging  # noqa
 import pytest
 import numpy as np
+
+from ..openwfs.core import Device
 from ..openwfs.algorithms import StepwiseSequential
 from ..openwfs.processors import SingleRoi
 from ..openwfs.simulation import Microscope, MockCamera, MockSource, MockSLM
@@ -131,9 +133,10 @@ def test_microscope_wavefront_shaping(caplog):
     Reproduces a bug that occurs due to the location of the measurements.wait() command.
     """
     # caplog.set_level(logging.DEBUG)
+    # Device.multi_threading = False
     aberrations = skimage.data.camera() * ((2 * np.pi) / 255.0) + np.pi
 
-    aberration = MockSource(aberrations, pixel_size=1.0 / 512 * u.dimensionless_unscaled)
+    aberration = MockSource(aberrations, pixel_size=1.0 / 512 * u.dimensionless_unscaled)  # note: incorrect scaling!
 
     img = np.zeros((1000, 1000), dtype=np.int16)
     img[256, 256] = 100
@@ -212,7 +215,7 @@ def test_mock_slm_lut_and_phase_response():
     slm3.lookup_table = lookup_table
     slm3.set_phases(linear_phase)
     assert np.all(np.abs(slm3.phases.read() - inverse_phase_response_test_function(linear_phase, b, c, gamma)) < (
-                1.1 * np.pi / 256))
+            1.1 * np.pi / 256))
 
     # === Test custom lookup table that counters custom synthetic phase response ===
     linear_phase_highres = np.arange(0, 2 * np.pi * 255.49 / 256, 0.25 * 2 * np.pi / 256)
