@@ -6,27 +6,19 @@ from enum import Enum
 from concurrent.futures import Future
 
 
-class NoiseType(Enum):
-    UNIFORM = 1
-    EXPONENTIAL = 2
-    GAUSSIAN = 3
-
-
 class RandomGenerator:
     """
     Generates random numbers to simulate noise images, primarily for testing device graphs.
     """
 
-    def __init__(self, min=0, max=1000, noise_type=NoiseType.UNIFORM):
+    def __init__(self, min=0, max=1000):
         """
         Args:
             min (int): Minimum value for random number generation.
             max (int): Maximum value for random number generation.
-            noise_type (NoiseType): Type of noise to generate.
         """
         self._min = min
         self._max = max
-        self._noise_type = noise_type
 
     def generate_into(self, buffer):
         """
@@ -54,17 +46,6 @@ class RandomGenerator:
     @max.setter
     def max(self, value):
         self._max = value
-
-    @property
-    def noise_type(self) -> NoiseType:
-        """Type of noise to generate. Currently, only uniform noise is supported."""
-        return self._noise_type
-
-    @noise_type.setter
-    def noise_type(self, value):
-        if not value == NoiseType.UNIFORM:
-            raise ValueError("Noise types other than uniform are not supported yet.")
-        self._noise_type = value
 
 
 class Camera:

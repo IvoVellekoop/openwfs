@@ -6,101 +6,23 @@ import astropy.units as u
 from astropy.units import Quantity
 from numpy.typing import ArrayLike
 import time
-from typing import Sequence, Optional, Union
+from typing import Sequence, Optional, Union, Tuple
 from ..processors import CropProcessor
 from ..core import Detector, Processor, PhaseSLM, Actuator, Device
 from ..utilities import ExtentType, get_pixel_size, project, set_extent, get_extent, unitless
 
 
-class Generator(Detector):
-    """A detector that returns synthetic data, simulating latency and measurement duration.
-
-    Methods:
-        uniform_noise: Static method to create a generator with uniform noise.
-        gaussian_noise: Static method to create a generator with Gaussian noise.
-    """
-
-    def __init__(self, generator, data_shape: Sequence[int], pixel_size: Quantity, latency=0 * u.ms,
-                 duration=0 * u.ms):
-        """
-        Initializes the Generator class, a subclass of Detector, that generates synthetic data.
-
-        Args:
-            generator (callable): A function that takes the data shape as input and returns the generated data.
-            data_shape (tuple): The shape of the data to be generated, may have any number of dimensions.
-            pixel_size (Quantity, optional): The size of each pixel in the data.
-            duration (Quantity[u.ms]): Duration for which the generator simulates the data acquisition.
-            latency (Quantity[u.ms]): Simulated delay before data acquisition begins.
-        """
-        super().__init__(data_shape=data_shape, pixel_size=pixel_size, latency=latency, duration=duration)
-        self._generator = generator
-
-    @property
-    def duration(self) -> Quantity[u.ms]:
-        """The duration for which the generator simulates the data acquisition."""
-        return self._duration
-
-    @Device.duration.setter
-    def duration(self, value: Quantity[u.ms]):
-        self._duration = value
-
-    @Device.latency.setter
-    def latency(self, value: Quantity[u.ms]):
-        self._latency = value.to(u.ms)
-
-    @Detector.pixel_size.setter
-    def pixel_size(self, value):
-        self._pixel_size = Quantity(value)
-
-    @property
-    def data_shape(self):
-        return self._data_shape
-
-    @data_shape.setter
-    def data_shape(self, value):
-        self._data_shape = value
-
-    def _fetch(self) -> np.ndarray:  # noqa
-        latency_s = self.latency.to_value(u.s)
-        if latency_s > 0.0:
-            time.sleep(latency_s)
-
-        data = self._generator(self.data_shape)
-
-        duration_s = self.duration.to_value(u.s)
-        if duration_s > 0.0:
-            time.sleep(duration_s)
-        return data
-
-    @staticmethod
-    def uniform_noise(*args, low=0.0, high=1.0, **kwargs):
-        """Static method to create a generator that produces uniform noise."""
-
-        def generator(shape):
-            return np.random.default_rng().uniform(low=low, high=high, size=shape)
-
-        return Generator(*args, generator=generator, **kwargs)
-
-    @staticmethod
-    def gaussian_noise(*args, average=0.0, standard_deviation=1.0, **kwargs):
-        """Static method to create a generator that produces Gaussian noise."""
-
-        def generator(shape):
-            return np.random.default_rng().normal(loc=average, scale=standard_deviation, size=shape)
-
-        return Generator(*args, generator=generator, **kwargs)
-
-
-class MockSource(Generator):
+class MockSource(Detector):
     """
     Detector that returns pre-set data. Also simulates latency and measurement duration.
     """
 
     def __init__(self, data: np.ndarray, pixel_size: Optional[Quantity] = None, extent: Optional[ExtentType] = None,
-                 **kwargs):
+                 latency: Quantity[u.ms] = 0 * u.ms, duration: Quantity[u.ms] = 0 * u.ms):
         """
         Initializes the MockSource
-
+        TODO: rename to StaticSource
+        TODO: factor out the latency and duration into a separate class
         Args:
             data (np.ndarray): The pre-set data to be returned by the mock source.
             pixel_size (Quantity, optional): The size of each pixel in the data.
@@ -109,13 +31,7 @@ class MockSource(Generator):
                 Otherwise, pixel_size is set to None.
             extent (Optional[ExtentType]): The physical extent of the data array.
                 Only used when the pixel size is not specified explicitly.
-            **kwargs: Additional keyword arguments to pass to the Generator base class.
         """
-
-        def generator(data_shape):
-            assert data_shape == self._data.shape
-            return self._data.copy()
-
         if pixel_size is None:
             if extent is not None:
                 pixel_size = Quantity(extent) / data.shape
@@ -125,8 +41,14 @@ class MockSource(Generator):
         if pixel_size is not None and (np.isscalar(pixel_size) or pixel_size.size == 1) and data.ndim > 1:
             pixel_size = pixel_size.repeat(data.ndim)
 
-        super().__init__(generator=generator, data_shape=data.shape, pixel_size=pixel_size, **kwargs)
         self._data = data
+        super().__init__(data_shape=data.shape, pixel_size=pixel_size, latency=latency, duration=duration)
+
+    def _fetch(self) -> np.ndarray:  # noqa
+        total_time_s = self.latency.to_value(u.s) + self.duration.to_value(u.s)
+        if total_time_s > 0.0:
+            time.sleep(total_time_s)
+        return self._data
 
     @property
     def data(self):
@@ -134,6 +56,7 @@ class MockSource(Generator):
         The pre-set data to be returned by the mock source.
 
         Note:
+            The data is not copied.
             When setting the `data` property, the `data_shape` attribute is updated accordingly.
             If the `data` property is set with an array that has the `pixel_size` metadata set,
             the `pixel_size` attribute is also updated accordingly.
@@ -143,13 +66,28 @@ class MockSource(Generator):
     @data.setter
     def data(self, value):
         self._data = value
-        pixel_size = get_pixel_size(value)
-        if pixel_size is not None:
-            self.pixel_size = pixel_size
+        self._pixel_size = get_pixel_size(value)
+        self._data_shape = value.shape
 
-    @property
-    def data_shape(self):
-        return self._data.shape
+
+class NoiseSource(Detector):
+    def __init__(self, noise_type: str, *, data_shape: tuple[int, ...], pixel_size: Quantity, **kwargs):
+        self._noise_type = noise_type
+        self._noise_arguments = kwargs
+        self._rng = np.random.default_rng()
+        super().__init__(data_shape=data_shape, pixel_size=pixel_size, latency=0 * u.ms, duration=0 * u.ms)
+
+    def _fetch(self) -> np.ndarray:  # noqa
+        if self._noise_type == 'uniform':
+            return self._rng.uniform(**self._noise_arguments, size=self.data_shape)
+        elif self._noise_type == 'gaussian':
+            return self._rng.normal(**self._noise_arguments, size=self.data_shape)
+        else:
+            raise ValueError(f'Unknown noise type: {self._noise_type}')
+
+    @Detector.data_shape.setter
+    def data_shape(self, value):
+        self._data_shape = tuple(value)
 
 
 class ADCProcessor(Processor):
@@ -411,7 +349,7 @@ class MockSLMField(Processor):
         return self.modulated_field_amplitude * (np.exp(1j * slm_phases) + self.non_modulated_field)
 
 
-class _MockSLMTiming(Generator):
+class _MockSLMTiming(Detector):
     """Class to simulate the timing of an SLM.
 
     This class simulates latency (`update_latency`) and
@@ -420,13 +358,14 @@ class _MockSLMTiming(Generator):
     """
 
     def __init__(self,
-                 shape: Sequence[int],
+                 shape: tuple[int],
                  update_latency: Quantity[u.ms] = 0.0 * u.ms,
                  update_duration: Quantity[u.ms] = 0.0 * u.ms):
 
         if len(shape) != 2:
             raise ValueError("Shape of the SLM should be 2-dimensional.")
-        super().__init__(self._generate, data_shape=shape, pixel_size=Quantity(2.0 / np.min(shape)))
+        super().__init__(data_shape=shape, pixel_size=Quantity(2.0 / np.min(shape)), latency=0 * u.ms,
+                         duration=0 * u.ms)
         self.update_latency = update_latency
         self.update_duration = update_duration
 
@@ -442,7 +381,7 @@ class _MockSLMTiming(Generator):
         self._queue = deque()  # Queue to hold phase images and their timestamps
         self._queue_lock = threading.Lock()  # Lock for critical section
 
-    def _generate(self, shape):
+    def _fetch(self):
         return self._update(None)
 
     def _update(self, append):

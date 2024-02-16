@@ -1,7 +1,7 @@
 import logging
 import time
 import pytest
-from ..openwfs.simulation.mockdevices import MockSource, Generator, MockSLM
+from ..openwfs.simulation.mockdevices import MockSource, NoiseSource, MockSLM
 from ..openwfs.utilities import set_pixel_size, get_pixel_size
 from ..openwfs.processors import CropProcessor
 import numpy as np
@@ -83,7 +83,7 @@ def test_timing_detector(caplog, duration):
 
 
 def test_noise_detector():
-    source = Generator.uniform_noise(data_shape=(10, 11, 20), low=-1.0, high=1.0, pixel_size=4 * u.um)
+    source = NoiseSource('uniform', data_shape=(10, 11, 20), low=-1.0, high=1.0, pixel_size=4 * u.um)
     data = source.read()
     assert data.shape == (10, 11, 20)
     assert np.min(data) >= -1.0
