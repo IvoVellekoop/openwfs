@@ -3,13 +3,15 @@ import weakref
 import warnings
 
 try:
-    from OpenGL.GL import *
+    import OpenGL.GL as GL
+    from OpenGL.GL import glGenTextures, glBindTexture, glTexImage2D, glTexSubImage2D, glTexImage1D, glTexSubImage1D, \
+        glTexParameteri, glActiveTexture, glDeleteTextures, glGetTextureImage, glPixelStorei
 except AttributeError:
-    warnings.warn("OpenGL not found, SLM will not work")
+    warnings.warn("OpenGL not found, SLM will not work"),
 
 
 class Texture:
-    def __init__(self, context, texture_type=GL_TEXTURE_2D):
+    def __init__(self, context, texture_type=GL.GL_TEXTURE_2D):
         self.context = weakref.ref(context)
         self.handle = glGenTextures(1)
         self.type = texture_type
@@ -21,11 +23,11 @@ class Texture:
         self.set_data(0)
 
         # set wrapping and interpolation options
-        glTexParameteri(self.type, GL_TEXTURE_WRAP_S, GL_REPEAT)
-        glTexParameteri(self.type, GL_TEXTURE_WRAP_T, GL_REPEAT)
-        glTexParameteri(self.type, GL_TEXTURE_WRAP_R, GL_REPEAT)
-        glTexParameteri(self.type, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
-        glTexParameteri(self.type, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+        glTexParameteri(self.type, GL.GL_TEXTURE_WRAP_S, GL.GL_REPEAT)
+        glTexParameteri(self.type, GL.GL_TEXTURE_WRAP_T, GL.GL_REPEAT)
+        glTexParameteri(self.type, GL.GL_TEXTURE_WRAP_R, GL.GL_REPEAT)
+        glTexParameteri(self.type, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST)
+        glTexParameteri(self.type, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST)
 
     def __del__(self):
         context = self.context()
@@ -35,7 +37,7 @@ class Texture:
 
     def bind(self, idx):
         """ Bind texture to texture unit idx. Assumes that the OpenGL context is already active."""
-        glActiveTexture(GL_TEXTURE0 + idx)
+        glActiveTexture(GL.GL_TEXTURE0 + idx)
         glBindTexture(self.type, self.handle)
 
     def set_data(self, value):
@@ -48,10 +50,10 @@ class Texture:
 
         self.context().activate()
         glBindTexture(self.type, self.handle)
-        glPixelStorei(GL_UNPACK_ALIGNMENT, 4)  # alignment is at least four bytes since we use float32
-        (internal_format, data_format, data_type) = (GL_R32F, GL_RED, GL_FLOAT)
+        glPixelStorei(GL.GL_UNPACK_ALIGNMENT, 4)  # alignment is at least four bytes since we use float32
+        (internal_format, data_format, data_type) = (GL.GL_R32F, GL.GL_RED, GL.GL_FLOAT)
 
-        if self.type == GL_TEXTURE_1D:
+        if self.type == GL.GL_TEXTURE_1D:
             # check if data has the correct dimension, convert scalars to arrays of correct dimension
             if value.ndim == 0:
                 value = value.reshape((1,))
@@ -59,23 +61,23 @@ class Texture:
                 raise ValueError("Data should be a 1-d array or a scalar")
             if value.shape != self._data_shape:
                 # create a new texture
-                glTexImage1D(GL_TEXTURE_1D, 0, internal_format, value.shape[0], 0, data_format, data_type, value)
+                glTexImage1D(GL.GL_TEXTURE_1D, 0, internal_format, value.shape[0], 0, data_format, data_type, value)
                 self._data_shape = value.shape
             else:
                 # overwrite existing texture
-                glTexSubImage1D(GL_TEXTURE_1D, 0, 0, value.shape[0], data_format, data_type, value)
+                glTexSubImage1D(GL.GL_TEXTURE_1D, 0, 0, value.shape[0], data_format, data_type, value)
 
-        elif self.type == GL_TEXTURE_2D:
+        elif self.type == GL.GL_TEXTURE_2D:
             if value.ndim == 0:
                 value = value.reshape((1, 1))
             elif value.ndim != 2:
                 raise ValueError("Data should be a 2-d array or a scalar")
             if value.shape != self._data_shape:
-                glTexImage2D(GL_TEXTURE_2D, 0, internal_format, value.shape[1], value.shape[0], 0,
+                glTexImage2D(GL.GL_TEXTURE_2D, 0, internal_format, value.shape[1], value.shape[0], 0,
                              data_format, data_type, value)
                 self._data_shape = value.shape
             else:
-                glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, value.shape[1], value.shape[0], data_format,
+                glTexSubImage2D(GL.GL_TEXTURE_2D, 0, 0, 0, value.shape[1], value.shape[0], data_format,
                                 data_type, value)
         else:
             raise ValueError("Texture type not supported")
@@ -83,5 +85,5 @@ class Texture:
     def get_data(self):
         self.context().activate()
         data = np.empty(self._data_shape, dtype='float32')
-        glGetTextureImage(self.handle, 0, GL_RED, GL_FLOAT, data.size * 4, data)
+        glGetTextureImage(self.handle, 0, GL.GL_RED, GL.GL_FLOAT, data.size * 4, data)
         return data

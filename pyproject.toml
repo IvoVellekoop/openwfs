@@ -26,16 +26,17 @@ glfw = ">=2.5.9"
 opencv-python = ">=4.9.0.80"
 matplotlib = ">=3.7.3"
 scipy = ">=1.11.3"
-scikit-image = ">=0.21.0"
-Pillow = ">=10.0.1"
-PyOpenGL = ">=3.1.7"
 nidaqmx = ">=0.8.0"
 harvesters = "~1.4.2"
+
+[tool.poetry.group.opengl.dependencies]
+PyOpenGL = ">=3.1.7"
 
 [tool.poetry.group.dev]
 optional = true
 
 [tool.poetry.group.dev.dependencies]
+scikit-image = ">=0.21.0"
 pytest = "~7.0.0"
 
 [tool.poetry.group.docs]

@@ -8,7 +8,9 @@ from weakref import WeakSet
 import astropy.units as u
 
 try:
-    from OpenGL.GL import *
+    import OpenGL.GL as GL
+    from OpenGL.GL import glViewport, glClearColor, glClear, glGenBuffers, glReadBuffer, glReadPixels, glFinish, \
+        glBindBuffer, glBufferData, glBindBufferBase, glBindFramebuffer
 except AttributeError:
     warnings.warn("OpenGL not found, SLM will not work")
 from .patch import FrameBufferPatch, Patch, VertexArray
@@ -375,13 +377,13 @@ class SLM(Actuator, PhaseSLM):
         self.activate()
 
         # first draw all patches into the frame buffer
-        glBindFramebuffer(GL_FRAMEBUFFER, self._frame_buffer._frame_buffer)
-        glClear(GL_COLOR_BUFFER_BIT)
+        glBindFramebuffer(GL.GL_FRAMEBUFFER, self._frame_buffer._frame_buffer)
+        glClear(GL.GL_COLOR_BUFFER_BIT)
         for patch in self.patches:
             patch.draw()
 
         # then draw the frame buffer to the screen
-        glBindFramebuffer(GL_FRAMEBUFFER, 0)
+        glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
         self._frame_buffer.draw()
 
         glfw.poll_events()  # process window messages
@@ -481,9 +483,9 @@ class SLM(Actuator, PhaseSLM):
 
         self.activate()  # activate OpenGL context of current SLM window
         padded = transform.opencl_matrix()
-        glBindBuffer(GL_UNIFORM_BUFFER, self._globals)
-        glBufferData(GL_UNIFORM_BUFFER, padded.size * 4, padded, GL_STATIC_DRAW)
-        glBindBufferBase(GL_UNIFORM_BUFFER, 1, self._globals)  # connect buffer to binding point 1
+        glBindBuffer(GL.GL_UNIFORM_BUFFER, self._globals)
+        glBufferData(GL.GL_UNIFORM_BUFFER, padded.size * 4, padded, GL.GL_STATIC_DRAW)
+        glBindBufferBase(GL.GL_UNIFORM_BUFFER, 1, self._globals)  # connect buffer to binding point 1
 
     @property
     def lookup_table(self) -> Sequence[int]:
@@ -506,9 +508,9 @@ class SLM(Actuator, PhaseSLM):
         """Read back the pixels currently displayed on the SLM."""
         if type == 'gray_value':
             self.activate()
-            glReadBuffer(GL_FRONT)
+            glReadBuffer(GL.GL_FRONT)
             data = np.empty(self.shape, dtype='uint8')
-            glReadPixels(0, 0, self._shape[1], self._shape[0], GL_RED, GL_UNSIGNED_BYTE, data)
+            glReadPixels(0, 0, self._shape[1], self._shape[0], GL.GL_RED, GL.GL_UNSIGNED_BYTE, data)
 
             # flip data upside down, because the OpenGL convention is to have the origin at the bottom left,
             # but we want it at the top left (like in numpy)
