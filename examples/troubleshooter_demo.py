@@ -3,7 +3,7 @@ import skimage
 import astropy.units as u
 
 from openwfs.processors import SingleRoi
-from openwfs.simulation import MockSource, MockSLM, Microscope
+from openwfs.simulation import StaticSource, MockSLM, Microscope
 from openwfs.algorithms import StepwiseSequential
 from openwfs.algorithms.troubleshoot import troubleshoot, field_correlation
 
@@ -25,14 +25,14 @@ num_phase_steps = 8
 # Aberration and image source
 numerical_aperture = 1.0
 aberration_phase = np.random.uniform(0.0, 2 * np.pi, (n_y, n_x))
-aberration = MockSource(aberration_phase, extent=2 * numerical_aperture)
+aberration = StaticSource(aberration_phase, extent=2 * numerical_aperture)
 img = np.zeros((120, 120), dtype=np.int16)
 img[60, (60, 70, 80, 90, 100, 110)] = 1000
-src = MockSource(img, pixel_size=200*u.nm)
+src = StaticSource(img, pixel_size=200 * u.nm)
 
 # SLM with incorrect phase response
 slm = MockSLM(shape=(100, 100))
-linear_phase = np.arange(0, 2*np.pi, 2*np.pi/256)
+linear_phase = np.arange(0, 2 * np.pi, 2 * np.pi / 256)
 slm.phase_response = phase_response_test_function(linear_phase, b=0.02, c=0.9, gamma=1.2)
 
 # Simulation with noise, camera, ROI detector

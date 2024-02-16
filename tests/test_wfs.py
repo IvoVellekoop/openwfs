@@ -7,7 +7,7 @@ from scipy.ndimage import zoom
 from ..openwfs.core import Device
 from ..openwfs.algorithms import StepwiseSequential, FourierDualReference, WFSController
 from ..openwfs.processors import SingleRoi
-from ..openwfs.simulation import SimulatedWFS, MockSource, MockSLM, Microscope, ADCProcessor
+from ..openwfs.simulation import SimulatedWFS, StaticSource, MockSLM, Microscope, ADCProcessor
 
 
 def assert_enhancement(slm, feedback, wfs_results, t_correct=None):
@@ -116,13 +116,13 @@ def test_fourier3():
 def test_fourier_microscope():
     Device.multi_threading = False
     aberration_phase = skimage.data.camera() * ((2 * np.pi) / 255.0) + np.pi
-    aberration = MockSource(aberration_phase, pixel_size=2.0 / np.array(aberration_phase.shape))
+    aberration = StaticSource(aberration_phase, pixel_size=2.0 / np.array(aberration_phase.shape))
     img = np.zeros((1000, 1000), dtype=np.int16)
     signal_location = (250, 250)
     img[signal_location] = 100
     slm_shape = (1000, 1000)
 
-    src = MockSource(img, 400 * u.nm)
+    src = StaticSource(img, 400 * u.nm)
     slm = MockSLM(shape=(1000, 1000))
     sim = Microscope(source=src, incident_field=slm.field, magnification=1, numerical_aperture=1,
                      aberrations=aberration,

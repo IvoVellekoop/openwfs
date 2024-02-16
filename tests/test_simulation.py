@@ -5,7 +5,7 @@ import numpy as np
 from ..openwfs.core import Device
 from ..openwfs.algorithms import StepwiseSequential
 from ..openwfs.processors import SingleRoi
-from ..openwfs.simulation import Microscope, MockCamera, MockSource, MockSLM
+from ..openwfs.simulation import Microscope, MockCamera, StaticSource, MockSLM
 from ..openwfs.utilities.patterns import tilt
 import skimage
 import astropy.units as u
@@ -20,7 +20,7 @@ def test_mock_camera_and_single_roi():
     """
     img = np.zeros((1000, 1000), dtype=np.int16)
     img[200, 300] = 39.39  # some random float
-    src = MockCamera(MockSource(img, 450 * u.nm))
+    src = MockCamera(StaticSource(img, 450 * u.nm))
     roi_detector = SingleRoi(src, pos=(200, 300), radius=0)  # Only measure that specific point
     assert roi_detector.read() == int(2 ** 16 - 1)  # it should cast the array into some int
 
@@ -34,7 +34,7 @@ def test_microscope_without_magnification(shape):
     # construct input image
     img = np.zeros(shape, dtype=np.int16)
     img[256, 256] = 100
-    src = MockCamera(MockSource(img, 400 * u.nm))
+    src = MockCamera(StaticSource(img, 400 * u.nm))
 
     # construct microscope
     sim = Microscope(source=src, magnification=1, numerical_aperture=1, wavelength=800 * u.nm)
@@ -50,7 +50,7 @@ def test_microscope_and_aberration():
     """
     img = np.zeros((1000, 1000), dtype=np.int16)
     img[256, 256] = 100
-    src = MockCamera(MockSource(img, 400 * u.nm))
+    src = MockCamera(StaticSource(img, 400 * u.nm))
 
     slm = MockSLM(shape=(512, 512))
 
@@ -72,13 +72,13 @@ def test_slm_and_aberration():
     """
     img = np.zeros((1000, 1000), dtype=np.int16)
     img[256, 256] = 100
-    src = MockCamera(MockSource(img, 400 * u.nm))
+    src = MockCamera(StaticSource(img, 400 * u.nm))
 
     slm = MockSLM(shape=(512, 512))
 
     aberrations = skimage.data.camera() * ((2 * np.pi) / 255.0) * 0
     slm.set_phases(-aberrations)
-    aberration = MockSource(aberrations, pixel_size=1.0 / 512 * u.dimensionless_unscaled)
+    aberration = StaticSource(aberrations, pixel_size=1.0 / 512 * u.dimensionless_unscaled)
 
     sim1 = Microscope(source=src, incident_field=slm.field, numerical_aperture=1.0, aberrations=aberration,
                       wavelength=800 * u.nm)
@@ -106,7 +106,7 @@ def test_slm_tilt():
     img[signal_location] = 100
     pixel_size = 400 * u.nm
     wavelength = 750 * u.nm
-    src = MockCamera(MockSource(img, pixel_size))
+    src = MockCamera(StaticSource(img, pixel_size))
 
     slm = MockSLM(shape=(1000, 1000))
 
@@ -136,7 +136,7 @@ def test_microscope_wavefront_shaping(caplog):
     Device.multi_threading = False
     aberrations = skimage.data.camera() * ((2 * np.pi) / 255.0) + np.pi
 
-    aberration = MockSource(aberrations, pixel_size=1.0 / 512 * u.dimensionless_unscaled)  # note: incorrect scaling!
+    aberration = StaticSource(aberrations, pixel_size=1.0 / 512 * u.dimensionless_unscaled)  # note: incorrect scaling!
 
     img = np.zeros((1000, 1000), dtype=np.int16)
     img[256, 256] = 100
@@ -145,7 +145,7 @@ def test_microscope_wavefront_shaping(caplog):
     signal_location = (250, 200)
 
     img[signal_location] = 100
-    src = MockSource(img, 400 * u.nm)
+    src = StaticSource(img, 400 * u.nm)
 
     slm = MockSLM(shape=(1000, 1000))
 

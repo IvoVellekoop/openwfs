@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-from ..openwfs.simulation.mockdevices import MockSource
+from ..openwfs.simulation.mockdevices import StaticSource
 from ..openwfs.processors import SingleRoi, select_roi, Roi, MultipleRoi, MaskType
 import skimage as sk
 import astropy.units as u
@@ -10,7 +10,7 @@ import astropy.units as u
                          "selected correctly.")
 def test_croppers():
     img = sk.data.camera()
-    src = MockSource(img, 50 * u.nm)
+    src = StaticSource(img, 50 * u.nm)
     roi = select_roi(src, MaskType.DISK)
     assert roi.mask_type == MaskType.DISK
 
@@ -20,7 +20,7 @@ def test_single_roi_simple_case():
                      [4, 5, 6],
                      [7, 8, 9]])
     pixel_size = 1 * np.ones(2)
-    mock_source = MockSource(data, pixel_size=pixel_size)
+    mock_source = StaticSource(data, pixel_size=pixel_size)
     roi_processor = SingleRoi(mock_source, radius=np.sqrt(2))
     roi_processor.trigger()
     result = roi_processor.read()
@@ -35,7 +35,7 @@ def test_single_roi_simple_case():
 
 def create_mock_source_with_data():
     data = np.arange(25).reshape(5, 5)
-    return MockSource(data, pixel_size=1 * u.um)
+    return StaticSource(data, pixel_size=1 * u.um)
 
 
 @pytest.mark.parametrize("x, y, radius, expected_avg", [
@@ -56,7 +56,7 @@ def test_multiple_roi_simple_case():
                      [4, 5, 6],
                      [7, 8, 9]])
     pixel_size = 1 * np.ones(2)
-    mock_source = MockSource(data, pixel_size=pixel_size)
+    mock_source = StaticSource(data, pixel_size=pixel_size)
 
     rois = [Roi((1, 1), radius=0),
             Roi((2, 2), radius=0),

@@ -1,7 +1,7 @@
 import logging
 import time
 import pytest
-from ..openwfs.simulation.mockdevices import MockSource, NoiseSource, MockSLM
+from ..openwfs.simulation.mockdevices import StaticSource, NoiseSource, MockSLM
 from ..openwfs.utilities import set_pixel_size, get_pixel_size
 from ..openwfs.processors import CropProcessor
 import numpy as np
@@ -35,7 +35,7 @@ def test_set_pixel_size():
 @pytest.mark.parametrize("pixel_size", [4 * u.um, (4, 3) * u.um])
 def test_mock_detector(pixel_size):
     image = np.ones((4, 5))
-    source = MockSource(image, pixel_size=pixel_size)
+    source = StaticSource(image, pixel_size=pixel_size)
     data = source.read()
     data2 = source.trigger().result()
     data3 = np.empty(data.shape)
@@ -62,7 +62,7 @@ def test_timing_detector(caplog, duration):
     caplog.set_level(logging.DEBUG)
     image0 = np.zeros((4, 5))
     image1 = np.ones((4, 5))
-    source = MockSource(image0, pixel_size=4 * u.um, duration=duration)
+    source = StaticSource(image0, pixel_size=4 * u.um, duration=duration)
     t0 = time.time_ns()
     f0 = source.trigger()
     t1 = time.time_ns()
@@ -114,7 +114,7 @@ def test_mock_slm():
 
 def test_crop():
     data = np.random.uniform(size=(4, 5))
-    source = MockSource(data, pixel_size=1 * u.um)
+    source = StaticSource(data, pixel_size=1 * u.um)
     cropped = CropProcessor(source, padding_value=np.nan)
     assert cropped.data_shape == (4, 5)
     c = cropped.read()
@@ -139,7 +139,7 @@ def test_crop():
 
 def test_crop_1d():
     data = np.random.uniform(size=(10,))
-    source = MockSource(data, pixel_size=1 * u.um)
+    source = StaticSource(data, pixel_size=1 * u.um)
     cropped = CropProcessor(source, padding_value=np.nan)
     assert cropped.data_shape == (10,)
     c = cropped.read()

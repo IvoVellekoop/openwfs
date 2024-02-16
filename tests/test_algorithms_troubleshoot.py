@@ -3,7 +3,7 @@ import astropy.units as u
 import pytest
 
 from ..openwfs.processors import SingleRoi
-from ..openwfs.simulation import SimulatedWFS, MockSource, MockSLM, Microscope
+from ..openwfs.simulation import SimulatedWFS, StaticSource, MockSLM, Microscope
 from ..openwfs.algorithms import StepwiseSequential
 from ..openwfs.algorithms.troubleshoot \
     import cnr, signal_std, find_pixel_shift, field_correlation, frame_correlation, \
@@ -153,10 +153,10 @@ def test_fidelity_phase_calibration_ssa_with_noise(n_y, n_x, phase_steps, gaussi
     # Aberration and image source
     numerical_aperture = 1.0
     aberration_phase = np.random.uniform(0.0, 2 * np.pi, (n_y, n_x))
-    aberration = MockSource(aberration_phase, extent=2 * numerical_aperture)
+    aberration = StaticSource(aberration_phase, extent=2 * numerical_aperture)
     img = np.zeros((64, 64), dtype=np.int16)
     img[32, 32] = 250
-    src = MockSource(img, 500 * u.nm)
+    src = StaticSource(img, 500 * u.nm)
 
     # SLM, simulation, camera, ROI detector
     slm = MockSLM(shape=(80, 80))
@@ -202,7 +202,7 @@ def test_measure_modulated_light_dual_phase_stepping_with_noise(num_blocks, phas
     # Aberration and image source
     img = np.zeros((64, 64), dtype=np.int16)
     img[32, 32] = 100
-    src = MockSource(img, 200 * u.nm)
+    src = StaticSource(img, 200 * u.nm)
 
     # SLM, simulation, camera, ROI detector
     slm = MockSLM(shape=(100, 100))
@@ -243,7 +243,7 @@ def test_measure_modulated_light_dual_phase_stepping_with_noise(
     # Aberration and image source
     img = np.zeros((64, 64), dtype=np.int16)
     img[32, 32] = 100
-    src = MockSource(img, 200 * u.nm)
+    src = StaticSource(img, 200 * u.nm)
 
     # SLM, simulation, camera, ROI detector
     slm = MockSLM(shape=(100, 100),

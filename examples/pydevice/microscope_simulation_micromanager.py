@@ -3,7 +3,7 @@ import numpy as np
 from openwfs.algorithms import FourierDualReference
 from openwfs.algorithms.utilities import WFSController
 from openwfs.processors import SingleRoi
-from openwfs.simulation import Microscope, MockSource, MockSLM
+from openwfs.simulation import Microscope, StaticSource, MockSLM
 import skimage
 import astropy.units as u
 
@@ -29,7 +29,7 @@ Variables:
 
 numerical_aperture = 1.0
 aberration_phase = skimage.data.camera() * ((2 * np.pi) / 255.0) + np.pi
-aberration = MockSource(aberration_phase, extent=2 * numerical_aperture)
+aberration = StaticSource(aberration_phase, extent=2 * numerical_aperture)
 
 img = np.zeros((512, 512), dtype=np.int16)
 signal_location = (256, 256)
@@ -39,7 +39,7 @@ img[300, 10] = 50
 img[50, 300] = 30
 img[400, 20] = 20
 
-src = MockSource(img, 400 * u.nm)
+src = StaticSource(img, 400 * u.nm)
 
 slm = MockSLM(shape=(1000, 1000))
 

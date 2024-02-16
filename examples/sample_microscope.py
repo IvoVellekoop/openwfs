@@ -1,7 +1,7 @@
 import numpy as np
 import astropy.units as u
 import set_path  # noqa - needed for setting the module search path to find openwfs
-from openwfs.simulation import Microscope, MockSource
+from openwfs.simulation import Microscope, StaticSource
 from openwfs.utilities import Transform
 from openwfs.plot_utilities import grab_and_show
 
@@ -39,7 +39,7 @@ p_limit = 100
 
 ## Code
 img = np.maximum(np.random.randint(-10000, 100, (img_size_y, img_size_x), dtype=np.int16), 0)
-src = MockSource(img, 50 * u.nm)
+src = StaticSource(img, 50 * u.nm)
 mic = Microscope(src, magnification=magnification, numerical_aperture=numerical_aperture, wavelength=wavelength,
                  truncation_factor=0.5)
 

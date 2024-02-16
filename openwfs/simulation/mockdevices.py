@@ -12,7 +12,7 @@ from ..core import Detector, Processor, PhaseSLM, Actuator, Device
 from ..utilities import ExtentType, get_pixel_size, project, set_extent, get_extent, unitless
 
 
-class MockSource(Detector):
+class StaticSource(Detector):
     """
     Detector that returns pre-set data. Also simulates latency and measurement duration.
     """
