@@ -3,7 +3,7 @@ import time
 import matplotlib.pyplot as plt
 import numpy as np
 from numpy.fft import fft2, ifft2, fftfreq
-
+import logging
 from ..algorithms.utilities import WFSResult
 from ..core import Detector, PhaseSLM
 
@@ -85,9 +85,8 @@ def find_pixel_shift(f: np.ndarray, g: np.ndarray) -> tuple[np.intp, ...]:
     corr = cross_corr_fft2(f, g)  # Compute cross-correlation with fft2
     s = np.array(corr).shape  # Get shape
     index = np.unravel_index(np.argmax(corr), s)  # Find 2D indices of maximum
-    pix_shift = (fftfreq(s[0], 1 / s[0])[index[0]],  # Correct negative pixel shifts
-                 fftfreq(s[1], 1 / s[1])[index[1]])
-    return pix_shift
+    # Correct negative pixel shifts
+    return (fftfreq(s[0], 1 / s[0])[index[0]], fftfreq(s[1], 1 / s[1])[index[1]])
 
 
 def field_correlation(a: np.ndarray, b: np.ndarray) -> float:
@@ -162,37 +161,6 @@ def measure_setup_stability(frame_source, sleep_time_s, num_of_frames, dark_fram
                            correlations=correlations,
                            contrast_ratios=contrast_ratios,
                            timestamps=timestamps)
-
-
-def analyze_phase_calibration(wfs_result: WFSResult) -> float:
-    r"""
-    Analyze phase calibration.
-    Estimate the fidelity reduction factor due to wrong phase calibration
-    :math:`\langle|\gamma_\phi|^2\rangle = |c_1|^2 / \sum_{k\neq0} |c_k|^2`,
-    where :math:`c_k` are components of the Fourier transform of phase stepping measurements. For perfectly calibrated
-    SLMs, :math:`\langle|\gamma_\phi|^2\rangle` should converge to 1.
-
-    Args:
-        wfs_result: The WFSResult object containing the Fourier transform of the phase stepping measurements.
-            Minimum number of phase steps=5, but a significantly higher number of phase steps is recommended for more
-            accurate estimation.
-
-    Returns:
-        Estimate of fidelity reduction due to wrong phase calibration.
-    """
-    F = wfs_result.t_f  # Fourier transform of phase stepping measurements
-
-    # Prepare indexing
-    axis_k = wfs_result.axis  # Axis of phase stepping
-    axis_not_k = list(range(F.ndim))  # List of all axis indices
-    axis_not_k.pop(axis_k)  # Remove axis of phase stepping
-    k_nyquist = int(np.floor((F.shape[axis_k] - 1) / 2))  # Nyquist frequency index
-
-    # Compute components
-    F1 = np.expand_dims(np.take(F, 1, axis=axis_k), axis=axis_k)  # Base frequency
-    Fk = np.take(F, range(1, k_nyquist), axis=axis_k)  # All frequencies from base to Nyquist
-    inner_sum = np.sum(Fk * F1.conj(), axis=tuple(axis_not_k), keepdims=True)  # Sum over all axes except phase stepping
-    return np.sum((np.abs(F1) ** 2)) ** 2 / np.sum(np.abs(inner_sum) ** 2, axis=axis_k)  # Compute |c1|²/∑|ck|²
 
 
 def measure_modulated_light_dual_phase_stepping(slm: PhaseSLM, feedback: Detector, phase_steps: int, num_blocks: int):
@@ -342,8 +310,8 @@ class WFSTroubleshootResult:
         print(f'=== Feedback metrics ===')
         print(f'fidelity_amplitude: {self.wfs_result.amplitude_factor.squeeze():.3f}')
         print(f'fidelity_noise: {self.wfs_result.noise_factor.squeeze():.3f}')
-        print(f'fidelity_non_modulated: {self.fidelity_non_modulated}:.3f')
-        print(f'fidelity_phase_calibration: {self.fidelity_phase_calibration.squeeze():.3f}')
+        print(f'fidelity_non_modulated: {self.fidelity_non_modulated:.3f}')
+        print(f'fidelity_phase_calibration: {self.wfs_result.calibration_fidelity.squeeze():.3f}')
         print(f'enhancement: {self.enhancement:.3f}')
         print(f'')
         print(f'=== Frame metrics ===')
@@ -361,7 +329,7 @@ class WFSTroubleshootResult:
 
 
 def troubleshoot(algorithm, frame_source: Detector, shutter,
-                 do_frame_capture=True, do_stability_test=True, do_log=True,
+                 do_frame_capture=True, do_stability_test=True,
                  stability_sleep_time_s=0.5,
                  stability_num_of_frames=500,
                  measure_non_modulated_phase_steps=16) -> WFSTroubleshootResult:
@@ -377,7 +345,6 @@ def troubleshoot(algorithm, frame_source: Detector, shutter,
         do_frame_capture: Boolean. If False, skip frame capture before and after running the WFS algorithm.
             Also skips computation of corresponding metrics. Also skips stability test.
         do_stability_test: Boolean. If False, skip stability test.
-        do_log: Report what the troubleshooter is doing on the console.
         stability_sleep_time_s: Float. Sleep time in seconds in between capturing frames.
         stability_num_of_frames: Integer. Number of frames to take in the stability test.
 
@@ -390,8 +357,7 @@ def troubleshoot(algorithm, frame_source: Detector, shutter,
     trouble = WFSTroubleshootResult()
 
     if do_frame_capture:
-        if do_log:
-            print('Capturing frames before WFS...')
+        logging.info('Capturing frames before WFS...')
 
         # Capture frames before WFS
         algorithm.slm.set_phases(0.0)  # Flat wavefront
@@ -405,8 +371,7 @@ def troubleshoot(algorithm, frame_source: Detector, shutter,
         trouble.frame_cnr_before = cnr(trouble.before_frame, trouble.dark_frame)
 
     # WFS experiment
-    if do_log:
-        print('Run WFS algorithm...')
+    logging.info('Run WFS algorithm...')
     trouble.wfs_result = algorithm.execute()  # Execute WFS algorithm
 
     # Flat wavefront
@@ -414,8 +379,7 @@ def troubleshoot(algorithm, frame_source: Detector, shutter,
     trouble.feedback_after = algorithm.feedback.read()
 
     if do_frame_capture:
-        if do_log:
-            print('Capturing frames after WFS...')
+        logging.info('Capturing frames after WFS...')
         trouble.after_frame = frame_source.read()  # After frame (flat wf)
 
     # Shaped wavefront
@@ -428,8 +392,7 @@ def troubleshoot(algorithm, frame_source: Detector, shutter,
         trouble.shaped_wf_frame = frame_source.read()  # Shaped wavefront frame
 
         # Frame metrics
-        if do_log:
-            print('Compute frame metrics...')
+        logging.info('Compute frame metrics...')
         trouble.frame_signal_std_after = signal_std(trouble.after_frame, trouble.dark_frame)
         trouble.frame_signal_std_shaped_wf = signal_std(trouble.shaped_wf_frame, trouble.dark_frame)
         trouble.frame_cnr_after = cnr(trouble.after_frame, trouble.dark_frame)  # Frame CNR after
@@ -444,8 +407,7 @@ def troubleshoot(algorithm, frame_source: Detector, shutter,
                                 phase_steps=measure_non_modulated_phase_steps)
 
     if do_stability_test and do_frame_capture:
-        if do_log:
-            print('Run stability test...')
+        logging.info('Run stability test...')
 
         # Test setup stability
         trouble.stability = measure_setup_stability(
@@ -455,8 +417,5 @@ def troubleshoot(algorithm, frame_source: Detector, shutter,
             dark_frame=trouble.dark_frame)
 
     # Analyze the WFS result
-    if do_log:
-        print('Analyze phase calibration...')
-    trouble.fidelity_phase_calibration = analyze_phase_calibration(trouble.wfs_result)
-
+    logging.info('Analyze WFS result...')
     return trouble

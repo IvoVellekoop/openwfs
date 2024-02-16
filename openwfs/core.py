@@ -236,7 +236,7 @@ class Device(ABC):
             start = time.time_ns()
             timeout = self.timeout.to_value(u.ns)
             while self.busy():
-                time.sleep(0.001)
+                time.sleep(0.01)
                 if time.time_ns() - start > timeout:
                     raise TimeoutError("Timeout in %s (tid %i)", self, threading.get_ident())
         else:
@@ -258,7 +258,7 @@ class Device(ABC):
         The timeout is automatically adjusted if the `duration` changes.
         The default value is `duration + 5 s`."""
         duration = self.duration
-        if not np.isinf(duration):
+        if np.isfinite(duration):
             return self._timeout_margin + duration
         else:
             return self._timeout_margin
@@ -336,11 +336,6 @@ class Detector(Device, ABC):
             Instead, override `_do_trigger()` instead to ensure proper synchronization and locking.
         """
         self._increase_measurements_pending()
-
-        # if the detector is not locked yet,
-        # lock it now (this is a persistent lock),
-        # which is released in _do_fetch if the number of pending measurements reaches zero
-        # does nothing if the lock is already locked.
         try:
             self._start()
             self._do_trigger()

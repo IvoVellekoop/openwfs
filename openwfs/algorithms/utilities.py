@@ -189,7 +189,7 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int, A: Optional[floa
     # we first construct a matrix that can be used to fit
     # parameters a and b such that a·t(:) + b·t^*(:) ≈ t_f(:, k, :)
     M_inv = np.linalg.pinv(np.vstack((t.ravel(), np.conj(t.ravel()))).T)
-    c = np.zeros(phase_steps)
+    c = np.zeros(phase_steps, np.complex128)
     for k in range(phase_steps):
         c[k] = (M_inv @ np.take(t_f, k, axis=axis).ravel())[0]
 
