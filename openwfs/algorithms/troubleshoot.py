@@ -361,8 +361,7 @@ class WFSTroubleshootResult:
             self.stability.plot()
 
 
-def troubleshoot(algorithm, frame_source: Detector,
-                 laser_unblock: Callable, laser_block: Callable,
+def troubleshoot(algorithm, frame_source: Detector, shutter,
                  do_frame_capture=True, do_stability_test=True, do_log=True,
                  stability_sleep_time_s=0.5,
                  stability_num_of_frames=500) -> WFSTroubleshootResult:
@@ -373,8 +372,7 @@ def troubleshoot(algorithm, frame_source: Detector,
     Args:
         algorithm: Wavefront Shaping algorithm object, e.g. StepwiseSequential.
         frame_source: Source object for reading frames, e.g. Camera.
-        laser_unblock: Function to run for unblocking the laser light.
-        laser_block: Function to run for blocking the laser light.
+        shutter: Device object that can block/unblock light source.
         do_frame_capture: Boolean. If False, skip frame capture before and after running the WFS algorithm.
             Also skips computation of corresponding metrics. Also skips stability test.
         do_stability_test: Boolean. If False, skip stability test.
