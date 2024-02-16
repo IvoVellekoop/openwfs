@@ -45,7 +45,8 @@ def cnr(signal_with_noise: np.ndarray, noise: np.ndarray) -> np.float64:
     return signal_std(signal_with_noise, noise) / noise.std()
 
 
-def contrast_enhancement(signal_with_noise: np.ndarray, reference_with_noise: np.ndarray, noise: np.ndarray) -> np.float64:
+def contrast_enhancement(signal_with_noise: np.ndarray, reference_with_noise: np.ndarray,
+                         noise: np.ndarray) -> np.float64:
     """
     Compute noise corrected contrast enhancement. The noise is assumed to be uncorrelated with the signal, such that
     var(measured) = var(signal) + var(noise).
@@ -117,13 +118,14 @@ def frame_correlation(A: np.ndarray, B: np.ndarray) -> float:
     See also:
          [Jang et al. 2015] https://opg.optica.org/boe/fulltext.cfm?uri=boe-6-1-72&id=306198
     """
-    return np.mean(A * B) / (np.mean(A)*np.mean(B)) - 1
+    return np.mean(A * B) / (np.mean(A) * np.mean(B)) - 1
 
 
 class StabilityResult:
     """
     Result of a stability measurement.
     """
+
     def __init__(self, pixel_shifts, correlations, contrast_ratios, timestamps):
         self.pixel_shifts = pixel_shifts
         self.correlations = correlations
@@ -191,7 +193,7 @@ def analyze_phase_calibration(wfs_result: WFSResult) -> float:
     F1 = np.expand_dims(np.take(F, 1, axis=axis_k), axis=axis_k)  # Base frequency
     Fk = np.take(F, range(1, k_nyquist), axis=axis_k)  # All frequencies from base to Nyquist
     inner_sum = np.sum(Fk * F1.conj(), axis=tuple(axis_not_k), keepdims=True)  # Sum over all axes except phase stepping
-    return np.sum((np.abs(F1)**2))**2 / np.sum(np.abs(inner_sum)**2, axis=axis_k)  # Compute |c1|²/∑|ck|²
+    return np.sum((np.abs(F1) ** 2)) ** 2 / np.sum(np.abs(inner_sum) ** 2, axis=axis_k)  # Compute |c1|²/∑|ck|²
 
 
 def measure_modulated_light_dual_phase_stepping(slm: PhaseSLM, feedback: Detector, phase_steps: int, num_blocks: int):
@@ -221,20 +223,20 @@ def measure_modulated_light_dual_phase_stepping(slm: PhaseSLM, feedback: Detecto
 
     # Dual phase stepping
     for p in range(phase_steps):
-        phase_p = p * 2*np.pi / phase_steps
+        phase_p = p * 2 * np.pi / phase_steps
         for q in range(phase_steps):
-            phase_q = q * 2*np.pi / phase_steps
+            phase_q = q * 2 * np.pi / phase_steps
             phase_pattern = block_pattern_p * phase_p + block_pattern_q * phase_q
             slm.set_phases(phase_pattern)
             measurements[p, q] = feedback.read()
 
     # 2D Fourier transform the modulation measurements
-    F = np.fft.fft2(measurements) / phase_steps**2
+    F = np.fft.fft2(measurements) / phase_steps ** 2
 
     # Compute fidelity factor due to modulated light
     eps = 1e-6  # Epsilon term to prevent division by zero
-    M1M2_ratio = (np.abs(F[0, 1])**2 + eps) / (np.abs(F[1, 0])**2 + eps)  # Ratio of modulated intensities
-    fidelity_modulated = (1 + M1M2_ratio) / (1 + M1M2_ratio + np.abs(F[0, 1])**2 / np.abs(F[1, -1])**2)
+    M1M2_ratio = (np.abs(F[0, 1]) ** 2 + eps) / (np.abs(F[1, 0]) ** 2 + eps)  # Ratio of modulated intensities
+    fidelity_modulated = (1 + M1M2_ratio) / (1 + M1M2_ratio + np.abs(F[0, 1]) ** 2 / np.abs(F[1, -1]) ** 2)
 
     return fidelity_modulated
 
@@ -261,15 +263,14 @@ def measure_modulated_light(slm: PhaseSLM, feedback: Detector, phase_steps: int)
 
     # Dual phase stepping
     for p in range(phase_steps):
-        slm.set_phases(p * 2*np.pi / phase_steps)
+        slm.set_phases(p * 2 * np.pi / phase_steps)
         measurements[p] = feedback.read()
 
     # 2D Fourier transform the modulation measurements
-    F = np.fft.fft(measurements) / phase_steps
+    F = np.fft.fft(measurements)
 
     # Compute ratio of modulated light over total
-    modulated_intensity = 0.5 * (np.abs(F[0]) + np.sqrt(np.clip(np.abs(F[0])**2 - 4*np.abs(F[1])**2, 0, None)))
-    fidelity_modulated = modulated_intensity / np.abs(F[0])
+    fidelity_modulated = 0.5 * (1.0 + np.sqrt(np.clip(1.0 - 4.0 * np.abs(F[1] / F[0]) ** 2, 0, None)))
 
     return fidelity_modulated
 
@@ -298,6 +299,7 @@ class WFSTroubleshootResult:
         shaped_frame: Frame taken with the laser unblocked, after running the WFS algorithm, with a shaped wavefront.
         stability (StabilityResult): Object containing the result of the stability test.
     """
+
     def __init__(self):
         # Fidelities and WFS metrics
         self.fidelity_non_modulated = None
@@ -392,11 +394,11 @@ def troubleshoot(algorithm, frame_source: Detector,
         if do_log: print('Capturing frames before WFS...')
 
         # Capture frames before WFS
-        algorithm.slm.set_phases(0.0)                                       # Flat wavefront
+        algorithm.slm.set_phases(0.0)  # Flat wavefront
         laser_block()
-        trouble.dark_frame = frame_source.read()                            # Dark frame
+        trouble.dark_frame = frame_source.read()  # Dark frame
         laser_unblock()
-        trouble.before_frame = frame_source.read()                          # Before frame (flat wf)
+        trouble.before_frame = frame_source.read()  # Before frame (flat wf)
 
         # Frame metrics
         trouble.frame_signal_std_before = signal_std(trouble.before_frame, trouble.dark_frame)
@@ -404,7 +406,7 @@ def troubleshoot(algorithm, frame_source: Detector,
 
     # WFS experiment
     if do_log: print('Run WFS algorithm...')
-    trouble.wfs_result = algorithm.execute()                                # Execute WFS algorithm
+    trouble.wfs_result = algorithm.execute()  # Execute WFS algorithm
 
     # Flat wavefront
     algorithm.slm.set_phases(0.0)
@@ -412,7 +414,7 @@ def troubleshoot(algorithm, frame_source: Detector,
 
     if do_frame_capture:
         if do_log: print('Capturing frames after WFS...')
-        trouble.after_frame = frame_source.read()                           # After frame (flat wf)
+        trouble.after_frame = frame_source.read()  # After frame (flat wf)
 
     # Shaped wavefront
     algorithm.slm.set_phases(-np.angle(trouble.wfs_result.t))
@@ -421,7 +423,7 @@ def troubleshoot(algorithm, frame_source: Detector,
     trouble.enhancement = trouble.feedback_shaped_wf / trouble.feedback_after
 
     if do_frame_capture:
-        trouble.shaped_wf_frame = frame_source.read()                       # Shaped wavefront frame
+        trouble.shaped_wf_frame = frame_source.read()  # Shaped wavefront frame
 
         # Frame metrics
         if do_log: print('Compute frame metrics...')

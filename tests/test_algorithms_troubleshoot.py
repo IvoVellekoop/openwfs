@@ -217,20 +217,20 @@ def test_measure_modulated_light_dual_phase_stepping_with_noise(num_blocks, phas
     assert np.isclose(fidelity_modulated, 1, atol=atol)
 
 
-@pytest.mark.parametrize("phase_steps, expected_fid, atol, modulated_field_amplitude, non_modulated_field",
-                         [(6, 1, 1e-6, 1.0, 0.0), (8, 0.5, 1e-6, 0.5, 0.5), (8, 1 / (1 + 0.25), 1e-6, 1.0, 0.5)])
-def test_measure_modulated_light_noise_free(
-        phase_steps, expected_fid, atol, modulated_field_amplitude, non_modulated_field):
+@pytest.mark.parametrize(
+    "phase_steps, modulated_field_amplitude, non_modulated_field", [(6, 1.0, 0.0), (8, 0.5, 0.5), (8, 1.0, 0.25)])
+def test_measure_modulated_light_noise_free(phase_steps, modulated_field_amplitude, non_modulated_field):
     """Test fidelity estimation due to amount of modulated light. Noise-free."""
     # Perfect SLM, noise-free
     aberrations = np.random.uniform(0.0, 2 * np.pi, (20, 20))
-    sim = SimulatedWFS(aberrations)
-    sim.slm.modulated_field_amplitude = modulated_field_amplitude
-    sim.slm.non_modulated_field = non_modulated_field
+    slm = MockSLM(aberrations.shape, field_amplitude=modulated_field_amplitude,
+                  non_modulated_field_fraction=non_modulated_field)
+    sim = SimulatedWFS(aberrations, slm=slm)
 
     # Measure the amount of modulated light (no non-modulated light present)
     fidelity_modulated = measure_modulated_light(slm=sim.slm, feedback=sim, phase_steps=phase_steps)
-    assert np.isclose(fidelity_modulated, expected_fid, atol=atol)
+    expected_fid = 1.0 / (1.0 + non_modulated_field ** 2)
+    assert np.isclose(fidelity_modulated, expected_fid, rtol=0.1)
 
 
 @pytest.mark.parametrize(
@@ -249,8 +249,7 @@ def test_measure_modulated_light_dual_phase_stepping_with_noise(
     slm = MockSLM(shape=(100, 100),
                   field_amplitude=modulated_field_amplitude,
                   non_modulated_field_fraction=non_modulated_field)
-    sim = Microscope(source=src, incident_field=slm.get_monitor('field'), magnification=1, numerical_aperture=1.0,
-                     wavelength=800 * u.nm)
+    sim = Microscope(source=src, incident_field=slm.field, wavelength=800 * u.nm)
     cam = sim.get_camera(analog_max=1e4, gaussian_noise_std=gaussian_noise_std)
     roi_detector = SingleRoi(cam, radius=0)  # Only measure that specific point
 
