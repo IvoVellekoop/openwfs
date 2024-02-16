@@ -364,7 +364,8 @@ class WFSTroubleshootResult:
 def troubleshoot(algorithm, frame_source: Detector, shutter,
                  do_frame_capture=True, do_stability_test=True, do_log=True,
                  stability_sleep_time_s=0.5,
-                 stability_num_of_frames=500) -> WFSTroubleshootResult:
+                 stability_num_of_frames=500,
+                 measure_non_modulated_phase_steps=16) -> WFSTroubleshootResult:
     """
     Run a series of basic checks to find common sources of error in a WFS experiment.
     Quantifies several types of fidelity reduction.
@@ -433,6 +434,10 @@ def troubleshoot(algorithm, frame_source: Detector, shutter,
             contrast_enhancement(trouble.shaped_wf_frame, trouble.after_frame, trouble.dark_frame)
         trouble.frame_photobleaching_ratio = \
             contrast_enhancement(trouble.after_frame, trouble.before_frame, trouble.dark_frame)
+
+    trouble.fidelity_non_modulated = \
+        measure_modulated_light(slm=algorithm.slm, feedback=algorithm.feedback,
+                                phase_steps=measure_non_modulated_phase_steps)
 
     if do_stability_test and do_frame_capture:
         if do_log: print('Run stability test...')
