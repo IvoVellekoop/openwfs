@@ -169,6 +169,7 @@ def test_fidelity_phase_calibration_ssa_with_noise(n_y, n_x, phase_steps, gaussi
     # Define and run WFS algorithm
     alg = StepwiseSequential(feedback=roi_detector, slm=slm, n_x=n_x, n_y=n_y, phase_steps=phase_steps)
     result_good = alg.execute()
+    print(result_good.calibration_fidelity)
     fidelity_phase_cal_noise = analyze_phase_calibration(result_good)
     assert fidelity_phase_cal_noise > 0.9
 
@@ -176,6 +177,7 @@ def test_fidelity_phase_calibration_ssa_with_noise(n_y, n_x, phase_steps, gaussi
     linear_phase = np.arange(0, 2 * np.pi, 2 * np.pi / 256)
     slm.phase_response = phase_response_test_function(linear_phase, b=0.05, c=0.6, gamma=1.5)
     result_good = alg.execute()
+    print(result_good.calibration_fidelity)
     fidelity_phase_cal_noise = analyze_phase_calibration(result_good)
     assert fidelity_phase_cal_noise < 0.9
 
@@ -223,8 +225,8 @@ def test_measure_modulated_light_noise_free(
     # Perfect SLM, noise-free
     aberrations = np.random.uniform(0.0, 2 * np.pi, (20, 20))
     sim = SimulatedWFS(aberrations)
-    sim.slm.field().modulated_field_amplitude = modulated_field_amplitude
-    sim.slm.field().non_modulated_field = non_modulated_field
+    sim.slm.field.read().modulated_field_amplitude = modulated_field_amplitude
+    sim.slm.field.read().non_modulated_field = non_modulated_field
 
     # Measure the amount of modulated light (no non-modulated light present)
     fidelity_modulated = measure_modulated_light(slm=sim.slm, feedback=sim, phase_steps=phase_steps)

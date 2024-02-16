@@ -122,7 +122,8 @@ def test_fourier_microscope():
 
     src = MockSource(img, 400 * u.nm)
     slm = MockSLM(shape=(1000, 1000))
-    sim = Microscope(source=src, slm=slm.pixels(), magnification=1, numerical_aperture=1, aberrations=aberration,
+    sim = Microscope(source=src, incident_field=slm.field, magnification=1, numerical_aperture=1,
+                     aberrations=aberration,
                      wavelength=800 * u.nm)
     cam = sim.get_camera(analog_max=100)
     roi_detector = SingleRoi(cam, pos=(250, 250))  # Only measure that specific point

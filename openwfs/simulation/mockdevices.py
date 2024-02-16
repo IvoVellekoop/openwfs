@@ -1,3 +1,4 @@
+import threading
 from collections import deque
 
 import numpy as np
@@ -471,6 +472,7 @@ class _MockSLMTiming(Generator):
         self._state = np.zeros(shape, dtype=np.float32)
         self._state_timestamp = 0.0
         self._queue = deque()  # Queue to hold phase images and their timestamps
+        self._queue_lock = threading.Lock()  # Lock for critical section
 
     def _generate(self, shape):
         return self._update(include_current_time=True)
@@ -481,26 +483,27 @@ class _MockSLMTiming(Generator):
         This function takes the frames from the queue. The ones that have a time stamp corresponding to
         the current time or earlier are merged into the current _state. The rest is kept.
         """
-        current_time = time.time_ns() * u.ns
-        while True:
-            # peek the first element in the queue
-            if not self._queue:
-                break
-            set_point, timestamp = self._queue[0]
-            if timestamp > current_time:
-                break
+        with self._queue_lock:
+            current_time = time.time_ns() * u.ns
+            while True:
+                # peek the first element in the queue
+                if not self._queue:
+                    break
+                set_point, timestamp = self._queue[0]
+                if timestamp > current_time:
+                    break
 
-            # we found a frame that is or has been displayed
-            # we step the simulation forward to the time of the frame
-            self._step_to_time(timestamp)
-            self._set_point = set_point
-            self._queue.popleft()
+                # we found a frame that is or has been displayed
+                # we step the simulation forward to the time of the frame
+                self._step_to_time(timestamp)
+                self._set_point = set_point
+                self._queue.popleft()
 
-        # finally, compute the current state
-        if include_current_time:
-            self._step_to_time(current_time)
+            # finally, compute the current state
+            if include_current_time:
+                self._step_to_time(current_time)
 
-        return self._state
+            return self._state
 
     def _step_to_time(self, time):
         """Step the simulation forward to a given time."""
