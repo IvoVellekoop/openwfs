@@ -616,3 +616,26 @@ class MockSLM(PhaseSLM, Actuator):
     @property
     def duration(self) -> Quantity[u.ms]:
         return 0.0 * u.ms
+
+
+class MockShutter(Processor):
+    """
+    A mock version of a shutter.
+    When open, passes through the input field
+    When closed, passes through the input field * 0.0
+    """
+
+    def __init__(self, source: Detector):
+        super().__init__(source, multi_threaded=False)
+        self._open = True
+
+    @property
+    def open(self) -> bool:
+        return self._open
+
+    @open.setter
+    def open(self, value: bool):
+        self._open = value
+
+    def _fetch(self, source: np.ndarray) -> np.ndarray:  # noqa
+        return source if self._open else 0.0 * source

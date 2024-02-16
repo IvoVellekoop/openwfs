@@ -95,8 +95,14 @@ class Microscope(Processor):
             The aberration map and slm phase map are cropped/padded to the NA of the microscope objective, and
             scaled to have the same pixel resolution so that they can be added.
         """
-        if not isinstance(source, Detector) and get_pixel_size(source) is None:
-            raise ValueError("The source must have a pixel_size attribute.")
+        if not isinstance(source, Detector):
+            if get_pixel_size(source) is None:
+                raise ValueError("The source must have a pixel_size attribute.")
+            source = StaticSource(source)
+
+        if aberrations is not None and not isinstance(aberrations, Detector):
+            if get_pixel_size(aberrations) is None:
+                aberrations = StaticSource(aberrations)
 
         super().__init__(source, aberrations, incident_field, multi_threaded=multi_threaded)
         self._magnification = magnification

@@ -393,9 +393,9 @@ def troubleshoot(algorithm, frame_source: Detector, shutter,
 
         # Capture frames before WFS
         algorithm.slm.set_phases(0.0)  # Flat wavefront
-        laser_block()
+        shutter.open = False
         trouble.dark_frame = frame_source.read()  # Dark frame
-        laser_unblock()
+        shutter.open = True
         trouble.before_frame = frame_source.read()  # Before frame (flat wf)
 
         # Frame metrics
