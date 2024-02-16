@@ -29,7 +29,7 @@ sim = Microscope(source=specimen, incident_field=shutter, aberrations=aberration
 # Simulate a camera device. Also simulate shot noise
 cam = sim.get_camera(shot_noise=True)
 
-# Define the feedback as a circular region of interest in the center of tge camera frame
+# Define the feedback as a circular region of interest in the center of the camera frame
 roi_detector = SingleRoi(cam, radius=1)
 
 # === Run wavefront shaping experiment ===

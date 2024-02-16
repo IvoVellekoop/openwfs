@@ -8,12 +8,6 @@ from enum import Enum
 from astropy.units import Quantity
 
 
-class MaskType(Enum):
-    DISK = 0
-    SQUARE = 1
-    GAUSSIAN = 2
-
-
 class Roi:
     """
     Represents a Region of Interest (ROI) to compute a (weighted) average over.
@@ -22,7 +16,7 @@ class Roi:
     radius, mask type, and parameters specific to the mask type.
     """
 
-    def __init__(self, pos, radius=0.1, mask_type: MaskType = MaskType.DISK, waist=None,
+    def __init__(self, pos, radius=0.1, mask_type: str = 'disk', waist=None,
                  source_shape=None):
         """
         Initialize the Roi object.
@@ -32,8 +26,8 @@ class Roi:
                 when omitted, the default value of source_shape // 2 is used.
                 note: non-integer positions for the ROI are currently not supported.
             radius (float): Radius of the ROI. Default is 0.1.
-            mask_type (MaskType): Type of the mask.
-                Options are `MaskType.DISK` (default), `MaskType.GAUSSIAN`, or `MaskType.SQUARE`.
+            mask_type: Type of the mask.
+                Options are 'disk' (default), 'gaussian', or 'square'.
             waist (float): Defines the width of the Gaussian distribution in pixels.
                 Default is 0.5 * radius.
             source_shape (int, int): Shape of the source image.
@@ -99,12 +93,14 @@ class Roi:
         self._mask = None  # need to re-compute mask
 
     @property
-    def mask_type(self) -> MaskType:
+    def mask_type(self) -> str:
         return self._mask_type
 
     @waist.setter
-    def waist(self, value: MaskType):
-        self._mask_type = MaskType(value)
+    def waist(self, value: str):
+        if value not in ['disk', 'gaussian', 'square']:
+            raise ValueError("mask_type must be 'disk', 'gaussian', or 'square'")
+        self._mask_type = value
         self._mask = None  # need to re-compute mask
 
     def apply(self, image: np.ndarray):
@@ -120,13 +116,13 @@ class Roi:
             # for circular masks, always use an odd number of pixels so that we have a clearly
             # defined center.
             # for square masks, instead use the actual size
-            if self.mask_type == MaskType.DISK:
+            if self.mask_type == 'disk':
                 d = round(self._radius) * 2 + 1
                 self._mask = disk(d, r)
-            elif self.mask_type == MaskType.GAUSSIAN:
+            elif self.mask_type == 'gaussian':
                 d = round(self._radius) * 2 + 1
                 self._mask = gaussian(d, self._waist)
-            else:
+            else:  # square
                 d = round(self._radius * 2.0)
                 self._mask = np.ones((d, d))
 
@@ -191,7 +187,7 @@ class MultipleRoi(Processor):
 
 
 class SingleRoi(MultipleRoi):
-    def __init__(self, source, pos=None, radius=0.1, mask_type: MaskType = MaskType.DISK, waist=0.5,
+    def __init__(self, source, pos=None, radius=0.1, mask_type: str = 'disk', waist=0.5,
                  multi_threaded: bool = True):
         """
         Processor that averages a signal over a single region of interest (ROI).
@@ -202,12 +198,12 @@ class SingleRoi(MultipleRoi):
                 when omitted, the default value of source.data_shape // 2 is used.
                 note: non-integer positions for the ROI are currently not supported.
             radius (float): Radius of the ROI. Default is 0.1.
-            mask_type (MaskType): Type of the mask. Options are 'disk', 'gaussian', or 'square'. Default is 'disk'.
+            mask_type: Type of the mask. Options are 'disk', 'gaussian', or 'square'. Default is 'disk'.
             waist (float): Defines the width of the Gaussian distribution. Default is 0.5.
         """
         single_roi = Roi(pos, radius, mask_type, waist, source.data_shape)
         rois = np.array([single_roi]).reshape(())
-        super().__init__(source, rois=rois, multi_threaded=multi_threaded)  # noqua
+        super().__init__(source, rois=rois, multi_threaded=multi_threaded)
         self.__dict__.update(single_roi.__dict__)
 
 
@@ -280,10 +276,13 @@ class CropProcessor(Processor):
         return dst
 
 
-def select_roi(source: Detector, mask_type: MaskType):
+def select_roi(source: Detector, mask_type: str):
     """
-    Opens a window that allows the user to select an roi.
+    Opens a window that allows the user to select a region of interest.
     """
+    if mask_type not in ['disk', 'gaussian', 'square']:
+        raise ValueError("mask_type must be 'disk', 'gaussian', or 'square'")
+
     image = cv2.normalize(source.read(), None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
     title = "Select ROI and press c to continue or ESC to cancel"
     cv2.namedWindow(title)
@@ -300,7 +299,7 @@ def select_roi(source: Detector, mask_type: MaskType):
         elif event == cv2.EVENT_MOUSEMOVE and cv2.EVENT_FLAG_LBUTTON & flags:
             roi_size = np.minimum(x - roi_start[0], y - roi_start[1])
             rect_image = image.copy()
-            if mask_type == MaskType.SQUARE:
+            if mask_type == 'square':
                 cv2.rectangle(rect_image, roi_start, roi_start + roi_size, (0.0, 0.0, 255.0), 2)
             else:
                 cv2.circle(rect_image, roi_start + roi_size // 2, abs(roi_size) // 2, (0.0, 0.0, 255.0), 2)

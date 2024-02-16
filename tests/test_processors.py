@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 from ..openwfs.simulation.mockdevices import StaticSource
-from ..openwfs.processors import SingleRoi, select_roi, Roi, MultipleRoi, MaskType
+from ..openwfs.processors import SingleRoi, select_roi, Roi, MultipleRoi
 import skimage as sk
 import astropy.units as u
 
@@ -11,8 +11,8 @@ import astropy.units as u
 def test_croppers():
     img = sk.data.camera()
     src = StaticSource(img, 50 * u.nm)
-    roi = select_roi(src, MaskType.DISK)
-    assert roi.mask_type == MaskType.DISK
+    roi = select_roi(src, 'disk')
+    assert roi.mask_type == 'disk'
 
 
 def test_single_roi_simple_case():
