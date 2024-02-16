@@ -4,6 +4,7 @@ import pytest
 import skimage
 from scipy.ndimage import zoom
 
+from ..openwfs.core import Device
 from ..openwfs.algorithms import StepwiseSequential, FourierDualReference, WFSController
 from ..openwfs.processors import SingleRoi
 from ..openwfs.simulation import SimulatedWFS, MockSource, MockSLM, Microscope, ADCProcessor
@@ -113,6 +114,7 @@ def test_fourier3():
 
 
 def test_fourier_microscope():
+    Device.multi_threading = False
     aberration_phase = skimage.data.camera() * ((2 * np.pi) / 255.0) + np.pi
     aberration = MockSource(aberration_phase, pixel_size=2.0 / np.array(aberration_phase.shape))
     img = np.zeros((1000, 1000), dtype=np.int16)

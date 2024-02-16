@@ -88,7 +88,7 @@ class Device(ABC):
     _moving = False
     _state_lock = threading.Lock()
     _devices: "Set[Device]" = WeakSet()
-    multi_threading: bool = True
+    multi_threading: bool = False
 
     def __init__(self):
         """Constructs a new Device object"""

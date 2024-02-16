@@ -31,13 +31,13 @@ class WFSResult:
 
     def __init__(self,
                  t: np.ndarray,
+                 t_f: np.ndarray,
                  axis: int,
                  noise_factor: ArrayLike,
                  amplitude_factor: ArrayLike,
                  calibration_fidelity: ArrayLike,
                  n: Optional[int] = None,
-                 intensity_offset: Optional[ArrayLike] = 0.0,
-                 t_f: np.ndarray = None):
+                 intensity_offset: Optional[ArrayLike] = 0.0):
         """
         Args:
             t(ndarray): measured transmission matrix.
@@ -99,7 +99,7 @@ class WFSResult:
         Returns: WFSResults data for the specified target
         """
         return WFSResult(t=self.t.reshape((*self.t.shape[0:2], -1))[:, :, b],
-                         t_f=self.t_f.reshape((*self.t.shape[0:2], -1))[:, :, b],
+                         t_f=self.t_f.reshape((*self.t_f.shape[0:2], -1))[:, :, b],
                          axis=self.axis,
                          intensity_offset=self.intensity_offset[:][b],
                          noise_factor=self.noise_factor[:][b],

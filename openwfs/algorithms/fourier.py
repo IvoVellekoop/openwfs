@@ -174,6 +174,8 @@ class FourierBase:
 
         # Combine the left and right sides
         t_full = np.concatenate([t1[:, :self.slm_shape[0] // 2, ...], t2[:, self.slm_shape[0] // 2:, ...]], axis=1)
+        t_f_full = np.concatenate([left.t_f, right.t_f],
+                                  axis=1)  # also store raw data (not normalized or corrected yet!)
 
         # return combined result, along with a course estimate of the snr and expected enhancement
         # TODO: not accurate yet
@@ -182,6 +184,7 @@ class FourierBase:
             return (left.n * x_left + right.n * x_right) / (left.n + right.n)
 
         return WFSResult(t=t_full,
+                         t_f=t_f_full,
                          n=left.n + right.n,
                          axis=2,
                          noise_factor=weighted_average(left.noise_factor, right.noise_factor),
