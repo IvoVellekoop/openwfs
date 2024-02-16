@@ -1,15 +1,17 @@
-import numpy as np
+import warnings
+from typing import Optional, Union
+
 import astropy.units as u
+import numpy as np
 from astropy.units import Quantity
 from numpy.typing import ArrayLike
 from scipy.signal import fftconvolve
-from typing import Optional, Union
-from ..simulation.mockdevices import XYStage, Camera, SLM, _SLMField, StaticSource
+
 from ..core import Processor, Detector
-from ..utilities import project, place, Transform, set_pixel_size, get_pixel_size, patterns
-from ..processors import TransformProcessor
-import warnings
 from ..plot_utilities import imshow  # noqa - for debugging
+from ..processors import TransformProcessor
+from ..simulation.mockdevices import XYStage, Camera, _SLMField, StaticSource
+from ..utilities import project, place, Transform, get_pixel_size, patterns
 
 
 class Microscope(Processor):
@@ -28,8 +30,10 @@ class Microscope(Processor):
     The propagation is normalized such that the a pupil fully filled with a field strength of 1.0 will produce an image
     that has the same total intensity as the source image.
 
-    TODO: It can be used with an actual OpenGL-based SLM object, so it also can be used to test the advanced functionality provided by that object.
-    TODO: The configuration that is simulated where an SLM is conjugated to the back pupil of a microscope objective.
+    TODO: It can be used with an actual OpenGL-based SLM object, so it also can be used
+        to test the advanced functionality provided by that object.
+    TODO: The configuration that is simulated where an SLM is conjugated to
+        the back pupil of a microscope objective.
     All aberrations are considered to occur in the plane of that pupil.
 
     Attributes:
@@ -117,7 +121,7 @@ class Microscope(Processor):
         self._psf = None
 
     def _fetch(self, source: np.ndarray, aberrations: np.ndarray,  # noqa
-               slm_field: np.ndarray) -> np.ndarray:
+               incident_field: np.ndarray) -> np.ndarray:
         """
         Updates the image on the camera sensor
 
@@ -130,10 +134,9 @@ class Microscope(Processor):
         * Compute the magnified and cropped image on the camera.
 
         Args:
-            out ():
-            source ():
-            aberrations ():
-            slm ():
+            source:
+            aberrations:
+            incident_field:
 
         Returns:
 
@@ -194,8 +197,8 @@ class Microscope(Processor):
                                                               transform=self.aberration_transform))
 
         # Project SLM fields
-        if slm_field is not None:
-            pupil_field = pupil_field * project(slm_field, out_extent=pupil_extent, out_shape=pupil_shape,
+        if incident_field is not None:
+            pupil_field = pupil_field * project(incident_field, out_extent=pupil_extent, out_shape=pupil_shape,
                                                 transform=self.slm_transform)
 
         # Compute the point spread function

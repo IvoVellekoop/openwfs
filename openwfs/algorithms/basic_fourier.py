@@ -29,9 +29,9 @@ class FourierDualReference(FourierBase):
         self._k_angles_min = k_angles_min
         self._k_angles_max = k_angles_max
 
-        self._build_kspace()
+        self._build_k_space()
 
-    def _build_kspace(self):
+    def _build_k_space(self):
         """
         Constructs the k-space by creating Cartesian products of k_x and k_y angles.
         Fills the k_left and k_right matrices with the same k-space.
@@ -41,7 +41,7 @@ class FourierDualReference(FourierBase):
         """
         kx_angles = np.arange(self._k_angles_min, self._k_angles_max + 1, 1)
         ky_angles = np.arange(self._k_angles_min, self._k_angles_max + 1, 1)
-        # Make the carthesian product of kx_angles and ky_angles to make a square kspace
+        # Make the cartesian product of kx_angles and ky_angles to make a square k-space
 
         k_x = np.repeat(np.array(kx_angles)[np.newaxis, :], len(ky_angles), axis=0).flatten()
         k_y = np.repeat(np.array(ky_angles)[:, np.newaxis], len(ky_angles), axis=1).flatten()
@@ -56,10 +56,10 @@ class FourierDualReference(FourierBase):
     @k_angles_min.setter
     def k_angles_min(self, value):
         """Sets the lower bound of the range of angles in x and y direction, triggers the building of the internal
-            kspace properties.
+            k-space properties.
         """
         self._k_angles_min = value
-        self._build_kspace()
+        self._build_k_space()
 
     @property
     def k_angles_max(self) -> int:
@@ -69,6 +69,6 @@ class FourierDualReference(FourierBase):
     @k_angles_max.setter
     def k_angles_max(self, value):
         """Sets the higher bound of the range of angles in x and y direction, triggers the building of the internal
-            kspace properties."""
+            k-space properties."""
         self._k_angles_max = value
-        self._build_kspace()
+        self._build_k_space()

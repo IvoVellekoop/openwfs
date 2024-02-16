@@ -1,9 +1,8 @@
 import time
-from collections.abc import Callable
 
+import matplotlib.pyplot as plt
 import numpy as np
 from numpy.fft import fft2, ifft2, fftfreq
-import matplotlib.pyplot as plt
 
 from ..algorithms.utilities import WFSResult
 from ..core import Detector, PhaseSLM
@@ -91,7 +90,7 @@ def find_pixel_shift(f: np.ndarray, g: np.ndarray) -> tuple[np.intp, ...]:
     return pix_shift
 
 
-def field_correlation(A: np.ndarray, B: np.ndarray) -> float:
+def field_correlation(a: np.ndarray, b: np.ndarray) -> float:
     """
     Compute field correlation, i.e. inner product of two fields, normalized by the product of the L2 norms,
     such that field_correlation(f, s*f) == 1, where s is a scalar value.
@@ -101,24 +100,24 @@ def field_correlation(A: np.ndarray, B: np.ndarray) -> float:
         A, B    Real or complex fields (or other arrays) to be correlated.
                 A and B must have the same shape.
     """
-    return np.vdot(A, B) / np.sqrt(np.vdot(A, A) * np.vdot(B, B))
+    return np.vdot(a, b) / np.sqrt(np.vdot(a, a) * np.vdot(b, b))
 
 
-def frame_correlation(A: np.ndarray, B: np.ndarray) -> float:
+def frame_correlation(a: np.ndarray, b: np.ndarray) -> float:
     """
     Compute frame correlation between two frames.
     This is the normalized second order correlation :math:`g_2`.
     Note: This function computes the correlation between two frames. The output is a single value.
 
     Args:
-        A, B    Real-valued intensity arrays of the (such as camera frames) to be correlated.
+        a, b    Real-valued intensity arrays of the (such as camera frames) to be correlated.
                 A and B must have the same shape.
 
     This correlation function can be used to estimate the lowered fidelity due to speckle decorrelation.
     See also:
          [Jang et al. 2015] https://opg.optica.org/boe/fulltext.cfm?uri=boe-6-1-72&id=306198
     """
-    return np.mean(A * B) / (np.mean(A) * np.mean(B)) - 1
+    return np.mean(a * b) / (np.mean(a) * np.mean(b)) - 1
 
 
 class StabilityResult:
@@ -301,7 +300,7 @@ class WFSTroubleshootResult:
     """
 
     def __init__(self):
-        # Fidelities and WFS metrics
+        # Fidelity and WFS metrics
         self.fidelity_non_modulated = None
         self.fidelity_phase_calibration = None
 
@@ -371,6 +370,7 @@ def troubleshoot(algorithm, frame_source: Detector, shutter,
     Quantifies several types of fidelity reduction.
 
     Args:
+        measure_non_modulated_phase_steps:
         algorithm: Wavefront Shaping algorithm object, e.g. StepwiseSequential.
         frame_source: Source object for reading frames, e.g. Camera.
         shutter: Device object that can block/unblock light source.
@@ -390,7 +390,8 @@ def troubleshoot(algorithm, frame_source: Detector, shutter,
     trouble = WFSTroubleshootResult()
 
     if do_frame_capture:
-        if do_log: print('Capturing frames before WFS...')
+        if do_log:
+            print('Capturing frames before WFS...')
 
         # Capture frames before WFS
         algorithm.slm.set_phases(0.0)  # Flat wavefront
@@ -404,7 +405,8 @@ def troubleshoot(algorithm, frame_source: Detector, shutter,
         trouble.frame_cnr_before = cnr(trouble.before_frame, trouble.dark_frame)
 
     # WFS experiment
-    if do_log: print('Run WFS algorithm...')
+    if do_log:
+        print('Run WFS algorithm...')
     trouble.wfs_result = algorithm.execute()  # Execute WFS algorithm
 
     # Flat wavefront
@@ -412,7 +414,8 @@ def troubleshoot(algorithm, frame_source: Detector, shutter,
     trouble.feedback_after = algorithm.feedback.read()
 
     if do_frame_capture:
-        if do_log: print('Capturing frames after WFS...')
+        if do_log:
+            print('Capturing frames after WFS...')
         trouble.after_frame = frame_source.read()  # After frame (flat wf)
 
     # Shaped wavefront
@@ -425,7 +428,8 @@ def troubleshoot(algorithm, frame_source: Detector, shutter,
         trouble.shaped_wf_frame = frame_source.read()  # Shaped wavefront frame
 
         # Frame metrics
-        if do_log: print('Compute frame metrics...')
+        if do_log:
+            print('Compute frame metrics...')
         trouble.frame_signal_std_after = signal_std(trouble.after_frame, trouble.dark_frame)
         trouble.frame_signal_std_shaped_wf = signal_std(trouble.shaped_wf_frame, trouble.dark_frame)
         trouble.frame_cnr_after = cnr(trouble.after_frame, trouble.dark_frame)  # Frame CNR after
@@ -440,7 +444,8 @@ def troubleshoot(algorithm, frame_source: Detector, shutter,
                                 phase_steps=measure_non_modulated_phase_steps)
 
     if do_stability_test and do_frame_capture:
-        if do_log: print('Run stability test...')
+        if do_log:
+            print('Run stability test...')
 
         # Test setup stability
         trouble.stability = measure_setup_stability(
@@ -450,7 +455,8 @@ def troubleshoot(algorithm, frame_source: Detector, shutter,
             dark_frame=trouble.dark_frame)
 
     # Analyze the WFS result
-    if do_log: print('Analyze phase calibration...')
+    if do_log:
+        print('Analyze phase calibration...')
     trouble.fidelity_phase_calibration = analyze_phase_calibration(trouble.wfs_result)
 
     return trouble

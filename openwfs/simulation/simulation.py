@@ -8,7 +8,7 @@ class SimulatedWFS(Processor):
     """A simple simulation of a wavefront shaping experiment.
 
     Simulates a configuration where both the SLM and the aberrations are placed in the back pupil
-    of a microscope objective, and a point detector is placed in the the center of the focal plane.
+    of a microscope objective, and a point detector is placed in the center of the focal plane.
 
     The simulation computes (Σ A·exp(i·(aberrations-slm)))², which is the 0,0 component of the Fourier transform
     of the field in the pupil plane (including aberrations and the correction by the SLM).
@@ -16,7 +16,7 @@ class SimulatedWFS(Processor):
     For a more advanced (but slower) simulation, use `Microscope`
     """
 
-    def __init__(self, aberrations: np.ndarray, beam_profile_waist=None, multi_threaded=True, slm=None):
+    def __init__(self, aberrations: np.ndarray, slm=None, multi_threaded=True):
         """
         Initializes the optical system with specified aberrations and optionally a Gaussian beam profile.
 
@@ -27,24 +27,22 @@ class SimulatedWFS(Processor):
 
         Args:
             aberrations (np.ndarray): An array containing the aberrations in radians.
-
-            beam_profile_waist (float, optional): The waist size of the Gaussian beam profile. If provided, the electric
-            field at the SLM is shaped into a Gaussian beam with this waist size.
+            slm:
+            multi_threaded (bool, optional): If True, the simulation will use multiple threads to compute the
+                intensity in the focus. If False, the simulation will use a single thread. Defaults to True.
 
         The constructor creates a MockSLM instance based on the shape of the aberrations, calculates the electric
         field at the SLM considering the aberrations and optionally the Gaussian beam profile, and initializes the
         system with these parameters.
         """
         self.slm = slm if slm is not None else SLM(aberrations.shape[0:2])
-        self.E_input_slm = np.exp(1.0j * aberrations)  # electric field incident at the SLM
-        if beam_profile_waist is not None:
-            self.E_input_slm *= gaussian(aberrations.shape, waist=beam_profile_waist)
 
-        # normalize the field
-        self.E_input_slm *= 1 / np.linalg.norm(self.E_input_slm.ravel())
-        super().__init__(self.slm.get_monitor('field'), multi_threaded=multi_threaded)
+        # transmission matrix (normalized so that the maximum transmission is 1)
+        self._t = np.exp(1.0j * aberrations) / (aberrations.shape[0] * aberrations.shape[1])
 
-    def _fetch(self, slm_fields):  # noqa
+        super().__init__(self.slm.field, multi_threaded=multi_threaded)
+
+    def _fetch(self, incident_field):  # noqa
         """
         Computes the intensity in the focus by applying phase corrections to the input electric field.
 
@@ -53,19 +51,15 @@ class SimulatedWFS(Processor):
         resulting field.
 
         Args:
-            out (Optional[np.ndarray]): An optional numpy array to store the calculated intensity. If provided, the
-            intensity is stored in this array.
-
-            slm_phases (np.ndarray): The phase corrections to apply, typically provided as a numpy array representing
-            the phases set on the SLM.
+            incident_field: The incident field (complex)
 
         Returns:
             np.ndarray: A numpy array containing the calculated intensity in the focus.
 
         """
-        field = np.tensordot(slm_fields, self.E_input_slm, 2)
+        field = np.tensordot(incident_field, self._t, 2)
         return np.abs(field) ** 2
 
     @property
     def data_shape(self):
-        return self.E_input_slm.shape[2:]
+        return self._t.shape[2:]

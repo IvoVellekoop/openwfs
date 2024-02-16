@@ -1,7 +1,6 @@
 import numpy as np
 
 from ..openwfs.simulation import SLM
-from ..openwfs.plot_utilities import imshow
 
 
 def test_mock_slm():

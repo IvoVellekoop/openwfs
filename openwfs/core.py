@@ -3,13 +3,13 @@ import threading
 import time
 from abc import ABC, abstractmethod
 from concurrent.futures import Future, ThreadPoolExecutor
-from typing import Set, final, Tuple, Optional, Union
+from typing import Set, final, Tuple, Optional
 from weakref import WeakSet
 
 import astropy.units as u
 import numpy as np
-from numpy.typing import ArrayLike
 from astropy.units import Quantity
+from numpy.typing import ArrayLike
 
 from .utilities import set_pixel_size
 
@@ -232,8 +232,7 @@ class Device(ABC):
             raise e
 
         # If duration = ∞, poll busy until it returns False or a timeout occurs.
-        # Note: avoid np.isinf because numpy may have been unloaded during Python shutdown
-        if self._end_time_ns > 1.0e+38:
+        if np.isfinite(self._end_time_ns):
             start = time.time_ns()
             timeout = self.timeout.to_value(u.ns)
             while self.busy():

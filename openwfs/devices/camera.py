@@ -20,7 +20,7 @@ class Camera(Detector):
             such as `duration` (exposure time), `width`, `height`, `binning`, etc.
 
             Also, the node map should not be used to set properties while the camera is fetching a frame (i.e.,
-            between `trigger()` and calling `result()` on the returned concurrent.futures.Future obect.
+            between `trigger()` and calling `result()` on the returned concurrent.futures.Future obect).
 
     Note:
         This class is a thin wrapper around the Harvesters module,
@@ -30,7 +30,7 @@ class Camera(Detector):
         >>> camera = Camera(serial_number='12345678')
         >>> camera.start()
         >>> frame = camera.capture_frame()
-        >>> camera.stop()'
+        >>> camera.stop()
         """
 
     def __init__(self, cti_file: str, serial_number: Optional[str] = None, multi_threaded=True, **kwargs):
@@ -96,11 +96,12 @@ class Camera(Detector):
                 print(f'Warning: could not set camera property {key} to {value}')
 
         try:
-            self._pixel_size = [nodes.SensorPixelHeight.value, nodes.SensorPixelWidth.value] * u.um
+            pixel_size = [nodes.SensorPixelHeight.value, nodes.SensorPixelWidth.value] * u.um
         except AttributeError:  # the SensorPixelWidth feature is optional
-            self._pixel_size = None
+            pixel_size = None
 
-        super().__init__(multi_threaded)
+        super().__init__(multi_threaded=multi_threaded, data_shape=None, pixel_size=pixel_size, duration=None,
+                         latency=0.0 * u.ms)
         self._camera.start()
 
     def __del__(self):

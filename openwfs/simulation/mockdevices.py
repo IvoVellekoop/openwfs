@@ -571,7 +571,8 @@ class SLM(PhaseSLM, Actuator):
         Args:
             monitor_type (str): Type of the monitor. May be:
             - 'phase': returns the simulated phase that is currently on the SLM.
-               This takes into account the simulated settle time and latency, refresh rate, lookup table and phase response.
+               This takes into account the simulated settle time and latency, refresh rate, lookup table
+               and phase response.
             - 'field': returns the simulated field that is currently on the SLM.
                Equal to `(exp(1j * phase) + non_modulated_field_fraction) * field_amplitude`
             - 'pixel_value': returns the effective pixel values that are currently displayed on the slm,

@@ -5,7 +5,7 @@ of wavefront shaping experiments in a Python environment.
 
 OpenWFS is a modular platform for:
 
-* Controlling spatial light modulators usen OpenGL acceleration.
+* Controlling spatial light modulators using OpenGL acceleration.
 * Controlling a laser-scanning microscope using a NI Data Acquisition Card.
 * Conducting wavefront shaping experiments using a variety of algorithms.
 * Simulating wavefront shaping experiments using a variety of algorithms.

@@ -1,14 +1,14 @@
 import logging  # noqa
-import pytest
-import numpy as np
 
-from ..openwfs.core import Device
+import astropy.units as u
+import numpy as np
+import pytest
+import skimage
+
 from ..openwfs.algorithms import StepwiseSequential
 from ..openwfs.processors import SingleRoi
 from ..openwfs.simulation import Microscope, Camera, StaticSource, SLM
 from ..openwfs.utilities.patterns import tilt
-import skimage
-import astropy.units as u
 
 
 def test_mock_camera_and_single_roi():

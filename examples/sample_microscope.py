@@ -11,7 +11,7 @@ through a microscope with adjustable magnification, numerical aperture, and wave
 processed images dynamically, demonstrating how changes in optical parameters affect image quality and resolution.
 """
 
-### Parameters that can be altered
+# Parameters that can be altered
 
 img_size_x = 1024
 # Determines how wide the image is.
@@ -37,11 +37,10 @@ camera_resolution = (256, 256)
 p_limit = 100
 # Number of iterations. Influences how quick the 'animation' is complete.
 
-## Code
+# Code
 img = np.maximum(np.random.randint(-10000, 100, (img_size_y, img_size_x), dtype=np.int16), 0)
 src = StaticSource(img, 50 * u.nm)
-mic = Microscope(src, magnification=magnification, numerical_aperture=numerical_aperture, wavelength=wavelength,
-                 truncation_factor=0.5)
+mic = Microscope(src, magnification=magnification, numerical_aperture=numerical_aperture, wavelength=wavelength)
 
 # simulate shot noise in an 8-bit camera with auto-exposure:
 cam = mic.get_camera(shot_noise=True, digital_max=255, transform=Transform.zoom(2.0))

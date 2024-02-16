@@ -36,7 +36,7 @@ def unitless(data: ArrayLike) -> np.ndarray:
     Note:
         Do NOT use `np.array(data)` to convert a Quantity to a numpy array,
         because this will drop the unit prefix.
-        For example, ```np.array(1 * u.s / u.ms) == 1```.
+        For example, `np.array(1 * u.s / u.ms) == 1`.
         Whereas `unitless(1 * u.s / u.ms) == 1000` gives the correct answer.
 
     Usage:
@@ -54,7 +54,7 @@ class Transform:
     """Represents a transformation from one coordinate system to the other.
 
     Transform objects are used to specify any combination of shift, (anisotropic) scaling, rotation and shear.
-    Elements of the transformation are specified with an astropy.unit attached.
+    Elements of the transformation are specified with an `astropy.unit` attached.
     """
 
     """
@@ -198,7 +198,7 @@ class Transform:
         return Transform(transform, source_origin, destination_origin)
 
     def _standard_input(self) -> Quantity:
-        """Construct standard input points (1,0), (0,1) and (0,0) with the source unit of this transform.."""
+        """Construct standard input points (1,0), (0,1) and (0,0) with the source unit of this transform."""
         return Quantity(((1.0, 0.0, 0.0), (0.0, 1.0, 0.0)), self.source_origin)
 
     @classmethod

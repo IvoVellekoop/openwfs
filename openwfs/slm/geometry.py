@@ -1,7 +1,9 @@
+from typing import Sequence
+
 import numpy as np
-from typing import Optional, Sequence, Union
-from ..utilities import ExtentType, CoordinateType, unitless
 from numpy.typing import ArrayLike
+
+from ..utilities import ExtentType, CoordinateType, unitless
 
 
 class Geometry:

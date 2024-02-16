@@ -126,7 +126,7 @@ def test_inverse():
     result = transform.apply(vector)
 
     inverse = transform.inverse()
-    tranformed_back = inverse.apply(result)
-    assert np.allclose(vector, tranformed_back)
+    transformed_back = inverse.apply(result)
+    assert np.allclose(vector, transformed_back)
     assert np.allclose(inverse @ transform @ vector, vector)
     assert np.allclose(transform @ inverse @ vector, vector)

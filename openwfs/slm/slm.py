@@ -36,7 +36,8 @@ class SLM(Actuator, PhaseSLM):
 
     This way, a large range of use cases is enabled, including:
     - Drawing a single square patch with a single texture (the default).
-    - Mapping the phase values to a disk, with an effective resolution depending on the distance to the center of the disk (see `geometry.disk`).
+    - Mapping the phase values to a disk, with an effective resolution depending on the distance to the center
+      of the disk (see `geometry.disk`).
     - Applying an additive patch (an offset layer) that corrects for system aberrations.
     - etc.
 
@@ -150,7 +151,7 @@ class SLM(Actuator, PhaseSLM):
 
     @staticmethod
     def _current_mode(monitor_id: int):
-        """Returns the current video mode resolution (height, width), refresh rate and bit depth of the specified
+        """Returns the current video mode resolution (height, width), refresh rate, and bit-depth of the specified
         monitor.
         For monitor_id == SLM.WINDOWED (windowed mode SLM), always returns the default window size
         of (300, 300)
@@ -218,8 +219,8 @@ class SLM(Actuator, PhaseSLM):
 
         Note:
             We never de-initialize the library. This should be fine because each slm window releases its resources
-            when it is destroyed. If we were to de-initialize the GLFW library (using glfw.terminate()) we run into trouble
-            if the user of our library also uses glfw for something else.
+            when it is destroyed. If we were to de-initialize the GLFW library (using glfw.terminate()) we run into
+            trouble if the user of our library also uses glfw for something else.
         """
         glfw.init()
         glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)  # Required on Mac. Doesn't hurt on Windows
@@ -266,7 +267,7 @@ class SLM(Actuator, PhaseSLM):
             - When moving the SLM to a different monitor (see `monitor_id`), the SLM is sized to match the current
                 resolution on that monitor. Note that this value may differ from the value passed as input, because the
                 input value is specified in screen coordinates, whereas the reported width is in pixels.
-                In this case, the original the original value of shape will be lost.
+                In this case, the original value of shape will be lost.
             - The `transform` property is not updated automatically, so if the aspect ratio changes
                 the transform needs to be set again.
         """
@@ -320,7 +321,7 @@ class SLM(Actuator, PhaseSLM):
     @property
     def monitor_id(self) -> int:
         """
-        Number of the monitor (1 for primary screen, 2 for secondary screen, etc.) for the SLM SLM.
+        Number of the monitor (1 for primary screen, 2 for secondary screen, etc.) for the SLM.
 
         Each monitor can only hold a single full-screen window.
         Use monitor_id=SLM.WINDOWED to show a windowed SLM on the primary screen
@@ -401,7 +402,7 @@ class SLM(Actuator, PhaseSLM):
     def latency(self) -> Quantity[u.ms]:
         """Latency (a.k.a. 'idle time')
 
-        Tepresents the time delay between the vertical retrace
+        Represents the time delay between the vertical retrace
         and the start of the SLM response to then new frame.
         """
         return self._latency
@@ -433,7 +434,7 @@ class SLM(Actuator, PhaseSLM):
 
             For a square SLM, 'full', 'short' and 'long' are all equivalent.
 
-            In all three cases, (-1,-1) corresponds to the the top-left corner of the screen, and (1,-1) to the
+            In all three cases, (-1,-1) corresponds to the top-left corner of the screen, and (1,-1) to the
             bottom-left corner. This convention is consistent with that used in numpy/matplotlib
 
             To further modify the mapping system, use the `transform` property.
@@ -453,7 +454,7 @@ class SLM(Actuator, PhaseSLM):
 
         The transform determines how the vertex coordinates that make up the shape of a Patch (see
         :class:`Patch`) are mapped to the standard coordinate system.
-        In turn, the `coordinate_ststem` property determines how this coordinate system is mapped to the SLM window.
+        In turn, the `coordinate_system` property determines how this coordinate system is mapped to the SLM window.
         By default, this value is just the identity transformation `Transform()`.
         """
         return self._transform
@@ -489,7 +490,7 @@ class SLM(Actuator, PhaseSLM):
         """Lookup table that is used to map the wrapped phase range of 0-2pi to gray values
         (represented in a range from 0 to 256). By default, this is just range(256).
         Note that the lookup table need not contain 256 elements.
-        A typlical scenario is to use something like `slm.lookup_table=range(142)` to map the 0-2pi range
+        A typical scenario is to use something like `slm.lookup_table=range(142)` to map the 0-2pi range
         to only the first 142 gray values of the slm.
         """
         return self._frame_buffer.lookup_table
@@ -509,7 +510,7 @@ class SLM(Actuator, PhaseSLM):
             data = np.empty(self.shape, dtype='uint8')
             glReadPixels(0, 0, self._shape[1], self._shape[0], GL_RED, GL_UNSIGNED_BYTE, data)
 
-            # flip data upside down, because the OpenGL convention is to have the origin at the bottom left
+            # flip data upside down, because the OpenGL convention is to have the origin at the bottom left,
             # but we want it at the top left (like in numpy)
             return data[::-1, :]
         if type == 'phase':

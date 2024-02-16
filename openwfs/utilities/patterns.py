@@ -3,7 +3,7 @@ from typing import Union, Sequence, Optional
 from astropy.units import Quantity
 from .utilities import ExtentType, CoordinateType, unitless
 
-# shape of a numpy array, or a single integer that is broadcasted to a square shape
+# shape of a numpy array, or a single integer that is broadcast to a square shape
 ShapeType = Union[int, Sequence[int]]
 
 # a scalar quantity with optional unit attached
@@ -129,7 +129,7 @@ def propagation(shape: ShapeType, distance: ScalarType, numerical_aperture: Scal
           numerical_aperture (Scalar):
           refractive_index (Scalar):
           wavelength (Scalar):
-            the numerical aperture, refractive index and wavelength are used to
+            the numerical aperture, refractive index and wavelength are used
             to convert the `extent` from pupil coordinates to k-space (unit radians/meter),
           extent: extent of the returned image, in pupil coordinates
             (a disk of radius 1.0 corresponds to the full NA)

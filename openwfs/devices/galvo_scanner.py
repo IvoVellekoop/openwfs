@@ -1,15 +1,16 @@
-from typing import Sequence, Optional
+from typing import Optional
+
 import astropy.units as u
+import nidaqmx as ni
 import nidaqmx.system
 import numpy as np
 from astropy.units import Quantity
-from ..core import Detector
-from ..utilities.patterns import coordinate_range
-import nidaqmx as ni
 from nidaqmx.constants import TaskMode
-
 from nidaqmx.constants import TerminalConfiguration
 from nidaqmx.stream_writers import AnalogMultiChannelWriter
+
+from ..core import Detector
+from ..utilities.patterns import coordinate_range
 
 
 class ScanningMicroscope(Detector):
@@ -74,21 +75,21 @@ class ScanningMicroscope(Detector):
                 Note that the ROI can be reduced later by setting width, height, top and left,
                 and the resolution can be changed by modifying the `binning` property.
             input: tuple[str, Quantity[u.V], Quantity[u.V]],
-                 Description of the Nidaq channel to use for the input.
+                 Description of the NI-DAQ channel to use for the input.
                  Tuple of: (name of the channel (e.g., 'ai/1'), minimum voltage, maximum voltage).
             axis0: tuple[str, Quantity[u.V], Quantity[u.V], TerminalConfiguration],
-                 Description of the Nidaq channel to use for controlling the axis 0 galvo (slow axis).
+                 Description of the NI-DAQ channel to use for controlling the axis 0 galvo (slow axis).
                  The TerminalConfiguration element is optional and defaults to TerminalConfiguration.DEFAULT.
             axis1: tuple[str, Quantity[u.V], Quantity[u.V], TerminalConfiguration],
-                 Description of the Nidaq channel to use for controlling the axis 1 galvo (fast axis).
+                 Description of the NI-DAQ channel to use for controlling the axis 1 galvo (fast axis).
                  The TerminalConfiguration element is optional and defaults to TerminalConfiguration.DEFAULT.
             scale (u.um / u.V):
-                Conversion factor between voltage at the NiDaq card and displacement of the focus in the object plane.
+                Conversion factor between voltage at the NI-DAQ card and displacement of the focus in the object plane.
                 This may be an array of (height, width) conversion factors if the factors differ for the different axes.
                 This factor is used to convert pixel positions `x_i, y_i` to voltages,
                  using the equation `(pos + [y_i, x_i]) * pixel_size / scale.
             sample_rate (u.Hz):
-                Sample rate of the NiDaq input channel.
+                Sample rate of the NI-DAQ input channel.
                 The sample rate affects the total time needed to scan a single frame.
                 Setting the ROI, padding, or binning does not affect the sample rate.
             delay (float): Delay between mirror control and data acquisition, measured in pixels
@@ -128,7 +129,7 @@ class ScanningMicroscope(Detector):
         self._write_task = None
         self._read_task = None
 
-        self._valid = False  # indicates that `trigger()` should initialize the nidaq tasks and scan pattern
+        self._valid = False  # indicates that `trigger()` should initialize the NI-DAQ tasks and scan pattern
         self._scan_pattern = None
         self._simulation = simulation
 
@@ -169,7 +170,7 @@ class ScanningMicroscope(Detector):
 
         if self._simulation is not None:
             return
-        # Sets up Nidaq task and i/o channels
+        # Sets up NI-DAQ task and i/o channels
         if self._read_task:
             self._read_task.close()
             self._read_task = None

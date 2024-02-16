@@ -8,29 +8,30 @@ from ..openwfs.algorithms import StepwiseSequential
 from ..openwfs.algorithms.troubleshoot \
     import cnr, signal_std, find_pixel_shift, field_correlation, frame_correlation, \
     analyze_phase_calibration, measure_modulated_light, measure_modulated_light_dual_phase_stepping
+from .test_simulation import phase_response_test_function, lookup_table_test_function
 
 
 def test_signal_std():
     """
     Test signal std, corrected for (uncorrelated) noise in the signal.
     """
-    A = np.random.rand(400, 400)
-    B = np.random.rand(400, 400)
-    assert signal_std(A, A) < 1e-6  # Test noise only
-    assert np.abs(signal_std(A + B, B) - A.std()) < 0.005  # Test signal+uncorrelated noise
-    assert np.abs(signal_std(A + A, A) - np.sqrt(3) * A.std()) < 0.005  # Test signal+correlated noise
+    a = np.random.rand(400, 400)
+    b = np.random.rand(400, 400)
+    assert signal_std(a, a) < 1e-6  # Test noise only
+    assert np.abs(signal_std(a + b, b) - a.std()) < 0.005  # Test signal+uncorrelated noise
+    assert np.abs(signal_std(a + a, a) - np.sqrt(3) * a.std()) < 0.005  # Test signal+correlated noise
 
 
 def test_cnr():
     """
     Test Contrast to Noise Ratio, corrected for (uncorrelated) noise in the signal.
     """
-    A = np.random.randn(800, 800)
-    B = np.random.randn(800, 800)
+    a = np.random.randn(800, 800)
+    b = np.random.randn(800, 800)
     cnr_gt = 3.0  # Ground Truth
-    assert cnr(A, A) < 1e-6  # Test noise only
-    assert np.abs(cnr(cnr_gt * A + B, B) - cnr_gt) < 0.01  # Test signal+uncorrelated noise
-    assert np.abs(cnr(cnr_gt * A + A, A) - np.sqrt((cnr_gt + 1) ** 2 - 1)) < 0.01  # Test signal+correlated noise
+    assert cnr(a, a) < 1e-6  # Test noise only
+    assert np.abs(cnr(cnr_gt * a + b, b) - cnr_gt) < 0.01  # Test signal+uncorrelated noise
+    assert np.abs(cnr(cnr_gt * a + a, a) - np.sqrt((cnr_gt + 1) ** 2 - 1)) < 0.01  # Test signal+correlated noise
 
 
 def test_find_pixel_shift():
@@ -87,7 +88,7 @@ def test_frame_correlation():
     """
     Test the frame correlation, i.e. g_2 normalized second order correlation function.
     Test the following:
-        g_2 correlation with self == 1/3 for distribution from random.rand
+        g_2 correlation with self == 1/3 for distribution from `random.rand`
         g_2 correlation with other == 0
     """
     a = np.random.rand(1000000)
@@ -95,25 +96,6 @@ def test_frame_correlation():
 
     assert np.abs(frame_correlation(a, a) - 1 / 3) < 2e-3
     assert np.abs(frame_correlation(a, b)) < 2e-3
-
-
-def phase_response_test_function(phi, b, c, gamma):
-    """A synthetic phase response function: 2π*(b + c*(phi/2π)^gamma)"""
-    return np.clip(2 * np.pi * (b + c * (phi / (2 * np.pi)) ** gamma), 0, None)
-
-
-def inverse_phase_response_test_function(f, b, c, gamma):
-    """Inverse of the synthetic phase response function: 2π*(b + c*(phi/2π)^gamma)"""
-    return 2 * np.pi * ((f / (2 * np.pi) - b) / c) ** (1 / gamma)
-
-
-def lookup_table_test_function(f, b, c, gamma):
-    """
-    Compute the lookup indices (i.e. a lookup table)
-    for countering the synthetic phase response test function: 2π*(b + c*(phi/2π)^gamma).
-    """
-    phase = inverse_phase_response_test_function(f, b, c, gamma)
-    return (np.mod(phase, 2 * np.pi) * 256 / (2 * np.pi) + 0.5).astype(np.uint8)
 
 
 @pytest.mark.parametrize("n_y, n_x, phase_steps, b, c, gamma",

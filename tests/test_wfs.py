@@ -4,7 +4,6 @@ import pytest
 import skimage
 from scipy.ndimage import zoom
 
-from ..openwfs.core import Device
 from ..openwfs.algorithms import StepwiseSequential, FourierDualReference, WFSController
 from ..openwfs.processors import SingleRoi
 from ..openwfs.simulation import SimulatedWFS, StaticSource, SLM, Microscope, ADCProcessor

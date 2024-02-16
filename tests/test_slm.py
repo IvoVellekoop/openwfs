@@ -1,13 +1,13 @@
 import time
 
+import astropy.units as u
 import cv2
 import glfw
-import numpy.random
+import numpy as np  # for debugging
 import pytest
+
 from ..openwfs.slm import SLM, Patch, geometry
 from ..openwfs.utilities import Transform
-import astropy.units as u
-import numpy as np  # for debugging
 
 # just some values for testing different gray value levels
 GVAL1 = 173
@@ -80,6 +80,7 @@ def test_create_windowed(slm):
     slm4 = SLM(0)
 
 
+# noinspection DuplicatedCode
 def test_transform(slm):
     """Tests the transform property of the SLM class."""
 
@@ -110,7 +111,7 @@ def test_transform(slm):
     # SLM.
     # Then check if the pattern is displayed correctly
     slm.coordinate_system = 'short'  # does not trigger an update
-    assert np.alltrue(slm.get_pixels('gray_value') / 64 == pixels)
+    assert np.all(slm.get_pixels('gray_value') / 64 == pixels)
     slm.update()
 
     pixels = slm.get_pixels('gray_value') / 64
@@ -124,9 +125,9 @@ def test_transform(slm):
     assert np.allclose(pixels[25:, 100:150], 3)
 
     # now change the transform to 'long' to fit the pattern to a centered square, with the width of the
-    # SLM, causing part of the texture to be mapped outside of the window.
+    # SLM, causing part of the texture to be mapped outside the window.
     slm.coordinate_system = 'long'  # does not trigger an update
-    assert np.alltrue(slm.get_pixels('gray_value') / 64 == pixels)
+    assert np.all(slm.get_pixels('gray_value') / 64 == pixels)
     slm.update()
 
     pixels = slm.get_pixels('gray_value') / 64
@@ -210,7 +211,7 @@ def test_lookup_table(slm):
     slm.lookup_table = lut
 
     # nothing changes until we call update
-    assert np.alltrue(pixels == slm.get_pixels('gray_value'))
+    assert np.all(pixels == slm.get_pixels('gray_value'))
 
     slm.update()
     pixels = slm.get_pixels('gray_value')

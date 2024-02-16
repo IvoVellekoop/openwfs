@@ -4,8 +4,6 @@ from typing import Optional
 import numpy as np
 from numpy.typing import ArrayLike
 
-from ..core import Detector
-
 
 class WFSResult:
     """
@@ -94,7 +92,7 @@ class WFSResult:
 
         Args:
             b(int): target to select, as integer index.
-                If the target array is multi-dimensional, it is flattened before selecting the `b`-th component.
+                If the target array is multidimensional, it is flattened before selecting the `b`-th component.
 
         Returns: WFSResults data for the specified target
         """
@@ -110,7 +108,7 @@ class WFSResult:
 
 
 def analyze_phase_stepping(measurements: np.ndarray, axis: int, A: Optional[float] = None):
-    """Analyzes the result of phase stepping measurements, returning matrix `t` and noise statitics
+    """Analyzes the result of phase stepping measurements, returning matrix `t` and noise statistics
 
     This function assumes that all measurements were made using the same reference field `A`
     and that the phase of the modulated segment/mode is phase-stepped in equally spaced steps
@@ -273,7 +271,7 @@ class WFSController:
     def noise_factor(self) -> float:
         """
         Returns:
-            float: noise factor: the estimated loss in fidelity caused by the the limited snr.
+            float: noise factor: the estimated loss in fidelity caused by the limited snr.
         """
         return self._noise_factor
 

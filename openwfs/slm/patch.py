@@ -126,7 +126,7 @@ class FrameBufferPatch(Patch):
     implements the software lookup table."""
 
     _LUT_TEXTURE = 1
-    _textures: Sequence[Texture]
+    _textures: list[Texture]
 
     def __init__(self, slm, lookup_table: Sequence[int]):
         super().__init__(slm, fragment_shader=post_process_fragment_shader,
@@ -167,7 +167,7 @@ class FrameBufferPatch(Patch):
     def get_pixels(self):
         data = self._textures[FrameBufferPatch._PHASES_TEXTURE].get_data()
 
-        # flip data upside down, because the OpenGL convention is to have the origin at the bottom left
+        # flip data upside down, because the OpenGL convention is to have the origin at the bottom left,
         # but we want it at the top left (like in numpy)
         return data[::-1, :]
 

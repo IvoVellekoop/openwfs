@@ -37,7 +37,7 @@ class Gain:
         self.port_do = port_do
         self._reset = reset
         self._gain = gain
-        self.gain = gain  # triggers write to nidaq
+        self.gain = gain  # triggers write to NI-DAQ
 
     def check_overload(self):
         with ni.Task() as task:
@@ -80,9 +80,9 @@ class Gain:
     def gain(self, value: Quantity[u.V]):
         self._gain = value.to(u.V)
         with ni.Task() as write_task:
-            aochan = write_task.ao_channels.add_ao_voltage_chan(self.port_ao)
-            aochan.ao_min = 0
-            aochan.ao_max = 0.9
+            channel = write_task.ao_channels.add_ao_voltage_chan(self.port_ao)
+            channel.ao_min = 0
+            channel.ao_max = 0.9
             write_task.write(self._gain.to_value(u.V))
 
 # devices = {'gain': Gain(port_ao="Dev4/ao0", port_ai="Dev4/ai0", port_do="Dev4/port0/line0")}

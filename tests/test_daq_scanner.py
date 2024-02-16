@@ -8,7 +8,7 @@ import nidaqmx
 
 # older versions of nidaqmx report a FileNotFoundError instead of a DaqNotFoundError
 DaqNotFoundError = nidaqmx.errors.DaqNotFoundError if (
-            hasattr(nidaqmx, 'errors') and hasattr(nidaqmx.errors, 'DaqNotFoundError')) else FileNotFoundError
+        hasattr(nidaqmx, 'errors') and hasattr(nidaqmx.errors, 'DaqNotFoundError')) else FileNotFoundError
 
 
 def test_scan_pattern_delay():
@@ -20,7 +20,7 @@ def test_scan_pattern_delay():
         pattern = scanner._scan_pattern
         print(pattern)
     except (nidaqmx.DaqError, DaqNotFoundError):
-        print('No nidaq card found or NI-DAQ MAX not installed')
+        print('No NI-DAQ card found or NI-DAQ MAX not installed')
         pytest.skip()
 
 
@@ -65,5 +65,5 @@ def test_daq_connection():
         plt.colorbar()
         plt.show()
     except (nidaqmx.DaqError, DaqNotFoundError):
-        print('No nidaq card found or NI-DAQ MAX not installed')
+        print('No NI-DAQ card found or NI-DAQ MAX not installed')
         pytest.skip()

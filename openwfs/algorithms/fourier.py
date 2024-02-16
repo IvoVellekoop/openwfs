@@ -35,7 +35,6 @@ class FourierBase:
                 for the right-hand side of the SLM.
                 The number of frequencies need not be equal for k_left and k_right.
             phase_steps (int): The number of phase steps for each mode (default is 4).
-            overlap (float): The overlap between the reference and measurement part of the SLM (default is 0.1).
         """
         self._execute_button = False
         self.slm = slm
@@ -152,7 +151,7 @@ class FourierBase:
         # Find the index of the (0,0) mode in k_left and k_right
         index_0_left = np.argmin(k_left[0] ** 2 + k_left[1] ** 2)
         index_0_right = np.argmin(k_right[0] ** 2 + k_left[1] ** 2)
-        if not np.alltrue(k_left[:, index_0_left] == 0.0) or not np.alltrue(k_right[:, index_0_right] == 0.0):
+        if not np.all(k_left[:, index_0_left] == 0.0) or not np.all(k_right[:, index_0_right] == 0.0):
             raise Exception("k=(0,0) component missing from the measurement set, cannot determine relative phase.")
 
         # average the measurements for better accuracy

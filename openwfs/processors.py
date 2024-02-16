@@ -1,11 +1,12 @@
-import numpy as np
-import cv2
 from typing import Sequence, Optional, Union
+
+import cv2
+import numpy as np
+from astropy.units import Quantity
+
 from .core import Processor, Detector
 from .utilities import project
 from .utilities.patterns import disk, gaussian
-from enum import Enum
-from astropy.units import Quantity
 
 
 class Roi:
@@ -134,7 +135,8 @@ class Roi:
 
         if image_cropped.shape != self._mask.shape:
             raise ValueError(
-                f"ROI is larger than the possible area. ROI shape: {self._mask.shape}, Cropped image shape: {image_cropped.shape}")
+                f"ROI is larger than the possible area. ROI shape: {self._mask.shape}, "
+                + f"Cropped image shape: {image_cropped.shape}")
 
         return np.sum(image_cropped * self._mask) / self._mask_sum
 
@@ -147,7 +149,7 @@ class MultipleRoi(Processor):
     def __init__(self, source, rois: Sequence[Roi], multi_threaded: bool = True):
         """
         Initialize the MultipleRoi processor with a source and multiple ROIs.
-        Note: changing parameters of any of the ROIs between triggering and fetching causes a race condition.
+        Note: changing parameters of the ROIs between triggering and fetching causes a race condition.
         Args:
             source (Detector): Source detector object to process the data from.
             rois (Sequence[Roi]): Sequence of Roi objects defining the regions of interest.
@@ -362,12 +364,10 @@ class TransformProcessor(Processor):
     def _fetch(self, source: np.ndarray) -> np.ndarray:  # noqa
         """
         Args:
-            out(ndarray) optional numpy array or view of an array that will receive the data
-                when present, the data will be stored in `out`, and `out` is returned.
             source (Detector): A Detector object as described in openwfs.core.Detector
 
         Returns: ndarray that has been transformed
         TODO: Fix and add test, or remove
         """
-        return project(source, source, transform=self.transform, out_shape=self.data_shape,
+        return project(source, transform=self.transform, out_shape=self.data_shape,
                        out_extent=self.extent)

@@ -9,23 +9,23 @@ import astropy.units as u
 
 
 def test_set_pixel_size():
-    # Test case 1: Broadcasted pixel size
+    # Test case 1: Broadcast pixel size
     data = np.array([[1, 2], [3, 4]])
     pixel_size = 0.1 * u.m
     modified_data = set_pixel_size(data, pixel_size)
-    assert np.alltrue(get_pixel_size(modified_data) == (0.1, 0.1) * u.m)
+    assert np.all(get_pixel_size(modified_data) == (0.1, 0.1) * u.m)
 
     # Test case 2: Anisotropic pixel size
     data = np.array([[1, 2], [3, 4]])
     pixel_size = [0.1, 0.2] * u.m
     modified_data = set_pixel_size(data, pixel_size)
-    assert np.alltrue(get_pixel_size(modified_data) == pixel_size)
+    assert np.all(get_pixel_size(modified_data) == pixel_size)
 
     # Test case 3: None pixel size
     data = np.array([[1, 2], [3, 4]])
     pixel_size = None
     modified_data = set_pixel_size(data, pixel_size)
-    assert np.alltrue(get_pixel_size(modified_data) == pixel_size)
+    assert np.all(get_pixel_size(modified_data) == pixel_size)
 
     # Test case 4: Getting pixel size from bare numpy array
     data = np.array([[1, 2], [3, 4]])
@@ -118,23 +118,23 @@ def test_crop():
     cropped = CropProcessor(source, padding_value=np.nan)
     assert cropped.data_shape == (4, 5)
     c = cropped.read()
-    assert np.alltrue(c == data)
+    assert np.all(c == data)
 
     cropped.pos = (1, 2)
     assert cropped.data_shape == (4, 5)
     c2 = cropped.read()
     assert c2.shape == cropped.data_shape
-    assert np.alltrue(c2[0:-1, 0:-2] == data[1:, 2:])
-    assert np.alltrue(np.isnan(c2[-1, :]))
-    assert np.alltrue(np.isnan(c2[:, -2:]))
+    assert np.all(c2[0:-1, 0:-2] == data[1:, 2:])
+    assert np.all(np.isnan(c2[-1, :]))
+    assert np.all(np.isnan(c2[:, -2:]))
 
     cropped.pos = (-1, -2)
     cropped.data_shape = (2, 4)
     c3 = cropped.read()
     assert c3.shape == (2, 4)
-    assert np.alltrue(np.isnan(c3[0, :]))
-    assert np.alltrue(np.isnan(c3[0:1, :]))
-    assert np.alltrue(c3[1:, 2:] == data[0:1, 0:2])
+    assert np.all(np.isnan(c3[0, :]))
+    assert np.all(np.isnan(c3[0:1, :]))
+    assert np.all(c3[1:, 2:] == data[0:1, 0:2])
 
 
 def test_crop_1d():
@@ -143,22 +143,22 @@ def test_crop_1d():
     cropped = CropProcessor(source, padding_value=np.nan)
     assert cropped.data_shape == (10,)
     c = cropped.read()
-    assert np.alltrue(c == data)
+    assert np.all(c == data)
 
     cropped.pos = 4
     assert cropped.data_shape == (10,)
     assert cropped.pos == (4,)
     c2 = cropped.read()
     assert c2.shape == cropped.data_shape
-    assert np.alltrue(c2[:-4] == data[4:])
-    assert np.alltrue(np.isnan(c2[-4:]))
+    assert np.all(c2[:-4] == data[4:])
+    assert np.all(np.isnan(c2[-4:]))
 
     cropped.pos = 4
     cropped.data_shape = 2
     assert cropped.data_shape == (2,)
     c3 = cropped.read()
     assert c3.shape == cropped.data_shape
-    assert np.alltrue(c3 == data[4:6])
+    assert np.all(c3 == data[4:6])
 
 # TODO: translate the tests below.
 #  They should test the SingleROI processor, checking if the returned averaged value is correct.
