@@ -76,13 +76,12 @@ class Device(ABC):
         >>> fields = (f2 - f1) * np.exp(-j * phase)
 
     """
-    __slots__ = ('_end_time_ns', '_timeout_margin', '_lock', '_locking_thread', '_error', '_base_initialized',
-                 '__weakref__', '_latency', '_duration')
+    __slots__ = ('_end_time_ns', '_timeout_margin', '_lock', '_locking_thread', '_error',
+                 '__weakref__', '_latency', '_duration', '_multi_threaded')
     _workers = ThreadPoolExecutor(thread_name_prefix='Device._workers')
     _moving = False
     _state_lock = threading.Lock()
     _devices: "Set[Device]" = WeakSet()
-    multi_threading: bool = False
 
     def __init__(self, *, duration: Quantity[u.ms], latency: Quantity[u.ms]):
         """Constructs a new Device object"""
@@ -93,24 +92,16 @@ class Device(ABC):
         self._lock = threading.Lock()
         self._locking_thread = None
         self._error = None
-        self._base_initialized = True
         Device._devices.add(self)
 
-    def __del__(self):
+    def __new__(cls, *args, **kwargs):
+        """This method is called before __init__ to create a new instance of the class.
+
+        We need to override this to add attributes that will be used in __setattr__
         """
-        Destructor for Device objects.
-
-        The destructor calls `wait()` to ensure that the device is not busy when it is destroyed.
-        If `__init__` did not complete, the destructor does nothing.
-
-        Note:
-            When closing Python, all modules are unloaded in an undefined order.
-            This can cause problems if `wait` calls a function from a module that is already unloaded, such as `numpy`.
-            In this case, a 'NoneType is not callable' error occurs.
-        """
-
-    #        if hasattr(self, '_base_initialized'):
-    #           self.wait()
+        instance = super().__new__(cls)
+        instance._multi_threaded = False
+        return instance
 
     def __setattr__(self, key, value):
         """Prevents modification of public attributes and properties while the device is locked.
@@ -121,7 +112,8 @@ class Device(ABC):
         Private attributes can be set without locking.
         Note that this is not thread-safe and should be done with care!!
         """
-        if hasattr(self, '_base_initialized') and not key.startswith('_'):
+        if not key.startswith('_') and self._multi_threaded:
+            # note: check needs to be in this order, otherwise we cannot initialize set _multi_threaded
             new_lock = self._lock_acquire()
             try:
                 super().__setattr__(key, value)
@@ -422,7 +414,7 @@ class Detector(Device, ABC):
             raise
 
         logging.debug("triggering %s (tid: %i).", self, threading.get_ident())
-        if immediate or not Device.multi_threading:
+        if immediate or not self._multi_threaded:
             result = Future()
             result.set_result(self.__do_fetch(out, *args, **kwargs))  # noqa
             return result
