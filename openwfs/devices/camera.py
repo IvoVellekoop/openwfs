@@ -33,7 +33,7 @@ class Camera(Detector):
         >>> camera.stop()'
         """
 
-    def __init__(self, cti_file: str, serial_number: Optional[str] = None, **kwargs):
+    def __init__(self, cti_file: str, serial_number: Optional[str] = None, multi_threaded=True, **kwargs):
         """
             Initialize the Camera object.
 
@@ -100,7 +100,7 @@ class Camera(Detector):
         except AttributeError:  # the SensorPixelWidth feature is optional
             self._pixel_size = None
 
-        super().__init__()
+        super().__init__(multi_threaded)
         self._camera.start()
 
     def __del__(self):

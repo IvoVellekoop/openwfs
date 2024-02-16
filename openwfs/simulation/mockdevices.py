@@ -1,15 +1,15 @@
-import threading
+import time
 from collections import deque
+from typing import Sequence, Optional, Union
 
-import numpy as np
 import astropy.units as u
+import numpy as np
 from astropy.units import Quantity
 from numpy.typing import ArrayLike
-import time
-from typing import Sequence, Optional, Union, Tuple
+
+from ..core import Detector, Processor, PhaseSLM, Actuator
 from ..processors import CropProcessor
-from ..core import Detector, Processor, PhaseSLM, Actuator, Device
-from ..utilities import ExtentType, get_pixel_size, project, set_extent, get_extent, unitless
+from ..utilities import ExtentType, get_pixel_size, project, unitless
 
 
 class StaticSource(Detector):
@@ -18,11 +18,10 @@ class StaticSource(Detector):
     """
 
     def __init__(self, data: np.ndarray, pixel_size: Optional[Quantity] = None, extent: Optional[ExtentType] = None,
-                 latency: Quantity[u.ms] = 0 * u.ms, duration: Quantity[u.ms] = 0 * u.ms):
+                 latency: Quantity[u.ms] = 0 * u.ms, duration: Quantity[u.ms] = 0 * u.ms, multi_threaded: bool = None):
         """
         Initializes the MockSource
-        TODO: rename to StaticSource
-        TODO: factor out the latency and duration into a separate class
+        TODO: factor out the latency and duration into a separate class?
         Args:
             data (np.ndarray): The pre-set data to be returned by the mock source.
             pixel_size (Quantity, optional): The size of each pixel in the data.
@@ -41,8 +40,12 @@ class StaticSource(Detector):
         if pixel_size is not None and (np.isscalar(pixel_size) or pixel_size.size == 1) and data.ndim > 1:
             pixel_size = pixel_size.repeat(data.ndim)
 
+        if multi_threaded is None:
+            multi_threaded = latency > 0 * u.ms or duration > 0 * u.ms
+
         self._data = data
-        super().__init__(data_shape=data.shape, pixel_size=pixel_size, latency=latency, duration=duration)
+        super().__init__(data_shape=data.shape, pixel_size=pixel_size, latency=latency, duration=duration,
+                         multi_threaded=multi_threaded)
 
     def _fetch(self) -> np.ndarray:  # noqa
         total_time_s = self.latency.to_value(u.s) + self.duration.to_value(u.s)
@@ -71,11 +74,13 @@ class StaticSource(Detector):
 
 
 class NoiseSource(Detector):
-    def __init__(self, noise_type: str, *, data_shape: tuple[int, ...], pixel_size: Quantity, **kwargs):
+    def __init__(self, noise_type: str, *, data_shape: tuple[int, ...], pixel_size: Quantity, multi_threaded=True,
+                 **kwargs):
         self._noise_type = noise_type
         self._noise_arguments = kwargs
         self._rng = np.random.default_rng()
-        super().__init__(data_shape=data_shape, pixel_size=pixel_size, latency=0 * u.ms, duration=0 * u.ms)
+        super().__init__(data_shape=data_shape, pixel_size=pixel_size, latency=0 * u.ms, duration=0 * u.ms,
+                         multi_threaded=multi_threaded)
 
     def _fetch(self) -> np.ndarray:  # noqa
         if self._noise_type == 'uniform':
@@ -97,7 +102,7 @@ class ADCProcessor(Processor):
     """
 
     def __init__(self, source: Detector, analog_max: float = 0.0, digital_max: int = 0xFFFF,
-                 shot_noise: bool = False, gaussian_noise_std: float = 0.0):
+                 shot_noise: bool = False, gaussian_noise_std: float = 0.0, multi_threaded: bool = True):
         """
         Initializes the ADCProcessor class, which mimics an analog-digital converter.
 
@@ -118,7 +123,7 @@ class ADCProcessor(Processor):
             gaussian_noise_std (float):
                 If >0, add gaussian noise with std of this value to the data.
         """
-        super().__init__(source)
+        super().__init__(source, multi_threaded=multi_threaded)
         self._analog_max = None
         self._digital_max = None
         self._shot_noise = None
@@ -326,18 +331,18 @@ class MockXYStage(Actuator):
         self._y = 0.0 * u.um
 
 
-class MockSLMField(Processor):
+class _MockSLMField(Processor):
     """Computes the field reflected by a MockSLM."""
 
     def __init__(self, slm_phases: Detector, field_amplitude: ArrayLike = 1.0,
                  non_modulated_field_fraction: float = 0.0):
         """
         Args:
-            slm_pixels (Detector): The `Detector` that returns the phases of the slm pixels.
+            slm_phases: The `Detector` that returns the phases of the slm pixels.
             field_amplitude: Field amplitude of the modulated pixels.
             non_modulated_field_fraction: Non-modulated field (e.g. a front reflection).
         """
-        super().__init__(slm_phases)
+        super().__init__(slm_phases, multi_threaded=False)
         self.modulated_field_amplitude = field_amplitude
         self.non_modulated_field = non_modulated_field_fraction
 
@@ -365,7 +370,7 @@ class _MockSLMTiming(Detector):
         if len(shape) != 2:
             raise ValueError("Shape of the SLM should be 2-dimensional.")
         super().__init__(data_shape=shape, pixel_size=Quantity(2.0 / np.min(shape)), latency=0 * u.ms,
-                         duration=0 * u.ms)
+                         duration=0 * u.ms, multi_threaded=False)
         self.update_latency = update_latency
         self.update_duration = update_duration
 
@@ -379,7 +384,6 @@ class _MockSLMTiming(Detector):
         self._state = np.zeros(shape, dtype=np.float32)
         self._state_timestamp = 0.0
         self._queue = deque()  # Queue to hold phase images and their timestamps
-        self._queue_lock = threading.Lock()  # Lock for critical section
 
     def _fetch(self):
         return self._update(None)
@@ -389,30 +393,30 @@ class _MockSLMTiming(Detector):
 
         This function takes the frames from the queue. The ones that have a time stamp corresponding to
         the current time or earlier are merged into the current _state. The rest is kept.
+        Note: if ever converting this object to multi-threading, this function should be protected by a lock.
         """
-        with self._queue_lock:
-            current_time = time.time_ns() * u.ns
-            while True:
-                # peek the first element in the queue
-                if not self._queue:
-                    break
-                set_point, timestamp = self._queue[0]
-                if timestamp > current_time:
-                    break
+        current_time = time.time_ns() * u.ns
+        while True:
+            # peek the first element in the queue
+            if not self._queue:
+                break
+            set_point, timestamp = self._queue[0]
+            if timestamp > current_time:
+                break
 
-                # we found a frame that is or has been displayed
-                # we step the simulation forward to the time of the frame
-                self._step_to_time(timestamp)
-                self._set_point = set_point
-                self._queue.popleft()
+            # we found a frame that is or has been displayed
+            # we step the simulation forward to the time of the frame
+            self._step_to_time(timestamp)
+            self._set_point = set_point
+            self._queue.popleft()
 
-            # finally, compute the current state
-            if append is None:
-                self._step_to_time(current_time)
-            else:
-                self._queue.append(append)
+        # finally, compute the current state
+        if append is None:
+            self._step_to_time(current_time)
+        else:
+            self._queue.append(append)
 
-            return self._state
+        return self._state
 
     def _step_to_time(self, time):
         """Step the simulation forward to a given time."""
@@ -437,7 +441,7 @@ class _MockSLMTiming(Detector):
 
 class _MockSLMPhaseResponse(Processor):
     def __init__(self, source: _MockSLMTiming, phase_response: Optional[np.ndarray] = None):
-        super().__init__(source)
+        super().__init__(source, multi_threaded=False)
         self.phase_response = phase_response
 
     def _fetch(self, grey_values: np.ndarray) -> np.ndarray:  # noqa
@@ -452,6 +456,8 @@ class MockSLM(PhaseSLM, Actuator):
     A mock version of a phase-only spatial light modulator. Some properties are available to simulate physical
     phenomena such as imperfect phase response, and front reflections (which cause non-modulated light).
     """
+    __slots__ = ('_hardware_fields', '_hardware_phases', '_hardware_timing', '_back_buffer',
+                 'refresh_rate', '_first_update_ns', '_lookup_table')
 
     def __init__(self,
                  shape: Sequence[int],
@@ -487,8 +493,8 @@ class MockSLM(PhaseSLM, Actuator):
         self._hardware_timing = _MockSLMTiming(shape, update_latency, update_duration)
         self._hardware_phases = _MockSLMPhaseResponse(self._hardware_timing,
                                                       phase_response)  # Simulates reading the phase from the SLM
-        self._hardware_fields = MockSLMField(self._hardware_phases, field_amplitude,
-                                             non_modulated_field_fraction)  # Simulates reading the field from the SLM
+        self._hardware_fields = _MockSLMField(self._hardware_phases, field_amplitude,
+                                              non_modulated_field_fraction)  # Simulates reading the field from the SLM
         self._lookup_table = None  # index = input phase (scaled to -> [0, 255]), value = grey value
         self._first_update_ns = time.time_ns()
         self._back_buffer = np.zeros(shape, dtype=np.float32)

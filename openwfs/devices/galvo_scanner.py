@@ -66,7 +66,8 @@ class ScanningMicroscope(Detector):
                  padding: float = 0.05,
                  binning: int = 1,
                  bidirectional: bool = True,
-                 simulation: Optional[str] = None):
+                 simulation: Optional[str] = None,
+                 multi_threaded: bool = True):
         """
         Args:
             data_shape (tuple[int, int]): number of data points (height, width) in the full field of view.
@@ -135,7 +136,8 @@ class ScanningMicroscope(Detector):
 
         # the pixel size and duration are computed dynamically
         # data_shape just returns self._data shape, and latency = 0.0 ms
-        super().__init__(data_shape=data_shape, pixel_size=None, duration=None, latency=0.0 * u.ms)
+        super().__init__(data_shape=data_shape, pixel_size=None, duration=None, latency=0.0 * u.ms,
+                         multi_threaded=multi_threaded)
         self._update()
 
     def _update(self):

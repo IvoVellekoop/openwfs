@@ -114,7 +114,6 @@ def test_fourier3():
 
 
 def test_fourier_microscope():
-    Device.multi_threading = False
     aberration_phase = skimage.data.camera() * ((2 * np.pi) / 255.0) + np.pi
     aberration = StaticSource(aberration_phase, pixel_size=2.0 / np.array(aberration_phase.shape))
     img = np.zeros((1000, 1000), dtype=np.int16)

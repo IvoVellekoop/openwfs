@@ -18,15 +18,19 @@ class Device(ABC):
     """Base class for detectors and actuators
 
     Multi-threading:
-        Devices hold a thread lock, prevents concurrent modification of attributes
-        in a multithreaded environment.
-        This lock is automatically acquired when setting a public attribute or property.
-        See `__setattr__` for details.
+        OpenWFS is not designed to be thread-safe, and the user
+        is responsible for guaranteeing that devices are only accessed
+        from a single thread at a time.
 
-    Detector locking:
-        For detectors, an additional synchronization mechanism is implemented.
-        It prevents modification of the detector settings while a measurement is in progress.
-        See Detector for details.
+        For detectors, OpenWFS does provide threading support by the means
+        of a worker thread that is automatically started when the `trigger` method
+        is called. The worker thread calls `_fetch` on the detector object,
+        which acquires and processes the data.
+
+        While a measurement is busy (between `trigger` and the end of the
+        corresponding `_fetch`), write access to the attributes of the detector
+        is blocked. This is to prevent the user from modifying the detector settings
+        while a measurement is in progress, which would give unpredictable results.
 
     Synchronization:
         Device implements the synchronization between detectors and actuators.
@@ -52,9 +56,6 @@ class Device(ABC):
         For detectors, `_start` is called automatically by `trigger()`, so there is never a need to call it.
         Implementations of an actuator should call `_start` explicitly before starting to move the actuator.
 
-    Attributes:
-        multi_threading (bool): Option to globally disable multi-threading.
-            This is particularly useful for debugging.
     Usage::
         >>> f1 = np.zeros((N, P, *cam1.data_shape))
         >>> f2 = np.zeros((N, P, *cam2.data_shape))
@@ -76,13 +77,12 @@ class Device(ABC):
         >>> fields = (f2 - f1) * np.exp(-j * phase)
 
     """
-    __slots__ = ('_end_time_ns', '_timeout_margin', '_lock', '_locking_thread', '_error', '_base_initialized',
-                 '__weakref__', '_latency', '_duration')
+    __slots__ = ('_end_time_ns', '_timeout_margin', '_locking_thread', '_error',
+                 '__weakref__', '_latency', '_duration', '_multi_threaded')
     _workers = ThreadPoolExecutor(thread_name_prefix='Device._workers')
     _moving = False
     _state_lock = threading.Lock()
     _devices: "Set[Device]" = WeakSet()
-    multi_threading: bool = False
 
     def __init__(self, *, duration: Quantity[u.ms], latency: Quantity[u.ms]):
         """Constructs a new Device object"""
@@ -90,46 +90,9 @@ class Device(ABC):
         self._duration = duration
         self._end_time_ns = 0
         self._timeout_margin = 5 * u.s
-        self._lock = threading.Lock()
         self._locking_thread = None
         self._error = None
-        self._base_initialized = True
         Device._devices.add(self)
-
-    def __del__(self):
-        """
-        Destructor for Device objects.
-
-        The destructor calls `wait()` to ensure that the device is not busy when it is destroyed.
-        If `__init__` did not complete, the destructor does nothing.
-
-        Note:
-            When closing Python, all modules are unloaded in an undefined order.
-            This can cause problems if `wait` calls a function from a module that is already unloaded, such as `numpy`.
-            In this case, a 'NoneType is not callable' error occurs.
-        """
-
-    #        if hasattr(self, '_base_initialized'):
-    #           self.wait()
-
-    def __setattr__(self, key, value):
-        """Prevents modification of public attributes and properties while the device is locked.
-
-        For detectors, this prevents modification of the detector settings while a measurement is in progress.
-        For all devices, it prevents concurrent modification in a multi-threading context.
-
-        Private attributes can be set without locking.
-        Note that this is not thread-safe and should be done with care!!
-        """
-        if hasattr(self, '_base_initialized') and not key.startswith('_'):
-            new_lock = self._lock_acquire()
-            try:
-                super().__setattr__(key, value)
-            finally:
-                if new_lock:
-                    self._lock_release()
-        else:
-            super().__setattr__(key, value)
 
     @property
     @abstractmethod
@@ -282,28 +245,6 @@ class Device(ABC):
             if time_to_wait > 0:
                 time.sleep(time_to_wait / 1.0E9)
 
-        if await_data:
-            # locks the device, for detectors this waits until all pending measurements are processed.
-            if not self._lock_acquire():
-                raise RuntimeError(
-                    "Cannot call `wait` from inside a setter or from inside _fetch as it will cause a deadlock.")
-            self._lock_release()
-
-    def _lock_acquire(self) -> bool:
-        """Acquires a non-persistent lock using the timeout of the device"""
-        tid = threading.get_ident()
-        if self._locking_thread == tid:
-            return False  # already locked, this could happen if we call a setter from _fetch or from another setter
-        if not self._lock.acquire(timeout=self.timeout.to_value(u.s)):
-            raise TimeoutError("Timeout in %s (tid %i)", self, tid)
-        self._locking_thread = tid
-        return True
-
-    def _lock_release(self):
-        """Releases a non-persistent lock"""
-        self._locking_thread = None
-        self._lock.release()
-
     def busy(self) -> bool:
         """Returns true if the device is measuring or moving (see `wait()`).
 
@@ -345,51 +286,39 @@ class Actuator(Device, ABC):
 class Detector(Device, ABC):
     """Base class for all detectors, cameras and other data sources with possible dynamic behavior.
     """
-    __slots__ = ('_measurements_pending', '_pending_count_lock', '_pixel_size', '_data_shape')
+    __slots__ = ('_measurements_pending', '_lock_condition', '_pixel_size', '_data_shape')
 
     def __init__(self, *, data_shape: Tuple[int, ...], pixel_size: Quantity[u.ms], duration: Quantity[u.ms],
-                 latency: Quantity[u.ms]):
+                 latency: Quantity[u.ms], multi_threaded: bool = True):
         super().__init__(duration=duration, latency=latency)
         self._measurements_pending = 0
-        self._pending_count_lock = threading.Lock()
+        self._lock_condition = threading.Condition()
         self._error = None
         self._data_shape = data_shape
         self._pixel_size = pixel_size
+        self._multi_threaded = multi_threaded
 
     @final
     def _is_actuator(self):
         return False
 
-    def _lock_persistent(self):
-        """Places a persistent lock on the detector.
-
-        A persistent lock is a lock that is only released after all measurements have finished.
-
-        If the detector was not locked, it is locked, and the `measurements_pending` counter is incremented.
-        Only when the measurements_pending counter drops to zero, the lock is released (see `_unlock_persistent()`).
-
-        If the detector was already locked, either wait for the lock to be released
-        (if the existing lock was not persistent),
-        or just increment the `measurements_pending` counter
-        (if the existing lock was persistent).
-        """
-        logging.debug("entering persistent lock %s (tid %i).", self, threading.get_ident())
-        with self._pending_count_lock:
-            if self._measurements_pending == 0:
-                if not self._lock_acquire():  # we don't have a persistent lock yet, acquire the object lock
-                    raise RuntimeError("Cannot call `trigger` from a setter or from _fetch")
-                self._locking_thread = None
-                logging.debug("first persistent lock set %s (tid %i).", self, threading.get_ident())
+    def _increase_measurements_pending(self):
+        with self._lock_condition:
             self._measurements_pending += 1
 
-    def _unlock_persistent(self):
-        """Decrement the `measurements_pending` counter, and release the persistent lock if it reached 0."""
-        logging.debug("leaving persistent lock %s (tid %i).", self, threading.get_ident())
-        with self._pending_count_lock:
+    def _decrease_measurements_pending(self):
+        with self._lock_condition:
             self._measurements_pending -= 1
-            if self._measurements_pending == 0:  # we released the last persistent lock
-                self._lock_release()
-                logging.debug("last persistent lock cleared %s (tid %i).", self, threading.get_ident())
+            if self._measurements_pending == 0:
+                self._lock_condition.notify_all()
+
+    def wait(self, up_to: Quantity[u.ms] = 0 * u.ns, await_data=True) -> None:
+        super().wait(up_to, await_data)
+        if await_data:
+            # wait until all pending measurements are processed.
+            with self._lock_condition:
+                while self._measurements_pending > 0:
+                    self._lock_condition.wait()
 
     def trigger(self, *args, out=None, immediate=False, **kwargs) -> Future:
         """Triggers the detector to start acquisition of the data.
@@ -407,8 +336,7 @@ class Detector(Device, ABC):
             To implement hardware triggering, do not override this function.
             Instead, override `_do_trigger()` instead to ensure proper synchronization and locking.
         """
-
-        self._lock_persistent()
+        self._increase_measurements_pending()
 
         # if the detector is not locked yet,
         # lock it now (this is a persistent lock),
@@ -418,11 +346,11 @@ class Detector(Device, ABC):
             self._start()
             self._do_trigger()
         except:  # noqa  - ok, we are not really catching the exception, just making sure the lock gets released
-            self._unlock_persistent()
+            self._decrease_measurements_pending()
             raise
 
         logging.debug("triggering %s (tid: %i).", self, threading.get_ident())
-        if immediate or not Device.multi_threading:
+        if immediate or not self._multi_threaded:
             result = Future()
             result.set_result(self.__do_fetch(out, *args, **kwargs))  # noqa
             return result
@@ -453,7 +381,35 @@ class Detector(Device, ABC):
                 self._error = e
             raise e  # raise the error again, it will be stored in the 'Future' object that was returned by trigger()
         finally:
-            self._unlock_persistent()
+            self._decrease_measurements_pending()
+
+    def __new__(cls, *args, **kwargs):
+        """This method is called before __init__ to create a new instance of the class.
+
+        We need to override this to add attributes that will be used in __setattr__
+        """
+        instance = super().__new__(cls)
+        instance._multi_threaded = False
+        return instance
+
+    def __setattr__(self, key, value):
+        """Prevents modification of public attributes and properties while the device is locked.
+
+        For detectors, this prevents modification of the detector settings while a measurement is in progress.
+        For all devices, it prevents concurrent modification in a multi-threading context.
+
+        Private attributes can be set without locking.
+        Note that this is not thread-safe and should be done with care!!
+        """
+
+        # note: the check needs to be in this order, otherwise we cannot initialize set _multi_threaded
+        if not key.startswith('_') and self._multi_threaded:
+            with self._lock_condition:
+                while self._measurements_pending > 0:
+                    self._lock_condition.wait()
+            super().__setattr__(key, value)
+        else:
+            super().__setattr__(key, value)
 
     def _do_trigger(self) -> None:
         """Override this function to perform the actual hardware trigger."""
@@ -514,7 +470,7 @@ class Detector(Device, ABC):
         Coordinates have the same astropy base unit as pixel_size.
         The coordinates are returned as an array with the same number of dimensions as the returned data,
         with the d-th dimension holding the coordinates.
-        This faclilitates meshgrid-like computations, e.g.
+        This facilitates meshgrid-like computations, e.g.
         `cam.coordinates(0) + cam.coordinates(1)` gives a 2-dimensional array of coordinates.
 
         Args:
@@ -553,13 +509,13 @@ class Processor(Detector, ABC):
     To override this behavior, override the `pixel_size` and `data_shape` properties.
     """
 
-    def __init__(self, *args):
+    def __init__(self, *args, multi_threaded: bool):
         self._sources = args
         # data_shape, duration, latency and pixel_size all may change dynamically
         # when the settings of one of the source detectors is changed.
         # Therefore, we pass 'None' for all parameters, and override
         # data_shape, pixel_size, duration and latency in the properties.
-        super().__init__(data_shape=None, pixel_size=None, duration=None, latency=None)
+        super().__init__(data_shape=None, pixel_size=None, duration=None, latency=None, multi_threaded=multi_threaded)
 
     def trigger(self, *args, immediate=False, **kwargs):
         """Triggers all sources at the same time (regardless of latency), and schedules a call to `_fetch()`"""

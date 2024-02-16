@@ -133,7 +133,6 @@ def test_microscope_wavefront_shaping(caplog):
     Reproduces a bug that occurs due to the location of the measurements.wait() command.
     """
     # caplog.set_level(logging.DEBUG)
-    Device.multi_threading = False
     aberrations = skimage.data.camera() * ((2 * np.pi) / 255.0) + np.pi
 
     aberration = StaticSource(aberrations, pixel_size=1.0 / 512 * u.dimensionless_unscaled)  # note: incorrect scaling!

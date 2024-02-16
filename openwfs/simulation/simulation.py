@@ -16,7 +16,7 @@ class SimulatedWFS(Processor):
     For a more advanced (but slower) simulation, use `Microscope`
     """
 
-    def __init__(self, aberrations: np.ndarray, beam_profile_waist=None):
+    def __init__(self, aberrations: np.ndarray, beam_profile_waist=None, multi_threaded=True, slm=None):
         """
         Initializes the optical system with specified aberrations and optionally a Gaussian beam profile.
 
@@ -35,14 +35,14 @@ class SimulatedWFS(Processor):
         field at the SLM considering the aberrations and optionally the Gaussian beam profile, and initializes the
         system with these parameters.
         """
-        self.slm = MockSLM(aberrations.shape[0:2])
+        self.slm = slm if slm is not None else MockSLM(aberrations.shape[0:2])
         self.E_input_slm = np.exp(1.0j * aberrations)  # electric field incident at the SLM
         if beam_profile_waist is not None:
             self.E_input_slm *= gaussian(aberrations.shape, waist=beam_profile_waist)
 
         # normalize the field
         self.E_input_slm *= 1 / np.linalg.norm(self.E_input_slm.ravel())
-        super().__init__(self.slm.get_monitor('field'))
+        super().__init__(self.slm.get_monitor('field'), multi_threaded=multi_threaded)
 
     def _fetch(self, slm_fields):  # noqa
         """
