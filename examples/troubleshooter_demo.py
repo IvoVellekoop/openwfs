@@ -9,8 +9,6 @@ from openwfs.algorithms.troubleshoot import troubleshoot, field_correlation
 
 from openwfs.core import Device
 
-Device.multi_threading = False  # for easier debugging
-
 
 def phase_response_test_function(phi, b, c, gamma):
     """A synthetic phase response function: 2π*(b + c*(phi/2π)^gamma)"""

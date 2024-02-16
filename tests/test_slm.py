@@ -152,8 +152,8 @@ def test_transform(slm):
     assert np.allclose(sub[20:, 40:], 3)
 
 
-# @pytest.mark.skip(reason="This test is skipped by default because it causes the screen to flicker, which may "
-#                        "affect people with epilepsy.")
+@pytest.mark.skip(reason="This test is skipped by default because it causes the screen to flicker, which may "
+                         "affect people with epilepsy.")
 def test_refresh_rate():
     slm = SLM(1, latency=0, duration=0)
     refresh_rate = slm.refresh_rate

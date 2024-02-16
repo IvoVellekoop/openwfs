@@ -289,13 +289,14 @@ class Detector(Device, ABC):
     __slots__ = ('_measurements_pending', '_lock_condition', '_pixel_size', '_data_shape')
 
     def __init__(self, *, data_shape: Tuple[int, ...], pixel_size: Quantity[u.ms], duration: Quantity[u.ms],
-                 latency: Quantity[u.ms]):
+                 latency: Quantity[u.ms], multi_threaded: bool = True):
         super().__init__(duration=duration, latency=latency)
         self._measurements_pending = 0
         self._lock_condition = threading.Condition()
         self._error = None
         self._data_shape = data_shape
         self._pixel_size = pixel_size
+        self._multi_threaded = multi_threaded
 
     @final
     def _is_actuator(self):
@@ -508,13 +509,13 @@ class Processor(Detector, ABC):
     To override this behavior, override the `pixel_size` and `data_shape` properties.
     """
 
-    def __init__(self, *args):
+    def __init__(self, *args, multi_threaded: bool):
         self._sources = args
         # data_shape, duration, latency and pixel_size all may change dynamically
         # when the settings of one of the source detectors is changed.
         # Therefore, we pass 'None' for all parameters, and override
         # data_shape, pixel_size, duration and latency in the properties.
-        super().__init__(data_shape=None, pixel_size=None, duration=None, latency=None)
+        super().__init__(data_shape=None, pixel_size=None, duration=None, latency=None, multi_threaded=multi_threaded)
 
     def trigger(self, *args, immediate=False, **kwargs):
         """Triggers all sources at the same time (regardless of latency), and schedules a call to `_fetch()`"""

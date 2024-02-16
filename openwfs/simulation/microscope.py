@@ -4,7 +4,7 @@ from astropy.units import Quantity
 from numpy.typing import ArrayLike
 from scipy.signal import fftconvolve
 from typing import Optional, Union
-from ..simulation.mockdevices import MockXYStage, MockCamera, MockSLM, MockSLMField, StaticSource
+from ..simulation.mockdevices import MockXYStage, MockCamera, MockSLM, _MockSLMField, StaticSource
 from ..core import Processor, Detector
 from ..utilities import project, place, Transform, set_pixel_size, get_pixel_size, patterns
 from ..processors import TransformProcessor
@@ -44,13 +44,15 @@ class Microscope(Processor):
         z_stage:
     """
 
-    def __init__(self, source: Union[Detector, np.ndarray], *, data_shape=None, numerical_aperture: float,
+    def __init__(self, source: Union[Detector, np.ndarray], *, data_shape=None,
+                 numerical_aperture: float = 1.0,
                  wavelength: Quantity[u.nm],
                  magnification: float = 1.0, xy_stage=None, z_stage=None,
                  incident_field: Union[Detector, ArrayLike, None] = None,
                  incident_transform: Optional[Transform] = None,
                  aberrations: Union[Detector, np.ndarray, None] = None,
-                 aberration_transform: Optional[Transform] = None):
+                 aberration_transform: Optional[Transform] = None,
+                 multi_threaded: bool = True):
         """
         Args:
             source: 2-d image (must have `pixel_size` metadata), or
@@ -70,7 +72,7 @@ class Microscope(Processor):
             z_stage (Stage): Optional stage object that moves the sample up and down to focus the microscope.
                 Higher values are further away from the microscope objective.
                 Defaults to a MockStage.
-            incident_field (MockSLMField): Produces 2-d complex images containing the field output of the SLM.
+            incident_field (_MockSLMField): Produces 2-d complex images containing the field output of the SLM.
                 If no `slm_transform` is specified, the `pixel_size` attribute should
                  correspond to normalized pupil coordinates
                 (e.g. with a disk of radius 1.0, i.e. an extent of 2.0, corresponding to an NA of 1.0)
@@ -98,7 +100,7 @@ class Microscope(Processor):
         if not isinstance(source, Detector) and get_pixel_size(source) is None:
             raise ValueError("The source must have a pixel_size attribute.")
 
-        super().__init__(source, aberrations, incident_field)
+        super().__init__(source, aberrations, incident_field, multi_threaded=multi_threaded)
         self._magnification = magnification
         self._data_shape = data_shape if data_shape is not None else source.data_shape
         self.numerical_aperture = numerical_aperture

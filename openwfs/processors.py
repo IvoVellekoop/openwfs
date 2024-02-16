@@ -148,17 +148,17 @@ class MultipleRoi(Processor):
     Processor that averages signals over multiple regions of interest (ROIs).
     """
 
-    def __init__(self, source, rois: Sequence[Roi]):
+    def __init__(self, source, rois: Sequence[Roi], multi_threaded: bool = True):
         """
         Initialize the MultipleRoi processor with a source and multiple ROIs.
-        Note: changing parmeters of any of the ROIs between triggering and fetching causes a race condition.
+        Note: changing parameters of any of the ROIs between triggering and fetching causes a race condition.
         Args:
             source (Detector): Source detector object to process the data from.
             rois (Sequence[Roi]): Sequence of Roi objects defining the regions of interest.
         """
         self._rois = np.array(rois)
         self._source = source
-        super().__init__(source)
+        super().__init__(source, multi_threaded=multi_threaded)
 
     def _fetch(self, image: np.ndarray) -> np.ndarray:  # noqa
         """
@@ -191,7 +191,8 @@ class MultipleRoi(Processor):
 
 
 class SingleRoi(MultipleRoi):
-    def __init__(self, source, pos=None, radius=0.1, mask_type: MaskType = MaskType.DISK, waist=0.5):
+    def __init__(self, source, pos=None, radius=0.1, mask_type: MaskType = MaskType.DISK, waist=0.5,
+                 multi_threaded: bool = True):
         """
         Processor that averages a signal over a single region of interest (ROI).
 
@@ -206,7 +207,7 @@ class SingleRoi(MultipleRoi):
         """
         single_roi = Roi(pos, radius, mask_type, waist, source.data_shape)
         rois = np.array([single_roi]).reshape(())
-        super().__init__(source, rois=rois)  # noqua
+        super().__init__(source, rois=rois, multi_threaded=multi_threaded)  # noqua
         self.__dict__.update(single_roi.__dict__)
 
 
@@ -219,7 +220,7 @@ class CropProcessor(Processor):
     """
 
     def __init__(self, source: Detector, shape: Optional[Sequence[int]] = None,
-                 pos: Optional[Sequence[int]] = None, padding_value=0.0):
+                 pos: Optional[Sequence[int]] = None, padding_value=0.0, multi_threaded: bool = False):
         """
 
         Args:
@@ -232,7 +233,7 @@ class CropProcessor(Processor):
                 For 2-D data, this is the top-left corner.
             padding_value (float): Value to use if the cropped area extends beyond the original data.
         """
-        super().__init__(source)
+        super().__init__(source, multi_threaded=multi_threaded)
         self._data_shape = tuple(shape) if shape is not None else source.data_shape
         self._pos = np.array(pos) if pos is not None else np.zeros((len(self.data_shape),), dtype=int)
         self._padding_value = padding_value
@@ -328,7 +329,7 @@ class TransformProcessor(Processor):
     """
 
     def __init__(self, source, transform, data_shape: Optional[Sequence[int]] = None,
-                 pixel_size: Union[Optional[Quantity], bool] = False):
+                 pixel_size: Union[Optional[Quantity], bool] = False, multi_threaded: bool = True):
         """
 
         Args:
@@ -342,7 +343,7 @@ class TransformProcessor(Processor):
 
         self._pixel_size = pixel_size
         self._data_shape = data_shape
-        super().__init__(source)
+        super().__init__(source, multi_threaded=multi_threaded)
         self.transform = transform
 
     @property
