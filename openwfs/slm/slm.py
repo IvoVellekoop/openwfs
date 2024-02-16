@@ -12,7 +12,7 @@ try:
 except AttributeError:
     warnings.warn("OpenGL not found, SLM will not work")
 from .patch import FrameBufferPatch, Patch, VertexArray
-from ..core import PhaseSLM, Actuator
+from ..core import PhaseSLM, Actuator, Device
 from ..utilities import Transform
 
 TimeType = Union[Quantity[u.ms], int]
@@ -49,7 +49,7 @@ class SLM(Actuator, PhaseSLM):
         patches (List[Patch]): List of patches that are drawn on the SLM.
 
     """
-    __slots__ = ['_vertex_array', '_frame_buffer', '_monitor_id', '_position', '_latency', '_duration', '_refresh_rate',
+    __slots__ = ['_vertex_array', '_frame_buffer', '_monitor_id', '_position', '_refresh_rate',
                  '_transform', '_shape', '_window', '_globals', '_frame_buffer', 'patches', 'primary_patch',
                  '_coordinate_system']
 
@@ -106,8 +106,6 @@ class SLM(Actuator, PhaseSLM):
         self._globals = -1
         self.patches = []
         self._create_window()  # sets self._window and self._globals and self._frame_patch
-        self._duration = duration if isinstance(duration, Quantity) else duration * self.period
-        self._latency = latency if isinstance(duration, Quantity) else duration * self.period
         self._coordinate_system = coordinate_system
         self.transform = Transform() if transform is None else transform
         self._vertex_array = VertexArray()
@@ -118,8 +116,14 @@ class SLM(Actuator, PhaseSLM):
         self.patches.append(Patch(self))
         self.primary_patch = self.patches[0]
         SLM._active_slms.add(self)
+
+        if not isinstance(duration, Quantity):
+            duration = duration * self.period
+        if not isinstance(latency, Quantity):
+            latency = latency * self.period
+
+        super().__init__(duration=duration, latency=latency)
         self.update()
-        super().__init__()
 
     def _assert_window_available(self, monitor_id) -> None:
         """
@@ -402,21 +406,13 @@ class SLM(Actuator, PhaseSLM):
         """
         return self._latency
 
-    @latency.setter
+    @Device.latency.setter
     def latency(self, value: Quantity[u.ms]):
         self._latency = value.to(u.ms)
 
-    @property
-    def duration(self) -> Quantity[u.ms]:
-        """Time between the the start of the SLM response
-        and sufficient stabilization of the phase pattern (a.k.a.
-        settle time)
-        """
-        return self._duration
-
-    @duration.setter
+    @Device.duration.setter
     def duration(self, value: Quantity[u.ms]):
-        self._duration = value
+        self._duration = value.to(u.ms)
 
     @property
     def coordinate_system(self) -> str:

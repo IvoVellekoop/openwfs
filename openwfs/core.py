@@ -83,15 +83,17 @@ class Device(ABC):
 
     """
     __slots__ = ('_end_time_ns', '_timeout_margin', '_lock', '_locking_thread', '_error', '_base_initialized',
-                 '__weakref__')
+                 '__weakref__', '_latency', '_duration')
     _workers = ThreadPoolExecutor(thread_name_prefix='Device._workers')
     _moving = False
     _state_lock = threading.Lock()
     _devices: "Set[Device]" = WeakSet()
     multi_threading: bool = False
 
-    def __init__(self):
+    def __init__(self, *, duration: Quantity[u.ms], latency: Quantity[u.ms]):
         """Constructs a new Device object"""
+        self._latency = latency
+        self._duration = duration
         self._end_time_ns = 0
         self._timeout_margin = 5 * u.s
         self._lock = threading.Lock()
@@ -207,10 +209,9 @@ class Device(ABC):
             For example, for a spatial light modulator that only refreshes
             at a fixed rate, we can add the remaining time until the next refresh to the latency.
         """
-        return 0.0 * u.ms
+        return self._latency
 
     @property
-    @abstractmethod
     def duration(self) -> Quantity[u.ms]:
         """duration (Quantity[u.ms]): maximum amount of time it takes to perform the measurement or for the
         actuator to stabilize.
@@ -231,7 +232,7 @@ class Device(ABC):
         Note: If `latency` is a (lower) estimate, the duration should be high enough to guarantee that `latency +
         duration` is at least as large as the time between starting the operation and finishing it.
         """
-        ...
+        return self._duration
 
     def wait(self, up_to: Quantity[u.ms] = 0 * u.ns, await_data=True) -> None:
         """Waits until the device is (almost) in the `ready` state, i.e., has finished measuring or moving.
@@ -350,13 +351,16 @@ class Actuator(Device, ABC):
 class Detector(Device, ABC):
     """Base class for all detectors, cameras and other data sources with possible dynamic behavior.
     """
-    __slots__ = ('_measurements_pending', '_pending_count_lock')
+    __slots__ = ('_measurements_pending', '_pending_count_lock', '_pixel_size', '_data_shape')
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, *, data_shape: Tuple[int, ...], pixel_size: Quantity[u.ms], duration: Quantity[u.ms],
+                 latency: Quantity[u.ms]):
+        super().__init__(duration=duration, latency=latency)
         self._measurements_pending = 0
         self._pending_count_lock = threading.Lock()
         self._error = None
+        self._data_shape = data_shape
+        self._pixel_size = pixel_size
 
     @final
     def _is_actuator(self):
@@ -483,14 +487,13 @@ class Detector(Device, ABC):
         return self.trigger(*args, immediate=immediate, **kwargs).result()
 
     @property
-    @abstractmethod
     def data_shape(self) -> Tuple[int, ...]:
         """The shape of the data array that `read()` will return.
 
         For some detectors this property may be mutable, for example, for a camera it
         represents the height and width of the ROI, which can be changed.
         """
-        ...
+        return self._data_shape
 
     @property
     def pixel_size(self) -> Optional[Quantity]:
@@ -505,7 +508,7 @@ class Detector(Device, ABC):
         However, in some cases (such as when the `pixel_size` is actually a sampling interval),
         it makes sense for the child class to implement a setter.
         """
-        return None
+        return self._pixel_size
 
     @final
     def coordinates(self, dim: int) -> Quantity:
@@ -558,7 +561,11 @@ class Processor(Detector, ABC):
 
     def __init__(self, *args):
         self._sources = args
-        super().__init__()
+        # data_shape, duration, latency and pixel_size all may change dynamically
+        # when the settings of one of the source detectors is changed.
+        # Therefore, we pass 'None' for all parameters, and override
+        # data_shape, pixel_size, duration and latency in the properties.
+        super().__init__(data_shape=None, pixel_size=None, duration=None, latency=None)
 
     def trigger(self, *args, immediate=False, **kwargs):
         """Triggers all sources at the same time (regardless of latency), and schedules a call to `_fetch()`"""

@@ -8,7 +8,7 @@ from numpy.typing import ArrayLike
 import time
 from typing import Sequence, Optional, Union
 from ..processors import CropProcessor
-from ..core import Detector, Processor, PhaseSLM, Actuator
+from ..core import Detector, Processor, PhaseSLM, Actuator, Device
 from ..utilities import ExtentType, get_pixel_size, project, set_extent, get_extent, unitless
 
 
@@ -32,11 +32,7 @@ class Generator(Detector):
             duration (Quantity[u.ms]): Duration for which the generator simulates the data acquisition.
             latency (Quantity[u.ms]): Simulated delay before data acquisition begins.
         """
-        super().__init__()
-        self._latency = latency
-        self._pixel_size = pixel_size
-        self._data_shape = data_shape
-        self._duration = duration
+        super().__init__(data_shape=data_shape, pixel_size=pixel_size, latency=latency, duration=duration)
         self._generator = generator
 
     @property
@@ -44,24 +40,15 @@ class Generator(Detector):
         """The duration for which the generator simulates the data acquisition."""
         return self._duration
 
-    @duration.setter
+    @Device.duration.setter
     def duration(self, value: Quantity[u.ms]):
         self._duration = value
 
-    @property
-    def latency(self) -> Quantity[u.ms]:
-        """The simulated delay before data acquisition begins."""
-        return self._latency
-
-    @latency.setter
+    @Device.latency.setter
     def latency(self, value: Quantity[u.ms]):
         self._latency = value.to(u.ms)
 
-    @property
-    def pixel_size(self) -> Quantity:
-        return self._pixel_size
-
-    @pixel_size.setter
+    @Detector.pixel_size.setter
     def pixel_size(self, value):
         self._pixel_size = Quantity(value)
 
@@ -374,7 +361,7 @@ class MockXYStage(Actuator):
             step_size_x (Quantity[u.um]): The step size in the x-direction.
             step_size_y (Quantity[u.um]): The step size in the y-direction.
         """
-        super().__init__()
+        super().__init__(duration=0 * u.ms, latency=0 * u.ms)
         self.step_size_x = step_size_x.to(u.um)
         self.step_size_y = step_size_y.to(u.um)
         self._y = 0.0 * u.um
@@ -399,10 +386,6 @@ class MockXYStage(Actuator):
     def home(self):
         self._x = 0.0 * u.um
         self._y = 0.0 * u.um
-
-    @property
-    def duration(self) -> Quantity[u.ms]:
-        return 0.0 * u.ms
 
 
 class MockSLMField(Processor):
@@ -559,7 +542,7 @@ class MockSLM(PhaseSLM, Actuator):
             refresh_rate: Simulated refresh rate. Affects the timing of the `update` method,
                 since this will wait until the next vertical retrace. Keep at 0 to disable this feature.
             """
-        super().__init__()
+        super().__init__(latency=latency, duration=duration)
         self.refresh_rate = refresh_rate
         # Simulates transferring frames to the SLM
         self._hardware_timing = _MockSLMTiming(shape, update_latency, update_duration)

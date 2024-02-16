@@ -56,7 +56,7 @@ class ScanningMicroscope(Detector):
 
     # LaserScanner(input=("ai/8", -1.0 * u.V, 1.0 * u.V))
     def __init__(self,
-                 data_shape: Sequence[int],
+                 data_shape: tuple[int],
                  input: tuple[str, Quantity[u.V], Quantity[u.V]],  # noqa
                  axis0: tuple[str, Quantity[u.V], Quantity[u.V]],
                  axis1: tuple[str, Quantity[u.V], Quantity[u.V]],
@@ -117,7 +117,6 @@ class ScanningMicroscope(Detector):
         self._resized = True  # indicate that the output signals need to be recomputed
         self._binning = binning
         self._original_data_shape = data_shape
-        self._data_shape = data_shape
 
         # Scan settings
         self._delay = float(delay)
@@ -133,7 +132,10 @@ class ScanningMicroscope(Detector):
         self._simulation = simulation
 
         self._original_pixel_size = ((self._out_v_max - self._out_v_min) * self._scale / data_shape).to(u.um)
-        super().__init__()
+
+        # the pixel size and duration are computed dynamically
+        # data_shape just returns self._data shape, and latency = 0.0 ms
+        super().__init__(data_shape=data_shape, pixel_size=None, duration=None, latency=0.0 * u.ms)
         self._update()
 
     def _update(self):
@@ -262,10 +264,6 @@ class ScanningMicroscope(Detector):
                 f"Invalid simulation option {self._simulation}. Should be 'horizontal', 'vertical', or 'None'")
 
         return self._raw_to_cropped(raw)
-
-    @property
-    def data_shape(self):
-        return self._data_shape
 
     @property
     def pixel_size(self) -> Quantity:
