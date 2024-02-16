@@ -58,6 +58,7 @@ def test_mock_detector(pixel_size):
 
 @pytest.mark.parametrize("duration", [0.0 * u.s, 0.5 * u.s])
 def test_timing_detector(caplog, duration):
+    # note: this test will fail if multithreading is disabled
     caplog.set_level(logging.DEBUG)
     image0 = np.zeros((4, 5))
     image1 = np.ones((4, 5))

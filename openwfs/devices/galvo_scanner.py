@@ -247,7 +247,7 @@ class ScanningMicroscope(Detector):
 
         return cropped
 
-    def _fetch(self, out: Optional[np.ndarray]) -> np.ndarray:  # noqa
+    def _fetch(self) -> np.ndarray:  # noqa
         """Reads the acquired data from the input task."""
         if self._simulation is None:
             raw = self._read_task.in_stream.read()
@@ -261,14 +261,7 @@ class ScanningMicroscope(Detector):
             raise ValueError(
                 f"Invalid simulation option {self._simulation}. Should be 'horizontal', 'vertical', or 'None'")
 
-        cropped = self._raw_to_cropped(raw)
-
-        if out is not None:
-            out[...] = cropped
-        else:
-            out = cropped
-
-        return out
+        return self._raw_to_cropped(raw)
 
     @property
     def data_shape(self):

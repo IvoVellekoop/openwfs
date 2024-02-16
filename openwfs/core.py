@@ -440,9 +440,11 @@ class Detector(Device, ABC):
             awaited_kwargs = {key: (arg.result() if isinstance(arg, Future) else arg) for (key, arg) in
                               kwargs_.items()}
             logging.debug("fetching data of %s ((tid: %i)).", self, threading.get_ident())
-            data = self._fetch(out_, *awaited_args, **awaited_kwargs)
+            data = self._fetch(*awaited_args, **awaited_kwargs)
             data = set_pixel_size(data, self.pixel_size)
             assert data.shape == self.data_shape
+            if out_ is not None:
+                out_[...] = data  # store data in the location specified during trigger
             return data
         except Exception as e:
             # if we are storing the result in an `out` array,
@@ -460,15 +462,10 @@ class Detector(Device, ABC):
         pass
 
     @abstractmethod
-    def _fetch(self, out: Optional[np.ndarray], *args, **kwargs) -> np.ndarray:
+    def _fetch(self, *args, **kwargs) -> np.ndarray:
         """Read the data from the detector
 
         Args:
-            out(ndarray) numpy array or view of an array that will receive the data
-                when present, the data will be stored in `out`, and `out` is returned.
-                Otherwise, a new array is returned.
-                Can also be used with views.
-                For example, `trigger(out = data[i, ...])`
             The args and kwargs are passed from the call to trigger()
         Note:
             After reading the data, the Detector attaches the pixel_size metadata.

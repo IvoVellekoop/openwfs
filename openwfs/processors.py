@@ -160,7 +160,7 @@ class MultipleRoi(Processor):
         self._source = source
         super().__init__(source)
 
-    def _fetch(self, out: Optional[np.ndarray], image: np.ndarray) -> np.ndarray:  # noqa
+    def _fetch(self, image: np.ndarray) -> np.ndarray:  # noqa
         """
         Fetches and processes the data for each ROI from the image.
 
@@ -169,21 +169,16 @@ class MultipleRoi(Processor):
         the possible area of the image, a ValueError is raised.
 
         Args:
-            out (Optional[np.ndarray]): Optional output array to store the processed data.
             image (np.ndarray): The source image data.
 
         Returns:
             np.ndarray: Array containing the processed data for each ROI.
         """
-        if out is None:
-            out = np.empty(self.data_shape)
 
         def apply_mask(mask: Roi):
             return mask.apply(image)
 
-        out[...] = np.vectorize(apply_mask)(self._rois)
-
-        return out
+        return np.vectorize(apply_mask)(self._rois)
 
     @property
     def data_shape(self):
@@ -259,11 +254,9 @@ class CropProcessor(Processor):
     def data_shape(self, value):
         self._data_shape = tuple(np.array(value, ndmin=1))
 
-    def _fetch(self, out: Optional[np.ndarray], image: np.ndarray) -> np.ndarray:  # noqa
+    def _fetch(self, image: np.ndarray) -> np.ndarray:  # noqa
         """
         Args:
-            out(ndarray) optional numpy array or view of an array that will receive the data
-                when present, the data will be stored in `out`, and `out` is returned.
             image (ndarray): source image
 
         Returns: the out array containing the cropped image.
@@ -283,11 +276,7 @@ class CropProcessor(Processor):
         else:
             dst = src
 
-        if out is None:
-            out = dst
-        else:
-            out[...] = dst
-        return out
+        return dst
 
 
 def select_roi(source: Detector, mask_type: MaskType):
@@ -370,7 +359,7 @@ class TransformProcessor(Processor):
         else:
             return super().pixel_size
 
-    def _fetch(self, out: Optional[np.ndarray], source: np.ndarray) -> np.ndarray:  # noqa
+    def _fetch(self, source: np.ndarray) -> np.ndarray:  # noqa
         """
         Args:
             out(ndarray) optional numpy array or view of an array that will receive the data
@@ -378,6 +367,7 @@ class TransformProcessor(Processor):
             source (Detector): A Detector object as described in openwfs.core.Detector
 
         Returns: ndarray that has been transformed
+        TODO: Fix and add test, or remove
         """
-        return project(source, source, transform=self.transform, out=out, out_shape=self.data_shape,
+        return project(source, source, transform=self.transform, out_shape=self.data_shape,
                        out_extent=self.extent)

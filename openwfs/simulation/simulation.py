@@ -44,7 +44,7 @@ class SimulatedWFS(Processor):
         self.E_input_slm *= 1 / np.linalg.norm(self.E_input_slm.ravel())
         super().__init__(self.slm.get_monitor('field'))
 
-    def _fetch(self, out: Optional[np.ndarray], slm_fields):  # noqa
+    def _fetch(self, slm_fields):  # noqa
         """
         Computes the intensity in the focus by applying phase corrections to the input electric field.
 
@@ -64,10 +64,7 @@ class SimulatedWFS(Processor):
 
         """
         field = np.tensordot(slm_fields, self.E_input_slm, 2)
-        intensity = np.abs(field) ** 2
-        if out is not None:
-            out[...] = intensity
-        return intensity
+        return np.abs(field) ** 2
 
     @property
     def data_shape(self):

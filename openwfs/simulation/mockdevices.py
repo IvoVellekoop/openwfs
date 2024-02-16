@@ -73,20 +73,17 @@ class Generator(Detector):
     def data_shape(self, value):
         self._data_shape = value
 
-    def _fetch(self, out: Optional[np.ndarray]) -> np.ndarray:  # noqa
+    def _fetch(self) -> np.ndarray:  # noqa
         latency_s = self.latency.to_value(u.s)
         if latency_s > 0.0:
             time.sleep(latency_s)
 
-        if out is None:
-            out = self._generator(self.data_shape)
-        else:
-            out[...] = self._generator(self.data_shape)
+        data = self._generator(self.data_shape)
 
         duration_s = self.duration.to_value(u.s)
         if duration_s > 0.0:
             time.sleep(duration_s)
-        return out
+        return data
 
     @staticmethod
     def uniform_noise(*args, low=0.0, high=1.0, **kwargs):
@@ -207,8 +204,9 @@ class ADCProcessor(Processor):
         self.digital_max = digital_max  # check value
         self._signal_multiplier = 1  # Signal multiplier. Can e.g. be used to turn off the virtual laser
 
-    def _fetch(self, out: Optional[np.ndarray], data) -> np.ndarray:  # noqa
+    def _fetch(self, data) -> np.ndarray:  # noqa
         """Clips the data to the range of the ADC, and digitizes the values."""
+        # TODO: gaussian noise should be added after shot noise
         # Add gaussian noise if requested
         if self._gaussian_noise_std > 0.0:
             dtype = data.dtype
@@ -225,17 +223,9 @@ class ADCProcessor(Processor):
             data = np.clip(data * (self.digital_max / self.analog_max), 0, self.digital_max)
 
         if self._shot_noise:
-            if out is None:
-                out = np.random.poisson(data)
-            else:
-                out[...] = np.random.poisson(data)
+            return np.random.poisson(data)
         else:
-            if out is None:
-                out = np.rint(data).astype('uint16')
-            else:
-                out[...] = np.rint(data).astype('uint16')
-
-        return out
+            return np.rint(data).astype('uint16')
 
     @property
     def analog_max(self) -> Optional[float]:
@@ -430,17 +420,12 @@ class MockSLMField(Processor):
         self.modulated_field_amplitude = field_amplitude
         self.non_modulated_field = non_modulated_field_fraction
 
-    def _fetch(self, out: Optional[np.ndarray], slm_phases: np.ndarray) -> np.ndarray:  # noqa
+    def _fetch(self, slm_phases: np.ndarray) -> np.ndarray:  # noqa
         """
         Updates the complex field output of the SLM. The output field is the sum of the modulated field and the
         non-modulated field.
         """
-        fields = self.modulated_field_amplitude * (np.exp(1j * slm_phases) + self.non_modulated_field)
-        if out is None:
-            out = fields
-        else:
-            out[...] = fields
-        return out
+        return self.modulated_field_amplitude * (np.exp(1j * slm_phases) + self.non_modulated_field)
 
 
 class _MockSLMTiming(Generator):
@@ -533,16 +518,11 @@ class _MockSLMPhaseResponse(Processor):
         super().__init__(source)
         self.phase_response = phase_response
 
-    def _fetch(self, out: Optional[np.ndarray], grey_values: np.ndarray) -> np.ndarray:  # noqa
+    def _fetch(self, grey_values: np.ndarray) -> np.ndarray:  # noqa
         if self.phase_response is None:
-            phases = grey_values * (2 * np.pi / 256)
+            return grey_values * (2 * np.pi / 256)
         else:
-            phases = self.phase_response[np.rint(grey_values).astype(np.uint8)]
-        if out is None:
-            out = phases
-        else:
-            out[...] = phases
-        return out
+            return self.phase_response[np.rint(grey_values).astype(np.uint8)]
 
 
 class MockSLM(PhaseSLM, Actuator):

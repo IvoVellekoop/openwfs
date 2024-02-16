@@ -225,8 +225,8 @@ def test_measure_modulated_light_noise_free(
     # Perfect SLM, noise-free
     aberrations = np.random.uniform(0.0, 2 * np.pi, (20, 20))
     sim = SimulatedWFS(aberrations)
-    sim.slm.field.read().modulated_field_amplitude = modulated_field_amplitude
-    sim.slm.field.read().non_modulated_field = non_modulated_field
+    sim.slm.modulated_field_amplitude = modulated_field_amplitude
+    sim.slm.non_modulated_field = non_modulated_field
 
     # Measure the amount of modulated light (no non-modulated light present)
     fidelity_modulated = measure_modulated_light(slm=sim.slm, feedback=sim, phase_steps=phase_steps)

@@ -122,17 +122,14 @@ class Camera(Detector):
         """
         return _CameraPause(self._camera)
 
-    def _fetch(self, out: Optional[np.ndarray], *args, **kwargs) -> np.ndarray:
+    def _fetch(self, *args, **kwargs) -> np.ndarray:
         buffer = self._camera.fetch()
         frame = buffer.payload.components[0].data.reshape(self.data_shape)
         if frame.size == 0:
             raise Exception('Camera returned an empty frame')
-        if out is not None:
-            np.copyto(out, frame)
-        else:
-            out = frame.copy()
-        buffer.queue()
-        return out
+        data = frame.copy()
+        buffer.queue()  # give back buffer to the camera driver
+        return data
 
     @property
     def duration(self) -> Quantity[u.ms]:

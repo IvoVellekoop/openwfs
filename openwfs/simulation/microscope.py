@@ -109,7 +109,7 @@ class Microscope(Processor):
         self.z_stage = z_stage  # or MockStage()
         self._psf = None
 
-    def _fetch(self, out: Optional[np.ndarray], source: np.ndarray, aberrations: np.ndarray,  # noqa
+    def _fetch(self, source: np.ndarray, aberrations: np.ndarray,  # noqa
                slm_field: np.ndarray) -> np.ndarray:
         """
         Updates the image on the camera sensor
@@ -201,13 +201,7 @@ class Microscope(Processor):
         psf = np.fft.ifftshift(psf) / np.sum(psf)
         self._psf = psf  # store psf for later inspection
 
-        source = fftconvolve(source, psf, 'same')
-
-        if out is None:
-            out = source
-        else:
-            out[...] = source
-        return out
+        return fftconvolve(source, psf, 'same')
 
     @property
     def magnification(self) -> float:
