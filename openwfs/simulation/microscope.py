@@ -25,10 +25,8 @@ class Microscope(Processor):
     with which the source image is convolved.
 
     Finally, the resulting image is mapped to the camera using a magnification factor, or affine transformation matrix.
-    The camera object
-
-
-    Here, the SLM image and the aberrations are
+    The propagation is normalized such that the a pupil fully filled with a field strength of 1.0 will produce an image
+    that has the same total intensity as the source image.
 
     TODO: It can be used with an actual OpenGL-based SLM object, so it also can be used to test the advanced functionality provided by that object.
     TODO: The configuration that is simulated where an SLM is conjugated to the back pupil of a microscope objective.
@@ -177,6 +175,7 @@ class Microscope(Processor):
         # Compute the field in the pupil plane
         # The aberrations and the SLM phase pattern are both mapped to the pupil plane coordinates
         pupil_field = patterns.disk(pupil_shape, radius=self.numerical_aperture, extent=pupil_extent)
+        pupil_area = np.sum(pupil_field)  # TODO (efficiency): compute area directly from radius
 
         # Project aberrations
         if aberrations is not None:
@@ -199,7 +198,7 @@ class Microscope(Processor):
         # the pixel size matches that of the source (the specimen image).
         # Note: there is no need to `ifftshift` the pupil field, since we are taking the absolute value anyway
         psf = np.abs(np.fft.ifft2(pupil_field)) ** 2
-        psf = np.fft.ifftshift(psf) / np.sum(psf)
+        psf = np.fft.ifftshift(psf) * (psf.size / pupil_area)
         self._psf = psf  # store psf for later inspection
 
         return fftconvolve(source, psf, 'same')

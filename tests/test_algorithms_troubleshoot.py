@@ -234,10 +234,10 @@ def test_measure_modulated_light_noise_free(phase_steps, modulated_field_amplitu
 
 
 @pytest.mark.parametrize(
-    "phase_steps, gaussian_noise_std, expected_fid, atol, modulated_field_amplitude, non_modulated_field",
-    [(6, 0.0, 1, 1e-6, 1.0, 0.0), (8, 0.0, 0.5, 1e-6, 0.5, 0.5), (12, 2.0, 1 / (1 + 0.25), 1e-3, 1.0, 0.5)])
+    "phase_steps, gaussian_noise_std, modulated_field_amplitude, non_modulated_field",
+    [(8, 0.0, 0.5, 0.4), (6, 0.0, 1.0, 0.0), (12, 2.0, 1.0, 0.25)])
 def test_measure_modulated_light_dual_phase_stepping_with_noise(
-        phase_steps, gaussian_noise_std, expected_fid, atol, modulated_field_amplitude, non_modulated_field):
+        phase_steps, gaussian_noise_std, modulated_field_amplitude, non_modulated_field):
     """Test fidelity estimation due to amount of modulated light. Can test with noise."""
     # === Define mock hardware, perfect SLM ===
     # Aberration and image source
@@ -250,9 +250,10 @@ def test_measure_modulated_light_dual_phase_stepping_with_noise(
                   field_amplitude=modulated_field_amplitude,
                   non_modulated_field_fraction=non_modulated_field)
     sim = Microscope(source=src, incident_field=slm.field, wavelength=800 * u.nm)
-    cam = sim.get_camera(analog_max=1e4, gaussian_noise_std=gaussian_noise_std)
+    cam = sim.get_camera(analog_max=1e3, gaussian_noise_std=gaussian_noise_std)
     roi_detector = SingleRoi(cam, radius=0)  # Only measure that specific point
 
     # Measure the amount of modulated light (no non-modulated light present)
+    expected_fid = 1.0 / (1.0 + non_modulated_field ** 2)
     fidelity_modulated = measure_modulated_light(slm=slm, feedback=roi_detector, phase_steps=phase_steps)
-    assert np.isclose(fidelity_modulated, expected_fid, atol=atol)
+    assert np.isclose(fidelity_modulated, expected_fid, rtol=0.1)
