@@ -5,13 +5,12 @@ build:
   tools:
     python: "3.10"
 
-python:
-  install:
-    - requirements: docs/requirements.txt
-    - method: pip
-      path: .
-      extra_requirements:
-        - docs
+  jobs:
+    post_create_environment:
+      - pip install poetry
+      - poetry config virtualenvs.create false
+    post_install:
+      - poetry install --with docs
 
 sphinx:
   configuration: docs/source/conf.py

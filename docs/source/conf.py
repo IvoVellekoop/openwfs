@@ -21,6 +21,7 @@ author = 'Ivo Vellekoop and Jeroen Doornbos'
 release = '0.1.0a1'
 add_module_names = False
 autodoc_preserve_defaults = True
+autodoc_mock_imports = ["PyOpenGL"]
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

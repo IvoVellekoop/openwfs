@@ -32,5 +32,15 @@ PyOpenGL = ">=3.1.7"
 nidaqmx = ">=0.8.0"
 harvesters = "~1.4.2"
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.dev.dependencies]
 pytest = "~7.0.0"
+
+[tool.poetry.docs]
+optional = true
+
+[tool.poetry.docs.dependencies]
+sphinx = ">=4.1.2"
+sphinx_mdinclude = ">= 0.5.0"
+sphinx-rtd-theme = ">= 2.0.0"
+sphinx_autodoc_typehints = ">= 1.11.0"
+
