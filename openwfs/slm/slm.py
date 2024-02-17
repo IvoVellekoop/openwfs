@@ -245,7 +245,8 @@ class SLM(Actuator, PhaseSLM):
         """Constructs a new window and associated OpenGL context. Called by SLM.__init__()"""
         # Try to re-use an already existing OpenGL context, so that we can share textures and shaders between
         # SLM objects.
-        shared = next((slm._window for slm in SLM._active_slms), None)
+        shared = next((slm._window for slm in SLM._active_slms),
+                      None)  # noqa - ok to access private attribute becaus slm is a SLM object
         monitor = glfw.get_monitors()[self._monitor_id - 1] if self._monitor_id != SLM.WINDOWED else None
 
         glfw.window_hint(glfw.REFRESH_RATE, int(self._refresh_rate))

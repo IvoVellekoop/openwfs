@@ -287,8 +287,28 @@ class Detector(Device, ABC):
     """
     __slots__ = ('_measurements_pending', '_lock_condition', '_pixel_size', '_data_shape')
 
-    def __init__(self, *, data_shape: Tuple[int, ...], pixel_size: Quantity[u.ms], duration: Quantity[u.ms],
-                 latency: Quantity[u.ms], multi_threaded: bool = True):
+    def __init__(self, *, data_shape: Tuple[int, ...], pixel_size: Optional[Quantity],
+                 duration: Optional[Quantity[u.ms]], latency: Quantity[u.ms], multi_threaded: bool = True):
+        """
+        Constructor for the Detector class.
+
+        Args:
+            data_shape:  The shape of the data array that `read()` will return. When None is passed,
+                the subclass should override the `data_shape` property to return the actual shape.
+            pixel_size:  The pixel size (in astropy length units). None if the pixels do not have a size.
+                Subclassed can override the `pixel_size` property to return the actual pixel size.
+            duration: The maximum amount of time that elapses between returning from `trigger()`
+                and the end of the measurement. If the duration of an operation is not known in advance,
+                (e.g., when waiting for a hardware trigger), this value should be `np.inf * u.ms`
+                and the `busy` method should be overridden to return `False` when the measurement is finished.
+                If None is passed, the subclass should override the `duration` property to return the actual duration.
+            latency: The minimum amount of time between sending a command or trigger to the device
+                and the moment the device starts responding. If None is passed, the subclass should override
+                the `latency` property to return the actual latency.
+            multi_threaded: If True, `_fetch` is called from a worker thread. Otherwise, `_fetch` is called
+                directly from `trigger`. If the device is not thread-safe, or threading provides no benefit,
+                or for easy debugging, set this to False.
+        """
         super().__init__(duration=duration, latency=latency)
         self._measurements_pending = 0
         self._lock_condition = threading.Condition()

@@ -57,7 +57,7 @@ class ScanningMicroscope(Detector):
 
     # LaserScanner(input=("ai/8", -1.0 * u.V, 1.0 * u.V))
     def __init__(self,
-                 data_shape: tuple[int],
+                 data_shape: tuple[int, ...],
                  input: tuple[str, Quantity[u.V], Quantity[u.V]],  # noqa
                  axis0: tuple[str, Quantity[u.V], Quantity[u.V]],
                  axis1: tuple[str, Quantity[u.V], Quantity[u.V]],
