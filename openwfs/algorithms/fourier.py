@@ -186,6 +186,6 @@ class FourierBase:
                          t_f=t_f_full,
                          n=left.n + right.n,
                          axis=2,
-                         noise_factor=weighted_average(left.noise_factor, right.noise_factor),
-                         amplitude_factor=weighted_average(left.amplitude_factor, right.amplitude_factor),
-                         calibration_fidelity=weighted_average(left.calibration_fidelity, right.calibration_fidelity))
+                         fidelity_noise=weighted_average(left.fidelity_noise, right.fidelity_noise),
+                         fidelity_amplitude=weighted_average(left.fidelity_amplitude, right.fidelity_amplitude),
+                         fidelity_calibration=weighted_average(left.fidelity_calibration, right.fidelity_calibration))

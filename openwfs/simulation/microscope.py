@@ -32,8 +32,6 @@ class Microscope(Processor):
 
     TODO: It can be used with an actual OpenGL-based SLM object, so it also can be used
         to test the advanced functionality provided by that object.
-    TODO: The configuration that is simulated where an SLM is conjugated to
-        the back pupil of a microscope objective.
     All aberrations are considered to occur in the plane of that pupil.
 
     Attributes:
@@ -44,6 +42,7 @@ class Microscope(Processor):
             Used to compute the diffraction limit and the effect of aberrations.
         xy_stage:
         z_stage:
+
     """
 
     def __init__(self, source: Union[Detector, np.ndarray], *, data_shape=None,

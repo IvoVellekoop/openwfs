@@ -15,10 +15,10 @@ class WFSResult:
             i.e., the rows of the transmission matrix (`b` indices).
         axis (int): Number of dimensions used for denoting a single column of the transmission matrix
             (e.g., 2 dimensions representing the x and y coordinates of the SLM pixels).
-        noise_factor (ndarray): The estimated loss in fidelity caused by the limited SNR (for each target).
-        amplitude_factor (ndarray): Estimated reduction of the fidelity due to phase-only modulation (for each target)
+        fidelity_noise (ndarray): The estimated loss in fidelity caused by the limited SNR (for each target).
+        fidelity_amplitude (ndarray): Estimated reduction of the fidelity due to phase-only modulation (for each target)
             (≈ π/4 for fully developed speckle).
-        calibration_fidelity (ndarray): Estimated deviation from a sinusoid response (TODO: experimental, untested).
+        fidelity_calibration (ndarray): Estimated deviation from a sinusoid response (TODO: experimental, untested).
         n (int): Total number of segments used in the optimization. When missing, this value is set to the number of
             elements in the first `axis` dimensions of `t`.
         estimated_optimized_intensity (ndarray): When missing, estimated intensity in the target(s) after displaying the
@@ -31,9 +31,9 @@ class WFSResult:
                  t: np.ndarray,
                  t_f: np.ndarray,
                  axis: int,
-                 noise_factor: ArrayLike,
-                 amplitude_factor: ArrayLike,
-                 calibration_fidelity: ArrayLike,
+                 fidelity_noise: ArrayLike,
+                 fidelity_amplitude: ArrayLike,
+                 fidelity_calibration: ArrayLike,
                  n: Optional[int] = None,
                  intensity_offset: Optional[ArrayLike] = 0.0):
         """
@@ -42,12 +42,12 @@ class WFSResult:
             axis(int):
                 number of dimensions used for denoting a single columns of the transmission matrix
                 (e.g. 2 dimensions representing the x and y coordinates of the SLM pixels)
-            noise_factor(ArrayLike):
+            fidelity_noise(ArrayLike):
                 the estimated loss in fidelity caused by the the limited snr (for each target).
-            amplitude_factor(ArrayLike):
+            fidelity_amplitude(ArrayLike):
                 estimated reduction of the fidelity due to phase-only modulation (for each target)
                 (≈ π/4 for fully developed speckle)
-            calibration_fidelity(ArrayLike):
+            fidelity_calibration(ArrayLike):
                 estimated deviation from a sinusoid responds (TODO: experimental, untested)
             n(Optional[int]): total number of segments used in the optimization.
                 when missing, this value is set to the number of elements in the first `axis` dimensions of `t`.
@@ -60,28 +60,28 @@ class WFSResult:
         self.t = t
         self.t_f = t_f
         self.axis = axis
-        self.noise_factor = np.atleast_1d(noise_factor)
+        self.fidelity_noise = np.atleast_1d(fidelity_noise)
         self.n = np.prod(t.shape[0:axis]) if n is None else n
-        self.amplitude_factor = np.atleast_1d(amplitude_factor)
-        self.estimated_enhancement = np.atleast_1d(1.0 + (self.n - 1) * self.amplitude_factor * self.noise_factor)
-        self.calibration_fidelity = np.atleast_1d(calibration_fidelity)
-        self.intensity_offset = intensity_offset * np.ones(self.calibration_fidelity.shape) if np.isscalar(
+        self.fidelity_amplitude = np.atleast_1d(fidelity_amplitude)
+        self.estimated_enhancement = np.atleast_1d(1.0 + (self.n - 1) * self.fidelity_amplitude * self.fidelity_noise)
+        self.fidelity_calibration = np.atleast_1d(fidelity_calibration)
+        self.intensity_offset = intensity_offset * np.ones(self.fidelity_calibration.shape) if np.isscalar(
             intensity_offset) \
             else intensity_offset
-        after = np.sum(np.abs(t), tuple(range(self.axis))) ** 2 * self.noise_factor + intensity_offset
+        after = np.sum(np.abs(t), tuple(range(self.axis))) ** 2 * self.fidelity_noise + intensity_offset
         self.estimated_optimized_intensity = np.atleast_1d(after)
 
     def __str__(self) -> str:
-        noise_warning = "OK" if self.noise_factor > 0.5 else "WARNING low signal quality."
-        amplitude_warning = "OK" if self.amplitude_factor > 0.5 else "WARNING uneven contribution of optical modes."
-        calibration_fidelity_warning = "OK" if self.calibration_fidelity > 0.5 else (
+        noise_warning = "OK" if self.fidelity_noise > 0.5 else "WARNING low signal quality."
+        amplitude_warning = "OK" if self.fidelity_amplitude > 0.5 else "WARNING uneven contribution of optical modes."
+        calibration_fidelity_warning = "OK" if self.fidelity_calibration > 0.5 else (
             "WARNING non-linear phase response, check "
             "lookup table.")
         return f"""
         Wavefront shaping results:
-            noise_factor: {self.noise_factor} {noise_warning}
-            amplitude_factor: {self.amplitude_factor} {amplitude_warning}
-            calibration_fidelity: {self.calibration_fidelity} {calibration_fidelity_warning}
+            noise_factor: {self.fidelity_noise} {noise_warning}
+            amplitude_factor: {self.fidelity_amplitude} {amplitude_warning}
+            calibration_fidelity: {self.fidelity_calibration} {calibration_fidelity_warning}
             estimated_enhancement: {self.estimated_enhancement}
             estimated_optimized_intensity: {self.estimated_optimized_intensity}
             """
@@ -100,9 +100,9 @@ class WFSResult:
                          t_f=self.t_f.reshape((*self.t_f.shape[0:2], -1))[:, :, b],
                          axis=self.axis,
                          intensity_offset=self.intensity_offset[:][b],
-                         noise_factor=self.noise_factor[:][b],
-                         amplitude_factor=self.amplitude_factor[:][b],
-                         calibration_fidelity=self.calibration_fidelity[:][b],
+                         fidelity_noise=self.fidelity_noise[:][b],
+                         fidelity_amplitude=self.fidelity_amplitude[:][b],
+                         fidelity_calibration=self.fidelity_calibration[:][b],
                          n=self.n,
                          )
 
@@ -195,8 +195,8 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int, A: Optional[floa
 
     calibration_fidelity = np.abs(c[1]) ** 2 / np.sum(np.abs(c[1:]) ** 2)
 
-    return WFSResult(t, t_f=t_f, axis=axis, amplitude_factor=amplitude_factor, noise_factor=noise_factor,
-                     calibration_fidelity=calibration_fidelity, n=n)
+    return WFSResult(t, t_f=t_f, axis=axis, fidelity_amplitude=amplitude_factor, fidelity_noise=noise_factor,
+                     fidelity_calibration=calibration_fidelity, n=n)
 
 
 class WFSController:
@@ -258,12 +258,12 @@ class WFSController:
                 # select only the wavefront and statistics for the first target
                 result = self.algorithm.execute().select_target(0)
                 self._optimized_wavefront = -np.angle(result.t)
-                self._noise_factor = result.noise_factor
-                self._amplitude_factor = result.amplitude_factor
+                self._noise_factor = result.fidelity_noise
+                self._amplitude_factor = result.fidelity_amplitude
                 self._estimated_enhancement = result.estimated_enhancement
-                self._calibration_fidelity = result.calibration_fidelity
+                self._calibration_fidelity = result.fidelity_calibration
                 self._estimated_optimized_intensity = result.estimated_optimized_intensity
-                self._snr = 1.0 / (1.0 / result.noise_factor - 1.0)
+                self._snr = 1.0 / (1.0 / result.fidelity_noise - 1.0)
                 self._result = result
             self.algorithm.slm.set_phases(self._optimized_wavefront)
 

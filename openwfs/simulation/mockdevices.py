@@ -128,34 +128,29 @@ class ADCProcessor(Processor):
         self._digital_max = None
         self._shot_noise = None
         self._gaussian_noise_std = None
+        self._rng = np.random.default_rng()
         self.gaussian_noise_std = gaussian_noise_std
         self.shot_noise = shot_noise
         self.analog_max = analog_max  # check value
         self.digital_max = digital_max  # check value
-        self._signal_multiplier = 1  # Signal multiplier. Can e.g. be used to turn off the virtual laser
 
     def _fetch(self, data) -> np.ndarray:  # noqa
         """Clips the data to the range of the ADC, and digitizes the values."""
-        # TODO: gaussian noise should be added after shot noise
-        # Add gaussian noise if requested
+
+        if self.analog_max == 0.0:  # auto scaling
+            max_value = np.max(data)
+            if max_value > 0.0:
+                data = data * (self.digital_max / max_value)  # auto-scale to maximum value
+        else:
+            data = data * (self.digital_max / self.analog_max)
+
+        if self.shot_noise:
+            data = self._rng.poisson(data)
+
         if self._gaussian_noise_std > 0.0:
-            dtype = data.dtype
-            rng = np.random.default_rng()
-            gaussian_noise = self._gaussian_noise_std * rng.standard_normal(size=data.shape)
-            data = (self._signal_multiplier * data.astype('float64') + gaussian_noise).clip(0, self.digital_max).astype(
-                dtype)
+            data = data + self._rng.normal(scale=self._gaussian_noise_std, size=data.shape)
 
-        if self.analog_max == 0.0:
-            max = np.max(data)
-            if max > 0.0:
-                data = data * (self.digital_max / np.max(data))  # auto-scale to maximum value
-        else:
-            data = np.clip(data * (self.digital_max / self.analog_max), 0, self.digital_max)
-
-        if self._shot_noise:
-            return np.random.poisson(data)
-        else:
-            return np.rint(data).astype('uint16')
+        return np.clip(np.rint(data), 0, self.digital_max).astype('uint16')
 
     @property
     def analog_max(self) -> Optional[float]:
@@ -203,14 +198,6 @@ class ADCProcessor(Processor):
     @gaussian_noise_std.setter
     def gaussian_noise_std(self, value: int):
         self._gaussian_noise_std = value
-
-    def laser_block(self):
-        """Simulate blocking of the light source by setting signal multiplier to 0."""
-        self._signal_multiplier = 0
-
-    def laser_unblock(self):
-        """Simulate blocking of the light source by setting signal multiplier to 1."""
-        self._signal_multiplier = 1
 
 
 class Camera(ADCProcessor):
@@ -570,6 +557,7 @@ class SLM(PhaseSLM, Actuator):
         The monitor object acts as a camera, that can be used like any camera in the framework.
         Args:
             monitor_type (str): Type of the monitor. May be:
+
             - 'phase': returns the simulated phase that is currently on the SLM.
                This takes into account the simulated settle time and latency, refresh rate, lookup table
                and phase response.

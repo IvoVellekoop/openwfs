@@ -37,6 +37,7 @@ class SLM(Actuator, PhaseSLM):
     of the patch is False), or added to the phase values of the previous patch (when `additive_blend` is True).
 
     This way, a large range of use cases is enabled, including:
+
     - Drawing a single square patch with a single texture (the default).
     - Mapping the phase values to a disk, with an effective resolution depending on the distance to the center
       of the disk (see `geometry.disk`).

@@ -62,7 +62,7 @@ def test_ssa_noise(n_y, n_x):
     sim = ADCProcessor(sim_no_noise, analog_max=scale * 200.0, digital_max=10000, shot_noise=True)
     alg = StepwiseSequential(feedback=sim, slm=slm, n_x=n_x, n_y=n_y, phase_steps=10)
     result = alg.execute()
-    print(result.noise_factor)
+    print(result.fidelity_noise)
 
     assert_enhancement(slm, sim, result)
 

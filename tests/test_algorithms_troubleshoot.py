@@ -109,18 +109,18 @@ def test_fidelity_phase_calibration_ssa_noise_free(n_y, n_x, phase_steps, b, c, 
     sim = SimulatedWFS(aberrations)
     alg = StepwiseSequential(feedback=sim, slm=sim.slm, n_x=n_x, n_y=n_y, phase_steps=phase_steps)
     result = alg.execute()
-    assert result.calibration_fidelity > 0.99
+    assert result.fidelity_calibration > 0.99
 
     # SLM with incorrect phase response, noise-free
     linear_phase = np.arange(0, 2 * np.pi, 2 * np.pi / 256)
     sim.slm.phase_response = phase_response_test_function(linear_phase, b, c, gamma)
     result = alg.execute()
-    assert result.calibration_fidelity < 0.9
+    assert result.fidelity_calibration < 0.9
 
     # SLM calibrated with phase response corrected by LUT, noise-free
     sim.slm.lookup_table = lookup_table_test_function(linear_phase, b, c, gamma)
     result = alg.execute()
-    assert result.calibration_fidelity > 0.99
+    assert result.fidelity_calibration > 0.99
 
 
 @pytest.mark.parametrize("n_y, n_x, phase_steps, gaussian_noise_std", [(4, 4, 10, 0.2), (6, 6, 12, 1.0)])
@@ -148,13 +148,13 @@ def test_fidelity_phase_calibration_ssa_with_noise(n_y, n_x, phase_steps, gaussi
     # Define and run WFS algorithm
     alg = StepwiseSequential(feedback=roi_detector, slm=slm, n_x=n_x, n_y=n_y, phase_steps=phase_steps)
     result_good = alg.execute()
-    assert result_good.calibration_fidelity > 0.9
+    assert result_good.fidelity_calibration > 0.9
 
     # SLM with incorrect phase response
     linear_phase = np.arange(0, 2 * np.pi, 2 * np.pi / 256)
     slm.phase_response = phase_response_test_function(linear_phase, b=0.05, c=0.6, gamma=1.5)
     result_good = alg.execute()
-    assert result_good.calibration_fidelity < 0.9
+    assert result_good.fidelity_calibration < 0.9
 
 
 @pytest.mark.parametrize("num_blocks, phase_steps, expected_fid, atol", [(10, 8, 1, 1e-6)])
