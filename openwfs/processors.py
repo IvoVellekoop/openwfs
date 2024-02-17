@@ -104,9 +104,16 @@ class Roi:
         self._mask_type = value
         self._mask = None  # need to re-compute mask
 
-    def apply(self, image: np.ndarray):
+    def apply(self, image: np.ndarray, order: float = 1.0):
         """
-        Applies the mask to the frame data
+        Applies the mask to the frame data by computing the weighted average.
+        Optionally, the image data can be raised to a power before the mask is applied.
+        This is useful for simulating multi-photon excitation, or for computing
+        weighted contrast over the mask.
+
+        Args:
+            image (np.ndarray): The source image data.
+            order (float): The order of the mask. Default is 1.0.
         """
 
         # if any of the variables changed, we need to re-compute the mask
@@ -137,6 +144,9 @@ class Roi:
             raise ValueError(
                 f"ROI is larger than the possible area. ROI shape: {self._mask.shape}, "
                 + f"Cropped image shape: {image_cropped.shape}")
+
+        if order != 1.0:
+            image_cropped = np.power(image_cropped, order)
 
         return np.sum(image_cropped * self._mask) / self._mask_sum
 
