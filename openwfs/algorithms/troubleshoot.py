@@ -20,9 +20,12 @@ def signal_std(signal_with_noise: np.ndarray, noise: np.ndarray) -> np.float64:
             ND array containing only noise.
 
     Returns:
-        Standard deviation of the signal, corrected for the variance due to given noise.
+        Standard deviation of the signal, corrected for the variance due to given noise. If the noise variance
+        is greater than the signal_with_noise variance, the output will be 0.
     """
     signal_var = signal_with_noise.var() - noise.var()
+    if signal_var < 0:
+        signal_var = 0
     return np.sqrt(signal_var)
 
 
@@ -269,14 +272,16 @@ class WFSTroubleshootResult:
 
     def __init__(self):
         # Fidelity and WFS metrics
+        self.number_of_modes = None
         self.fidelity_non_modulated = None
         self.fidelity_phase_calibration = None
+        self.expected_enhancement = None
 
         # WFS
         self.wfs_result = None
-        self.feedback_after = None
+        self.average_background = None
         self.feedback_before = None
-        self.enhancement = None
+        self.measured_enhancement = None
 
         # Frame metrics
         self.frame_signal_std_before = None
@@ -308,27 +313,59 @@ class WFSTroubleshootResult:
         print(f'\n===========================')
         print(f'{time.ctime(self.timestamp)}\n')
         print(f'=== Feedback metrics ===')
+        print(f'number of modes (N): {self.number_of_modes:.3f}')
         print(f'fidelity_amplitude: {self.wfs_result.fidelity_amplitude.squeeze():.3f}')
         print(f'fidelity_noise: {self.wfs_result.fidelity_noise.squeeze():.3f}')
         print(f'fidelity_non_modulated: {self.fidelity_non_modulated:.3f}')
         print(f'fidelity_phase_calibration: {self.wfs_result.fidelity_calibration.squeeze():.3f}')
-        print(f'enhancement: {self.enhancement:.3f}')
+        print(f'expected enhancement: {self.expected_enhancement:.3f}')
+        print(f'measured enhancement: {self.measured_enhancement:.3f}')
         print(f'')
         print(f'=== Frame metrics ===')
-        print(f'signal std (σ), before: {self.frame_signal_std_before:.3f}')
-        print(f'signal std (σ), after: {self.frame_signal_std_after:.3f}')
-        print(f'signal std (σ), with shaped wavefront: {self.frame_signal_std_shaped_wf:.3f}')
-        print(f'Contrast to Noise Ratio before: {self.frame_cnr_before:.3f}')
-        print(f'Contrast to Noise Ratio after: {self.frame_cnr_after:.3f}')
-        print(f'Contrast to Noise Ratio with shaped wavefront: {self.frame_cnr_shaped_wf:.3f}')
-        print(f'Contrast enhancement (η_σ): {self.frame_contrast_enhancement:.3f}')
-        print(f'Photobleaching ratio: {self.frame_photobleaching_ratio:.3f}')
+        print(f'signal std, before: {self.frame_signal_std_before:.2f}')
+        print(f'signal std, after: {self.frame_signal_std_after:.2f}')
+        print(f'signal std, with shaped wavefront: {self.frame_signal_std_shaped_wf:.2f}')
+        if self.dark_frame is not None:
+            print(f'average signal offset: {self.dark_frame.mean():.2f}')
+        print(f'contrast to Noise Ratio before: {self.frame_cnr_before:.3f}')
+        print(f'contrast to Noise Ratio after: {self.frame_cnr_after:.3f}')
+        print(f'contrast to Noise Ratio with shaped wavefront: {self.frame_cnr_shaped_wf:.3f}')
+        print(f'contrast enhancement: {self.frame_contrast_enhancement:.3f}')
+        print(f'photobleaching ratio: {self.frame_photobleaching_ratio:.3f}')
 
         if do_plots and self.stability is not None:
             self.stability.plot()
 
+        if do_plots and self.dark_frame is not None and self.after_frame is not None and self.shaped_wf_frame is not None:
+            max_value = max(self.after_frame.max(), self.shaped_wf_frame.max())
 
-def troubleshoot(algorithm, frame_source: Detector, shutter,
+            # Plot dark frame
+            plt.figure()
+            plt.imshow(self.dark_frame, vmin=0, vmax=max_value)
+            plt.title('Dark frame')
+            plt.colorbar()
+            plt.xlabel('x (pix)')
+            plt.ylabel('y (pix)')
+            plt.figure()
+
+            # Plot after frame with flat wf
+            plt.imshow(self.after_frame, vmin=0, vmax=max_value)
+            plt.title('Frame with flat wavefront')
+            plt.colorbar()
+            plt.xlabel('x (pix)')
+            plt.ylabel('y (pix)')
+
+            # Plot shaped wf frame
+            plt.figure()
+            plt.imshow(self.shaped_wf_frame, vmin=0, vmax=max_value)
+            plt.title('Frame with shaped wavefront')
+            plt.colorbar()
+            plt.xlabel('x (pix)')
+            plt.ylabel('y (pix)')
+            plt.show()
+
+
+def troubleshoot(algorithm, background_feedback: Detector, frame_source: Detector, shutter,
                  do_frame_capture=True, do_stability_test=True,
                  stability_sleep_time_s=0.5,
                  stability_num_of_frames=500,
@@ -376,7 +413,7 @@ def troubleshoot(algorithm, frame_source: Detector, shutter,
 
     # Flat wavefront
     algorithm.slm.set_phases(0.0)
-    trouble.feedback_after = algorithm.feedback.read()
+    trouble.average_background = background_feedback.read()
 
     if do_frame_capture:
         logging.info('Capturing frames after WFS...')
@@ -386,7 +423,7 @@ def troubleshoot(algorithm, frame_source: Detector, shutter,
     algorithm.slm.set_phases(-np.angle(trouble.wfs_result.t))
     trouble.feedback_shaped_wf = algorithm.feedback.read()
 
-    trouble.enhancement = trouble.feedback_shaped_wf / trouble.feedback_after
+    trouble.measured_enhancement = trouble.feedback_shaped_wf / trouble.average_background
 
     if do_frame_capture:
         trouble.shaped_wf_frame = frame_source.read()  # Shaped wavefront frame
@@ -415,6 +452,12 @@ def troubleshoot(algorithm, frame_source: Detector, shutter,
             sleep_time_s=stability_sleep_time_s,
             num_of_frames=stability_num_of_frames,
             dark_frame=trouble.dark_frame)
+
+    trouble.number_of_modes = trouble.wfs_result.t.size
+
+    trouble.expected_enhancement = np.squeeze(
+        trouble.number_of_modes * trouble.wfs_result.fidelity_amplitude * trouble.wfs_result.fidelity_noise
+        * trouble.fidelity_non_modulated * trouble.wfs_result.fidelity_calibration)
 
     # Analyze the WFS result
     logging.info('Analyze WFS result...')

@@ -10,32 +10,37 @@ from openwfs.utilities import set_pixel_size
 # with real-device classes to run a real WFS experiment
 
 # Define aberration as a pattern of random phases at the pupil plane
-aberrations = np.random.uniform(size=(100, 100)) * 2 * np.pi
+aberrations = np.random.uniform(size=(40, 40)) * 2 * np.pi
 
 # Define specimen as an image with several bright pixels
 specimen = np.zeros((120, 120))
-specimen[60, (60, 70, 80, 90, 100, 110)] = 1000
+specimen[60, 60] = 1e4
 specimen = set_pixel_size(specimen, pixel_size=200 * u.nm)
 
 # Simulate an SLM with incorrect phase response
 # Also simulate a shutter that can turn off the light
 # The SLM is conjugated to the back pupil plane
-slm = SLM(shape=(100, 100), phase_response=(np.arange(256) / 128 * np.pi) ** 1.2)
+slm = SLM(shape=(100, 100),
+          phase_response=(np.arange(256) / 128 * np.pi) * 1.4)
 shutter = Shutter(slm.field)
 
 # Simulate a WFS microscope looking at the specimen
 sim = Microscope(source=specimen, incident_field=shutter, aberrations=aberrations, wavelength=800 * u.nm)
 
-# Simulate a camera device. Also simulate shot noise
-cam = sim.get_camera(shot_noise=True)
+# Simulate a camera device with gaussian noise and shot noise
+cam = sim.get_camera(analog_max=1e4, shot_noise=True, gaussian_noise_std=0.4)
 
-# Define the feedback as a circular region of interest in the center of the camera frame
-roi_detector = SingleRoi(cam, radius=1)
+# Define feedback as circular region of interest in the center of the frame
+roi_detector = SingleRoi(cam, radius=0.1)
 
 # === Run wavefront shaping experiment ===
 # Use the stepwise sequential (SSA) WFS algorithm
-alg = StepwiseSequential(feedback=roi_detector, slm=slm, n_x=10, n_y=10, phase_steps=8)
+alg = StepwiseSequential(feedback=roi_detector, slm=slm, n_x=10, n_y=10, phase_steps=16)
+
+# Define a region of interest to determine background intensity
+roi_background = SingleRoi(cam, radius=8)
 
 # Run WFS troubleshooter and output a report to the console
-trouble = troubleshoot(algorithm=alg, frame_source=cam, shutter=shutter, do_stability_test=False)
+trouble = troubleshoot(algorithm=alg, background_feedback=roi_background,
+                       frame_source=cam, shutter=shutter, do_stability_test=False)
 trouble.report()
