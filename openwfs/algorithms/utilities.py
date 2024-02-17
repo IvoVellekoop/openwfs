@@ -63,12 +63,14 @@ class WFSResult:
         self.fidelity_noise = np.atleast_1d(fidelity_noise)
         self.n = np.prod(t.shape[0:axis]) if n is None else n
         self.fidelity_amplitude = np.atleast_1d(fidelity_amplitude)
-        self.estimated_enhancement = np.atleast_1d(1.0 + (self.n - 1) * self.fidelity_amplitude * self.fidelity_noise)
         self.fidelity_calibration = np.atleast_1d(fidelity_calibration)
+        self.estimated_enhancement = np.atleast_1d(
+            1.0 + (self.n - 1) * self.fidelity_amplitude * self.fidelity_noise * self.fidelity_calibration)
         self.intensity_offset = intensity_offset * np.ones(self.fidelity_calibration.shape) if np.isscalar(
             intensity_offset) \
             else intensity_offset
-        after = np.sum(np.abs(t), tuple(range(self.axis))) ** 2 * self.fidelity_noise + intensity_offset
+        after = np.sum(np.abs(t), tuple(
+            range(self.axis))) ** 2 * self.fidelity_noise * self.fidelity_calibration + intensity_offset
         self.estimated_optimized_intensity = np.atleast_1d(after)
 
     def __str__(self) -> str:
@@ -79,9 +81,9 @@ class WFSResult:
             "lookup table.")
         return f"""
         Wavefront shaping results:
-            noise_factor: {self.fidelity_noise} {noise_warning}
-            amplitude_factor: {self.fidelity_amplitude} {amplitude_warning}
-            calibration_fidelity: {self.fidelity_calibration} {calibration_fidelity_warning}
+            fidelity_noise: {self.fidelity_noise} {noise_warning}
+            fidelity_amplitude: {self.fidelity_amplitude} {amplitude_warning}
+            fidelity_calibration: {self.fidelity_calibration} {calibration_fidelity_warning}
             estimated_enhancement: {self.estimated_enhancement}
             estimated_optimized_intensity: {self.estimated_optimized_intensity}
             """
@@ -173,21 +175,22 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int, A: Optional[floa
     ff_inv = np.linalg.pinv(ff)
     c = np.zeros(phase_steps, np.complex128)
 
-    reconstructed_signal = 0
+    signal_energy = 0
     for k in range(1, phase_steps):
-        c[k] = (ff_inv @ np.take(t_f, k, axis=axis).ravel())[0]
-        reconstructed_signal = reconstructed_signal + c[k] * ff[:, 0]
+        cc = ff_inv @ np.take(t_f, k, axis=axis).ravel()
+        signal_energy = signal_energy + np.sum(np.abs(ff @ cc) ** 2)
+        c[k] = cc[0]
 
     # Estimate the error due to noise
     # The signal consists of the response with incorrect modulation,
     # (which occurs twice, ideally in the +1 and -1 components of the Fourier transform),
+    # but this factor of two is already included in the 'signal_energy' calculation.
     # an offset, and the rest is noise.
-    signal_energy = np.sum(np.abs(reconstructed_signal) ** 2)
     offset_energy = np.sum(np.take(t_f, 0, axis=axis) ** 2)
     total_energy = np.sum(np.abs(t_f) ** 2)
 
     if phase_steps > 3:
-        noise_energy = (total_energy - 2.0 * signal_energy - offset_energy) / (phase_steps - 3)
+        noise_energy = (total_energy - signal_energy - offset_energy) / (phase_steps - 3)
         noise_factor = np.abs(np.maximum(signal_energy - noise_energy, 0.0) / signal_energy)
     else:
         noise_factor = 1.0  # cannot estimate reliably
