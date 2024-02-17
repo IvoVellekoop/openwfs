@@ -1,3 +1,5 @@
+import weakref
+
 import numpy as np
 from numpy.typing import ArrayLike
 import glfw
@@ -7,7 +9,7 @@ from astropy.units import Quantity
 from weakref import WeakSet
 import astropy.units as u
 
-from ..simulation.mockdevices import PhaseToField
+from ..simulation import PhaseToField
 
 try:
     import OpenGL.GL as GL
@@ -247,10 +249,8 @@ class SLM(Actuator, PhaseSLM):
         """Constructs a new window and associated OpenGL context. Called by SLM.__init__()"""
         # Try to re-use an already existing OpenGL context, so that we can share textures and shaders between
         # SLM objects.
-        # TODO: this is currently broken, perhaps due to the non-predictable way the weak refs are collected??
-        # other_slm = next(iter(SLM._active_slms), None)
-        # shared = other_slm._window if other_slm is not None else None
-        shared = None
+        other_slm = next(iter(SLM._active_slms), None)
+        shared = other_slm._window if other_slm is not None else None
         monitor = glfw.get_monitors()[self._monitor_id - 1] if self._monitor_id != SLM.WINDOWED else None
 
         glfw.window_hint(glfw.REFRESH_RATE, int(self._refresh_rate))
@@ -544,15 +544,20 @@ class SLM(Actuator, PhaseSLM):
 
 class FrontBufferReader(Detector):
     def __init__(self, slm):
-        self._slm = slm
-        super().__init__(data_shape=slm.shape, pixel_size=None, duration=0.0 * u.ms, latency=0.0 * u.ms,
+        self._slm = weakref.ref(slm)
+        super().__init__(data_shape=None, pixel_size=None, duration=0.0 * u.ms, latency=0.0 * u.ms,
                          multi_threaded=False)
 
+    @property
+    def data_shape(self):
+        return self._slm().shape
+
     def _fetch(self, *args, **kwargs) -> np.ndarray:
-        self._slm.activate()
+        self._slm().activate()
         glReadBuffer(GL.GL_FRONT)
-        data = np.empty(self._slm.shape, dtype='uint8')
-        glReadPixels(0, 0, self._slm.shape[1], self._slm.shape[0], GL.GL_RED, GL.GL_UNSIGNED_BYTE, data)
+        shape = self.data_shape
+        data = np.empty(shape, dtype='uint8')
+        glReadPixels(0, 0, shape[1], shape[0], GL.GL_RED, GL.GL_UNSIGNED_BYTE, data)
         # flip data upside down, because the OpenGL convention is to have the origin at the bottom left,
         # but we want it at the top left (like in numpy)
         return data[::-1, :]
@@ -560,11 +565,15 @@ class FrontBufferReader(Detector):
 
 class FrameBufferReader(Detector):
     def __init__(self, slm, framebuffer):
-        self._slm = slm
+        self._slm = weakref.ref(slm)
         self._frame_buffer = framebuffer
-        super().__init__(data_shape=slm.shape, pixel_size=None, duration=0.0 * u.ms, latency=0.0 * u.ms,
+        super().__init__(data_shape=None, pixel_size=None, duration=0.0 * u.ms, latency=0.0 * u.ms,
                          multi_threaded=False)
 
+    @property
+    def data_shape(self):
+        return self._slm().shape
+
     def _fetch(self, *args, **kwargs) -> np.ndarray:
-        self._slm.activate()
+        self._slm().activate()
         return self._frame_buffer.get_pixels()

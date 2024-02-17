@@ -1,7 +1,5 @@
 import numpy as np
-from typing import Optional
-from ..utilities.patterns import gaussian
-from .mockdevices import SLM, Processor
+from .slm import SLM, Processor
 
 
 class SimulatedWFS(Processor):

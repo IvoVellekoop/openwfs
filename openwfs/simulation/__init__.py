@@ -1,7 +1,9 @@
 from . import microscope
 from . import mockdevices
+from . import slm
+from . import transmission
 
 from .microscope import Microscope
-from .mockdevices import XYStage, StaticSource, Camera, SLM, ADCProcessor, Shutter
-from . import simulation
-from .simulation import SimulatedWFS
+from .mockdevices import XYStage, StaticSource, Camera, ADCProcessor, Shutter
+from .slm import SLM, PhaseToField
+from .transmission import SimulatedWFS
