@@ -21,14 +21,14 @@ specimen = set_pixel_size(specimen, pixel_size=200 * u.nm)
 # Also simulate a shutter that can turn off the light
 # The SLM is conjugated to the back pupil plane
 slm = SLM(shape=(100, 100),
-          phase_response=(np.arange(256) / 128 * np.pi) * 1.4)
+          phase_response=(np.arange(256) / 128 * np.pi) * 1.2)
 shutter = Shutter(slm.field)
 
 # Simulate a WFS microscope looking at the specimen
 sim = Microscope(source=specimen, incident_field=shutter, aberrations=aberrations, wavelength=800 * u.nm)
 
 # Simulate a camera device with gaussian noise and shot noise
-cam = sim.get_camera(analog_max=1e4, shot_noise=True, gaussian_noise_std=0.4)
+cam = sim.get_camera(analog_max=1e4, shot_noise=True, gaussian_noise_std=4.0)
 
 # Define feedback as circular region of interest in the center of the frame
 roi_detector = SingleRoi(cam, radius=0.1)
@@ -38,9 +38,9 @@ roi_detector = SingleRoi(cam, radius=0.1)
 alg = StepwiseSequential(feedback=roi_detector, slm=slm, n_x=10, n_y=10, phase_steps=16)
 
 # Define a region of interest to determine background intensity
-roi_background = SingleRoi(cam, radius=8)
+roi_background = SingleRoi(cam, radius=10)
 
 # Run WFS troubleshooter and output a report to the console
 trouble = troubleshoot(algorithm=alg, background_feedback=roi_background,
-                       frame_source=cam, shutter=shutter, do_stability_test=False)
+                       frame_source=cam, shutter=shutter)
 trouble.report()
