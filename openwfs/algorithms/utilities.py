@@ -18,7 +18,7 @@ class WFSResult:
         fidelity_noise (ndarray): The estimated loss in fidelity caused by the limited SNR (for each target).
         fidelity_amplitude (ndarray): Estimated reduction of the fidelity due to phase-only modulation (for each target)
             (≈ π/4 for fully developed speckle).
-        fidelity_calibration (ndarray): Estimated deviation from a sinusoid response (TODO: experimental, untested).
+        fidelity_calibration (ndarray): Estimated deviation from a sinusoid response.
         n (int): Total number of segments used in the optimization. When missing, this value is set to the number of
             elements in the first `axis` dimensions of `t`.
         estimated_optimized_intensity (ndarray): When missing, estimated intensity in the target(s) after displaying the
@@ -150,36 +150,17 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int, A: Optional[floa
     segments = tuple(range(axis))
 
     # Fourier transform the phase stepping measurements
-    t_f = np.fft.fft(measurements, axis=axis) / phase_steps
-
-    # the offset is the 0-th Fourier component
-    # the signal is the first Fourier component (lowest non-zero frequency)
-    # the -1 Fourier component is just the conjugate of the first Fourier component since the signal is real.
-    # all other components should be 0. If they are not, they are considered to be noise
-
-    I_f = np.sum(np.abs(t_f) ** 2, segments)  # total intensity per Fourier component per target
-    signal_energy = I_f[1, ...]
-    offset_energy = I_f[0, ...]
-    total_energy = np.sum(I_f, axis=0)
-    if phase_steps > 3:
-        noise_energy = (total_energy - 2.0 * signal_energy - offset_energy) / (phase_steps - 3)
-        noise_factor = np.maximum(signal_energy - noise_energy, 0.0) / signal_energy
-    else:
-        noise_factor = 1.0  # cannot estimate reliably
-
-    if phase_steps > 6 and (I_f[2, ...] + I_f[3, ...]) != 0.0:
-        calibration_fidelity = (I_f[2, ...] - I_f[3, ...]) / (I_f[2, ...] + I_f[3, ...])
-    else:
-        calibration_fidelity = 0.0  # cannot estimate reliably, or I_f[2] + I_f[3] == 0 (happens in simulation)
+    t_f_raw = np.fft.fft(measurements, axis=axis) / phase_steps
 
     if A is None:  # reference field strength not known: estimate from data
-        t_abs = np.abs(np.take(t_f, 1, axis=axis))
-        offset = np.take(t_f, 0, axis=axis)
+        t_abs = np.abs(np.take(t_f_raw, 1, axis=axis))
+        offset = np.take(t_f_raw, 0, axis=axis)
         a_plus_b = np.sqrt(offset + 2.0 * t_abs)
         a_minus_b = np.sqrt(offset - 2.0 * t_abs)
         A = 0.5 * np.mean(a_plus_b + a_minus_b)
 
-    t = np.take(t_f, 1, axis=axis) / A
+    t_f = t_f_raw / A
+    t = np.take(t_f, 1, axis=axis)
 
     # compute the effect of amplitude variations.
     # for perfectly developed speckle, and homogeneous illumination, this factor will be pi/4
@@ -188,10 +169,28 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int, A: Optional[floa
     # estimate the calibration error
     # we first construct a matrix that can be used to fit
     # parameters a and b such that a·t(:) + b·t^*(:) ≈ t_f(:, k, :)
-    M_inv = np.linalg.pinv(np.vstack((t.ravel(), np.conj(t.ravel()))).T)
+    ff = np.vstack((t.ravel(), np.conj(t.ravel()))).T
+    ff_inv = np.linalg.pinv(ff)
     c = np.zeros(phase_steps, np.complex128)
-    for k in range(phase_steps):
-        c[k] = (M_inv @ np.take(t_f, k, axis=axis).ravel())[0]
+
+    reconstructed_signal = 0
+    for k in range(1, phase_steps):
+        c[k] = (ff_inv @ np.take(t_f, k, axis=axis).ravel())[0]
+        reconstructed_signal = reconstructed_signal + c[k] * ff[:, 0]
+
+    # Estimate the error due to noise
+    # The signal consists of the response with incorrect modulation,
+    # (which occurs twice, ideally in the +1 and -1 components of the Fourier transform),
+    # an offset, and the rest is noise.
+    signal_energy = np.sum(np.abs(reconstructed_signal) ** 2)
+    offset_energy = np.sum(np.take(t_f, 0, axis=axis) ** 2)
+    total_energy = np.sum(np.abs(t_f) ** 2)
+
+    if phase_steps > 3:
+        noise_energy = (total_energy - 2.0 * signal_energy - offset_energy) / (phase_steps - 3)
+        noise_factor = np.maximum(signal_energy - noise_energy, 0.0) / signal_energy
+    else:
+        noise_factor = 1.0  # cannot estimate reliably
 
     calibration_fidelity = np.abs(c[1]) ** 2 / np.sum(np.abs(c[1:]) ** 2)
 
