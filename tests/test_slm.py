@@ -99,8 +99,8 @@ def test_transform(slm):
     slm.set_phases(2.0 * np.pi * pattern / 4.0)
 
     # check if the pattern is displayed correctly
-    pixels = slm.get_monitor('gray_value') / 64
-    phases = slm.get_monitor('phase') * 4 / (2 * np.pi)
+    pixels = slm.pixels.read() / 64
+    phases = slm.phases.read() * 4 / (2 * np.pi)
     assert np.allclose(pixels, phases)
     assert np.allclose(pixels[:25, :100], 1)
     assert np.allclose(pixels[25:, :100], 0)
@@ -111,11 +111,11 @@ def test_transform(slm):
     # SLM.
     # Then check if the pattern is displayed correctly
     slm.coordinate_system = 'short'  # does not trigger an update
-    assert np.all(slm.get_monitor('gray_value') / 64 == pixels)
+    assert np.all(slm.pixels.read() / 64 == pixels)
     slm.update()
 
-    pixels = slm.get_monitor('gray_value') / 64
-    phases = slm.get_monitor('phase') * 4 / (2 * np.pi)
+    pixels = slm.pixels.read() / 64
+    phases = slm.phases.read() * 4 / (2 * np.pi)
     assert np.allclose(pixels, phases)
     assert np.allclose(pixels[:, :50], 0)
     assert np.allclose(pixels[:, 150:], 0)
@@ -127,11 +127,11 @@ def test_transform(slm):
     # now change the transform to 'long' to fit the pattern to a centered square, with the width of the
     # SLM, causing part of the texture to be mapped outside the window.
     slm.coordinate_system = 'long'  # does not trigger an update
-    assert np.all(slm.get_monitor('gray_value') / 64 == pixels)
+    assert np.all(slm.pixels.read() / 64 == pixels)
     slm.update()
 
-    pixels = slm.get_monitor('gray_value') / 64
-    phases = slm.get_monitor('phase') * 4 / (2 * np.pi)
+    pixels = slm.pixels.read() / 64
+    phases = slm.phases.read() * 4 / (2 * np.pi)
     assert np.allclose(pixels, phases)
     assert np.allclose(pixels[:, :100], 0)
     assert np.allclose(pixels[:, 100:], 3)
@@ -141,8 +141,8 @@ def test_transform(slm):
     slm.transform = Transform.zoom(0.8)
     slm.update()
 
-    pixels = slm.get_monitor('gray_value') / 64
-    phases = slm.get_monitor('phase') * 4 / (2 * np.pi)
+    pixels = slm.pixels.read() / 64
+    phases = slm.phases.read() * 4 / (2 * np.pi)
     assert np.allclose(pixels, phases)
     sub = pixels[10:90, 60:140].copy()
     pixels[10:90, 60:140] = 0
@@ -181,12 +181,12 @@ def test_get_pixels():
     slm.coordinate_system = 'full'  # fill full screen exactly (anisotropic coordinates
     pattern = np.random.uniform(size=(height, width)) * 2 * np.pi
     slm.set_phases(pattern)
-    read_back = slm.get_monitor('gray_value')
+    read_back = slm.pixels.read()
     diff = pattern - read_back / 256 * 2 * np.pi
     diff[diff > np.pi] -= 2 * np.pi
     assert np.allclose(diff, 0, atol=2 * np.pi / 256)
 
-    read_back = slm.get_monitor('phase')
+    read_back = slm.phases.read()
     diff = pattern - read_back
     diff[diff > np.pi] -= 2 * np.pi
     assert np.allclose(diff, 0, atol=1e-6)
@@ -202,7 +202,7 @@ def test_lookup_table(slm):
     slm.set_phases(np.arange(256).reshape(1, 256) * 2 * np.pi / 256)
 
     # read back the pixels and verify conversion to gray values
-    pixels = slm.get_monitor('gray_value')
+    pixels = slm.pixels.read()
     assert np.allclose(pixels, np.arange(256))
 
     # set a lookup table that is a random permutation of the gray values
@@ -211,15 +211,15 @@ def test_lookup_table(slm):
     slm.lookup_table = lut
 
     # nothing changes until we call update
-    assert np.all(pixels == slm.get_monitor('gray_value'))
+    assert np.all(pixels == slm.pixels.read())
 
     slm.update()
-    pixels = slm.get_monitor('gray_value')
+    pixels = slm.pixels.read()
     assert np.allclose(pixels, lut)
 
     # test phase wrapping
     slm.set_phases(np.arange(256).reshape(1, 256) * 2 * np.pi / 256 + 2 * np.pi)
-    pixels_wrapped = slm.get_monitor('gray_value')
+    pixels_wrapped = slm.pixels.read()
     assert np.allclose(pixels, pixels_wrapped)
 
 
@@ -234,17 +234,17 @@ def test_multi_patch(slm):
     # with additive_blend, the patterns should be added and wrapped to 2 pi (256)
     slm.patches[1].additive_blend = True
     slm.update()
-    assert np.allclose(slm.get_monitor('gray_value'), (pattern1 + pattern2) % 256)
+    assert np.allclose(slm.pixels.read(), (pattern1 + pattern2) % 256)
 
     # without additive_blend, the second patch overwrites the pixels of the first one
     slm.patches[1].additive_blend = False
     slm.update()
-    assert np.allclose(slm.get_monitor('gray_value'), pattern2 % 256)
+    assert np.allclose(slm.pixels.read(), pattern2 % 256)
 
     # disable the second patch and check if the first one is still there
     slm.patches[1].enabled = False
     slm.update()
-    assert np.allclose(slm.get_monitor('gray_value'), pattern1 % 256)
+    assert np.allclose(slm.pixels.read(), pattern1 % 256)
 
 
 def test_circular_geometry(slm):
@@ -256,7 +256,7 @@ def test_circular_geometry(slm):
     slm.update()
 
     # read back the pixels and verify conversion to gray values
-    pixels = np.rint(slm.get_monitor('gray_value') / 256 * 70)
+    pixels = np.rint(slm.pixels.read() / 256 * 70)
     polar_pixels = cv2.warpPolar(pixels, (100, 40), (99.5, 99.5), 100, cv2.WARP_POLAR_LINEAR)
 
     assert np.allclose(polar_pixels[:, 3:24], np.repeat(np.flip(np.arange(0, 10)), 4).reshape((-1, 1)), atol=1)

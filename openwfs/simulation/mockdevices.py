@@ -318,8 +318,11 @@ class XYStage(Actuator):
         self._y = 0.0 * u.um
 
 
-class _SLMField(Processor):
-    """Computes the field reflected by a MockSLM."""
+class PhaseToField(Processor):
+    """Takes a phase as input and returns a field
+
+    Computes `amplitude * (exp(1j * phase) + non_modulated_field_fraction)`
+    """
 
     def __init__(self, slm_phases: Detector, field_amplitude: ArrayLike = 1.0,
                  non_modulated_field_fraction: float = 0.0):
@@ -480,8 +483,8 @@ class SLM(PhaseSLM, Actuator):
         self._hardware_timing = _SLMTiming(shape, update_latency, update_duration)
         self._hardware_phases = _SLMPhaseResponse(self._hardware_timing,
                                                   phase_response)  # Simulates reading the phase from the SLM
-        self._hardware_fields = _SLMField(self._hardware_phases, field_amplitude,
-                                          non_modulated_field_fraction)  # Simulates reading the field from the SLM
+        self._hardware_fields = PhaseToField(self._hardware_phases, field_amplitude,
+                                             non_modulated_field_fraction)  # Simulates reading the field from the SLM
         self._lookup_table = None  # index = input phase (scaled to -> [0, 255]), value = grey value
         self._first_update_ns = time.time_ns()
         self._back_buffer = np.zeros(shape, dtype=np.float32)

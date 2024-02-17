@@ -7,6 +7,8 @@ from astropy.units import Quantity
 from weakref import WeakSet
 import astropy.units as u
 
+from ..simulation.mockdevices import PhaseToField
+
 try:
     import OpenGL.GL as GL
     from OpenGL.GL import glViewport, glClearColor, glClear, glGenBuffers, glReadBuffer, glReadPixels, glFinish, \
@@ -14,7 +16,7 @@ try:
 except AttributeError:
     warnings.warn("OpenGL not found, SLM will not work")
 from .patch import FrameBufferPatch, Patch, VertexArray
-from ..core import PhaseSLM, Actuator, Device
+from ..core import PhaseSLM, Actuator, Device, Detector
 from ..utilities import Transform
 
 TimeType = Union[Quantity[u.ms], int]
@@ -55,7 +57,7 @@ class SLM(Actuator, PhaseSLM):
     """
     __slots__ = ['_vertex_array', '_frame_buffer', '_monitor_id', '_position', '_refresh_rate',
                  '_transform', '_shape', '_window', '_globals', '_frame_buffer', 'patches', 'primary_patch',
-                 '_coordinate_system']
+                 '_coordinate_system', '_pixel_reader', '_phase_reader', '_field_reader']
 
     _active_slms = WeakSet()
     """Keep track of all active SLMs. This is done for two reasons. First, to check if we are not putting two
@@ -201,7 +203,7 @@ class SLM(Actuator, PhaseSLM):
 
         (current_size, current_rate, current_bit_depth) = SLM._current_mode(self._monitor_id)
 
-        # verify bit depth is at least 8 bit
+        # verify that the bit depth is at least 8 bit
         if current_bit_depth < 8:
             warnings.warn(
                 f"Bit depth is less than 8 bits "
@@ -245,8 +247,10 @@ class SLM(Actuator, PhaseSLM):
         """Constructs a new window and associated OpenGL context. Called by SLM.__init__()"""
         # Try to re-use an already existing OpenGL context, so that we can share textures and shaders between
         # SLM objects.
-        shared = next((slm._window for slm in SLM._active_slms),
-                      None)  # noqa - ok to access private attribute becaus slm is a SLM object
+        # TODO: this is currently broken, perhaps due to the non-predictable way the weak refs are collected??
+        # other_slm = next(iter(SLM._active_slms), None)
+        # shared = other_slm._window if other_slm is not None else None
+        shared = None
         monitor = glfw.get_monitors()[self._monitor_id - 1] if self._monitor_id != SLM.WINDOWED else None
 
         glfw.window_hint(glfw.REFRESH_RATE, int(self._refresh_rate))
@@ -471,6 +475,9 @@ class SLM(Actuator, PhaseSLM):
         if not isinstance(value, Transform):
             raise ValueError("Transform must be a Transform object")
         self._transform = value
+        self._pixel_reader = None
+        self._phase_reader = None
+        self._field_reader = None
 
         # update matrix stored on the gpu
         if self._coordinate_system == 'full':
@@ -506,18 +513,58 @@ class SLM(Actuator, PhaseSLM):
     def set_phases(self, values: ArrayLike, update=True):
         self.primary_patch.set_phases(values, update)
 
-    def get_pixels(self, type='phase'):
-        """Read back the pixels currently displayed on the SLM."""
-        if type == 'gray_value':
-            self.activate()
-            glReadBuffer(GL.GL_FRONT)
-            data = np.empty(self.shape, dtype='uint8')
-            glReadPixels(0, 0, self._shape[1], self._shape[0], GL.GL_RED, GL.GL_UNSIGNED_BYTE, data)
+    @property
+    def pixels(self) -> Detector:
+        """Returns a 'camera' to monitor the current value of the pixels displayed on  the SLM."""
+        if self._pixel_reader is None:
+            self._pixel_reader = FrontBufferReader(self)
+        return self._pixel_reader
 
-            # flip data upside down, because the OpenGL convention is to have the origin at the bottom left,
-            # but we want it at the top left (like in numpy)
-            return data[::-1, :]
-        if type == 'phase':
-            return self._frame_buffer.get_pixels()
+    @property
+    def field(self) -> Detector:
+        """Returns a 'camera' to monitor the current field coming from the SLM.
 
-        raise ValueError(f"Unsupported pixel type {type}")
+        Returns:
+             a detector that returns `self.amplitude * exp(1.0j * self.phases.read()`
+        """
+        if self._field_reader is None:
+            self._field_reader = PhaseToField(self.phases)
+        return self._field_reader
+
+    @property
+    def phases(self) -> Detector:
+        """Returns an object to monitor the phase pattern last sent to the SLM.
+
+        This is the pattern before applying the lookup table.
+        """
+        if self._phase_reader is None:
+            self._phase_reader = FrameBufferReader(self, self._frame_buffer)
+        return self._phase_reader
+
+
+class FrontBufferReader(Detector):
+    def __init__(self, slm):
+        self._slm = slm
+        super().__init__(data_shape=slm.shape, pixel_size=None, duration=0.0 * u.ms, latency=0.0 * u.ms,
+                         multi_threaded=False)
+
+    def _fetch(self, *args, **kwargs) -> np.ndarray:
+        self._slm.activate()
+        glReadBuffer(GL.GL_FRONT)
+        data = np.empty(self._slm.shape, dtype='uint8')
+        glReadPixels(0, 0, self._slm.shape[1], self._slm.shape[0], GL.GL_RED, GL.GL_UNSIGNED_BYTE, data)
+        # flip data upside down, because the OpenGL convention is to have the origin at the bottom left,
+        # but we want it at the top left (like in numpy)
+        return data[::-1, :]
+
+
+class FrameBufferReader(Detector):
+    def __init__(self, slm, framebuffer):
+        self._slm = slm
+        self._frame_buffer = framebuffer
+        super().__init__(data_shape=slm.shape, pixel_size=None, duration=0.0 * u.ms, latency=0.0 * u.ms,
+                         multi_threaded=False)
+
+    def _fetch(self, *args, **kwargs) -> np.ndarray:
+        self._slm.activate()
+        return self._frame_buffer.get_pixels()

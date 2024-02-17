@@ -10,7 +10,7 @@ from scipy.signal import fftconvolve
 from ..core import Processor, Detector
 from ..plot_utilities import imshow  # noqa - for debugging
 from ..processors import TransformProcessor
-from ..simulation.mockdevices import XYStage, Camera, _SLMField, StaticSource
+from ..simulation.mockdevices import XYStage, Camera, StaticSource
 from ..utilities import project, place, Transform, get_pixel_size, patterns
 
 
@@ -73,7 +73,7 @@ class Microscope(Processor):
             z_stage (Stage): Optional stage object that moves the sample up and down to focus the microscope.
                 Higher values are further away from the microscope objective.
                 Defaults to a MockStage.
-            incident_field (_SLMField): Produces 2-d complex images containing the field output of the SLM.
+            incident_field: Produces 2-d complex images containing the field output of the SLM.
                 If no `slm_transform` is specified, the `pixel_size` attribute should
                  correspond to normalized pupil coordinates
                 (e.g. with a disk of radius 1.0, i.e. an extent of 2.0, corresponding to an NA of 1.0)
