@@ -188,7 +188,7 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int, A: Optional[floa
 
     if phase_steps > 3:
         noise_energy = (total_energy - 2.0 * signal_energy - offset_energy) / (phase_steps - 3)
-        noise_factor = np.maximum(signal_energy - noise_energy, 0.0) / signal_energy
+        noise_factor = np.abs(np.maximum(signal_energy - noise_energy, 0.0) / signal_energy)
     else:
         noise_factor = 1.0  # cannot estimate reliably
 

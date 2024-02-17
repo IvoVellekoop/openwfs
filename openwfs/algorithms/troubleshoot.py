@@ -272,7 +272,6 @@ class WFSTroubleshootResult:
 
     def __init__(self):
         # Fidelity and WFS metrics
-        self.number_of_modes = None
         self.fidelity_non_modulated = None
         self.fidelity_phase_calibration = None
         self.expected_enhancement = None
@@ -313,7 +312,7 @@ class WFSTroubleshootResult:
         print(f'\n===========================')
         print(f'{time.ctime(self.timestamp)}\n')
         print(f'=== Feedback metrics ===')
-        print(f'number of modes (N): {self.number_of_modes:.3f}')
+        print(f'number of modes (N): {self.wfs_result.n:.3f}')
         print(f'fidelity_amplitude: {self.wfs_result.fidelity_amplitude.squeeze():.3f}')
         print(f'fidelity_noise: {self.wfs_result.fidelity_noise.squeeze():.3f}')
         print(f'fidelity_non_modulated: {self.fidelity_non_modulated:.3f}')
@@ -327,9 +326,9 @@ class WFSTroubleshootResult:
         print(f'signal std, with shaped wavefront: {self.frame_signal_std_shaped_wf:.2f}')
         if self.dark_frame is not None:
             print(f'average signal offset: {self.dark_frame.mean():.2f}')
-        print(f'contrast to Noise Ratio before: {self.frame_cnr_before:.3f}')
-        print(f'contrast to Noise Ratio after: {self.frame_cnr_after:.3f}')
-        print(f'contrast to Noise Ratio with shaped wavefront: {self.frame_cnr_shaped_wf:.3f}')
+        print(f'contrast to noise ratio before: {self.frame_cnr_before:.3f}')
+        print(f'contrast to noise ratio after: {self.frame_cnr_after:.3f}')
+        print(f'contrast to noise ratio with shaped wavefront: {self.frame_cnr_shaped_wf:.3f}')
         print(f'contrast enhancement: {self.frame_contrast_enhancement:.3f}')
         print(f'photobleaching ratio: {self.frame_photobleaching_ratio:.3f}')
 
@@ -453,10 +452,8 @@ def troubleshoot(algorithm, background_feedback: Detector, frame_source: Detecto
             num_of_frames=stability_num_of_frames,
             dark_frame=trouble.dark_frame)
 
-    trouble.number_of_modes = trouble.wfs_result.t.size
-
     trouble.expected_enhancement = np.squeeze(
-        trouble.number_of_modes * trouble.wfs_result.fidelity_amplitude * trouble.wfs_result.fidelity_noise
+        trouble.wfs_result.n * trouble.wfs_result.fidelity_amplitude * trouble.wfs_result.fidelity_noise
         * trouble.fidelity_non_modulated * trouble.wfs_result.fidelity_calibration)
 
     # Analyze the WFS result
