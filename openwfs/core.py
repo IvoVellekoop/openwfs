@@ -127,7 +127,7 @@ class Device(ABC):
                 # detectors actually starts a measurement.
                 # If this is a positive number, we can make the switch to 'measuring' slightly _before_
                 # all actuators have stabilized.
-                latency = min((device.latency for device in same_type), default=0.0 * u.ns)
+                latency = min([device.latency for device in same_type], default=0.0 * u.ns)
 
                 # wait until all devices of the other type have (almost) finished
                 for device in other_type:
@@ -287,8 +287,8 @@ class Detector(Device, ABC):
     """
     __slots__ = ('_measurements_pending', '_lock_condition', '_pixel_size', '_data_shape')
 
-    def __init__(self, *, data_shape: Tuple[int, ...], pixel_size: Optional[Quantity],
-                 duration: Optional[Quantity[u.ms]], latency: Quantity[u.ms], multi_threaded: bool = True):
+    def __init__(self, *, data_shape: Optional[tuple[int, ...]], pixel_size: Optional[Quantity],
+                 duration: Optional[Quantity[u.ms]], latency: Optional[Quantity[u.ms]], multi_threaded: bool = True):
         """
         Constructor for the Detector class.
 
@@ -478,12 +478,13 @@ class Detector(Device, ABC):
     def coordinates(self, dim: int) -> Quantity:
         """Returns an array with the coordinate values along the d-th axis.
 
-        The coordinates represent the center of the pixels (or sample intervals
-        in case the detector returns a time signal).
-        Therefore, the coordinates range from `0.5 * pixel_size` to `(data_shape[d]-0.5) * pixel_size`.
-        Coordinates have the same astropy base unit as pixel_size.
-        The coordinates are returned as an array with the same number of dimensions as the returned data,
-        with the d-th dimension holding the coordinates.
+        The coordinates represent the _centers_ of the grid points. For example,
+        for an array of shape `(2,)` the coordinates are `[0.5, 1.5] * pixel_size`
+        and not `[0, 1] * pixel_size`. If `self.pixel_size is None`, a pixel size
+        of 1.0 is used.
+
+        The coordinates are returned as an array with the same number of
+        dimensions as `data_shape`, with the d-th dimension holding the coordinates.
         This facilitates meshgrid-like computations, e.g.
         `cam.coordinates(0) + cam.coordinates(1)` gives a 2-dimensional array of coordinates.
 
@@ -491,10 +492,9 @@ class Detector(Device, ABC):
             dim: Dimension for which to return the coordinates.
         """
         unit = u.dimensionless_unscaled if self.pixel_size is None else self.pixel_size[dim]
-        c = np.arange(0.5, 0.5 + self.data_shape[dim], 1.0) * unit
         shape = np.ones_like(self.data_shape)
         shape[dim] = self.data_shape[dim]
-        return c.reshape(shape)
+        return np.arange(0.5, 0.5 + self.data_shape[dim], 1.0).reshape(shape) * unit
 
     @final
     @property

@@ -89,7 +89,7 @@ def find_pixel_shift(f: np.ndarray, g: np.ndarray) -> tuple[np.intp, ...]:
     s = np.array(corr).shape  # Get shape
     index = np.unravel_index(np.argmax(corr), s)  # Find 2D indices of maximum
     # Correct negative pixel shifts
-    return (fftfreq(s[0], 1 / s[0])[index[0]], fftfreq(s[1], 1 / s[1])[index[1]])
+    return fftfreq(s[0], 1 / s[0])[index[0]], fftfreq(s[1], 1 / s[1])[index[1]]
 
 
 def field_correlation(a: np.ndarray, b: np.ndarray) -> float:

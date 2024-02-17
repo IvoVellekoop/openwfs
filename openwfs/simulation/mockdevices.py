@@ -573,7 +573,7 @@ class SLM(PhaseSLM, Actuator):
             return self.phases
         elif monitor_type == 'field':
             return self.field
-        elif monitor_type == 'pixel_value':
+        elif monitor_type == 'pixels':
             return self.pixels
         else:
             raise ValueError(f"Unknown monitor type: {monitor_type}")

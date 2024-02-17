@@ -60,7 +60,6 @@ class Patch(PhaseSLM):
 
     def draw(self):
         """Never call directly, this is called from slm.update()"""
-        # glBindBuffer(ogl.GL_ARRAY_BUFFER, self._vertices) # not needed because we are binding the vertex buffer already?
         if not self.enabled:
             return
 
