@@ -6,7 +6,7 @@ from ..openwfs.processors import SingleRoi
 from ..openwfs.simulation import SimulatedWFS, StaticSource, SLM, Microscope
 from ..openwfs.algorithms import StepwiseSequential
 from ..openwfs.algorithms.troubleshoot import cnr, signal_std, find_pixel_shift, \
-    field_correlation, frame_correlation, \
+    field_correlation, frame_correlation, pearson_correlation, \
     measure_modulated_light, measure_modulated_light_dual_phase_stepping
 from .test_simulation import phase_response_test_function, lookup_table_test_function
 
@@ -96,6 +96,31 @@ def test_frame_correlation():
 
     assert np.abs(frame_correlation(a, a) - 1 / 3) < 2e-3
     assert np.abs(frame_correlation(a, b)) < 2e-3
+
+
+def test_pearson_correlation():
+    """
+    Test the Pearson correlation.
+    """
+    # Perfect correlation
+    a = np.asarray((1, 2, 3))
+    b = np.asarray((2, 4, 6))
+    corr_ab_compute = pearson_correlation(a, b)
+    corr_minab_compute = pearson_correlation(-a, b)
+    assert np.isclose(corr_ab_compute, 1, atol=1e-6)
+    assert np.isclose(corr_minab_compute, -1, atol=1e-6)
+
+    # No correlation
+    c = np.asarray((1, 0, -1))
+    d = np.asarray((0, 2, 0))
+    corr_cd_compute = pearson_correlation(c, d)
+    assert np.isclose(corr_cd_compute, 0, atol=1e-6)
+
+    # Some correlation
+    e = np.asarray((4, -4, 2, -2))
+    f = np.asarray((2, -2, -1, 1))
+    corr_ef_compute = pearson_correlation(e, f)
+    assert np.isclose(corr_ef_compute, 0.6, atol=1e-6)
 
 
 @pytest.mark.parametrize("n_y, n_x, phase_steps, b, c, gamma",

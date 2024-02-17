@@ -122,6 +122,17 @@ def frame_correlation(a: np.ndarray, b: np.ndarray) -> float:
     return np.mean(a * b) / (np.mean(a) * np.mean(b)) - 1
 
 
+def pearson_correlation(a: np.ndarray, b: np.ndarray) -> float:
+    """
+    Compute Pearson correlation.
+
+    a, b: Real valued arrays.
+    """
+    a_dev = a - a.mean()
+    b_dev = b - b.mean()
+    return (a_dev * b_dev).mean() / np.sqrt((a_dev**2).mean() * (b_dev**2).mean())
+
+
 class StabilityResult:
     """
     Result of a stability measurement.
@@ -156,7 +167,7 @@ def measure_setup_stability(frame_source, sleep_time_s, num_of_frames, dark_fram
         time.sleep(sleep_time_s)
         new_frame = frame_source.read()
         pixel_shifts[n, :] = find_pixel_shift(first_frame, new_frame)
-        correlations[n] = frame_correlation(first_frame, new_frame)
+        correlations[n] = pearson_correlation(first_frame, new_frame)
         contrast_ratios[n] = contrast_enhancement(new_frame, first_frame, dark_frame)
         timestamps[n] = time.perf_counter()
 
@@ -274,6 +285,7 @@ class WFSTroubleshootResult:
         # Fidelity and WFS metrics
         self.fidelity_non_modulated = None
         self.fidelity_phase_calibration = None
+        self.fidelity_decorrelation = None
         self.expected_enhancement = None
 
         # WFS
@@ -317,6 +329,7 @@ class WFSTroubleshootResult:
         print(f'fidelity_noise: {self.wfs_result.fidelity_noise.squeeze():.3f}')
         print(f'fidelity_non_modulated: {self.fidelity_non_modulated:.3f}')
         print(f'fidelity_phase_calibration: {self.wfs_result.fidelity_calibration.squeeze():.3f}')
+        print(f'fidelity_decorrelation: {self.fidelity_decorrelation:.3f}')
         print(f'expected enhancement: {self.expected_enhancement:.3f}')
         print(f'measured enhancement: {self.measured_enhancement:.3f}')
         print(f'')
@@ -365,7 +378,7 @@ class WFSTroubleshootResult:
 
 
 def troubleshoot(algorithm, background_feedback: Detector, frame_source: Detector, shutter,
-                 do_frame_capture=True, do_stability_test=True,
+                 do_frame_capture=True, do_long_stability_test=False,
                  stability_sleep_time_s=0.5,
                  stability_num_of_frames=500,
                  measure_non_modulated_phase_steps=16) -> WFSTroubleshootResult:
@@ -380,7 +393,8 @@ def troubleshoot(algorithm, background_feedback: Detector, frame_source: Detecto
         shutter: Device object that can block/unblock light source.
         do_frame_capture: Boolean. If False, skip frame capture before and after running the WFS algorithm.
             Also skips computation of corresponding metrics. Also skips stability test.
-        do_stability_test: Boolean. If False, skip stability test.
+        do_long_stability_test: Boolean. If False, skip long stability test where many frames are captured over
+            a longer period of time.
         stability_sleep_time_s: Float. Sleep time in seconds in between capturing frames.
         stability_num_of_frames: Integer. Number of frames to take in the stability test.
 
@@ -437,13 +451,14 @@ def troubleshoot(algorithm, background_feedback: Detector, frame_source: Detecto
             contrast_enhancement(trouble.shaped_wf_frame, trouble.after_frame, trouble.dark_frame)
         trouble.frame_photobleaching_ratio = \
             contrast_enhancement(trouble.after_frame, trouble.before_frame, trouble.dark_frame)
+        trouble.fidelity_decorrelation = pearson_correlation(trouble.before_frame, trouble.after_frame)
 
     trouble.fidelity_non_modulated = \
         measure_modulated_light(slm=algorithm.slm, feedback=algorithm.feedback,
                                 phase_steps=measure_non_modulated_phase_steps)
 
-    if do_stability_test and do_frame_capture:
-        logging.info('Run stability test...')
+    if do_long_stability_test and do_frame_capture:
+        logging.info('Run long stability test...')
 
         # Test setup stability
         trouble.stability = measure_setup_stability(
@@ -454,7 +469,7 @@ def troubleshoot(algorithm, background_feedback: Detector, frame_source: Detecto
 
     trouble.expected_enhancement = np.squeeze(
         trouble.wfs_result.n * trouble.wfs_result.fidelity_amplitude * trouble.wfs_result.fidelity_noise
-        * trouble.fidelity_non_modulated * trouble.wfs_result.fidelity_calibration)
+        * trouble.fidelity_non_modulated * trouble.wfs_result.fidelity_calibration * trouble.fidelity_decorrelation)
 
     # Analyze the WFS result
     logging.info('Analyze WFS result...')
