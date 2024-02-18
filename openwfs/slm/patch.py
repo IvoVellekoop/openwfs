@@ -1,8 +1,9 @@
 import numpy as np
 from numpy.typing import ArrayLike
 from typing import Sequence
-import weakref
 import warnings
+
+from .context import Context
 
 try:
     import OpenGL.GL as GL
@@ -20,13 +21,12 @@ from .shaders import default_vertex_shader, default_fragment_shader, \
     post_process_fragment_shader, post_process_vertex_shader
 from .texture import Texture
 from ..core import PhaseSLM
-from .. import slm
 
 
 class Patch(PhaseSLM):
     _PHASES_TEXTURE = 0  # indices of the phases texture in the _texture array
 
-    def __init__(self, parent: 'slm.SLM', geometry=None, vertex_shader=default_vertex_shader,
+    def __init__(self, slm, geometry=None, vertex_shader=default_vertex_shader,
                  fragment_shader=default_fragment_shader):
         """
         Constructs a new patch (a shape) that can be drawn on the screen.
@@ -39,26 +39,27 @@ class Patch(PhaseSLM):
           - an existing Geometry object. It is possible to attach the same Geometry object to multiple patches.
             Note, however, that Geometry objects cannot be shared between different SLMs.
         """
-        parent.activate()  # make sure the opengl operations occur in the context of the specified slm window
         self._vertices = None
         self._indices = None
         self._index_count = 0
-        self._parent = weakref.ref(parent)  # keep weak reference to parent, to avoid cyclic references
-
-        # construct vertex shader, fragment shader and program
-        vs = shaders.compileShader(vertex_shader, GL.GL_VERTEX_SHADER)
-        fs = shaders.compileShader(fragment_shader, GL.GL_FRAGMENT_SHADER)
-        self._program = shaders.compileProgram(vs, fs)
-        self._textures = [Texture(parent)]
         self.additive_blend = True
         self.enabled = True
+        self.context = Context(slm)
+
+        # construct vertex shader, fragment shader and program
+        with self.context:
+            vs = shaders.compileShader(vertex_shader, GL.GL_VERTEX_SHADER)
+            fs = shaders.compileShader(fragment_shader, GL.GL_FRAGMENT_SHADER)
+            self._program = shaders.compileProgram(vs, fs)
+            self._textures = [Texture(self.context)]
+
         self.geometry = rectangle(2.0) if geometry is None else geometry
         super().__init__()
 
     def __del__(self):
         self._delete_buffers()
 
-    def draw(self):
+    def _draw(self):
         """Never call directly, this is called from slm.update()"""
         if not self.enabled:
             return
@@ -73,7 +74,8 @@ class Patch(PhaseSLM):
             glDisable(GL.GL_BLEND)
 
         for idx, texture in enumerate(self._textures):
-            texture.bind(idx)  # activate texture as texture unit idx
+            # activate texture as texture unit idx
+            texture._bind(idx)  # noqa: ok to use _bind in friend class
 
         # perform the actual drawing
         glBindBuffer(GL.GL_ELEMENT_ARRAY_BUFFER, self._indices)
@@ -91,15 +93,15 @@ class Patch(PhaseSLM):
         """
         self._textures[Patch._PHASES_TEXTURE].set_data(values)
         if update:
-            self._parent().update()
+            self.update()
 
     def update(self):
-        self._parent().update()
+        self.context.slm.update()
 
     def _delete_buffers(self):
-        if self._parent() is not None and self._vertices is not None:
-            self._parent().activate()
-            glDeleteBuffers(2, [self._vertices, self._indices])
+        with self.context as slm:
+            if slm:
+                glDeleteBuffers(2, [self._vertices, self._indices])
 
     @property
     def geometry(self):
@@ -115,14 +117,14 @@ class Patch(PhaseSLM):
             raise ValueError("Geometry should be a Geometry object")
 
         # store the data on the GPU
-        self._parent().activate()
-        self._geometry = value
-        (self._vertices, self._indices) = glGenBuffers(2)
-        self._index_count = value.indices.size
-        glBindBuffer(GL.GL_ARRAY_BUFFER, self._vertices)
-        glBufferData(GL.GL_ARRAY_BUFFER, value.vertices.size * 4, value.vertices, GL.GL_DYNAMIC_DRAW)
-        glBindBuffer(GL.GL_ELEMENT_ARRAY_BUFFER, self._indices)
-        glBufferData(GL.GL_ELEMENT_ARRAY_BUFFER, value.indices.size * 2, value.indices, GL.GL_DYNAMIC_DRAW)
+        with self.context:
+            self._geometry = value
+            (self._vertices, self._indices) = glGenBuffers(2)
+            self._index_count = value.indices.size
+            glBindBuffer(GL.GL_ARRAY_BUFFER, self._vertices)
+            glBufferData(GL.GL_ARRAY_BUFFER, value.vertices.size * 4, value.vertices, GL.GL_DYNAMIC_DRAW)
+            glBindBuffer(GL.GL_ELEMENT_ARRAY_BUFFER, self._indices)
+            glBufferData(GL.GL_ELEMENT_ARRAY_BUFFER, value.indices.size * 2, value.indices, GL.GL_DYNAMIC_DRAW)
 
 
 class FrameBufferPatch(Patch):
@@ -133,15 +135,15 @@ class FrameBufferPatch(Patch):
     _LUT_TEXTURE = 1
     _textures: list[Texture]
 
-    def __init__(self, window, lookup_table: Sequence[int]):
-        super().__init__(window, fragment_shader=post_process_fragment_shader,
+    def __init__(self, slm, lookup_table: Sequence[int]):
+        super().__init__(slm, fragment_shader=post_process_fragment_shader,
                          vertex_shader=post_process_vertex_shader)
         # Create a frame buffer object to render to. The frame buffer holds a texture that is the same size as the
         # window. All patches are first rendered to this texture. The texture
         # is then processed as a whole (applying the software lookup table) and displayed on the screen.
         self._frame_buffer = glGenFramebuffers(1)
 
-        self.set_phases(np.zeros(window.shape, dtype=np.float32), update=False)
+        self.set_phases(np.zeros(self.context.slm.shape, dtype=np.float32), update=False)
         glBindFramebuffer(GL.GL_FRAMEBUFFER, self._frame_buffer)
         glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_COLOR_ATTACHMENT0, GL.GL_TEXTURE_2D,
                                self._textures[Patch._PHASES_TEXTURE].handle, 0)
@@ -149,15 +151,15 @@ class FrameBufferPatch(Patch):
             raise Exception("Could not construct frame buffer")
         glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
 
-        self._textures.append(Texture(window, GL.GL_TEXTURE_1D))  # create texture for lookup table
+        self._textures.append(Texture(self.context, GL.GL_TEXTURE_1D))  # create texture for lookup table
         self._lookup_table = None
         self.lookup_table = lookup_table
         self.additive_blend = False
 
     def __del__(self):
-        if self._parent() is not None and hasattr(self, 'frame_buffer'):
-            self._parent().activate()
-            glDeleteFramebuffers(1, [self._frame_buffer])
+        with self.context as slm:
+            if slm:
+                glDeleteFramebuffers(1, [self._frame_buffer])
 
     @property
     def lookup_table(self):

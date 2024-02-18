@@ -1,5 +1,3 @@
-import weakref
-
 import numpy as np
 from numpy.typing import ArrayLike
 import glfw
@@ -8,7 +6,7 @@ from typing import Union, Optional, Sequence, List
 from astropy.units import Quantity
 from weakref import WeakSet
 import astropy.units as u
-
+from .context import Context
 from ..simulation import PhaseToField
 
 try:
@@ -59,7 +57,7 @@ class SLM(Actuator, PhaseSLM):
     """
     __slots__ = ['_vertex_array', '_frame_buffer', '_monitor_id', '_position', '_refresh_rate',
                  '_transform', '_shape', '_window', '_globals', '_frame_buffer', 'patches', 'primary_patch',
-                 '_coordinate_system', '_pixel_reader', '_phase_reader', '_field_reader']
+                 '_coordinate_system', '_pixel_reader', '_phase_reader', '_field_reader', '_context']
 
     _active_slms = WeakSet()
     """Keep track of all active SLMs. This is done for two reasons. First, to check if we are not putting two
@@ -113,7 +111,8 @@ class SLM(Actuator, PhaseSLM):
         self._window = None
         self._globals = -1
         self.patches = []
-        self._create_window()  # sets self._window and self._globals and self._frame_patch
+        self._context = None
+        self._create_window()  # sets self._context, self._window and self._globals and self._frame_patch
         self._coordinate_system = coordinate_system
         self.transform = Transform() if transform is None else transform
         self._vertex_array = VertexArray()
@@ -121,7 +120,7 @@ class SLM(Actuator, PhaseSLM):
         # Create a single patch for displaying phase.
         # this default patch is square 1.0, and can be accessed through the 'primary_phase_patch' attribute
         # In advanced scenarios, the geometry of this patch may be modified, or it may be replaced altogether.
-        self.patches.append(Patch(self))
+        self.patches.append(Patch(self._context))
         self.primary_patch = self.patches[0]
         SLM._active_slms.add(self)
 
@@ -211,8 +210,6 @@ class SLM(Actuator, PhaseSLM):
                 f"Bit depth is less than 8 bits "
                 f"You may not be able to use the full phase resolution of your SLM.")
 
-        self.activate()
-
         # verify the refresh rate is correct
         # Then update the refresh rate to the actual value
         if int(self._refresh_rate) != current_rate:
@@ -249,10 +246,12 @@ class SLM(Actuator, PhaseSLM):
         """Constructs a new window and associated OpenGL context. Called by SLM.__init__()"""
         # Try to re-use an already existing OpenGL context, so that we can share textures and shaders between
         # SLM objects.
-        other_slm = next(iter(SLM._active_slms), None)
-        shared = other_slm._window if other_slm is not None else None
-        monitor = glfw.get_monitors()[self._monitor_id - 1] if self._monitor_id != SLM.WINDOWED else None
+        self._context = Context(self)
+        other = next(iter(SLM._active_slms), None)
+        shared = other._window if other is not None else None  # noqa: ok to use _window
+        SLM._active_slms.add(self)
 
+        monitor = glfw.get_monitors()[self._monitor_id - 1] if self._monitor_id != SLM.WINDOWED else None
         glfw.window_hint(glfw.REFRESH_RATE, int(self._refresh_rate))
         self._window = glfw.create_window(self._shape[1], self._shape[0], "OpenWFS SLM", monitor, shared)
         glfw.set_input_mode(self._window, glfw.CURSOR, glfw.CURSOR_HIDDEN)  # disable cursor
@@ -261,10 +260,10 @@ class SLM(Actuator, PhaseSLM):
         else:  # windowed mode
             glfw.set_window_pos(self._window, self._position[1], self._position[0])
 
-        self.activate()  # Before calling any OpenGL function on the window, the context must be activated.
-        self._globals = glGenBuffers(1)  # create buffer for storing globals
-        glClearColor(0.0, 0.0, 0.0, 1.0)  # set clear color to black
-        self._on_resize()
+        with self._context:
+            self._globals = glGenBuffers(1)  # create buffer for storing globals
+            glClearColor(0.0, 0.0, 0.0, 1.0)  # set clear color to black
+            self._on_resize()
 
     @property
     def shape(self) -> tuple[int, int]:
@@ -284,7 +283,6 @@ class SLM(Actuator, PhaseSLM):
     @shape.setter
     def shape(self, value: tuple[int, int]):
         if self.monitor_id == SLM.WINDOWED and self._shape != value:
-            # self.activate()
             glfw.set_window_size(self._window, value[1], value[0])
             self._shape = value
             self._on_resize()
@@ -302,7 +300,6 @@ class SLM(Actuator, PhaseSLM):
     @position.setter
     def position(self, value: tuple[int, int]):
         if self.monitor_id == SLM.WINDOWED and self._position != value:
-            self.activate()
             glfw.set_window_pos(self._window, value[1], value[0])
             self._position = value
 
@@ -359,14 +356,8 @@ class SLM(Actuator, PhaseSLM):
         self._on_resize()
 
     def __del__(self):
-        if self._window is not None:
-            self.activate()
-            # self.patches.clear()
-            glfw.destroy_window(self._window)
-
-    def activate(self):
-        """Activates the OpenGL context for this slm window. All OpenGL commands now apply to this slm"""
-        glfw.make_context_current(self._window)
+        """Destructor for the SLM object. This function destroys the window and releases all resources."""
+        glfw.destroy_window(self._window)
 
     def update(self):
         """Sends the new phase pattern to be displayed on the SLM.
@@ -380,27 +371,26 @@ class SLM(Actuator, PhaseSLM):
             However, this should rarely be needed since all Detectors
             already call wait_finished before starting a measurement.
         """
-        self.activate()
+        with self._context:
+            # first draw all patches into the frame buffer
+            glBindFramebuffer(GL.GL_FRAMEBUFFER, self._frame_buffer._frame_buffer)  # noqa - ok to access 'friend class'
+            glClear(GL.GL_COLOR_BUFFER_BIT)
+            for patch in self.patches:
+                patch._draw()  # noqa - ok to access 'friend class'
 
-        # first draw all patches into the frame buffer
-        glBindFramebuffer(GL.GL_FRAMEBUFFER, self._frame_buffer._frame_buffer)
-        glClear(GL.GL_COLOR_BUFFER_BIT)
-        for patch in self.patches:
-            patch.draw()
+            # then draw the frame buffer to the screen
+            glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
+            self._frame_buffer._draw()  # noqa - ok to access 'friend class'
 
-        # then draw the frame buffer to the screen
-        glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
-        self._frame_buffer.draw()
+            glfw.poll_events()  # process window messages
 
-        glfw.poll_events()  # process window messages
+            # start 'moving' phase, then display the newly rendered image
+            self._start()
+            glfw.swap_buffers(self._window)
 
-        # start 'moving' phase, then display the newly rendered image
-        self._start()
-        glfw.swap_buffers(self._window)
-
-        # wait for buffer swap to complete (this should be directly after a vsync, so returning from this
-        # function _should_ be synced with the vsync)
-        glFinish()
+            # wait for buffer swap to complete (this should be directly after a vsync, so returning from this
+            # function _should_ be synced with the vsync)
+            glFinish()
 
         # call _start again to update the _end_time_ns property,
         # since some time has passed waiting for the vsync
@@ -490,11 +480,11 @@ class SLM(Actuator, PhaseSLM):
                 root_transform = Transform(np.array(((width / height, 0.0), (0.0, 1.0))))
             transform = self._transform @ root_transform
 
-        self.activate()  # activate OpenGL context of current SLM window
         padded = transform.opencl_matrix()
-        glBindBuffer(GL.GL_UNIFORM_BUFFER, self._globals)
-        glBufferData(GL.GL_UNIFORM_BUFFER, padded.size * 4, padded, GL.GL_STATIC_DRAW)
-        glBindBufferBase(GL.GL_UNIFORM_BUFFER, 1, self._globals)  # connect buffer to binding point 1
+        with self._context:
+            glBindBuffer(GL.GL_UNIFORM_BUFFER, self._globals)
+            glBufferData(GL.GL_UNIFORM_BUFFER, padded.size * 4, padded, GL.GL_STATIC_DRAW)
+            glBindBufferBase(GL.GL_UNIFORM_BUFFER, 1, self._globals)  # connect buffer to binding point 1
 
     @property
     def lookup_table(self) -> Sequence[int]:
@@ -544,36 +534,35 @@ class SLM(Actuator, PhaseSLM):
 
 class FrontBufferReader(Detector):
     def __init__(self, slm):
-        self._slm = weakref.ref(slm)
+        self._context = Context(slm)
         super().__init__(data_shape=None, pixel_size=None, duration=0.0 * u.ms, latency=0.0 * u.ms,
                          multi_threaded=False)
 
     @property
     def data_shape(self):
-        return self._slm().shape
+        return self._context.slm.shape
 
     def _fetch(self, *args, **kwargs) -> np.ndarray:
-        self._slm().activate()
-        glReadBuffer(GL.GL_FRONT)
-        shape = self.data_shape
-        data = np.empty(shape, dtype='uint8')
-        glReadPixels(0, 0, shape[1], shape[0], GL.GL_RED, GL.GL_UNSIGNED_BYTE, data)
-        # flip data upside down, because the OpenGL convention is to have the origin at the bottom left,
-        # but we want it at the top left (like in numpy)
-        return data[::-1, :]
+        with self._context:
+            glReadBuffer(GL.GL_FRONT)
+            shape = self.data_shape
+            data = np.empty(shape, dtype='uint8')
+            glReadPixels(0, 0, shape[1], shape[0], GL.GL_RED, GL.GL_UNSIGNED_BYTE, data)
+            # flip data upside down, because the OpenGL convention is to have the origin at the bottom left,
+            # but we want it at the top left (like in numpy)
+            return data[::-1, :]
 
 
 class FrameBufferReader(Detector):
     def __init__(self, slm, framebuffer):
-        self._slm = weakref.ref(slm)
-        self._frame_buffer = framebuffer
+        self._context = Context(slm)
         super().__init__(data_shape=None, pixel_size=None, duration=0.0 * u.ms, latency=0.0 * u.ms,
                          multi_threaded=False)
 
     @property
     def data_shape(self):
-        return self._slm().shape
+        return self._context.slm.shape
 
     def _fetch(self, *args, **kwargs) -> np.ndarray:
-        self._slm().activate()
-        return self._frame_buffer.get_pixels()
+        with self._context as slm:
+            return slm._frame_buffer.get_pixels()
