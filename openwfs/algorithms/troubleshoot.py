@@ -1,14 +1,14 @@
+import logging
 import time
 
 import matplotlib.pyplot as plt
 import numpy as np
-from numpy.fft import fft2, ifft2, fftfreq
-import logging
-from ..algorithms.utilities import WFSResult
+from numpy.fft import fft2, ifft2
+
 from ..core import Detector, PhaseSLM
 
 
-def signal_std(signal_with_noise: np.ndarray, noise: np.ndarray) -> np.float64:
+def signal_std(signal_with_noise: np.ndarray, noise: np.ndarray) -> float:
     """
     Compute noise corrected standard deviation of signal measurement.
 
@@ -48,7 +48,7 @@ def cnr(signal_with_noise: np.ndarray, noise: np.ndarray) -> np.float64:
 
 
 def contrast_enhancement(signal_with_noise: np.ndarray, reference_with_noise: np.ndarray,
-                         noise: np.ndarray) -> np.float64:
+                         noise: np.ndarray) -> float:
     """
     Compute noise corrected contrast enhancement. The noise is assumed to be uncorrelated with the signal, such that
     var(measured) = var(signal) + var(noise).
@@ -64,8 +64,8 @@ def contrast_enhancement(signal_with_noise: np.ndarray, reference_with_noise: np
     Returns:
         Standard deviation of the signal, corrected for the variance due to given noise.
     """
-    signal_std_sig = np.asarray(signal_std(signal_with_noise, noise))
-    signal_std_ref = np.asarray(signal_std(reference_with_noise, noise))
+    signal_std_sig = signal_std(signal_with_noise, noise)
+    signal_std_ref = signal_std(reference_with_noise, noise)
     return signal_std_sig / signal_std_ref
 
 
@@ -81,15 +81,17 @@ def cross_corr_fft2(f: np.ndarray, g: np.ndarray) -> np.ndarray:
     return ifft2(fft2(f).conj() * fft2(g))
 
 
-def find_pixel_shift(f: np.ndarray, g: np.ndarray) -> tuple[np.intp, ...]:
+def find_pixel_shift(f: np.ndarray, g: np.ndarray) -> tuple[int, ...]:
     """
     Find the pixel shift between two images by performing a 2D FFT based cross-correlation.
     """
     corr = cross_corr_fft2(f, g)  # Compute cross-correlation with fft2
     s = np.array(corr).shape  # Get shape
     index = np.unravel_index(np.argmax(corr), s)  # Find 2D indices of maximum
-    # Correct negative pixel shifts
-    return fftfreq(s[0], 1 / s[0])[index[0]], fftfreq(s[1], 1 / s[1])[index[1]]
+    # convert indices to pixel shift
+    dy = index[0] if index[0] < s[0] / 2 else index[0] - s[0]
+    dx = index[1] if index[1] < s[1] / 2 else index[1] - s[1]
+    return dy, dx
 
 
 def field_correlation(a: np.ndarray, b: np.ndarray) -> float:
@@ -130,7 +132,7 @@ def pearson_correlation(a: np.ndarray, b: np.ndarray) -> float:
     """
     a_dev = a - a.mean()
     b_dev = b - b.mean()
-    return (a_dev * b_dev).mean() / np.sqrt((a_dev**2).mean() * (b_dev**2).mean())
+    return (a_dev * b_dev).mean() / np.sqrt((a_dev ** 2).mean() * (b_dev ** 2).mean())
 
 
 class StabilityResult:
@@ -212,12 +214,12 @@ def measure_modulated_light_dual_phase_stepping(slm: PhaseSLM, feedback: Detecto
             measurements[p, q] = feedback.read()
 
     # 2D Fourier transform the modulation measurements
-    F = np.fft.fft2(measurements) / phase_steps ** 2
+    f = np.fft.fft2(measurements) / phase_steps ** 2
 
     # Compute fidelity factor due to modulated light
     eps = 1e-6  # Epsilon term to prevent division by zero
-    M1M2_ratio = (np.abs(F[0, 1]) ** 2 + eps) / (np.abs(F[1, 0]) ** 2 + eps)  # Ratio of modulated intensities
-    fidelity_modulated = (1 + M1M2_ratio) / (1 + M1M2_ratio + np.abs(F[0, 1]) ** 2 / np.abs(F[1, -1]) ** 2)
+    m1_m2_ratio = (np.abs(f[0, 1]) ** 2 + eps) / (np.abs(f[1, 0]) ** 2 + eps)  # Ratio of modulated intensities
+    fidelity_modulated = (1 + m1_m2_ratio) / (1 + m1_m2_ratio + np.abs(f[0, 1]) ** 2 / np.abs(f[1, -1]) ** 2)
 
     return fidelity_modulated
 
@@ -248,10 +250,10 @@ def measure_modulated_light(slm: PhaseSLM, feedback: Detector, phase_steps: int)
         measurements[p] = feedback.read()
 
     # 2D Fourier transform the modulation measurements
-    F = np.fft.fft(measurements)
+    f = np.fft.fft(measurements)
 
     # Compute ratio of modulated light over total
-    fidelity_modulated = 0.5 * (1.0 + np.sqrt(np.clip(1.0 - 4.0 * np.abs(F[1] / F[0]) ** 2, 0, None)))
+    fidelity_modulated = 0.5 * (1.0 + np.sqrt(np.clip(1.0 - 4.0 * np.abs(f[1] / f[0]) ** 2, 0, None)))
 
     return fidelity_modulated
 
@@ -348,7 +350,8 @@ class WFSTroubleshootResult:
         if do_plots and self.stability is not None:
             self.stability.plot()
 
-        if do_plots and self.dark_frame is not None and self.after_frame is not None and self.shaped_wf_frame is not None:
+        if (do_plots and self.dark_frame is not None and self.after_frame is not None and
+                self.shaped_wf_frame is not None):
             max_value = max(self.after_frame.max(), self.shaped_wf_frame.max())
 
             # Plot dark frame

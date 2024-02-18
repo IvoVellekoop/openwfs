@@ -91,8 +91,8 @@ def test_transform():
     ps1 = (0.5, 2) * u.um
     src = set_pixel_size(np.random.uniform(size=(7, 8)), ps1)
 
-    id = Transform()
-    matrix = id.cv2_matrix(src.shape, ps1, src.shape, ps1)
+    identity = Transform()
+    matrix = identity.cv2_matrix(src.shape, ps1, src.shape, ps1)
     assert np.allclose(matrix, ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0)))
 
     # shift both origins by same distance

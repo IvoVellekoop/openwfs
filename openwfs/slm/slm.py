@@ -528,7 +528,7 @@ class SLM(Actuator, PhaseSLM):
         This is the pattern before applying the lookup table.
         """
         if self._phase_reader is None:
-            self._phase_reader = FrameBufferReader(self, self._frame_buffer)
+            self._phase_reader = FrameBufferReader(self)
         return self._phase_reader
 
 
@@ -554,7 +554,7 @@ class FrontBufferReader(Detector):
 
 
 class FrameBufferReader(Detector):
-    def __init__(self, slm, framebuffer):
+    def __init__(self, slm):
         self._context = Context(slm)
         super().__init__(data_shape=None, pixel_size=None, duration=0.0 * u.ms, latency=0.0 * u.ms,
                          multi_threaded=False)
@@ -565,4 +565,4 @@ class FrameBufferReader(Detector):
 
     def _fetch(self, *args, **kwargs) -> np.ndarray:
         with self._context as slm:
-            return slm._frame_buffer.get_pixels()
+            return slm._frame_buffer.get_pixels()  # noqa - ok to access 'friend class'

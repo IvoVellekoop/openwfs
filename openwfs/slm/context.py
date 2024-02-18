@@ -1,6 +1,5 @@
 import threading
 import weakref
-from _weakrefset import WeakSet
 import glfw
 
 SLM = 'slm.SLM'
@@ -35,7 +34,7 @@ class Context:
         if slm is not None:
             glfw.make_context_current(slm._window)  # noqa: ok to use _window
         return slm
-        
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         self._lock.release()
 

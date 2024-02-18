@@ -83,13 +83,13 @@ class Microscope(Processor):
                 Typically, the slm image is already in normalized pupil coordinates,
                 but this transform can be used to mimic SLM misalignment.
             aberrations: 2-D image containing the phase (in radians) of aberrations observed
-                in the back pupil of the microscope objective, or a Detector object that automatically produces such images.
-                The `extent` attribute corresponds to normalized pupil coordinates. For example, with a numerical aperture of 0.6,
-                the extent of the image should be 1.2. If a 2-D image without pixel_size metadata is provided, the extent is
-                automatically set to 2.0 * numerical_aperture.
+                in the back pupil of the microscope objective, or a Detector object that automatically produces such
+                images. The `extent` attribute corresponds to normalized pupil coordinates. For example, with a
+                numerical aperture of 0.6, the extent of the image should be 1.2. If a 2-D image without pixel_size
+                metadata is provided, the extent is automatically set to 2.0 * numerical_aperture.
             aberration_transform (Optional[Transform]):
-                Optional Transform that transforms the phase pattern from the aberration object (in slm.pixel_size units) to normalized pupil
-                coordinates.
+                Optional Transform that transforms the phase pattern from the aberration object
+                (in slm.pixel_size units) to normalized pupil coordinates.
                 Typically, the slm image is already in normalized pupil coordinates,
                 but this transform may e.g., be used to scale an aberration pattern
                 from extent 2.0 to 2.0 * NA.
@@ -149,12 +149,10 @@ class Microscope(Processor):
         if np.any(source_pixel_size > target_pixel_size):
             warnings.warn("The resolution of the specimen image is worse than that of the output.")
 
-        # construct matrix for translation of the specimen
-        # Note: there seems to be a bug (feature?) in fftconvolve that shifts the image by one pixel
-        # when the 'same' option is used.
-        # To compensate for this feature, the image is shifted by - source_pixel_size here.
-        # this will cause an empty line at the side of the image!
-        # todo: implement our own version of fftconvolve, or crop manually
+        # Note: there seems to be a bug (feature?) in `fftconvolve` that shifts the image by one pixel
+        # when the 'same' option is used. To compensate for this feature,
+        # the image is shifted by `-source_pixel_size` here.
+        # TODO: this seems to add an emtpy row and column to the image, which is not what we want.
         shift = Quantity((self.xy_stage.y, self.xy_stage.x)) - source_pixel_size
         source = place(self.data_shape, target_pixel_size, source, shift)
 

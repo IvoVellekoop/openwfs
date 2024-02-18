@@ -101,14 +101,14 @@ class _SLMTiming(Detector):
 
         return self._state
 
-    def _step_to_time(self, time):
+    def _step_to_time(self, timestamp: Quantity[u.ns]):
         """Step the simulation forward to a given time."""
         if self.update_duration > 0:
-            a = np.exp(-(time - self._state_timestamp) / self.update_duration)
+            a = np.exp(-(timestamp - self._state_timestamp) / self.update_duration)
             self._state = a * self._state + (1 - a) * self._set_point
         else:
             self._state = self._set_point
-        self._state_timestamp = time
+        self._state_timestamp = timestamp
 
     def send(self, phase_image):
         """Send a phase image to the SLM. This method is called by the SLM object.

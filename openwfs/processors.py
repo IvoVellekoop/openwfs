@@ -137,7 +137,8 @@ class Roi:
             self._mask_sum = np.sum(self._mask)
 
         image_start = np.array(self.pos) - int(0.5 * self._mask.shape[0] - 0.5)
-        image_cropped = image[image_start[0]:image_start[0] + self._mask.shape[0],
+        image_cropped = image[
+                        image_start[0]:image_start[0] + self._mask.shape[0],
                         image_start[1]:image_start[1] + self._mask.shape[1]]
 
         if image_cropped.shape != self._mask.shape:

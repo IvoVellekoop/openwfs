@@ -68,7 +68,7 @@ def test_create_windowed(slm):
 
     # we cannot make a windowed slm now because the full screen is already taken
     with pytest.raises(RuntimeError):
-        slm3 = SLM(0)
+        slm3 = SLM(0)  # noqa: not used, just to check if an error occurs
 
     # make the slm windowed again
     # at the moment, the size of the window does not need to be conserved
@@ -77,7 +77,7 @@ def test_create_windowed(slm):
     assert slm.shape[1] < full_screen_shape[1]
 
     # we can now make a second windowed slm
-    slm4 = SLM(0)
+    slm4 = SLM(0)  # noqa: not used, just to check if an error occurs
 
 
 # noinspection DuplicatedCode

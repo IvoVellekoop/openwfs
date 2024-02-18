@@ -127,7 +127,7 @@ class Device(ABC):
                 # detectors actually starts a measurement.
                 # If this is a positive number, we can make the switch to 'measuring' slightly _before_
                 # all actuators have stabilized.
-                latency = min([device.latency for device in same_type], default=0.0 * u.ns)
+                latency = min([device.latency for device in same_type], default=0.0 * u.ns)  # noqa - incorrect warning
 
                 # wait until all devices of the other type have (almost) finished
                 for device in other_type:

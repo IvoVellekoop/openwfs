@@ -15,7 +15,7 @@ class StaticSource(Detector):
     Detector that returns pre-set data. Also simulates latency and measurement duration.
     """
 
-    def __init__(self, data: np.ndarray, pixel_size: Optional[Quantity] = None, extent: Optional[ExtentType] = None,
+    def __init__(self, data: np.ndarray, pixel_size: Optional[ExtentType] = None, extent: Optional[ExtentType] = None,
                  latency: Quantity[u.ms] = 0 * u.ms, duration: Quantity[u.ms] = 0 * u.ms, multi_threaded: bool = None):
         """
         Initializes the MockSource

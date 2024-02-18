@@ -206,7 +206,7 @@ class Transform:
         return Transform()
 
 
-def place(out_shape: Sequence[int], out_pixel_size: Quantity, source: np.ndarray, offset: Optional[Quantity] = None,
+def place(out_shape: tuple[int, ...], out_pixel_size: Quantity, source: np.ndarray, offset: Optional[Quantity] = None,
           out: Optional[np.ndarray] = None):
     """Takes a source array and places it in an otherwise empty array of specified shape and pixel size.
 
@@ -233,7 +233,7 @@ def project(source: np.ndarray, *,
             out: Optional[np.ndarray] = None,
             source_extent: Optional[ExtentType] = None,
             out_extent: Optional[ExtentType] = None,
-            out_shape: Optional[tuple[int, ...]] = None) -> ArrayLike:
+            out_shape: Optional[tuple[int, ...]] = None) -> np.ndarray:
     """Projects the input image onto an array with specified shape and resolution.
 
     The input image is scaled so that the pixel sizes match those of the output,
@@ -347,11 +347,11 @@ def get_extent(data: np.ndarray) -> Quantity:
     """
     pixel_size = get_pixel_size(data)
     if pixel_size is None:
-        return data.shape
+        return Quantity(data.shape)
     return data.shape * pixel_size
 
 
-def set_extent(data, extent: ArrayLike):
+def set_extent(data: np.ndarray, extent: ExtentType) -> np.ndarray:
     """
     Sets the extent metadata for the given data array.
 

@@ -111,7 +111,7 @@ class ScanningMicroscope(Detector):
         self._scale = scale.repeat(2) if scale.size == 1 else scale
 
         v_width = (self._out_v_max - self._out_v_min)
-        self._padding = np.array((0.0, padding))
+        self._padding = np.array((0.0, float(padding)))
         self._v_origin = self._out_v_min + v_width * self._padding * 0.5  # Voltage corresponding to (top,left)=(0,0)
         self._roi_start = Quantity((0.0, 0.0), u.V)  # ROI start position relative to origin
         self._roi_end = v_width * (1.0 - self._padding)  # ROI end position relative to origin
@@ -228,7 +228,7 @@ class ScanningMicroscope(Detector):
         self._read_task.start()  # waits for trigger coming from the write task
         self._write_task.start()
 
-    def _raw_to_cropped(self, raw):
+    def _raw_to_cropped(self, raw: np.ndarray) -> np.ndarray:
         """Converts the raw scanner data back into a 2-Dimensional image.
 
         Because the scanner can return both signed and unsigned integers, both cases are accounted for.
@@ -239,10 +239,10 @@ class ScanningMicroscope(Detector):
         end = self._padded_data_shape - start
 
         # Change the data type into uint16 if necessary
-        if type(raw[0]) == np.int16:
+        if raw.dtype == np.int16:
             # add 32768 to go from -32768-32767 to 0-65535
             cropped = raw.reshape(self._padded_data_shape).view('uint16')[start[0]:end[0], start[1]:end[1]] + 0x8000
-        elif type(raw[0]) == np.uint16:
+        elif raw.dtype == np.uint16:
             cropped = raw.reshape(self._padded_data_shape)[start[0]:end[0], start[1]:end[1]]
         else:
             raise ValueError('Only int16 and uint16 data types are supported at the moment.')
@@ -345,11 +345,11 @@ class ScanningMicroscope(Detector):
     @property
     def padding(self) -> float:
         """Fraction of the scan range at the edges to discard to reduce edge artifacts."""
-        return self._padding[1]
+        return float(self._padding[1])
 
     @padding.setter
     def padding(self, value: float):
-        self._padding[1] = value
+        self._padding[1] = float(value)
         self._v_origin = self._out_v_min + (self._out_v_max - self._out_v_min) * self._padding * 0.5
         self._valid = False
 

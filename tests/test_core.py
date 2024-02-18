@@ -1,7 +1,7 @@
 import logging
 import time
 import pytest
-from ..openwfs.simulation.mockdevices import StaticSource, NoiseSource, SLM
+from ..openwfs.simulation import StaticSource, NoiseSource, SLM
 from ..openwfs.utilities import set_pixel_size, get_pixel_size
 from ..openwfs.processors import CropProcessor
 import numpy as np

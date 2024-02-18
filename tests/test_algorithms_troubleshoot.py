@@ -39,26 +39,26 @@ def test_find_pixel_shift():
     Test finding pixel shifts between two images.
     """
     # Define pixel shifts to test
-    ABshift_gt = (-3, -5)
-    CDshift_gt = (2, -4)
+    ab_shift = (-3, -5)
+    cd_shift = (2, -4)
 
     # Define random image 2D arrays
-    A = np.random.rand(20, 19)
-    B = np.roll(A, shift=ABshift_gt, axis=(0, 1))
-    C = np.random.rand(17, 18)
-    D = np.roll(C, shift=CDshift_gt, axis=(0, 1))
+    a = np.random.rand(20, 19)
+    b = np.roll(a, shift=ab_shift, axis=(0, 1))
+    c = np.random.rand(17, 18)
+    d = np.roll(c, shift=cd_shift, axis=(0, 1))
 
     # Find pixel shifts
-    AAshift_found = find_pixel_shift(A, A)
-    ABshift_found = find_pixel_shift(A, B)
-    CCshift_found = find_pixel_shift(C, C)
-    CDshift_found = find_pixel_shift(C, D)
+    aa_shift_found = find_pixel_shift(a, a)
+    ab_shift_found = find_pixel_shift(a, b)
+    cc_shift_found = find_pixel_shift(c, c)
+    cd_shift_found = find_pixel_shift(c, d)
 
     # Assert shifts
-    assert AAshift_found == (0, 0)
-    assert ABshift_found == ABshift_gt
-    assert CCshift_found == (0, 0)
-    assert CDshift_found == CDshift_gt
+    assert aa_shift_found == (0, 0)
+    assert ab_shift_found == ab_shift
+    assert cc_shift_found == (0, 0)
+    assert cd_shift_found == cd_shift
 
 
 def test_field_correlation():
@@ -105,10 +105,10 @@ def test_pearson_correlation():
     # Perfect correlation
     a = np.asarray((1, 2, 3))
     b = np.asarray((2, 4, 6))
-    corr_ab_compute = pearson_correlation(a, b)
-    corr_minab_compute = pearson_correlation(-a, b)
-    assert np.isclose(corr_ab_compute, 1, atol=1e-6)
-    assert np.isclose(corr_minab_compute, -1, atol=1e-6)
+    corr_ab = pearson_correlation(a, b)
+    corr_minus_ab = pearson_correlation(-a, b)
+    assert np.isclose(corr_ab, 1, atol=1e-6)
+    assert np.isclose(corr_minus_ab, -1, atol=1e-6)
 
     # No correlation
     c = np.asarray((1, 0, -1))
@@ -119,8 +119,8 @@ def test_pearson_correlation():
     # Some correlation
     e = np.asarray((4, -4, 2, -2))
     f = np.asarray((2, -2, -1, 1))
-    corr_ef_compute = pearson_correlation(e, f)
-    assert np.isclose(corr_ef_compute, 0.6, atol=1e-6)
+    corr_ef = pearson_correlation(e, f)
+    assert np.isclose(corr_ef, 0.6, atol=1e-6)
 
 
 @pytest.mark.parametrize("n_y, n_x, phase_steps, b, c, gamma",

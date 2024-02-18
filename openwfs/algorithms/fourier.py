@@ -7,7 +7,7 @@ from ..utilities.patterns import tilt
 class FourierBase:
     """Base class definition for the Fourier algorithms.
 
-      Can run natively, provided you input the kspace for the reference and measurement part of the SLM.
+      Can run natively, provided you input the k-space for the reference and measurement part of the SLM.
 
       [1]: Bahareh Mastiani, Gerwin Osnabrugge, and Ivo M. Vellekoop,
       "Wavefront shaping for forward scattering," Opt. Express 30, 37436-37445 (2022)

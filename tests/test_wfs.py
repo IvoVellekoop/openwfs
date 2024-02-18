@@ -158,7 +158,7 @@ def test_fourier_correction_field():
     assert abs(correlation) > 0.75
 
 
-def test_phaseshift_correction():
+def test_phase_shift_correction():
     """
     Test the effect of shifting the found correction of the Fourier-based algorithm.
     Without the bug, a phase shift of the entire correction should not influence the measurement.
