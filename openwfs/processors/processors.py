@@ -4,9 +4,9 @@ import cv2
 import numpy as np
 from astropy.units import Quantity
 
-from .core import Processor, Detector
-from .utilities import project
-from .utilities.patterns import disk, gaussian
+from ..core import Processor, Detector
+from ..utilities import project
+from ..utilities.patterns import disk, gaussian
 
 
 class Roi:

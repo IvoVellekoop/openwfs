@@ -27,22 +27,8 @@ class Microscope(Processor):
     with which the source image is convolved.
 
     Finally, the resulting image is mapped to the camera using a magnification factor, or affine transformation matrix.
-    The propagation is normalized such that the a pupil fully filled with a field strength of 1.0 will produce an image
+    The propagation is normalized such that a pupil fully filled with a field strength of 1.0 will produce an image
     that has the same total intensity as the source image.
-
-    TODO: It can be used with an actual OpenGL-based SLM object, so it also can be used
-        to test the advanced functionality provided by that object.
-    All aberrations are considered to occur in the plane of that pupil.
-
-    Attributes:
-        numerical_aperture (float): numerical aperture of the microscope objective.
-            The field in the back pupil is cropped to this size
-            (even if the slm and/or aberration map use a different NA).
-        wavelength (astropy distance unit): wavelength of the light in micrometer.
-            Used to compute the diffraction limit and the effect of aberrations.
-        xy_stage:
-        z_stage:
-
     """
 
     def __init__(self, source: Union[Detector, np.ndarray], *, data_shape=None,

@@ -1,14 +1,14 @@
-import numpy as np
 import astropy.units as u
+import numpy as np
 import pytest
 
-from ..openwfs.processors import SingleRoi
-from ..openwfs.simulation import SimulatedWFS, StaticSource, SLM, Microscope
+from .test_simulation import phase_response_test_function, lookup_table_test_function
 from ..openwfs.algorithms import StepwiseSequential
 from ..openwfs.algorithms.troubleshoot import cnr, signal_std, find_pixel_shift, \
     field_correlation, frame_correlation, pearson_correlation, \
     measure_modulated_light, measure_modulated_light_dual_phase_stepping
-from .test_simulation import phase_response_test_function, lookup_table_test_function
+from ..openwfs.processors import SingleRoi
+from ..openwfs.simulation import SimulatedWFS, StaticSource, SLM, Microscope
 
 
 def test_signal_std():
@@ -164,7 +164,7 @@ def test_fidelity_phase_calibration_ssa_with_noise(n_y, n_x, phase_steps, gaussi
 
     # SLM, simulation, camera, ROI detector
     slm = SLM(shape=(80, 80))
-    sim = Microscope(source=src, incident_field=slm.get_monitor('field'), magnification=1,
+    sim = Microscope(source=src, incident_field=slm.field, magnification=1,
                      numerical_aperture=numerical_aperture,
                      aberrations=aberration, wavelength=800 * u.nm)
     cam = sim.get_camera(analog_max=1e4, gaussian_noise_std=gaussian_noise_std)
@@ -206,7 +206,7 @@ def test_measure_modulated_light_dual_phase_stepping_with_noise(num_blocks, phas
 
     # SLM, simulation, camera, ROI detector
     slm = SLM(shape=(100, 100))
-    sim = Microscope(source=src, incident_field=slm.get_monitor('field'), magnification=1, numerical_aperture=1.0,
+    sim = Microscope(source=src, incident_field=slm.field, magnification=1, numerical_aperture=1.0,
                      wavelength=800 * u.nm)
     cam = sim.get_camera(analog_max=1e4, gaussian_noise_std=gaussian_noise_std)
     roi_detector = SingleRoi(cam, radius=0)  # Only measure that specific point

@@ -1,11 +1,13 @@
-import numpy as np
-from numpy.typing import ArrayLike
-import glfw
 import warnings
-from typing import Union, Optional, Sequence, List
-from astropy.units import Quantity
+from typing import Union, Optional, Sequence
 from weakref import WeakSet
+
 import astropy.units as u
+import glfw
+import numpy as np
+from astropy.units import Quantity
+from numpy.typing import ArrayLike
+
 from .context import Context
 from ..simulation import PhaseToField
 
@@ -50,10 +52,6 @@ class SLM(Actuator, PhaseSLM):
     By default, this is a linear table that maps wrapped phase values from 0-2pi to gray values from 0-255.
     This table can be modified to correct for the non-linear response of the hardware, or to scale the range
     of gray values that is used.
-
-    Attributes:
-        patches (List[Patch]): List of patches that are drawn on the SLM.
-
     """
     __slots__ = ['_vertex_array', '_frame_buffer', '_monitor_id', '_position', '_refresh_rate',
                  '_transform', '_shape', '_window', '_globals', '_frame_buffer', 'patches', 'primary_patch',
@@ -65,6 +63,7 @@ class SLM(Actuator, PhaseSLM):
     so that we can use the same Patch and Texture objects on multiple SLMs simultaneously."""
 
     WINDOWED = 0
+    patches: list[Patch]
 
     def __init__(self, monitor_id: int = WINDOWED, shape: Optional[tuple[int, int]] = None,
                  pos: tuple[int, int] = (0, 0), refresh_rate: Optional[Quantity[u.Hz]] = None,
@@ -97,6 +96,9 @@ class SLM(Actuator, PhaseSLM):
                 The `transform` determines how these vertex coordinates that make up the shape of a Patch (see
                 :class:`Patch`) are mapped to the SLM window.
                 By default, 'short' is used (see :attr:`transform`)
+
+        Attributes:
+            patches (list[Patch]): List of patches that are drawn on the SLM.
         """
 
         # construct window for displaying the SLM pattern

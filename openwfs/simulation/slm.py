@@ -247,33 +247,6 @@ class SLM(PhaseSLM, Actuator):
         if update:
             self.update()
 
-    def get_monitor(self, monitor_type: str = 'phase') -> Detector:
-        """Returns an object to monitor the current state of the SLM.
-
-        The monitor object acts as a camera, that can be used like any camera in the framework.
-        Args:
-            monitor_type (str): Type of the monitor. May be:
-
-            - 'phase': returns the simulated phase that is currently on the SLM.
-               This takes into account the simulated settle time and latency, refresh rate, lookup table
-               and phase response.
-            - 'field': returns the simulated field that is currently on the SLM.
-               Equal to `(exp(1j * phase) + non_modulated_field_fraction) * field_amplitude`
-            - 'pixel_value': returns the effective pixel values that are currently displayed on the slm,
-               taking into account the simulated settle time and latency, refresh rate and lookup table
-
-        To disable simulating the time-dependent behavior of the SLM,
-        leave refresh_rage, update_latency and update_duration at their default values of 0.
-        """
-        if monitor_type == 'phase':
-            return self.phases
-        elif monitor_type == 'field':
-            return self.field
-        elif monitor_type == 'pixels':
-            return self.pixels
-        else:
-            raise ValueError(f"Unknown monitor type: {monitor_type}")
-
     @property
     def pixels(self) -> Detector:
         """Returns an object to monitor the current state of the SLM.
