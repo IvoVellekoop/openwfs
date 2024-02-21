@@ -17,10 +17,13 @@ print(sys.path)
 
 project = 'OpenWFS'
 copyright = '2023-, Ivo Vellekoop and Jeroen Doornbos'
-author = 'Ivo Vellekoop and Jeroen Doornbos'
-release = '0.1.0a1'
+author = 'Jeroen Doornbos, Daniël Cox, Ivo Vellekoop'
+release = '0.1.0rc1'
 add_module_names = False
 autodoc_preserve_defaults = True
+
+# importing this module without OpenGL installed will fail,
+# so we need to mock it
 autodoc_mock_imports = ["PyOpenGL", "OpenGL"]
 
 # -- General configuration ---------------------------------------------------

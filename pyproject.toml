@@ -1,8 +1,8 @@
 [tool.poetry]
 name = "openwfs"
-version = "0.1.0a1"
+version = "0.1.0rc1"
 description = 'A libary for performing wavefront shaping experiments and simulations'
-authors = ["Ivo Vellekoop <i.m.vellekoop@utwente.nl>", "Jeroen Doornbos"]
+authors = ["Ivo Vellekoop <i.m.vellekoop@utwente.nl>", "Daniël Cox", "Jeroen Doornbos"]
 license = "BSD-3-Clause"
 readme = "README.rst"
 repository = "https://github.com/ivovellekoop/openwfs"
@@ -46,5 +46,5 @@ optional = true
 sphinx = ">=4.1.2"
 sphinx_mdinclude = ">= 0.5.0"
 sphinx-rtd-theme = ">= 2.0.0"
-sphinx_autodoc_typehints = ">= 1.11.0"
+sphinx-autodoc-typehints = ">= 1.11.0"
 
