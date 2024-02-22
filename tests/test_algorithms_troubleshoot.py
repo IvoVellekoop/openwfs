@@ -123,6 +123,29 @@ def test_pearson_correlation():
     assert np.isclose(corr_ef, 0.6, atol=1e-6)
 
 
+def test_pearson_correlation_noise_compensated():
+    """Test Pearson correlation, compensated for noise."""
+    N = 1000000
+    a = np.random.rand(N)
+    b = np.random.rand(N)
+    noise1 = np.random.rand(N)
+    noise2 = np.random.rand(N)
+
+    # Generate fake signals
+    A_noisy1 = 3*a + noise1
+    A_noisy2 = 4*a + noise2
+    B_noisy2 = 5*b + noise2
+
+    corr_AA = pearson_correlation(A_noisy1, A_noisy2, noise_var=noise1.var())
+    corr_AB = pearson_correlation(A_noisy1, B_noisy2, noise_var=noise1.var())
+    corr_AA_with_noise = pearson_correlation(A_noisy1, A_noisy2)
+
+    assert np.isclose(noise1.var(), noise2.var(), atol=2e-3)
+    assert np.isclose(corr_AA, 1, atol=2e-3)
+    assert np.isclose(corr_AB, 0, atol=2e-3)
+    assert corr_AA_with_noise < 0.96
+
+
 @pytest.mark.parametrize("n_y, n_x, phase_steps, b, c, gamma",
                          [(11, 9, 8, -0.05, 1.5, 0.8), (4, 4, 10, -0.05, 1.5, 0.8)])
 def test_fidelity_phase_calibration_ssa_noise_free(n_y, n_x, phase_steps, b, c, gamma):

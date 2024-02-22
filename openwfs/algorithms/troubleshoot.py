@@ -124,59 +124,93 @@ def frame_correlation(a: np.ndarray, b: np.ndarray) -> float:
     return np.mean(a * b) / (np.mean(a) * np.mean(b)) - 1
 
 
-def pearson_correlation(a: np.ndarray, b: np.ndarray) -> float:
+def pearson_correlation(a: np.ndarray, b: np.ndarray, noise_var: np.ndarray = 0.0) -> float:
     """
     Compute Pearson correlation.
 
-    a, b: Real valued arrays.
+    The variances in the normalization factor can optionally be compensated for uncorrelated noise. This is done
+    by subtracting the noise variance from the signal variance.
+
+    Args:
+        a, b: Real valued arrays.
+        noise_var: Variance of uncorrelated noise to compensate for.
     """
-    a_dev = a - a.mean()
-    b_dev = b - b.mean()
-    return (a_dev * b_dev).mean() / np.sqrt((a_dev ** 2).mean() * (b_dev ** 2).mean())
+    a_dev = a - a.mean()                                    # Deviations from mean a
+    b_dev = b - b.mean()                                    # Deviations from mean b
+    covar = (a_dev * b_dev).mean()                          # Covariance
+    a_var_signal = a.var() - noise_var                      # Variance of signal in a, excluding noise
+    b_var_signal = b.var() - noise_var                      # Variance of signal in b, excluding noise
+    return covar / np.sqrt(a_var_signal * b_var_signal)
 
 
 class StabilityResult:
     """
     Result of a stability measurement.
+
+    Attributes:
+        pixel_shifts: Image shift in pixels, as compared with first frame.
+        correlations: Pearson correlations with first frame. Compensated for noise.
+        contrast_ratios: Contrast ratio with first frame.
+        timestamps: Timestamps in seconds since start of measurement.
+        framestack: 3D array containing all recorded frames. Is None unless saving frames was requested.
     """
 
-    def __init__(self, pixel_shifts, correlations, contrast_ratios, timestamps):
+    def __init__(self, pixel_shifts, correlations, contrast_ratios, abs_timestamps, framestack):
         self.pixel_shifts = pixel_shifts
         self.correlations = correlations
         self.contrast_ratios = contrast_ratios
-        self.timestamps = timestamps
-        self.relative_timestamps = timestamps - timestamps[0]
+        self.timestamps = abs_timestamps - abs_timestamps[0]
+        self.framestack = framestack
 
     def plot(self):
-        plt.plot(self.relative_timestamps, self.pixel_shifts, '.-', label='image-shift (pix)')
-        plt.plot(self.relative_timestamps, self.contrast_ratios, '.-', label='contrast ratio')
-        plt.plot(self.relative_timestamps, self.correlations, '.-', label='correlation')
+        plt.figure()
+        plt.plot(self.timestamps, self.pixel_shifts, '.-', label='image-shift (pix)')
+        plt.title('Stability - Image shift')
+        plt.xlabel('time (s)')
+
+        plt.figure()
+        plt.plot(self.timestamps, self.contrast_ratios, '.-', label='contrast ratio')
+        plt.plot(self.timestamps, self.correlations, '.-', label='correlation')
+        plt.title('Stability - Contrast and correlation')
         plt.xlabel('time (s)')
         plt.legend()
         plt.show()
 
 
-def measure_setup_stability(frame_source, sleep_time_s, num_of_frames, dark_frame) -> StabilityResult:
+def measure_setup_stability(frame_source, sleep_time_s, num_of_frames, dark_frame, do_save_frames=False) -> StabilityResult:
     """Test the setup stability by repeatedly reading frames."""
     first_frame = frame_source.read()
     pixel_shifts = np.zeros(shape=(num_of_frames, 2))
     correlations = np.zeros(shape=(num_of_frames,))
     contrast_ratios = np.zeros(shape=(num_of_frames,))
-    timestamps = np.zeros(shape=(num_of_frames,))
+    abs_timestamps = np.zeros(shape=(num_of_frames,))
+
+    if do_save_frames:
+        framestack_shape = first_frame.shape + (num_of_frames,)
+        framestack = np.zeros(shape=framestack_shape)
+    else:
+        framestack = None
+
+    dark_var = dark_frame.var()
 
     # Start capturing frames
     for n in range(num_of_frames):
         time.sleep(sleep_time_s)
         new_frame = frame_source.read()
         pixel_shifts[n, :] = find_pixel_shift(first_frame, new_frame)
-        correlations[n] = pearson_correlation(first_frame, new_frame)
+        correlations[n] = pearson_correlation(first_frame, new_frame, noise_var=dark_var)
         contrast_ratios[n] = contrast_enhancement(new_frame, first_frame, dark_frame)
-        timestamps[n] = time.perf_counter()
+        abs_timestamps[n] = time.perf_counter()
+
+        # Save frame if requested
+        if do_save_frames:
+            framestack[:, :, n] = new_frame
 
     return StabilityResult(pixel_shifts=pixel_shifts,
                            correlations=correlations,
                            contrast_ratios=contrast_ratios,
-                           timestamps=timestamps)
+                           abs_timestamps=abs_timestamps,
+                           framestack=framestack)
 
 
 def measure_modulated_light_dual_phase_stepping(slm: PhaseSLM, feedback: Detector, phase_steps: int, num_blocks: int):
@@ -262,7 +296,7 @@ class WFSTroubleshootResult:
     """
     Data structure for holding wavefront shaping statistics and additional troubleshooting information.
 
-    Properties:
+    Attributes:
         fidelity_non_modulated: The estimated fidelity reduction factor due to the presence of non-modulated light.
         phase_calibration_ratio: A ratio indicating the correctness of the SLM phase response. An incorrect phase
             response produces a value < 1.
@@ -276,10 +310,12 @@ class WFSTroubleshootResult:
         frame_photobleaching_ratio: The signal degradation after WFS, typically caused by photo-bleaching in fluorescent
             experiments. A frame from before and after running the WFS are compared by computing the unbiased contrast
             enhancement factor. If this value is < 1, it means the signal has degraded by this factor.
+        frame_repeatability: Pearson correlation of two frames taken before running the WFS algorithm,
+            with a flat wavefront. Not compensated for noise.
         dark_frame: Frame taken with the laser blocked, before running the WFS algorithm.
         before_frame: Frame taken with the laser unblocked, before running the WFS algorithm, with a flat wavefront.
         after_frame: Frame taken with the laser unblocked, after running the WFS algorithm, with a flat wavefront.
-        shaped_frame: Frame taken with the laser unblocked, after running the WFS algorithm, with a shaped wavefront.
+        shaped_wf_frame: Frame taken with the laser unblocked, after running the WFS algorithm, with a shaped wavefront.
         stability (StabilityResult): Object containing the result of the stability test.
     """
 
@@ -305,6 +341,7 @@ class WFSTroubleshootResult:
         self.frame_cnr_shaped_wf = None
         self.frame_contrast_enhancement = None
         self.frame_photobleaching_ratio = None
+        self.frame_repeatability = None
         self.stability = None
 
         # Frames
@@ -340,7 +377,9 @@ class WFSTroubleshootResult:
         print(f'signal std, after: {self.frame_signal_std_after:.2f}')
         print(f'signal std, with shaped wavefront: {self.frame_signal_std_shaped_wf:.2f}')
         if self.dark_frame is not None:
-            print(f'average signal offset: {self.dark_frame.mean():.2f}')
+            print(f'average offset (dark frame): {self.dark_frame.mean():.2f}')
+            print(f'median offset (dark frame): {np.median(self.dark_frame):.2f}')
+        print(f'frame repeatability: {self.frame_repeatability:.3f}')
         print(f'contrast to noise ratio before: {self.frame_cnr_before:.3f}')
         print(f'contrast to noise ratio after: {self.frame_cnr_after:.3f}')
         print(f'contrast to noise ratio with shaped wavefront: {self.frame_cnr_shaped_wf:.3f}')
@@ -384,6 +423,7 @@ def troubleshoot(algorithm, background_feedback: Detector, frame_source: Detecto
                  do_frame_capture=True, do_long_stability_test=False,
                  stability_sleep_time_s=0.5,
                  stability_num_of_frames=500,
+                 stability_do_save_frames=False,
                  measure_non_modulated_phase_steps=16) -> WFSTroubleshootResult:
     """
     Run a series of basic checks to find common sources of error in a WFS experiment.
@@ -392,14 +432,17 @@ def troubleshoot(algorithm, background_feedback: Detector, frame_source: Detecto
     Args:
         measure_non_modulated_phase_steps:
         algorithm: Wavefront Shaping algorithm object, e.g. StepwiseSequential.
+        background_feedback: Feedback source that determines average background speckle intensity.
         frame_source: Source object for reading frames, e.g. Camera.
         shutter: Device object that can block/unblock light source.
         do_frame_capture: Boolean. If False, skip frame capture before and after running the WFS algorithm.
             Also skips computation of corresponding metrics. Also skips stability test.
         do_long_stability_test: Boolean. If False, skip long stability test where many frames are captured over
             a longer period of time.
-        stability_sleep_time_s: Float. Sleep time in seconds in between capturing frames.
-        stability_num_of_frames: Integer. Number of frames to take in the stability test.
+        stability_sleep_time_s: Float. Sleep time in seconds in between capturing frames for long stability test.
+        stability_num_of_frames: Integer. Number of frames to take in long stability test.
+        stability_do_save_frames: Boolean. If True, save all recorded frames.
+        measure_non_modulated_phase_steps: Integer. Number of phase steps for determining non-modulated light.
 
 
     Returns:
@@ -418,10 +461,12 @@ def troubleshoot(algorithm, background_feedback: Detector, frame_source: Detecto
         trouble.dark_frame = frame_source.read()  # Dark frame
         shutter.open = True
         trouble.before_frame = frame_source.read()  # Before frame (flat wf)
+        trouble._before_frame_2 = frame_source.read()
 
         # Frame metrics
         trouble.frame_signal_std_before = signal_std(trouble.before_frame, trouble.dark_frame)
         trouble.frame_cnr_before = cnr(trouble.before_frame, trouble.dark_frame)
+        trouble.frame_repeatability = pearson_correlation(trouble.before_frame, trouble._before_frame_2)
 
     # WFS experiment
     logging.info('Run WFS algorithm...')
@@ -468,7 +513,8 @@ def troubleshoot(algorithm, background_feedback: Detector, frame_source: Detecto
             frame_source=frame_source,
             sleep_time_s=stability_sleep_time_s,
             num_of_frames=stability_num_of_frames,
-            dark_frame=trouble.dark_frame)
+            dark_frame=trouble.dark_frame,
+            do_save_frames=stability_do_save_frames)
 
     trouble.expected_enhancement = np.squeeze(
         trouble.wfs_result.n * trouble.wfs_result.fidelity_amplitude * trouble.wfs_result.fidelity_noise
