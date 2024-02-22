@@ -24,11 +24,11 @@ https://www.github.com/IvoVellekoop/pydevice
 
 Installation instructions
 ============================================================
->>> pip install openwfs
+``pip install openwfs``
 
 To run the examples, create a local directory and clone the repository from github using
 
->>> git clone http://www.github.com/IvoVellekoop/openwfs.git
+``git clone http://www.github.com/IvoVellekoop/openwfs.git``
 
 The examples are located in the openwfs/examples folder.
 
