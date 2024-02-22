@@ -124,7 +124,13 @@ def test_pearson_correlation():
 
 
 def test_pearson_correlation_noise_compensated():
-    """Test Pearson correlation, compensated for noise."""
+    """
+    Test Pearson correlation, compensated for noise.
+
+    For Spearman's attenuation factor, see also:
+     - Saccenti et al. 2020, https://www.nature.com/articles/s41598-019-57247-4
+     - https://en.wikipedia.org/wiki/Regression_dilution#Correlation_correction
+    """
     N = 1000000
     a = np.random.rand(N)
     b = np.random.rand(N)
@@ -132,9 +138,12 @@ def test_pearson_correlation_noise_compensated():
     noise2 = np.random.rand(N)
 
     # Generate fake signals
-    A_noisy1 = 3*a + noise1
-    A_noisy2 = 4*a + noise2
-    B_noisy2 = 5*b + noise2
+    A1 = 3*a
+    A2 = 4*a
+    B2 = 5*b
+    A_noisy1 = A1 + noise1
+    A_noisy2 = A2 + noise2
+    B_noisy2 = B2 + noise2
 
     corr_AA = pearson_correlation(A_noisy1, A_noisy2, noise_var=noise1.var())
     corr_AB = pearson_correlation(A_noisy1, B_noisy2, noise_var=noise1.var())
@@ -143,7 +152,8 @@ def test_pearson_correlation_noise_compensated():
     assert np.isclose(noise1.var(), noise2.var(), atol=2e-3)
     assert np.isclose(corr_AA, 1, atol=2e-3)
     assert np.isclose(corr_AB, 0, atol=2e-3)
-    assert corr_AA_with_noise < 0.96
+    A_spearman = 1 / np.sqrt((1 + noise1.var()/A1.var()) * (1 + noise2.var()/A2.var()))
+    assert np.isclose(corr_AA_with_noise, A_spearman, atol=2e-3)
 
 
 @pytest.mark.parametrize("n_y, n_x, phase_steps, b, c, gamma",
