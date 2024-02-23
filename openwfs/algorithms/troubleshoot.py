@@ -166,6 +166,7 @@ class StabilityResult:
         plt.figure()
         plt.plot(self.timestamps, self.pixel_shifts, '.-', label='image-shift (pix)')
         plt.title('Stability - Image shift')
+        plt.ylabel('Image shift (pix)')
         plt.xlabel('time (s)')
 
         plt.figure()
