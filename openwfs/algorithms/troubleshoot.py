@@ -148,42 +148,96 @@ class StabilityResult:
     Result of a stability measurement.
 
     Attributes:
-        pixel_shifts: Image shift in pixels, as compared with first frame.
-        correlations: Pearson correlations with first frame. Compensated for noise.
-        contrast_ratios: Contrast ratio with first frame.
+        pixel_shifts_first: Image shift in pixels, compared to first frame.
+        correlations_first: Pearson correlations with first frame.
+        correlations_disattenuated_first: Pearson correlations with first frame. Compensated for noise.
+        contrast_ratios_first: Contrast ratio with first frame.
+        pixel_shifts_prev: Image shift in pixels, compared to previous frame.
+        correlations_prev: Pearson correlations with previous frame.
+        correlations_disattenuated_prev: Pearson correlations with previous frame. Compensated for noise.
+        contrast_ratios_prev: Contrast ratio with previous frame.
         timestamps: Timestamps in seconds since start of measurement.
         framestack: 3D array containing all recorded frames. Is None unless saving frames was requested.
     """
 
-    def __init__(self, pixel_shifts, correlations, contrast_ratios, abs_timestamps, framestack):
-        self.pixel_shifts = pixel_shifts
-        self.correlations = correlations
-        self.contrast_ratios = contrast_ratios
+    def __init__(self, pixel_shifts_first, correlations_first, correlations_disattenuated_first, contrast_ratios_first,
+                 pixel_shifts_prev, correlations_prev, correlations_disattenuated_prev, contrast_ratios_prev,
+                 abs_timestamps, framestack):
+
+        # Comparison with first frame
+        self.pixel_shifts_first = pixel_shifts_first
+        self.correlations_first = correlations_first
+        self.correlations_disattenuated_first = correlations_disattenuated_first
+        self.contrast_ratios_first = contrast_ratios_first
+
+        # Comparison with previous frame
+        self.pixel_shifts_prev = pixel_shifts_prev
+        self.correlations_prev = correlations_prev
+        self.correlations_disattenuated_prev = correlations_disattenuated_prev
+        self.contrast_ratios_prev = contrast_ratios_prev
+
+        # Other
         self.timestamps = abs_timestamps - abs_timestamps[0]
         self.framestack = framestack
 
     def plot(self):
+        # Comparisons with first frame
         plt.figure()
-        plt.plot(self.timestamps, self.pixel_shifts, '.-', label='image-shift (pix)')
-        plt.title('Stability - Image shift')
+        plt.plot(self.timestamps, self.pixel_shifts_first, '.-', label='image-shift (pix)')
+        plt.title('Stability - Image shift w.r.t. first frame')
         plt.ylabel('Image shift (pix)')
         plt.xlabel('time (s)')
 
         plt.figure()
-        plt.plot(self.timestamps, self.contrast_ratios, '.-', label='contrast ratio')
-        plt.plot(self.timestamps, self.correlations, '.-', label='correlation')
-        plt.title('Stability - Contrast and correlation')
+        plt.plot(self.timestamps, self.correlations_first, '.-', label='correlation')
+        plt.plot(self.timestamps, self.correlations_disattenuated_first, '.-', label='correlation disattenuated')
+        plt.title('Stability - Correlation with first frame')
         plt.xlabel('time (s)')
         plt.legend()
+
+        plt.figure()
+        plt.plot(self.timestamps, self.contrast_ratios_first, '.-', label='contrast ratio')
+        plt.title('Stability - Contrast ratio with first frame')
+        plt.xlabel('time (s)')
+
+        # Comparisons with previous frame
+        plt.figure()
+        plt.plot(self.timestamps, self.pixel_shifts_prev, '.-', label='image-shift (pix)')
+        plt.title('Stability - Image shift w.r.t. previous frame')
+        plt.ylabel('Image shift (pix)')
+        plt.xlabel('time (s)')
+
+        plt.figure()
+        plt.plot(self.timestamps, self.correlations_prev, '.-', label='correlation')
+        plt.plot(self.timestamps, self.correlations_disattenuated_prev, '.-', label='correlation disattenuated')
+        plt.title('Stability - Correlation with previous frame')
+        plt.xlabel('time (s)')
+        plt.legend()
+
+        plt.figure()
+        plt.plot(self.timestamps, self.contrast_ratios_prev, '.-', label='contrast ratio')
+        plt.title('Stability - Contrast ratio with previous frame')
+        plt.xlabel('time (s)')
+
         plt.show()
 
 
 def measure_setup_stability(frame_source, sleep_time_s, num_of_frames, dark_frame, do_save_frames=False) -> StabilityResult:
     """Test the setup stability by repeatedly reading frames."""
     first_frame = frame_source.read()
-    pixel_shifts = np.zeros(shape=(num_of_frames, 2))
-    correlations = np.zeros(shape=(num_of_frames,))
-    contrast_ratios = np.zeros(shape=(num_of_frames,))
+    prev_frame = first_frame
+
+    # Initialize arrays - first frame comparisons
+    pixel_shifts_first = np.zeros(shape=(num_of_frames, 2))
+    correlations_first = np.zeros(shape=(num_of_frames,))
+    correlations_disattenuated_first = np.zeros(shape=(num_of_frames,))
+    contrast_ratios_first = np.zeros(shape=(num_of_frames,))
+
+    # Initialize arrays - previous frame comparisons
+    pixel_shifts_prev = np.zeros(shape=(num_of_frames, 2))
+    correlations_prev = np.zeros(shape=(num_of_frames,))
+    correlations_disattenuated_prev = np.zeros(shape=(num_of_frames,))
+    contrast_ratios_prev = np.zeros(shape=(num_of_frames,))
     abs_timestamps = np.zeros(shape=(num_of_frames,))
 
     if do_save_frames:
@@ -198,18 +252,34 @@ def measure_setup_stability(frame_source, sleep_time_s, num_of_frames, dark_fram
     for n in range(num_of_frames):
         time.sleep(sleep_time_s)
         new_frame = frame_source.read()
-        pixel_shifts[n, :] = find_pixel_shift(first_frame, new_frame)
-        correlations[n] = pearson_correlation(first_frame, new_frame, noise_var=dark_var)
-        contrast_ratios[n] = contrast_enhancement(new_frame, first_frame, dark_frame)
+
+        # Compare with first frame
+        pixel_shifts_first[n, :] = find_pixel_shift(first_frame, new_frame)
+        correlations_first[n] = pearson_correlation(first_frame, new_frame)
+        correlations_disattenuated_first[n] = pearson_correlation(first_frame, new_frame, noise_var=dark_var)
+        contrast_ratios_first[n] = contrast_enhancement(new_frame, first_frame, dark_frame)
+
+        # Compare with previous frame
+        pixel_shifts_prev[n, :] = find_pixel_shift(prev_frame, new_frame)
+        correlations_prev[n] = pearson_correlation(prev_frame, new_frame)
+        correlations_disattenuated_prev[n] = pearson_correlation(prev_frame, new_frame, noise_var=dark_var)
+        contrast_ratios_prev[n] = contrast_enhancement(new_frame, prev_frame, dark_frame)
         abs_timestamps[n] = time.perf_counter()
 
         # Save frame if requested
         if do_save_frames:
             framestack[:, :, n] = new_frame
 
-    return StabilityResult(pixel_shifts=pixel_shifts,
-                           correlations=correlations,
-                           contrast_ratios=contrast_ratios,
+        prev_frame = new_frame
+
+    return StabilityResult(pixel_shifts_first=pixel_shifts_first,
+                           correlations_first=correlations_first,
+                           correlations_disattenuated_first=correlations_disattenuated_first,
+                           contrast_ratios_first=contrast_ratios_first,
+                           pixel_shifts_prev=pixel_shifts_prev,
+                           correlations_prev=correlations_prev,
+                           correlations_disattenuated_prev=correlations_disattenuated_prev,
+                           contrast_ratios_prev=contrast_ratios_prev,
                            abs_timestamps=abs_timestamps,
                            framestack=framestack)
 
@@ -462,12 +532,23 @@ def troubleshoot(algorithm, background_feedback: Detector, frame_source: Detecto
         trouble.dark_frame = frame_source.read()  # Dark frame
         shutter.open = True
         trouble.before_frame = frame_source.read()  # Before frame (flat wf)
-        trouble._before_frame_2 = frame_source.read()
+        before_frame_2 = frame_source.read()
 
         # Frame metrics
         trouble.frame_signal_std_before = signal_std(trouble.before_frame, trouble.dark_frame)
         trouble.frame_cnr_before = cnr(trouble.before_frame, trouble.dark_frame)
-        trouble.frame_repeatability = pearson_correlation(trouble.before_frame, trouble._before_frame_2)
+        trouble.frame_repeatability = pearson_correlation(trouble.before_frame, before_frame_2)
+
+    if do_long_stability_test and do_frame_capture:
+        logging.info('Run long stability test...')
+
+        # Test setup stability
+        trouble.stability = measure_setup_stability(
+            frame_source=frame_source,
+            sleep_time_s=stability_sleep_time_s,
+            num_of_frames=stability_num_of_frames,
+            dark_frame=trouble.dark_frame,
+            do_save_frames=stability_do_save_frames)
 
     # WFS experiment
     logging.info('Run WFS algorithm...')
@@ -506,17 +587,6 @@ def troubleshoot(algorithm, background_feedback: Detector, frame_source: Detecto
     trouble.fidelity_non_modulated = \
         measure_modulated_light(slm=algorithm.slm, feedback=algorithm.feedback,
                                 phase_steps=measure_non_modulated_phase_steps)
-
-    if do_long_stability_test and do_frame_capture:
-        logging.info('Run long stability test...')
-
-        # Test setup stability
-        trouble.stability = measure_setup_stability(
-            frame_source=frame_source,
-            sleep_time_s=stability_sleep_time_s,
-            num_of_frames=stability_num_of_frames,
-            dark_frame=trouble.dark_frame,
-            do_save_frames=stability_do_save_frames)
 
     trouble.expected_enhancement = np.squeeze(
         trouble.wfs_result.n * trouble.wfs_result.fidelity_amplitude * trouble.wfs_result.fidelity_noise
