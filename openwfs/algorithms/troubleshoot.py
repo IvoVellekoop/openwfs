@@ -499,7 +499,8 @@ def troubleshoot(algorithm, background_feedback: Detector, frame_source: Detecto
             contrast_enhancement(trouble.shaped_wf_frame, trouble.after_frame, trouble.dark_frame)
         trouble.frame_photobleaching_ratio = \
             contrast_enhancement(trouble.after_frame, trouble.before_frame, trouble.dark_frame)
-        trouble.fidelity_decorrelation = pearson_correlation(trouble.before_frame, trouble.after_frame)
+        trouble.fidelity_decorrelation = \
+            pearson_correlation(trouble.before_frame, trouble.after_frame, noise_var=trouble.dark_frame.var())
 
     trouble.fidelity_non_modulated = \
         measure_modulated_light(slm=algorithm.slm, feedback=algorithm.feedback,
