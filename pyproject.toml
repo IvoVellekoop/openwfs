@@ -19,7 +19,7 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = ">=3.9, <3.12"    # Some dependencies (genicam) are currently not available for Python 3.12
 numpy = ">=1.25.2"
 astropy = ">=5.3.4"
 glfw = ">=2.5.9"
