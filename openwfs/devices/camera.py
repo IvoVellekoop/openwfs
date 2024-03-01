@@ -20,7 +20,7 @@ class Camera(Detector):
             such as `duration` (exposure time), `width`, `height`, `binning`, etc.
 
             Also, the node map should not be used to set properties while the camera is fetching a frame (i.e.,
-            between `trigger()` and calling `result()` on the returned concurrent.futures.Future obect).
+            between `trigger()` and calling `result()` on the returned concurrent.futures.Future object).
 
     Note:
         This class is a thin wrapper around the Harvesters module,
