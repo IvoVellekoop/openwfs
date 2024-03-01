@@ -32,4 +32,4 @@ To run the examples, create a local directory and clone the repository from gith
 
 The examples are located in the openwfs/examples folder.
 
-
+Dependencies can be automatically installed with `Poetry <https://python-poetry.org/>`_.
