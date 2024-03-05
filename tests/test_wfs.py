@@ -4,9 +4,10 @@ import pytest
 import skimage
 from scipy.ndimage import zoom
 
-from ..openwfs.algorithms import StepwiseSequential, FourierDualReference, WFSController
+from ..openwfs.algorithms import StepwiseSequential, FourierDualReference, WFSController, troubleshoot
 from ..openwfs.processors import SingleRoi
-from ..openwfs.simulation import SimulatedWFS, StaticSource, SLM, Microscope, ADCProcessor
+from ..openwfs.simulation import SimulatedWFS, StaticSource, SLM, Microscope, ADCProcessor, Shutter
+from ..openwfs.utilities import set_pixel_size
 
 
 def assert_enhancement(slm, feedback, wfs_results, t_correct=None):
@@ -271,3 +272,44 @@ def test_multidimensional_feedback_fourier():
 
     assert enhancement[2, 1] >= 3.0, f"""The algorithm did not enhance the focus as much as expected.
             Expected at least 3.0, got {enhancement}"""
+
+@pytest.mark.parametrize("gaussian_noise_std", (0.0, 0.1, 0.5, 3.0))
+def test_ssa_fidelity(gaussian_noise_std):
+    """Test fidelity prediction for WFS simulation with various noise levels."""
+    # === Define virtual devices for a WFS simulation ===
+    # Define aberration as a pattern of random phases at the pupil plane
+    aberrations = np.random.uniform(size=(80, 80)) * 2 * np.pi
+
+    # Define specimen as an image with several bright pixels
+    specimen_img = np.zeros((240, 240))
+    specimen_img[120, 120] = 2e5
+    specimen = set_pixel_size(specimen_img, pixel_size=100 * u.nm)
+
+    # The SLM is conjugated to the back pupil plane
+    slm = SLM(shape=(80, 80))
+    # Also simulate a shutter that can turn off the light
+    shutter = Shutter(slm.field)
+
+    # Simulate a WFS microscope looking at the specimen
+    sim = Microscope(source=specimen, incident_field=shutter, aberrations=aberrations, wavelength=800 * u.nm)
+
+    # Simulate a camera device with gaussian noise and shot noise
+    cam = sim.get_camera(analog_max=1e4, shot_noise=False, gaussian_noise_std=gaussian_noise_std)
+
+    # Define feedback as circular region of interest in the center of the frame
+    roi_detector = SingleRoi(cam, radius=1)
+
+    # === Run wavefront shaping experiment ===
+    # Use the stepwise sequential (SSA) WFS algorithm
+    n_x = 10
+    n_y = 10
+    alg = StepwiseSequential(feedback=roi_detector, slm=slm, n_x=n_x, n_y=n_y, phase_steps=8)
+
+    # Define a region of interest to determine average speckle intensity
+    roi_background = SingleRoi(cam, radius=50)
+
+    # Run WFS troubleshooter and output a report to the console
+    trouble = troubleshoot(algorithm=alg, background_feedback=roi_background,
+                           frame_source=cam, shutter=shutter)
+
+    assert np.isclose(trouble.measured_enhancement, trouble.expected_enhancement, rtol=0.2)
