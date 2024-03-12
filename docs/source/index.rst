@@ -4,7 +4,7 @@ Welcome to OpenWFS's documentation!
 .. toctree::
     :maxdepth: 2
 
-    Getting started <getting_started>
+    Introduction <readme>
     detectors_and_actuators
     coordinates
     api

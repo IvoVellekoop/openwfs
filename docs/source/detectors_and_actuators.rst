@@ -1,16 +1,23 @@
 Detectors, actuators and processors
 ==================================================
 
-OpenWFS provides a framework for working with detectors and actuators, and for synchronizing their operations. Detectors are devices that _measure_ a signal of some kind. Actuators are devices that _move_ things in the setup. This can be literal, such as moving a translation stage, or a virtual movement, like an SLM that takes time to switch to a different phase pattern.
+OpenWFS provides a framework for working with detectors and actuators, and for synchronizing their operations. Detectors are devices that *measure* a signal of some kind. Actuators are devices that *move* things in the setup. This can be literal, such as moving a translation stage, or a virtual movement, like an SLM that takes time to switch to a different phase pattern. All detectors and actuators derive from the common :class:`.Device` base class, which provides synchronization between detectors and actuators.
 
 Detectors
 ---------
-Detectors in OpenWFS are objects that capture, generate, or process data. A Detector object may correspond to a physical device such as a camera, or it may be a software component that generates synthetic data (see :doc:`simulation`).
+Detectors in OpenWFS are objects that capture, generate, or process data. All detectors derive from the :class:`~.Detector` base class. A Detector object may correspond to a physical device such as a camera, or it may be a software component that generates synthetic data (see :doc:`simulation`).
 
-Data is always returned as numpy array, with a `pixel_size` metadata attached whenever possible (see :doc:`coordinates`). The `data_shape` and `pixel_size` properties of the detector return the shape (as in the numpy `shape` attribute) and the pixel size of the returned data. The pixel size is an `astropy.units.Quantity`, vector with a pixel size (including unit of measure) for each of the dimensions of the returned data. Anisotropic pixel sizes (i.e. a size that is different for the _x_ and _y_ direction) are fully supported. For detectors that return time signals, the `pixel_size` should be specified in an astropy time unit. If the pixel size is not known, or not meaningful, a value of `None` is used. Shape and pixel size use the convention that the first index in an array corresponds to the vertical coordinate, and the second index to the horizontal coordinate, i.e. `(y, x)`, `(height, width)`. This convention is consistent with the way matplotlib and most other plotting libraries that display a numpy array.
+The :meth:`.~Detector.read()` method of a detector starts a measurement and returns the captured data. It triggers the detector and blocks until the data is available. Data is always returned as numpy array, with `pixel_size` metadata attached whenever possible (see :doc:`coordinates`).
 
+Metadata
+++++++++++++++
+Each detector has :attr:`~.Detector.data_shape` and :attr:`~.Detector.pixel_size` properties, which describe the shape and pixel size of the output of the detector as obtained by :meth:`~.Detector.read()`. For some detectors, the :attr:`~.Detector.data_shape` can be set, for instance to select an ROI on a camera. The :attr:`~.Detector.pixel_size` property is an `astropy.units.Quantity`, vector with a pixel size (including unit of measure) for each of the dimensions of the returned data. Anisotropic pixel sizes (i.e. a size that is different for the *x* and *y* direction) are fully supported. For detectors that return time signals, the `pixel_size` should be specified in an astropy time unit. If the pixel size is not known, or not meaningful (for example the :class:`.SingleROI` detector outputs a single value with no unit), :attr:`~.Detector.pixel_size` can be set to None.
 
-The `read` method of a detector starts a measurement and returns the captured data. It triggers the detector and blocks until the data is available. This behavior is not ideal when multiple detectors are used simultaneously, or when transferring or processing the data takes a long time. In these cases, it is preferable to use `trigger`, which initiates the process of capturing or generating data and returns a `concurrent.futures.Future` object that will receive the data as it becomes available. The program can continue operation while the data is being captured/transferred/generated in a worker thread. When the data is needed, call `result()` on the `Future` object to wait for the acquisition to complete and retrieve the data.
+Shape and pixel size use the convention that the first index in an array corresponds to the vertical coordinate, and the second index to the horizontal coordinate, i.e. `(y, x)`, `(height, width)`. This convention is consistent with the way matplotlib and most other plotting libraries that display a numpy array.
+
+Asynchronous measurements
++++++++++++++++++++++++++++
+:meth:`.~Detector.read()` blocks the program until the captured data is available. This behavior is not ideal when multiple detectors are used simultaneously, or when transferring or processing the data takes a long time. In these cases, it is preferable to use :meth:`.~Detector.trigger()`, which initiates the process of capturing or generating data and returns a `concurrent.futures.Future` object that will receive the data as it becomes available. The program can continue operation while the data is being captured/transferred/generated in a worker thread. When the data is needed, call `result()` on the `Future` object to wait for the acquisition to complete and retrieve the data.
 
 Here is a typical usage pattern::
 
@@ -27,19 +34,30 @@ Here is a typical usage pattern::
     # The data is now available for further processing
 
 
-A third method for obtaining data is to pass a numpy array or view as `out` parameter to `trigger`. When the data becomes available it is stored in this array automatically. Before processing the data, the user should call `wait` on the detector object to make sure all data is fetched and safely stored in the output array. For example::
+A third method for obtaining data is to pass a numpy array or view as `out` parameter to :meth:`.~Detector.trigger`. When the data becomes available it is stored in this array automatically. Before processing the data, the user should call :meth:`.~Detector.wait` on the detector object to make sure all data is fetched and safely stored in the output array. For example::
 
     measurements = np.zeros((phase_steps,))
     for p in range(phase_steps):
-        self.slm.set_phases(p * 2 * np.pi / phase_steps)
-        self.feedback.trigger(out=measurements[p])
+        slm.set_phases(p * 2 * np.pi / phase_steps)
+        detector.trigger(out=measurements[p])
 
     # wait for the last measurement to complete
-    measurements.wait()
+    detector.wait()
     # the data is now stored in the `measurements` array
 
 
-While fetching and processing data is underway, any attempt to modify a property of the detector will block until the fetching and processing is complete. This way, all properties (such as the region of interest) are guaranteed to be constant between the calls to `trigger` and `\_fetch`.
+While fetching and processing data is underway, any attempt to modify a property of the detector will block until the fetching and processing is complete. This way, all properties (such as the region of interest) are guaranteed to be constant between the calls to :meth:`.~Detector.trigger` and the moment the data is actually fetched and processed in the worker thread.
+
+Implementing your own detector
++++++++++++++++++++++++++++++++
+To implement a detector for a custom device, the user should subclass the `Detector` base class, and implement whatever properties and logic appropriate to the device.
+
+If `duration`, `pixel_size` and `data_shape` are known, they should be passed to the base class constructor. If these properties may change during operation, the user should override the `duration`, `pixel_size` and `data_shape` properties to provide the correct values dynamically. If the `duration` is not known in advance (for example, when waiting for a hardware trigger), the Detector should implement the `busy` function to poll the hardware for the busy state.
+
+To implement triggering the detector and fetching the data, the user should implement the `_do_trigger` and `_fetch` methods. The `_do_trigger` method should start the measurement process. The `_fetch` method should fetch the data from the hardware, process it, and return it as a numpy array.
+
+If the detector was created with the flag `multi_threaded = True`, then `_fetch` will be called from a worker thread. This way, the rest of the program does not need to wait for transferring data from the hardware, or for computationally expensive processing tasks. OpenWFS automatically prevents any modification of public properties between the calls to `_do_trigger` and `_fetch`, which means that the `_fetch` function can safely read (not write) these properties without the chance of a race condition.
+
 
 Actuators
 ---------
@@ -53,6 +71,12 @@ A `Processor` is a `Detector` that takes input from one or more other detectors,
 
 The OpenWFS further includes various processors, such as a `CropProcessor` to crop data to a rectangular region of interest, and a `TransformProcessor` to perform affine image transformations to image produced by a source. The testing and simulation framework in addition has an `ADCProcessor` to convert the data to integers, while adding optional shot noise and readout noise and saturation to mimic an analog to digital converter.
 
+Implementing your own processor
++++++++++++++++++++++++++++++++
+To implement a custom processor, derive from the `Processor` base class. Override the `__init__` function to pass all sources to the base class constructor.
+
+In addition, implement the `_fetch` method. The processor will wait until the data from the sources is available, and then call `_fetch` with this data as input arguments. The user should implement this function to process the data and return the result. See `Microscope._fetch`, or any other `Processor` object for an example of how to do this.
+
 
 Synchronization
 ---------------
@@ -65,13 +89,10 @@ Here, 'almost' refers to the fact that devices may have a *latency*. Latency is 
 
 This synchronization is performed automatically and it is usually not necessary write any synchronization code (like `sleep` statements). The only exception is the call to `wait` when using the `out` parameter to store measurements in a pre-defined location (see Section Detectors above).
 
-..
-    # Also see Section~\ref{sec:algorithms} and \cite{ThesisVellekoop}.
-
 
 
 Implementation
-------------------
+++++++++++++++++++++
 For the synchronization, `Device` keeps a global state which can be either
 - `moving = True`. One or more actuators may be busy. No measurements can be made (none of the detectors is busy).
 - `moving = False` (the 'measuring' state). One or more detectors may be busy. All actuators must remain static (none of the actuators is busy).
@@ -84,11 +105,5 @@ The `Device` class also provides a `wait` method. This methods blocks until the 
 
 Note that the two use cases of `wait` for detectors are slightly different. When used with the state switching algorithm, it should wait until the hardware has finished acquisition of the data. When used with the `out` parameter, it should wait until the data has been written to the array. To disambiguate between these use cases, the `wait` method has an optional flag `await_data`. When `await_data` is `True`, the method waits until the data has been written to the array. When `await_data` is `False`, the method only waits until the hardware has finished acquisition of the data. The default value of `await_data` is `True`, whereas `_start` internally calls `wait` with `await_data=False`.
 
-To implement a Dectector, Actuator or Processor, the user should subclass the `Device` base class, and implement whatever properties and logic appropriate to the device.
 
-For detectors, if `duration`, `pixel_size` and `data_shape` are known, they should be passed to the base class constructor. If these properties may change during operation, the user should override the `duration`, `pixel_size` and `data_shape` properties to provide the correct values. If the `duration` is not known in advance (for example, when waiting for a hardware trigger), the Detector should implement the `busy` function to poll the hardware for the busy state.
-
-For detectors, the user should implement the `_fetch` method, which should fetch the data from the hardware, process it, and return it as a numpy array. If the detector was created with the flag `multi_threaded = True`, then `_fetch` will be called from a worker thread. This way, the rest of the program does not need to wait for transferring data from the hardware, or for computationally expensive processing tasks. Care must be taken not to modify any properties of the detector in `_fetch`. When trying to write to a public property, an error occurs because all write access to public properties is blocked while one or more measurements are being processed. When writing to a private property, no error occurs, but race conditions may occur. Therefore, the user should make sure that no properties are modified while `_fetch`
-
-For processors, the `_fetch` method after the data from all sources is available. This data is passed as function arguments to `_fetch`, so that it can be processed there. See `Microscope._fetch` for an example of how to do this.
 

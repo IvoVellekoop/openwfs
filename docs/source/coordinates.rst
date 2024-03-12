@@ -1,10 +1,10 @@
 ======================
 Coordinates and units
 ======================
-Astropy units are used throughout OpenWFS to represent quantities with physical dimensions. This allows for calculations to be performed with correct units, and for automatic unit conversion where necessary. Importantly, it prevents errors caused by passing a quantity in incorrect units, such as passing a wavelength in micrometers when the function expects a wavelength in nanometers.
+Throughout OpenWFS, quantities with physical dimensions are represented as an `astropy.units.Quantity`, which holds metadata about the unit of measure. This allows for calculations to be performed with correct units, and for automatic unit conversion where necessary. Importantly, it prevents errors caused by passing a quantity in incorrect units, such as passing a wavelength in micrometers when the function expects a wavelength in nanometers. Units are converted automatically, so one may for example specify a time in microseconds, milliseconds, or seconds.
 
-In addition, OpenWFS uses coordinates to represent the spatial or temporal extent of data arrays.
-These coordinates are attached as metadata to numpy arrays using the functions `set_pixel_size`. Pixel sizes can represent a physical length (e.g. as in the size pixels on an image sensor), or other units such as time (e.g. as the sampling period in a time series). OpenWFS fully supports anisotropic pixels, where the pixel size in the x and y directions are different (but still need to have the same unit). The pixel size can be retrieved using the `get_pixel_size` function.
+
+In addition, OpenWFS attaches metadata to data arrays using the functions `set_pixel_size`. Pixel sizes can represent a physical length (e.g. as in the size pixels on an image sensor), or other units such as time (e.g. as the sampling period in a time series). OpenWFS fully supports anisotropic pixels, where the pixel size in the x and y directions are different (but still need to have the same unit). The pixel size can be retrieved using the `get_pixel_size` function.
 
 As an alternative accessing the pixel size directly `get_extent` provide access to the extent of the array, which is always equal to the pixel size times the shape of the array. The extent can be set directly using `set_extent`, which internally converts the extent to pixel size and updates the pixel size metadata on the array.
 
@@ -18,11 +18,4 @@ In OpenWFS, three types of units are used:
     - Pupil units, which are dimensionless and represent the pupil plane of the microscope objective in a microscope. The coordinates are normalized so that the pupil plane extends from -1 to 1 in both dimensions, which is consistent with the convention used in Zernike polynomials.
 
 
-Detectors
--------------------
-Each detector has `data_shape` and `pixel_size` properties, which describe the shape and pixel size of the output of the detector as obtained by `read()`. For some detectors, the `data_shape` can be set, for instance to select an ROI on a camera.
 
-The `pixel_size` property should be used for all detectors where a physical unit (length or time) can be associated to the spacing of the data points. In cases where it does not make sense to associate a unit (for example the `SingleROI` detector outputs a single value with no unit), `pixel_size` can be set to None.
-
-Transform, place and project
--------------------------------------------------------

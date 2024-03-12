@@ -19,7 +19,7 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.dependencies]
-python = ">=3.9, <3.12"    # Some dependencies (genicam) are currently not available for Python 3.12
+python = ">=3.9, <3.12"    # The genicam dependency is currently not available for Python 3.12
 numpy = ">=1.25.2"
 astropy = ">=5.3.4"
 glfw = ">=2.5.9"
@@ -47,4 +47,5 @@ sphinx = ">=4.1.2"
 sphinx_mdinclude = ">= 0.5.0"
 sphinx-rtd-theme = ">= 2.0.0"
 sphinx-autodoc-typehints = ">= 1.11.0"
+sphinxcontrib-bibtex = ">= 2.6.0"
 

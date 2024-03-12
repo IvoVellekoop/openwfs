@@ -353,7 +353,7 @@ class Detector(Device, ABC):
 
         Note:
             To implement hardware triggering, do not override this function.
-            Instead, override `_do_trigger()` instead to ensure proper synchronization and locking.
+            Instead, override `_do_trigger()` to ensure proper synchronization and locking.
         """
         self._increase_measurements_pending()
         try:

@@ -28,30 +28,56 @@ class SLM(Actuator, PhaseSLM):
     """
     An OpenGL object to control a spatial light modulator connected to a graphics card.
 
-    The SLM can be created in windowed mode (useful for debugging), or full screen.
-    It is possible to have multiple windowed SLMs on the same monitor, but only one full-screen SLM per monitor.
+    The `SLM` class implements an OpenGL-accelerated controller for controlling phase-only spatial light modulators
+    connected to the video output of a graphics card. The SLM can be created in windowed mode (useful for debugging),
+    or full screen. It is possible to have multiple windowed SLMs on the same monitor, but only one full-screen SLM
+    per monitor.
 
-    An SLM holds a list of patches, which are shapes that can be drawn on the SLM.
-    Each of these patches can have a different texture, which is a 2D array of values that are drawn on the SLM.
-    In addition, each patch can have its own geometry, which determines how the texture is mapped onto the SLM window.
-    For more information, see the documentation of the Patch class.
+     `SLM` it implements the simple :class:`.PhaseSLM` interface, which is used by all algorithms in OpenWFS.
 
-    If an SLM holds multiple patches, the patches are drawn in the order they are present in the `patches` list.
-    If patches overlap, the pixels of the previous patch are either overwritten (when the `additive_blend` property
-    of the patch is False), or added to the phase values of the previous patch (when `additive_blend` is True).
+    Texture mapping and blending:
 
-    This way, a large range of use cases is enabled, including:
+        On top of this basic functionality, the `SLM` object provides advanced functionality for controlling how the
+        pixels in the phase map are mapped to the screen. An `SLM`  holds one or more `Patch` objects that correspond to
+        shapes that are drawn on the screen. Each patch holds a 2-d array of phase values, which stored as a texture on
+        the GPU. In addition, patch specifies how the values in this texture should be mapped to screen coordinates. In
+        the simplest form, the texture is just scaled to fit a square region on the screen. However, arbitrary mappings
+        are possible, allowing textures to be warped (e.g., to compensate for barrel distortion aberrations),
+        or even mapped to a completely different shape, such as a disk or ring (see :func:`.geometry.circular`),
+        such as used in Ref. :cite:`Mastiani2022`. More information can be found in the documentation of these classes.
 
-    - Drawing a single square patch with a single texture (the default).
-    - Mapping the phase values to a disk, with an effective resolution depending on the distance to the center
-      of the disk (see `geometry.disk`).
-    - Applying an additive patch (an offset layer) that corrects for system aberrations.
-    - etc.
+        If an SLM holds multiple patches, the patches are drawn in the order they are present in the
+        :attr:`~.SLM.patches` list. If patches overlap, the pixels of the previous patch are either overwritten (when the
+        :attr:`~.Patch.additive_blend` property of the patch is `False`), or added to the phase values of the previous
+        patch (when :attr:`~.Patch.additive_blend` is `True`).
 
-    The SLM object also holds a lookup table that maps the phase values to gray values.
-    By default, this is a linear table that maps wrapped phase values from 0-2pi to gray values from 0-255.
-    This table can be modified to correct for the non-linear response of the hardware, or to scale the range
-    of gray values that is used.
+        This way, a large range of use cases is enabled, including:
+
+        - Drawing a single square patch with a single texture (the default).
+        - Mapping the phase values to a disk, with an effective resolution depending on the distance to the center
+          of the disk (see :func:`.geometry.circular`).
+        - Applying an additive patch (an 'offset layer') that corrects for system aberrations.
+
+    Lookup table:
+
+        Even though often the SLM device includes a hardware lookup table, there usually is no standard way to set it
+        from Python, making switching between lookup tables cumbersome. The OpenGL-accelerated lookup table in the
+        SLM object provides a solution to this problem, which is especially useful when working with tunable lasers,
+        for which the lookup table needs to be adjusted often. The SLM object has a :attr:`~.SLM.lookup_table`
+        property, which holds a table that is used to convert phase values from radians to gray values on the screen.
+        By default, this table is set to `range(256)`, meaning that a phase of 0 produces a gray value of 0,
+        and a phase of  255/256·2π produces a gray value of 255. A phase of 2π again produces a gray value of 0.
+        maps the phase values to gray values. By default, this is a linear table that maps wrapped phase values from
+        0-2pi to gray values from 0-255.
+
+    Synchronization:
+
+        The SLM object uses OpenGL to synchronize to the vertical retrace of the graphics port.
+        :meth:`~.SLM.update` blocks until all OpenGL commands are processed,
+        and a vertical retrace occurs (i.e., the hardware signals the start of a new frame).
+        This method a simple, automatic, way to synchronize measurements with the SLM.
+
+
     """
     __slots__ = ['_vertex_array', '_frame_buffer', '_monitor_id', '_position', '_refresh_rate',
                  '_transform', '_shape', '_window', '_globals', '_frame_buffer', 'patches', 'primary_patch',
