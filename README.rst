@@ -5,17 +5,15 @@ OpenWFS - a library for conducting and simulating wavefront shaping experiments
 What is wavefront shaping?
 --------------------------------
 
-Wavefront shaping (WFS) is a technique for controlling the propagation of light in arbitrarily complex structures, including strongly scattering materials. In WFS, a spatial light modulator (SLM) is used to spatially shape the phase and/or amplitude of the incident light. With a properly constructed wavefront, light can be made to focus through :cite:`Vellekoop2007`, or inside :cite:`vellekoop2008demixing` a scattering material
-in such a way that the light interferes constructively at the desired focus; or light can be shaped to have other desired properties, such an optimal sensitivity for measurements :cite:`bouchet2021maximum`, specialized point-spread functions :cite:`boniface2017transmission` or for functions like optical trapping :cite:`vcivzmar2010situ`.
+Wavefront shaping (WFS) is a technique for controlling the propagation of light in arbitrarily complex structures, including strongly scattering materials. In WFS, a spatial light modulator (SLM) is used to spatially shape the phase and/or amplitude of the incident light. With a properly constructed wavefront, light can be made to focus through :cite:`Vellekoop2007`, or inside :cite:`vellekoop2008demixing` a scattering material in such a way that the light interferes constructively at the desired focus; or light can be shaped to have other desired properties, such an optimal sensitivity for measurements :cite:`bouchet2021maximum`, specialized point-spread functions :cite:`boniface2017transmission` or for functions like optical trapping :cite:`vcivzmar2010situ`.
 
 It stands out that an important driving force in WFS is the development of new algorithms, for example to account for sample movement :cite:`valzania2023online`, to be optimally resilient to noise :cite:`mastiani2021noise`, or to use digital twin models to compute the required correction patterns :cite:`salter2014exploring,ploschner2015seeing,Thendiyammal2020,cox2023model`. Much progress has been made towards developing fast and noise-resilient algorithms, or algorithms designed for specific towards the methodology of wavefront shaping, such as using algorithms based on Hadamard pattern, or Fourier-based approaches :cite:`Mastiani2022`, Fast techniques that enable wavefront shaping in dynamic samples :cite:`Liu2017` :cite:`Tzang2019`, and many potential applications have been developed and prototyped, including endoscopy, optical trapping :cite:`Cizmar2010` and deep-tissue imaging :cite:`Streich2021`.
 
-With the development of these advanced algorithms, however, the  complexity of WFS software is gradually is becoming a bottleneck for further developments in the field, as well as for end-user adoption. Code for controlling wavefront shaping tends to be complex and setup-specific, and developing this code typically requires detailed technical knowledge and low-level programming. Moreover, since many labs use their own in-house programs to control the experiments, sharing and re-using code between different research groups is troublesome.
+With the development of these advanced algorithms, however, the  complexity of WFS software is gradually is becoming a bottleneck for further advancements in the field, as well as for end-user adoption. Code for controlling wavefront shaping tends to be complex and setup-specific, and developing this code typically requires detailed technical knowledge and low-level programming. Moreover, since many labs use their own in-house programs to control the experiments, sharing and re-using code between different research groups is troublesome.
 
 What is OpenWFS?
 ----------------------
-
-OpenWFS aims to accelerate wavefront shaping research by providing:
+OpenWFS is a Python package for performing and for simulating wavefront shaping experiments. It aims to accelerate wavefront shaping research by providing:
 
 * **Hardware control**. Modular code for controlling spatial light modulators, cameras, and other hardware typically encountered in wavefront shaping experiments. Highlights include:
 
@@ -35,27 +33,43 @@ OpenWFS aims to accelerate wavefront shaping research by providing:
 * **MicroManager integration** (work in progress).  This code is designed so that it can be used in conjunction with `Micro-manager <https://micro-manager.org/>`_, a free and open-source microscopy, without any modification. To use this code in MicroManager, you need the PyDevice plugin, which can be found here:
     https://www.github.com/IvoVellekoop/pydevice
 
+OpenWFS is available on the PyPi repository, and the latest documentation can be found on `Read the Docs <https://openwfs.readthedocs.io/en/latest/>`_.
+
+
+In this documentation, we first show how to get started with OpenWFS by  can be used to simulate and control simple wavefront shaping experiments (see :ref:`Getting started`).
+
 
 Getting started
---------------------
-OpenWFS is available on PyPI, and can be installed using pip:
+====================================================================================================================================================
+OpenWFS is available on PyPI, and can be installed using pip[1]:
+[1]: due to compatibility issues with the ```genicam``` package, OpenWFS currently only works with Python versions 3.9-3.11.
 
 ``pip install openwfs``
 
-Note: due to compatibility issues with the genicam package, OpenWFS currently only works with Python 3.9-3.11.
+The documentation for the latest version can be found on `online <https://openwfs.readthedocs.io/en/latest/>`_.
+After installing this package, all examples in the documentation can be run. For components that control actual hardware,
+however, it may be needed to install additional drivers, as detailed in the documentation for these components.
 
-To run the examples, create a local directory and clone the repository from GitHub using
+Installing for development, running tests and examples
+++++++++++++++++++++++++++++++++++++++++++++++++
+To install the full source code, including examples, unit tests, and documentation source files, create a local directory and clone the repository from GitHub using
 
 ``git clone http://www.github.com/IvoVellekoop/openwfs.git``
 
-The examples are located in the openwfs/examples folder.
-Dependencies can be automatically installed with `Poetry <https://python-poetry.org/>`_ by running
+The examples are located in the `openwfs/examples` folder. To build the documentation from the source code and run the automated tests, some additional dependencies are required, which can be installed automatically with `Poetry <https://python-poetry.org/>`_ by running
 
 ``poetry install --with dev --with docs``
 
-from the openwfs directory. This also installs the optional dependencies for running the tests
-and for building the documentation using Sphinx. The tests (in `/tests`) and examples in (`/examples`)
-provide a good starting point for learning how to use OpenWFS.
+from the `openwfs` directory. The tests can now be run by running
+
+``poetry run pytest``
+
+from the `openwfs` directory.
+
+Hello wavefront shaping
++++++++++++++++++++++++++
+
+
 
 
 Bibliography
