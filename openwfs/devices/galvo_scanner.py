@@ -68,7 +68,8 @@ class ScanningMicroscope(Detector):
                  binning: int = 1,
                  bidirectional: bool = True,
                  simulation: Optional[str] = None,
-                 multi_threaded: bool = True):
+                 multi_threaded: bool = True,
+                 preprocess: Optional[callable] = None):
         """
         Args:
             data_shape (tuple[int, int]): number of data points (height, width) in the full field of view.
@@ -96,6 +97,9 @@ class ScanningMicroscope(Detector):
             padding (float): Padding fraction at the sides of the scan. The scanner will scan a larger area than will be
                 reconstructed, to make sure the reconstructed image is within the linear scan range of the mirrors.
             bidirectional (bool): If true, enables bidirectional scanning along the fast axis.
+            preprocess (callable): Process the raw data with this function before cropping. When None, the preprocessing
+                will be skipped. The function must take input arguments data and sample_rate, and must return the
+                preprocessed data.
         """
         # settings for input/output channels
         self._in_channel = input[0]
@@ -134,6 +138,8 @@ class ScanningMicroscope(Detector):
         self._simulation = simulation
 
         self._original_pixel_size = ((self._out_v_max - self._out_v_min) * self._scale / data_shape).to(u.um)
+
+        self._preprocess = preprocess
 
         # the pixel size and duration are computed dynamically
         # data_shape just returns self._data shape, and latency = 0.0 ms
@@ -266,7 +272,25 @@ class ScanningMicroscope(Detector):
             raise ValueError(
                 f"Invalid simulation option {self._simulation}. Should be 'horizontal', 'vertical', or 'None'")
 
-        return self._raw_to_cropped(raw)
+        # Preprocess raw data if a preprocess function is set
+        if self._preprocess is None:
+            preprocessed_raw = raw
+        elif callable(self._preprocess):
+            preprocessed_raw = self._preprocess(data=raw, sample_rate=self._sample_rate)
+        else:
+            raise TypeError(f"Invalid type for {self._preprocess}. Should be callable or None.")
+        return self._raw_to_cropped(preprocessed_raw)
+
+    @property
+    def preprocess(self):
+        """The function to preprocess raw data before cropping."""
+        return self._preprocess
+
+    @preprocess.setter
+    def preprocess(self, value: Optional[callable]):
+        if not callable(value) and not (value is None):
+            raise TypeError(f"Invalid type for {self._preprocess}. Should be callable or None.")
+        self._preprocess = value
 
     @property
     def pixel_size(self) -> Quantity:
