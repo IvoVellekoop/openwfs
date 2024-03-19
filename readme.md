@@ -1,5 +1,7 @@
 # OpenWFS - a library for conducting and simulating wavefront shaping experiments
 
+<!-- NOTE: README.MD IS AUTO-GENERATED FROM README.RST. DO NOT EDIT README.MD DIRECTLY. -->
+
 ## What is wavefront shaping?
 
 Wavefront shaping (WFS) is a technique for controlling the propagation of light in arbitrarily complex structures, including strongly scattering materials. In WFS, a spatial light modulator (SLM) is used to spatially shape the phase and/or amplitude of the incident light. With a properly constructed wavefront, light can be made to focus through [[1](#id30)], or inside [[2](#id21)] a scattering material in such a way that the light interferes constructively at the desired focus; or light can be shaped to have other desired properties, such an optimal sensitivity for measurements [[3](#id22)], specialized point-spread functions [[4](#id16)] or for functions like optical trapping [[5](#id19)].
@@ -39,6 +41,8 @@ The documentation for the latest version can be found on [online](https://openwf
 After installing this package, all examples in the documentation can be run. For components that control actual hardware,
 however, it may be needed to install additional drivers, as detailed in the documentation for these components.
 
+## Installing for development, running tests and examples
+
 To install the full source code, including examples, unit tests, and documentation source files, create a local directory and clone the repository from GitHub using
 
 `git clone http://www.github.com/IvoVellekoop/openwfs.git`
@@ -53,68 +57,70 @@ from the openwfs directory. The tests can now be run by running
 
 from the openwfs directory.
 
+## Hello wavefront shaping
+
 ## Bibliography
 
-<a name="id30">1</a>[1]:  
+<a name="id30"></a>1
 
 I. M. Vellekoop and A. P. Mosk. Focusing coherent light through opaque strongly scattering media. *Opt. Lett.*, 32(16):2309–2311, Aug 2007. [doi:10.1364/OL.32.002309](https://doi.org/10.1364/OL.32.002309).
 
-<a name="id21">2</a>[2]:  
+<a name="id21"></a>2
 
 IM Vellekoop, EG Van Putten, A Lagendijk, and AP Mosk. Demixing light paths inside disordered metamaterials. *Optics express*, 16(1):67–80, 2008.
 
-<a name="id22">3</a>[3]:  
+<a name="id22"></a>3
 
 Dorian Bouchet, Stefan Rotter, and Allard P Mosk. Maximum information states for coherent scattering measurements. *Nature Physics*, 17(5):564–568, 2021.
 
-<a name="id16">4</a>[4]:  
+<a name="id16"></a>4
 
 Antoine Boniface, Mickael Mounaix, Baptiste Blochet, Rafael Piestun, and Sylvain Gigan. Transmission-matrix-based point-spread-function engineering through a complex medium. *Optica*, 4(1):54–59, 2017.
 
-<a name="id19">5</a>[5]: á
+<a name="id19"></a>5
 
 Tomáš Čižmár, Michael Mazilu, and Kishan Dholakia. In situ wavefront correction and its application to micromanipulation. *Nature Photonics*, 4(6):388–394, 2010.
 
-<a name="id18">6</a>[6]:  
+<a name="id18"></a>6
 
 Lorenzo Valzania and Sylvain Gigan. Online learning of the transmission matrix of dynamic scattering media. *Optica*, 10(6):708–716, 2023.
 
-<a name="id17">7</a>[7]:  
+<a name="id17"></a>7
 
 Bahareh Mastiani and Ivo M Vellekoop. Noise-tolerant wavefront shaping in a hadamard basis. *Optics express*, 29(11):17534–17541, 2021.
 
-<a name="id29">8</a>[8]:  
+<a name="id29"></a>8
 
 PS Salter, M Baum, I Alexeev, M Schmidt, and MJ Booth. Exploring the depth range for three-dimensional laser machining with aberration correction. *Optics express*, 22(15):17644–17656, 2014.
 
-<a name="id28">9</a>[9]: ö
+<a name="id28"></a>9
 
 Martin Plöschner, Tomáš Tyc, and Tomáš Čižmár. Seeing through chaos in multimode fibres. *Nature Photonics*, 9(8):529–535, 2015.
 
-<a name="id37">10</a>[10]:  
+<a name="id37"></a>10
 
 Abhilash Thendiyammal, Gerwin Osnabrugge, Tom Knop, and Ivo M. Vellekoop. Model-based wavefront shaping microscopy. *Opt. Lett.*, 45(18):5101–5104, Sep 2020. [doi:10.1364/OL.400985](https://doi.org/10.1364/OL.400985).
 
-<a name="id20">11</a>[11]:  
+<a name="id20"></a>11
 
 DWS Cox, T Knop, and IM Vellekoop. Model-based aberration corrected microscopy inside a glass tube. *arXiv preprint arXiv:2311.13363*, 2023.
 
-<a name="id24">12</a>[12]:  
+<a name="id24"></a>12
 
 Bahareh Mastiani, Gerwin Osnabrugge, and Ivo M. Vellekoop. Wavefront shaping for forward scattering. *Optics Express*, 30:37436, 10 2022. [doi:10.1364/oe.470194](https://doi.org/10.1364/oe.470194).
 
-<a name="id31">13</a>[13]:  
+<a name="id31"></a>13
 
 Yan Liu, Cheng Ma, Yuecheng Shen, Junhui Shi, and Lihong V. Wang. Focusing light inside dynamic scattering media with millisecond digital optical phase conjugation. *Optica*, 4(2):280–288, Feb 2017. [doi:10.1364/OPTICA.4.000280](https://doi.org/10.1364/OPTICA.4.000280).
 
-<a name="id32">14</a>[14]:  
+<a name="id32"></a>14
 
 Omer Tzang, Eyal Niv, Sakshi Singh, Simon Labouesse, Greg Myatt, and Rafael Piestun. Wavefront shaping in complex media with a 350 khz modulator via a 1d-to-2d transform. *Nature Photonics*, 2019. [doi:10.1038/s41566-019-0503-6](https://doi.org/10.1038/s41566-019-0503-6).
 
-<a name="id33">15</a>[15]:  
+<a name="id33"></a>15
 
 Tomáš Čižmár, Michael Mazilu, and Kishan Dholakia. In situ wavefront correction and its application to micromanipulation. *Nature Photonics*, 4:388–394, 05 2010. [doi:10.1038/nphoton.2010.85](https://doi.org/10.1038/nphoton.2010.85).
 
-<a name="id34">16</a>[16]:  
+<a name="id34"></a>16
 
 Lina Streich, Juan Carlos Boffi, Ling Wang, Khaleel Alhalaseh, Matteo Barbieri, Ronja Rehm, Senthilkumar Deivasigamani, Cornelius T. Gross, Amit Agarwal, and Robert Prevedel. High-resolution structural and functional deep brain imaging using adaptive optics three-photon microscopy. *Nature Methods 2021 18:10*, 18:1253–1258, 9 2021. [doi:10.1038/s41592-021-01257-6](https://doi.org/10.1038/s41592-021-01257-6).

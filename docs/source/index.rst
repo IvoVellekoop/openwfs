@@ -1,12 +1,13 @@
-Welcome to OpenWFS's documentation!
-===================================
+OpenWFS - a library for conducting and simulating wavefront shaping experiments
+================================================================================================================================
 
 .. toctree::
     :maxdepth: 2
+    :numbered:
 
     Introduction <readme>
-    getting_started
-    detectors_and_actuators
+    core
     simulation_tools
-    coordinates
+    analysis_and_troubleshooting
+    development
     api

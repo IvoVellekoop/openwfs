@@ -17,64 +17,7 @@ from .utilities import set_pixel_size
 class Device(ABC):
     """Base class for detectors and actuators
 
-    Multi-threading:
-        OpenWFS is not designed to be thread-safe, and the user
-        is responsible for guaranteeing that devices are only accessed
-        from a single thread at a time.
-
-        For detectors, OpenWFS does provide threading support by the means
-        of a worker thread that is automatically started when the `trigger` method
-        is called. The worker thread calls `_fetch` on the detector object,
-        which acquires and processes the data.
-
-        While a measurement is busy (between `trigger` and the end of the
-        corresponding `_fetch`), write access to the attributes of the detector
-        is blocked. This is to prevent the user from modifying the detector settings
-        while a measurement is in progress, which would give unpredictable results.
-
-    Synchronization:
-        Device implements the synchronization between detectors and actuators.
-        The idea is that a measurement can only be made when all actuators are stable,
-        and that an actuator can only be moved when all detectors are ready.
-
-        The synchronization mechanism is implemented using a global state variable `_moving`.
-        A detector can request a state switch to the `measuring` state (`_moving=False`),
-        and an actuator can request a state switch to the `moving` state (`_moving=True`)
-        by calling `_start`.
-
-        Before making the state switch, `_start` waits for all devices of the _other_ type
-        (actuators or detectors) to become ready by calling
-        `wait(up_to=latency, await_data=False)` on those devices.
-        Here, `latency` is the minimum latency of all devices of the _same_ type as the one
-        requesting the state switch.
-        If this minimum latency is positive, it means that the devices will not start their
-        measurement or movement immediately, so we can make the state switch slightly before
-        the devices of the other type are all ready.
-        For example, a spatial light modulator has a relatively long latency, meaning that
-        we can send the next frame even before a camera has finished reading the previous frame.
-
-        For detectors, `_start` is called automatically by `trigger()`, so there is never a need to call it.
-        Implementations of an actuator should call `_start` explicitly before starting to move the actuator.
-
-    Usage::
-        >>> f1 = np.zeros((N, P, *cam1.data_shape))
-        >>> f2 = np.zeros((N, P, *cam2.data_shape))
-        >>> for n in range(N):
-        >>>     for p in range(P)
-        >>>         phase = 2 * np.pi * p / P
-        >>>
-        >>>         # wait for all measurements to complete (up to the latency of the slm), and trigger the slm.
-        >>>         slm.set_phases(phase)
-        >>>
-        >>>         # wait for the image on the slm to stabilize, then trigger the measurement.
-        >>>         cam1.trigger(out = f1[n, p, ...])
-        >>>
-        >>>         # directly trigger cam2, since we already are in the 'measuring' state.
-        >>>         cam2.trigger(out = f2[n, p, ...])
-        >>>
-        >>> cam1.wait() # wait until camera 1 is done grabbing frames
-        >>> cam2.wait() # wait until camera 2 is done grabbing frames
-        >>> fields = (f2 - f1) * np.exp(-j * phase)
+        See :ref:`Key concepts` for more information.
 
     """
     __slots__ = ('_end_time_ns', '_timeout_margin', '_locking_thread', '_error',
@@ -284,6 +227,8 @@ class Actuator(Device, ABC):
 
 class Detector(Device, ABC):
     """Base class for all detectors, cameras and other data sources with possible dynamic behavior.
+
+    See :ref:`Detectors` for more information.
     """
     __slots__ = ('_measurements_pending', '_lock_condition', '_pixel_size', '_data_shape')
 
@@ -475,7 +420,7 @@ class Detector(Device, ABC):
         return self._pixel_size
 
     @final
-    def coordinates(self, dim: int) -> Quantity:
+    def coordinates(self, dimension: int) -> Quantity:
         """Returns an array with the coordinate values along the d-th axis.
 
         The coordinates represent the _centers_ of the grid points. For example,
@@ -489,12 +434,12 @@ class Detector(Device, ABC):
         `cam.coordinates(0) + cam.coordinates(1)` gives a 2-dimensional array of coordinates.
 
         Args:
-            dim: Dimension for which to return the coordinates.
+            dimension: Dimension for which to return the coordinates.
         """
-        unit = u.dimensionless_unscaled if self.pixel_size is None else self.pixel_size[dim]
+        unit = u.dimensionless_unscaled if self.pixel_size is None else self.pixel_size[dimension]
         shape = np.ones_like(self.data_shape)
-        shape[dim] = self.data_shape[dim]
-        return np.arange(0.5, 0.5 + self.data_shape[dim], 1.0).reshape(shape) * unit
+        shape[dimension] = self.data_shape[dimension]
+        return np.arange(0.5, 0.5 + self.data_shape[dimension], 1.0).reshape(shape) * unit
 
     @final
     @property

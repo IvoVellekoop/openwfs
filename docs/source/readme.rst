@@ -1,6 +1,15 @@
-OpenWFS - a library for conducting and simulating wavefront shaping experiments
-=====================================================================================================================================================
+.. _root-label:
 
+OpenWFS
+=====================================
+
+..
+    NOTE: README.MD IS AUTO-GENERATED FROM DOCS/SOURCE/README.RST. DO NOT EDIT README.MD DIRECTLY.
+
+.. only::html
+    .. image:: https://readthedocs.org/projects/openwfs/badge/?version=latest
+       :target: https://openwfs.readthedocs.io/en/latest/?badge=latest
+       :alt: Documentation Status
 
 What is wavefront shaping?
 --------------------------------
@@ -13,6 +22,7 @@ With the development of these advanced algorithms, however, the  complexity of W
 
 What is OpenWFS?
 ----------------------
+
 OpenWFS is a Python package for performing and for simulating wavefront shaping experiments. It aims to accelerate wavefront shaping research by providing:
 
 * **Hardware control**. Modular code for controlling spatial light modulators, cameras, and other hardware typically encountered in wavefront shaping experiments. Highlights include:
@@ -30,48 +40,93 @@ OpenWFS is a Python package for performing and for simulating wavefront shaping 
 
 * **Automated troubleshooting**. OpenWFS provides tools for automated troubleshooting of wavefront shaping experiments. This includes tools for measuring the performance of wavefront shaping algorithms, and for identifying common problems such as incorrect SLM calibration, drift, measurement noise, and other experimental imperfections.
 
-* **MicroManager integration** (work in progress).  This code is designed so that it can be used in conjunction with `Micro-manager <https://micro-manager.org/>`_, a free and open-source microscopy, without any modification. To use this code in MicroManager, you need the PyDevice plugin, which can be found here:
-    https://www.github.com/IvoVellekoop/pydevice
+* **MicroManager integration** (work in progress).  This code is designed so that it can be used in conjunction with `Micro-manager <https://micro-manager.org/>`_ :cite:`MMoverview`, a free and open-source microscopy software package, without any modification. To use this code in MicroManager, you need the PyDevice plugin, which can be found `here <https://www.github.com/IvoVellekoop/pydevice>`_ :cite:`pydevice`.
 
-OpenWFS is available on the PyPi repository, and the latest documentation can be found on `Read the Docs <https://openwfs.readthedocs.io/en/latest/>`_.
+.. only:: latex
 
-
-In this documentation, we first show how to get started with OpenWFS by  can be used to simulate and control simple wavefront shaping experiments (see :ref:`Getting started`).
+    Here, we first show how to get started using OpenWFS for simulating and controlling wavefront shaping experiments. An in-depth discussion of the core design of OpenWFS is given in Section :ref:`Key concepts`. The ability to simulate optical experiments is a key aspect of the package, which will be discussed in Section :ref:`Simulations`. Finally, OpenWFS is designed to be modular and easy to extend.  In Section :ref:`OpenWFS Development`, we show how to write custom hardware control modules and wavefront shaping algorithms.
 
 
 Getting started
-====================================================================================================================================================
-OpenWFS is available on PyPI, and can be installed using pip[1]:
-[1]: due to compatibility issues with the ```genicam``` package, OpenWFS currently only works with Python versions 3.9-3.11.
+----------------------
+OpenWFS is available on the PyPi repository, and the latest documentation can be found on `Read the Docs <https://openwfs.readthedocs.io/en/latest/>`_ :cite:`openwfsdocumentation`. To use OpenWFS, you need to have Python 3.9 or later installed. At the time of writing, OpenWFS is tested up to Python version 3.11 only since all dependencies were available for Python 3.12 yet. OpenWFS is developed and tested on Windows 11 and Ubuntu Linux.
 
-``pip install openwfs``
+To install OpenWFS, you can use pip:
 
-The documentation for the latest version can be found on `online <https://openwfs.readthedocs.io/en/latest/>`_.
-After installing this package, all examples in the documentation can be run. For components that control actual hardware,
-however, it may be needed to install additional drivers, as detailed in the documentation for these components.
+.. code-block:: shell
 
-Installing for development, running tests and examples
-++++++++++++++++++++++++++++++++++++++++++++++++
-To install the full source code, including examples, unit tests, and documentation source files, create a local directory and clone the repository from GitHub using
+    pip install openwfs
 
-``git clone http://www.github.com/IvoVellekoop/openwfs.git``
+Below is a simple example that shows how to simulate a wavefront shaping experiment using OpenWFS. This example uses the `SimulatedWFS` class to simulate a spatial light modulator (SLM), and the propagation of light from that SLM, through a scattering medium, onto a detector.
 
-The examples are located in the `openwfs/examples` folder. To build the documentation from the source code and run the automated tests, some additional dependencies are required, which can be installed automatically with `Poetry <https://python-poetry.org/>`_ by running
+.. code-block:: python
 
-``poetry install --with dev --with docs``
+        import numpy as np
+        from openwfs.simulation import SimulatedWFS
+        from openwfs.algorithms import StepwiseSequential
 
-from the `openwfs` directory. The tests can now be run by running
+        # Create a simple simulation of an experiment,
+        # where light from an 'slm' is focused onto a 'detector'
+        # through an aberrating plane with 25x25 segments.
+        aberrations = np.random.uniform(0.0, 2 * np.pi, (25, 25))
+        sim = SimulatedWFS(aberrations)
+        slm = sim.slm
 
-``poetry run pytest``
+        # Use the StepwiseSequential algorithm to optimize the phase pattern,
+        # using a correction pattern of 10x10 segments and 4 phase steps
+        alg = StepwiseSequential(feedback=sim, slm=slm, n_x=10, n_y=10, phase_steps=4)
+        result = alg.execute()
 
-from the `openwfs` directory.
+        # Measure intensity with flat and shaped wavefronts
+        slm.set_phases(0)
+        before = sim.read()
+        slm.set_phases(-np.angle(result.t))
+        after = sim.read()
 
-Hello wavefront shaping
-+++++++++++++++++++++++++
+        print(f"Wavefront shaping increased the intensity in the target from {before} to {after}")
+
+The code begins by importing the necessary modules and functions:.  Next, a `SimulatedWFS` object is created to simulate a basic wavefront experiment. The `slm` attribute of this object is a simulated spatial light modulator (SLM), which is used to shape the wavefront of the light. `SimulatedWFS` object itself acts as a detector that provides a feedback signal for wavefront shaping algorithms. This feedback signal corresponds to the light intensity in the focus of a microscope objective, with a specified aberration pattern applied to the pupil plane of that objective.
+
+The `StepwiseSequential` :cite:`vellekoop2008phase` algorithm is then initialized. This algorithm is used to shape the wavefront in a way that maximizes the intensity of the light at the detector. As with all feedback-based wavefront shaping algorithms, this algorithm needs some feedback signal that it can use to optimize the wavefront., and it needs an SLM to control the wavefront. In this case, the feedback signal and the simulated SLM are both provided by the `SimulatedWFS` object. The algorithm returns the measured transmission matrix in the field `results.t`, which can be used to compute the optimal phase pattern to compensate the aberrations. Finally, the code measures the intensity at the detector before and after applying the optimized phase pattern.
+
+In summary, this code simulates a wavefront shaping experiment, uses the `StepwiseSequential` algorithm to optimize the phase pattern of the light, and measures the increase in intensity at the detector as a result of this optimization. The code to perform a real wavefront shaping experiment is similar, but it requires additional code to control the hardware.
+
+.. code-block:: python
+
+    import numpy as np
+    from openwfs.slm import SLM
+    from openwfs.devices import Camera
+    from openwfs.processors import SingleRoi
+    from openwfs.algorithms import StepwiseSequential
+
+    slm = SLM(monitor=2)
+    camera = Camera(R"C:\Program Files\Basler\pylon 7\Runtime\x64\ProducerU3V.cti")
+    camera.exposure_time = 16.666 * u.ms
+    camera.top = 400
+    camera.left = 800
+    camera.width = 10
+    camera.height = 10
+    feedback = SingleRoi(cam, mask_type='disk', radius=2.5)
+
+    alg = StepwiseSequential(feedback=sim, slm=slm, n_x=10, n_y=10, phase_steps=4)
+
+    # Run the algorithm
+    result = alg.execute()
+
+    # Measure intensity with flat and shaped wavefronts
+    slm.set_phases(0)
+    before = sim.read()
+    slm.set_phases(-np.angle(result.t))
+    after = sim.read()
+
+    print(f"Wavefront shaping increased the intensity in the target from {before} to {after}")
 
 
+As can be seen in the example, the code to control the hardware is similar to the code for the simulated experiment. This example assumes that a phase-only SLM is connected to the computer as a secondary monitor, and that a genicam-compatible camera was used to record the feedback signal. The `SingleRoi` object is used to define a region of interest over which the camera pixels are averaged to provide a feedback signal for the algorithm.
 
 
-Bibliography
---------------------
-.. bibliography::
+.. only:: html or markdown
+
+    Bibliography
+    --------------------
+    .. bibliography::

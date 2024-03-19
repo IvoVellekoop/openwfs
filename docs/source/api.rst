@@ -3,7 +3,7 @@ API Reference
 .. toctree::
    :maxdepth: 2
 
-   core
+   core_module
    algorithms
    devices
    processors
