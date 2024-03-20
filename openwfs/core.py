@@ -74,7 +74,7 @@ class Device(ABC):
 
                 # wait until all devices of the other type have (almost) finished
                 for device in other_type:
-                    device.wait(up_to=latency, await_data=False)
+                    device.wait(up_to=latency)
 
                 # changes the state from moving to measuring and vice versa
                 Device._moving = not Device._moving
@@ -134,7 +134,7 @@ class Device(ABC):
         """
         return self._duration
 
-    def wait(self, up_to: Quantity[u.ms] = 0 * u.ns, await_data=True) -> None:
+    def wait(self, up_to: Optional[Quantity[u.ms]] = None) -> None:
         """Waits until the device is (almost) in the `ready` state, i.e., has finished measuring or moving.
 
         This function is called by `_start` automatically to ensure proper synchronization between detectors and
@@ -146,20 +146,12 @@ class Device(ABC):
         where `_end_time_ns` was set by the last call to `_start`.
 
         For devices that report no duration `duration = ∞`, this function repeatedly calls `busy` until `busy`
-        returns `False`.
-        In this case, `up_to` is ignored.
+        returns `False`. In this case, `up_to` is ignored.
 
         Args:
             up_to(Quantity[u.ms]):
-                when non-zero, specifies that this function may return 'up_to' milliseconds
+                when specified, specifies that this function may return 'up_to' milliseconds
                 *before* the device is finished.
-            await_data(bool):
-                If True, after waiting until the device is no longer busy, briefly locks the device.
-                For detectors, this has the effect of waiting until all acquisitions and processing of
-                previously triggered frames are completed.
-                If an `out` parameter was specified in `trigger()`, this guarantees that the data is stored
-                in the `out` array.
-                For actuators, this flag has no effect other than briefly locking the device.
 
         Raises:
             Any other exception raised by the device in another thread (e.g., during `_fetch`).
@@ -183,7 +175,9 @@ class Device(ABC):
                 if time.time_ns() - start > timeout:
                     raise TimeoutError("Timeout in %s (tid %i)", self, threading.get_ident())
         else:
-            time_to_wait = self._end_time_ns - up_to.to_value(u.ns) - time.time_ns()
+            time_to_wait = self._end_time_ns - time.time_ns()
+            if up_to is not None:
+                time_to_wait -= up_to.to_value(u.ns)
             if time_to_wait > 0:
                 time.sleep(time_to_wait / 1.0E9)
 
@@ -276,9 +270,17 @@ class Detector(Device, ABC):
             if self._measurements_pending == 0:
                 self._lock_condition.notify_all()
 
-    def wait(self, up_to: Quantity[u.ms] = 0 * u.ns, await_data=True) -> None:
-        super().wait(up_to, await_data)
-        if await_data:
+    def wait(self, up_to: Quantity[u.ms] = None) -> None:
+        """Waits until the harware has (almost) finished measuring
+
+        Args:
+            up_to: if specified, this function may return `up_to` milliseconds *before* the hardware has finished measurements.
+                If None, this function waits until the hardware has finished all measurements *and* all data is fetched,
+                and stored in the `out` array if that was passed to trigger().
+
+        """
+        super().wait(up_to)
+        if up_to is None:
             # wait until all pending measurements are processed.
             with self._lock_condition:
                 while self._measurements_pending > 0:
