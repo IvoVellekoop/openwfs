@@ -47,13 +47,22 @@ latex_elements = {
             \normalfont\normalsize%
             \parbox{0.8\linewidth}{%
                 \vspace{0.5cm}
-                Wavefront shaping (WFS) is a technique for controlling the propagation of light through in complex media. With applications ranging from microscopy to free-space telecommunication, this research field is expanding rapidly. 
+                Wavefront shaping (WFS) is a technique for controlling the propagation of light in complex media.
+                With applications ranging from microscopy to free-space telecommunication, 
+                this research field is expanding rapidly. 
+                It stands out that many of the important breakthroughs in WFS are made by developing better software that
+                incorporates increasingly advanced physical models and algorithms.
+                Typical control software involves individual code for scanning microscopy, image processing, 
+                optimization algorithms, low-level hardware control, calibration and troubleshooting, 
+                and simulations for testing WFS algorithms. 
 
-                It stands out that many of the important breakthroughs in WFS are made by developing better software that incorporates increasingly advanced physical models and algorithms. Typical control software involves individual code for scanning microscopy, image processing, optimization algorithms, low-level hardware control, calibration and troubleshooting, and simulations for testing WFS algorithms. 
-
-                The complexity of the many different aspects of WFS software, however, is becoming a bottleneck for further developments in the field, as well as for end-user adoption.
-
-                OpenWFS addresses these challenges by providing a Python module that coherently integrates all aspects of WFS code. The module is designed to be modular and easy to expand. It incorporates easy-to-use elements for hardware control, software simulation, automated troubleshooting. Using these elements, the actual WFS algorithm and its automated tests can be written in just a few lines of code.
+                The complexity of the many different aspects of WFS software, however, 
+                is becoming a bottleneck for further developments in the field, as well as for end-user adoption.
+                OpenWFS addresses these challenges by providing a Python module that coherently integrates
+                all aspects of WFS code. The module is designed to be modular and easy to expand.
+                It incorporates elements for hardware control, software simulation, and automated troubleshooting. 
+                Using these elements, the actual WFS algorithm and its automated tests can be written
+                in just a few lines of code.
             }
         }
         \maketitle
@@ -72,6 +81,7 @@ latex_documents = [('index', 'OpenWFS.tex',
 latex_toplevel_sectioning = 'section'
 bibtex_default_style = 'unsrt'
 bibtex_bibfiles = ['references.bib']
+numfig = True
 
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
@@ -125,10 +135,3 @@ def copy_readme(app, exception):
             source_file = Path(app.outdir) / 'readme.md'
             destination_dir = Path(app.outdir).parents[3] / 'README.md'
             shutil.copy(source_file, destination_dir)
-        elif app.builder.name == 'latex':
-            source_dir = Path(app.srcdir) / 'latex_templates'
-            shutil.copy(source_dir / 'iopams.sty', app.outdir)
-            shutil.copy(source_dir / 'iopart.cls', app.outdir)
-            shutil.copy(source_dir / 'iopart10.clo', app.outdir)
-            shutil.copy(source_dir / 'iopart12.clo', app.outdir)
-            shutil.copy(source_dir / 'setstack.sty', app.outdir)
