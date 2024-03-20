@@ -287,14 +287,38 @@ class Detector(Device, ABC):
     def trigger(self, *args, out=None, immediate=False, **kwargs) -> Future:
         """Triggers the detector to start acquisition of the data.
 
-        This function returns a `concurrent.futures.Future`.
+        This function does not wait for the measurement to complete.
+        Instead, it returns a `concurrent.futures.Future`..
         Call `.result()` on the returned object to wait for the data.
+        Here is a typical usage pattern:
 
-        All parameters are passed to the _fetch function of the detector.
+        .. code-block:: python
+
+            # Trigger the detector, which starts the data capture process
+            future = detector.trigger()
+
+            # Do some other work, perhaps trigger other detectors to capture
+            # data simultaneously...
+
+            # Now read the data from the detector. If the data is not ready yet,
+            # this will block until it is.
+            data = future.result()
+
+        An alternative method for asynchronous data capture is to use
+        the `out` parameter to specify a location where to store the data:
+
+        .. code-block:: python
+
+            out = np.zeros((2,), dtype='float32')
+            detector.trigger(out=out[0])  # start the first measurement
+            detector.trigger(out=out[1])  # queue the second measurement
+            detector.wait()  # wait for both measurements to complete
+            # Now the data is stored in the `out` array.
+
+        All input parameters are passed to the _fetch function of the detector.
+        Child classes may override trigger() to call `super().trigger()` with additional parameters.
         If any of these parameters is a Future, it is awaited before calling _fetch.
         This way, data from multiple sources can be combined (see Processor).
-
-        Child classes may override trigger() to call `super().trigger()` with additional parameters.
 
         Note:
             To implement hardware triggering, do not override this function.

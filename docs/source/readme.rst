@@ -42,7 +42,7 @@ OpenWFS is a Python package for performing and for simulating wavefront shaping 
 
 .. only:: latex
 
-    Here, we first show how to get started using OpenWFS for simulating and controlling wavefront shaping experiments. An in-depth discussion of the core design of OpenWFS is given in Section :numref:`Key concepts`. The ability to simulate optical experiments is a key aspect of the package, which will be discussed in Section :numref:`Simulations`. Finally, OpenWFS is designed to be modular and easy to extend.  In Section :numref:`OpenWFS Development`, we show how to write custom hardware control modules and wavefront shaping algorithms.
+    Here, we first show how to get started using OpenWFS for simulating and controlling wavefront shaping experiments. An in-depth discussion of the core design of OpenWFS is given in Section :numref:`Key concepts`. The ability to simulate optical experiments is a key aspect of the package, which will be discussed in Section :numref:`Simulations`. Finally, OpenWFS is designed to be modular and easy to extend.  In Section :numref:`OpenWFS Development`, we show how to write custom hardware control modules and wavefront shaping algorithms. Note that not all functionality of the package is covered in this document, and we refer to the API documentation :cite:`readthedocsOpenWFS`for a complete overview of most recent version of the package.
 
 
 Getting started
@@ -77,19 +77,11 @@ Below is an example of how to use OpenWFS to run a simple wavefront shaping expe
 
     print(f"Wavefront shaping increased the intensity in the target from {before} to {after}")
 
-This example illustrates several of the main concepts of OpenWFS. First, the code initializes a spatial light modulator (SLM) and a camera. The SLM is used to control the wavefront, and the camera is used to provide feedback to the wavefront shaping algorithm. The :class:`~.SingleRoi` object is a *processor* that takes images from the camera, and averages them over the specified circular region of interest.
+This example illustrates several of the main concepts of OpenWFS. First, the code initializes an object to control a spatial light modulator (SLM) connected to a video port, and camera. The SLM is used to control the wavefront, and the camera is used to provide feedback to the wavefront shaping algorithm. The :class:`~.SingleRoi` object is a *processor* that takes images from the camera, and averages them over the specified circular region of interest.
 
-Wavefront shaping is done using the `StepwiseSequential` :cite:`vellekoop2008phase`. The algorithm needs access to the SLM for controlling the wavefront, and gets feedback from the `SingleRoi` object. The algorithm returns the measured transmission matrix in the field `results.t`, which can be used to compute the optimal phase pattern to compensate the aberrations. Finally, the code measures the intensity at the detector before and after applying the optimized phase pattern.
+Wavefront shaping is done using the `StepwiseSequential` :cite:`vellekoop2008phase` algorithm. The algorithm needs access to the SLM for controlling the wavefront, and gets feedback from the `SingleRoi` object. The algorithm returns the measured transmission matrix in the field `results.t`, which can be used to compute the optimal phase pattern to compensate the aberrations. Finally, the code measures the intensity at the detector before and after applying the optimized phase pattern.
 
-
-In this example, a :class:`~.SimulatedWFS` object is created to simulate a basic wavefront experiment. This object mimics a spatial light modulator (SLM) and simulates the propagation of light from the SLM, through a scattering medium or an aberrating phase plate, onto a detector.
-
-
-In summary, this code simulates a wavefront shaping experiment, uses the `StepwiseSequential` algorithm to optimize the phase pattern of the light, and measures the increase in intensity at the detector as a result of this optimization. The code to perform a real wavefront shaping experiment is similar, but it requires additional code to control the hardware.
-
-
-
-As can be seen in the example, the code to control the hardware is similar to the code for the simulated experiment. This example assumes that a phase-only SLM is connected to the computer as a secondary monitor, and that a genicam-compatible camera was used to record the feedback signal. The `SingleRoi` object is used to define a region of interest over which the camera pixels are averaged to provide a feedback signal for the algorithm.
+This code illustrates how OpenWFS separates the concerns of the hardware control (`SLM` and `Camera`), signal processing (`SingleROIProcessor`) and the algorithm itself (`StepwiseSequential`). A large variety of wavefront shaping experiments can be performed by using different types of feedback signals (such as optimizing multiple foci simultaneously using a :class:`~.MultiRoiProcessor` object), using different algorithms, or different image sources, such as a :class:`~.ScanningMicroscope`. Notably, these objects can be replaced by *mock* objects, that simulate the hardware and allow for rapid prototyping and testing of new algorithms without direct access to wavefront shaping hardware (see Section :numref:`Simulation`).
 
 
 .. only:: html or markdown
