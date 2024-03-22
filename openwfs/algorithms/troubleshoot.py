@@ -450,6 +450,7 @@ class WFSTroubleshootResult:
         if self.dark_frame is not None:
             print(f'average offset (dark frame): {self.dark_frame.mean():.2f}')
             print(f'median offset (dark frame): {np.median(self.dark_frame):.2f}')
+            print(f'noise std (dark frame): {np.std(self.dark_frame):.2f}')
         print(f'frame repeatability: {self.frame_repeatability:.3f}')
         print(f'contrast to noise ratio before: {self.frame_cnr_before:.3f}')
         print(f'contrast to noise ratio after: {self.frame_cnr_after:.3f}')
