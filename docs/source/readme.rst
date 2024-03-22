@@ -16,7 +16,7 @@ What is wavefront shaping?
 
 Wavefront shaping (WFS) is a technique for controlling the propagation of light in arbitrarily complex structures, including strongly scattering materials. In WFS, a spatial light modulator (SLM) is used to spatially shape the phase and/or amplitude of the incident light. With a properly constructed wavefront, light can be made to focus through :cite:`Vellekoop2007`, or inside :cite:`vellekoop2008demixing` a scattering material in such a way that the light interferes constructively at the desired focus; or light can be shaped to have other desired properties, such an optimal sensitivity for specific measurements :cite:`bouchet2021maximum`, specialized point-spread functions :cite:`boniface2017transmission` or for functions like optical trapping :cite:`vcivzmar2010situ`.
 
-It stands out that an important driving force in WFS is the development of new algorithms, for example to account for sample movement :cite:`valzania2023online`, to be optimally resilient to noise :cite:`mastiani2021noise`, or to use digital twin models to compute the required correction patterns :cite:`salter2014exploring,ploschner2015seeing,Thendiyammal2020,cox2023model`. Much progress has been made towards developing fast and noise-resilient algorithms, or algorithms designed for specific towards the methodology of wavefront shaping, such as using algorithms based on Hadamard pattern, or Fourier-based approaches :cite:`Mastiani2022`, Fast techniques that enable wavefront shaping in dynamic samples :cite:`Liu2017,Tzang2019`, and many potential applications have been developed and prototyped, including endoscopy, optical trapping :cite:`Cizmar2010` and deep-tissue imaging :cite:`Streich2021`.
+It stands out that an important driving force in WFS is the development of new algorithms, for example to account for sample movement :cite:`valzania2023online`, to be optimally resilient to noise :cite:`mastiani2021noise`, or to use digital twin models to compute the required correction patterns :cite:`salter2014exploring,ploschner2015seeing,Thendiyammal2020,cox2023model`. Much progress has been made towards developing fast and noise-resilient algorithms, or algorithms designed for specific towards the methodology of wavefront shaping, such as using algorithms based on Hadamard patterns, or Fourier-based approaches :cite:`Mastiani2022`, Fast techniques that enable wavefront shaping in dynamic samples :cite:`Liu2017,Tzang2019`, and many potential applications have been developed and prototyped, including endoscopy, optical trapping :cite:`Cizmar2010` and deep-tissue imaging :cite:`Streich2021`.
 
 With the development of these advanced algorithms, however, the  complexity of WFS software is gradually is becoming a bottleneck for further advancements in the field, as well as for end-user adoption. Code for controlling wavefront shaping tends to be complex and setup-specific, and developing this code typically requires detailed technical knowledge and low-level programming. Moreover, since many labs use their own in-house programs to control the experiments, sharing and re-using code between different research groups is troublesome.
 
@@ -47,7 +47,7 @@ OpenWFS is a Python package for performing and for simulating wavefront shaping 
 
 Getting started
 ----------------------
-OpenWFS is available on the PyPi repository, and it can be installed with `pip install openwfs`. The latest documentation can be found on `Read the Docs <https://openwfs.readthedocs.io/en/latest/>`_ :cite:`openwfsdocumentation`. To use OpenWFS, you need to have Python 3.9 or later installed. At the time of writing, OpenWFS is tested up to Python version 3.11 only since not all dependencies were available for Python 3.12 yet. OpenWFS is developed and tested on Windows 11 and Ubuntu Linux.
+OpenWFS is available on the PyPI repository, and it can be installed with `pip install openwfs`. The latest documentation can be found on `Read the Docs <https://openwfs.readthedocs.io/en/latest/>`_ :cite:`openwfsdocumentation`. To use OpenWFS, you need to have Python 3.9 or later installed. At the time of writing, OpenWFS is tested up to Python version 3.11 only since not all dependencies were available for Python 3.12 yet. OpenWFS is developed and tested on Windows 11 and Ubuntu Linux.
 
 Below is an example of how to use OpenWFS to run a simple wavefront shaping experiment.
 
@@ -83,6 +83,23 @@ Wavefront shaping is done using the `StepwiseSequential` :cite:`vellekoop2008pha
 
 This code illustrates how OpenWFS separates the concerns of the hardware control (`SLM` and `Camera`), signal processing (`SingleROIProcessor`) and the algorithm itself (`StepwiseSequential`). A large variety of wavefront shaping experiments can be performed by using different types of feedback signals (such as optimizing multiple foci simultaneously using a :class:`~.MultiRoiProcessor` object), using different algorithms, or different image sources, such as a :class:`~.ScanningMicroscope`. Notably, these objects can be replaced by *mock* objects, that simulate the hardware and allow for rapid prototyping and testing of new algorithms without direct access to wavefront shaping hardware (see Section :numref:`Simulation`).
 
+
+Analysis and Troubleshooting
+----------------------
+The theoretical aspects of wavefront shaping are well understood, and under near-ideal experimental conditions, accurate predictions for the expected signal enhancement can be given. In practice, however, there are many experimental factors that negatively affect the outcome of the experiment.
+OpenWFS has built-in functions to analyze and troubleshoot the measurements from a wavefront shaping experiment. These functions automatically estimate a number of different effects that can reduce the wavefront shaping fidelity.
+
+The utility function `analyze_phase_stepping` not only extract the transmission matrix from the measurements, but also computes a series of troubleshooting statistics: it estimates the fidelity reduction factor due noise, unequal SLM illumination and incorrect phase calibration of the SLM.
+
+The `troubleshoot` function computes several image frame metrics such as Contrast to Noise Ratio (CNR) and contrast enhancement. Furthermore, `troubleshoot` tests the image capturing repeatability and stability and estimates the fidelity reduction due to non-modulated light and decorrelation. From all fidelity reduction estimations, an order of magnitude estimation of the expected enhancement is computed. `troubleshoot` returns an object containing the outcome of the different tests and analyses. The `troubleshoot` function is used by replacing the `alg.execute()` line with for instance the following code:
+
+.. code-block:: python
+
+    # Run WFS troubleshooter and output a report to the console
+    trouble = troubleshoot(algorithm=alg, background_feedback=roi_background, frame_source=cam, shutter=shutter)
+    trouble.report()
+
+In this example, `alg` is the wavefront shaping algorithm object, `roi_background` is a `SingleRoi` object that computes the average speckle intensity, `cam` is a `Camera` object and `shutter` is an object to control the shutter. The `report()` method prints a report of the analysis and test results to the console. For a comprehensive overview of the practical considerations in wavefront shaping, please see TODO: ref (gesubmit naar arxiv).
 
 .. only:: html or markdown
 
