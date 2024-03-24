@@ -86,12 +86,12 @@ This code illustrates how OpenWFS separates the concerns of the hardware control
 
 Analysis and Troubleshooting
 ----------------------
-The theoretical aspects of wavefront shaping are well understood, and under near-ideal experimental conditions, accurate predictions for the expected signal enhancement can be given. In practice, however, there are many experimental factors that negatively affect the outcome of the experiment.
+The principles of wavefront shaping are well established, and under close-to-ideal experimental conditions, it is possible to accurately predict the signal enhancement. In practice, however, there exist many practical issues that can negatively affect the outcome of the experiment.
 OpenWFS has built-in functions to analyze and troubleshoot the measurements from a wavefront shaping experiment. These functions automatically estimate a number of different effects that can reduce the wavefront shaping fidelity.
 
 The utility function `analyze_phase_stepping` not only extract the transmission matrix from the measurements, but also computes a series of troubleshooting statistics: it estimates the fidelity reduction factor due noise, unequal SLM illumination and incorrect phase calibration of the SLM.
 
-The `troubleshoot` function computes several image frame metrics such as Contrast to Noise Ratio (CNR) and contrast enhancement. Furthermore, `troubleshoot` tests the image capturing repeatability and stability and estimates the fidelity reduction due to non-modulated light and decorrelation. From all fidelity reduction estimations, an order of magnitude estimation of the expected enhancement is computed. `troubleshoot` returns an object containing the outcome of the different tests and analyses. The `troubleshoot` function is used by replacing the `alg.execute()` line with for instance the following code:
+The `troubleshoot` function computes several image frame metrics such as Contrast to Noise Ratio (CNR) and contrast enhancement. Furthermore, `troubleshoot` tests the image capturing repeatability and stability and estimates the fidelity reduction due to non-modulated light and decorrelation. Lastly, all fidelity reduction estimations are combined to make an order of magnitude estimation of the expected enhancement. `troubleshoot` returns an object containing the outcome of the different tests and analyses. The `troubleshoot` function can be used by replacing the `alg.execute()` line with for instance the following code:
 
 .. code-block:: python
 
@@ -99,7 +99,7 @@ The `troubleshoot` function computes several image frame metrics such as Contras
     trouble = troubleshoot(algorithm=alg, background_feedback=roi_background, frame_source=cam, shutter=shutter)
     trouble.report()
 
-In this example, `alg` is the wavefront shaping algorithm object, `roi_background` is a `SingleRoi` object that computes the average speckle intensity, `cam` is a `Camera` object and `shutter` is an object to control the shutter. The `report()` method prints a report of the analysis and test results to the console. For a comprehensive overview of the practical considerations in wavefront shaping, please see TODO: ref (gesubmit naar arxiv).
+In this example, `alg` is the wavefront shaping algorithm object, `roi_background` is a `SingleRoi` object that computes the average speckle intensity, `cam` is a `Camera` object and `shutter` is an object to control the shutter. The `report()` method prints a report of the analysis and test results to the console. For a comprehensive overview of the practical considerations in wavefront shaping, please see TODO: ref (gesubmit naar arxiv, zou maandag public moeten worden).
 
 .. only:: html or markdown
 
