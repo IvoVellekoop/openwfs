@@ -6,7 +6,7 @@ import glfw
 import numpy as np  # for debugging
 import pytest
 
-from ..openwfs.slm import SLM, Patch, geometry
+from ..openwfs.devices.slm import SLM, Patch, geometry
 from ..openwfs.utilities import Transform
 
 # just some values for testing different gray value levels

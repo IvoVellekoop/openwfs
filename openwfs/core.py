@@ -17,7 +17,7 @@ from .utilities import set_pixel_size
 class Device(ABC):
     """Base class for detectors and actuators
 
-        See :ref:`Key concepts` for more information.
+        See :ref:`key_concepts` for more information.
 
     """
     __slots__ = ('_end_time_ns', '_timeout_margin', '_locking_thread', '_error',
@@ -74,7 +74,7 @@ class Device(ABC):
 
                 # wait until all devices of the other type have (almost) finished
                 for device in other_type:
-                    device.wait(up_to=latency, await_data=False)
+                    device.wait(up_to=latency)
 
                 # changes the state from moving to measuring and vice versa
                 Device._moving = not Device._moving
@@ -134,7 +134,7 @@ class Device(ABC):
         """
         return self._duration
 
-    def wait(self, up_to: Quantity[u.ms] = 0 * u.ns, await_data=True) -> None:
+    def wait(self, up_to: Optional[Quantity[u.ms]] = None) -> None:
         """Waits until the device is (almost) in the `ready` state, i.e., has finished measuring or moving.
 
         This function is called by `_start` automatically to ensure proper synchronization between detectors and
@@ -146,20 +146,12 @@ class Device(ABC):
         where `_end_time_ns` was set by the last call to `_start`.
 
         For devices that report no duration `duration = ∞`, this function repeatedly calls `busy` until `busy`
-        returns `False`.
-        In this case, `up_to` is ignored.
+        returns `False`. In this case, `up_to` is ignored.
 
         Args:
             up_to(Quantity[u.ms]):
-                when non-zero, specifies that this function may return 'up_to' milliseconds
+                when specified, specifies that this function may return 'up_to' milliseconds
                 *before* the device is finished.
-            await_data(bool):
-                If True, after waiting until the device is no longer busy, briefly locks the device.
-                For detectors, this has the effect of waiting until all acquisitions and processing of
-                previously triggered frames are completed.
-                If an `out` parameter was specified in `trigger()`, this guarantees that the data is stored
-                in the `out` array.
-                For actuators, this flag has no effect other than briefly locking the device.
 
         Raises:
             Any other exception raised by the device in another thread (e.g., during `_fetch`).
@@ -183,7 +175,9 @@ class Device(ABC):
                 if time.time_ns() - start > timeout:
                     raise TimeoutError("Timeout in %s (tid %i)", self, threading.get_ident())
         else:
-            time_to_wait = self._end_time_ns - up_to.to_value(u.ns) - time.time_ns()
+            time_to_wait = self._end_time_ns - time.time_ns()
+            if up_to is not None:
+                time_to_wait -= up_to.to_value(u.ns)
             if time_to_wait > 0:
                 time.sleep(time_to_wait / 1.0E9)
 
@@ -228,7 +222,7 @@ class Actuator(Device, ABC):
 class Detector(Device, ABC):
     """Base class for all detectors, cameras and other data sources with possible dynamic behavior.
 
-    See :ref:`Detectors` for more information.
+    See section :numref:`Detectors` in the documentation for more information.
     """
     __slots__ = ('_measurements_pending', '_lock_condition', '_pixel_size', '_data_shape')
 
@@ -276,9 +270,20 @@ class Detector(Device, ABC):
             if self._measurements_pending == 0:
                 self._lock_condition.notify_all()
 
-    def wait(self, up_to: Quantity[u.ms] = 0 * u.ns, await_data=True) -> None:
-        super().wait(up_to, await_data)
-        if await_data:
+    def wait(self, up_to: Quantity[u.ms] = None) -> None:
+        """Waits until the hardware has (almost) finished measuring
+
+        Due to the automatic synchronization between detectors and actuators, this function only needs to be called
+        explicitly when waiting for data to be stored in the `out` argument of :meth:`~.Detector.trigger()`.
+
+        Args:
+            up_to: if specified, this function may return `up_to` milliseconds *before* the hardware has finished measurements.
+                If None, this function waits until the hardware has finished all measurements *and* all data is fetched,
+                and stored in the `out` array if that was passed to trigger().
+
+        """
+        super().wait(up_to)
+        if up_to is None:
             # wait until all pending measurements are processed.
             with self._lock_condition:
                 while self._measurements_pending > 0:
@@ -323,6 +328,19 @@ class Detector(Device, ABC):
         Note:
             To implement hardware triggering, do not override this function.
             Instead, override `_do_trigger()` to ensure proper synchronization and locking.
+
+        Args:
+            out: If specified, the data is stored in this array once it is available.
+            immediate: If True, the data is fetched in the current thread. This is useful for debugging,
+                and for cases where the data is needed immediately. It avoids the overhead (and debugging complications)
+                of dispatching the call to _fetch to a worker thread.
+            *args: Additional arguments passed to the _fetch function.
+                If any of these arguments is a `concurrent.futures.Future`, the data is awaited before calling _fetch,
+                and the data is passed instead of the `Future`.
+                This is useful for combining data from multiple sources (see `Processor`).
+            **kwargs: Additional keyword arguments passed to the _fetch function. Any `concurrent.futures.Future`
+                in the keyword arguments is awaited before calling _fetch,
+                and the data is passed instead of the `Future`.
         """
         self._increase_measurements_pending()
         try:
@@ -434,7 +452,6 @@ class Detector(Device, ABC):
 
         For cameras, this is the pixel size (in astropy length units).
         For detectors returning a time trace, this value is specified in astropy time units.
-
         The pixel_size is a 1-D array with an element for each dimension of the returned data.
 
         By default, the pixel size cannot be set.

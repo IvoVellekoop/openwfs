@@ -6,7 +6,7 @@ OpenWFS
 ..
     NOTE: README.MD IS AUTO-GENERATED FROM DOCS/SOURCE/README.RST. DO NOT EDIT README.MD DIRECTLY.
 
-.. only::html
+.. only:: html
     .. image:: https://readthedocs.org/projects/openwfs/badge/?version=latest
        :target: https://openwfs.readthedocs.io/en/latest/?badge=latest
        :alt: Documentation Status
@@ -55,8 +55,7 @@ Below is an example of how to use OpenWFS to run a simple wavefront shaping expe
 
     import numpy as np
     import astropy.units as u
-    from openwfs.slm import SLM
-    from openwfs.devices import Camera
+    from openwfs.devices import SLM, Camera
     from openwfs.processors import SingleRoi
     from openwfs.algorithms import StepwiseSequential
 

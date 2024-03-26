@@ -3,7 +3,7 @@ from typing import Sequence
 import numpy as np
 from numpy.typing import ArrayLike
 
-from ..utilities import ExtentType, CoordinateType, unitless
+from ...utilities import ExtentType, CoordinateType, unitless
 
 
 class Geometry:

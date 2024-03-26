@@ -1,5 +1,6 @@
 import threading
 import weakref
+
 import glfw
 
 SLM = 'slm.SLM'
