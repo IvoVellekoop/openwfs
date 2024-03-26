@@ -1,5 +1,7 @@
+.. _development:
+
 OpenWFS Development
-====================
+==============================================
 
 Running the tests and examples
 --------------------------------------------------
@@ -8,7 +10,7 @@ To download the source code, including tests and examples, clone the repository 
 .. code-block:: shell
 
     git clone https://github.com/IvoVellekoop/openwfs/
-    cd openwfs`
+    cd openwfs
     poetry install --with dev --with docs
     poetry run pytest
 
@@ -17,14 +19,14 @@ Building the documentation
 --------------------------------------------------
 
 .. only:: html or markdown
+
     The html, and pdf versions of the documentation, as well as the `README.md` file in the root directory of the repository, are automatically generated from the docstrings in the source code and reStructuredText source files in the repository.
 
 .. only:: latex
+
     The html version of the documentation, as well as the `README.md` file in the root directory of the repository, and the pdf document you are currently reading are automatically generated from the docstrings in the source code and reStructuredText source files in the repository.
 
-    To build the documentation, make sure to have install the required packages first using `poetry install --with docs`. Then, run the following commands to build the html and pdf versions of the documentation, and to auto-generate `README.md`.
-
-    Note that for building the pdf version of the documentation, you need to have `xelatex` installed, which comes with the MiKTeX distribution of LaTeX :cite:`MiKTeX`.
+Note that for building the pdf version of the documentation, you need to have `xelatex` installed, which comes with the MiKTeX distribution of LaTeX :cite:`MiKTeX`. Then, run the following commands to build the html and pdf versions of the documentation, and to auto-generate `README.md`.
 
 .. code-block:: shell
 
@@ -48,10 +50,11 @@ Implementing new devices
 --------------------------------------------------
 
 Internals of the synchronization mechanism
-+++++++++++++++++++++++++++++++++++++++++
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 For the synchronization, `Device` keeps a global state which can be either
-- `moving = True`. One or more actuators may be busy. No measurements can be made (none of the detectors is busy).
-- `moving = False` (the 'measuring' state). One or more detectors may be busy. All actuators must remain static (none of the actuators is busy).
+
+    - `moving = True`. One or more actuators may be busy. No measurements can be made (none of the detectors is busy).
+    - `moving = False` (the 'measuring' state). One or more detectors may be busy. All actuators must remain static (none of the actuators is busy).
 
 When an actuator is started, or when a detector is triggered, it calls `self._start` to request a switch to the correct global state. If a state switch is needed, this function blocks until all devices of the other type are ready. For example, if a detector calls `_start`, the framework waits for all actuators to finish, before the switch is made. For detectors and processors, `_start` is called automatically by `trigger()`, so there is never a need to call it explicitly.
 

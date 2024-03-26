@@ -9,7 +9,7 @@ from astropy.units import Quantity
 from numpy.typing import ArrayLike
 
 from .context import Context
-from ..simulation import PhaseToField
+from ...simulation import PhaseToField
 
 try:
     import OpenGL.GL as GL
@@ -18,8 +18,8 @@ try:
 except AttributeError:
     warnings.warn("OpenGL not found, SLM will not work")
 from .patch import FrameBufferPatch, Patch, VertexArray
-from ..core import PhaseSLM, Actuator, Device, Detector
-from ..utilities import Transform
+from ...core import PhaseSLM, Actuator, Device, Detector
+from ...utilities import Transform
 
 TimeType = Union[Quantity[u.ms], int]
 
@@ -28,55 +28,7 @@ class SLM(Actuator, PhaseSLM):
     """
     An OpenGL object to control a spatial light modulator connected to a graphics card.
 
-    The `SLM` class implements an OpenGL-accelerated controller for controlling phase-only spatial light modulators
-    connected to the video output of a graphics card. The SLM can be created in windowed mode (useful for debugging),
-    or full screen. It is possible to have multiple windowed SLMs on the same monitor, but only one full-screen SLM
-    per monitor.
-
-     `SLM` it implements the simple :class:`.PhaseSLM` interface, which is used by all algorithms in OpenWFS.
-
-    Texture mapping and blending:
-
-        On top of this basic functionality, the `SLM` object provides advanced functionality for controlling how the
-        pixels in the phase map are mapped to the screen. An `SLM`  holds one or more `Patch` objects that correspond to
-        shapes that are drawn on the screen. Each patch holds a 2-d array of phase values, which stored as a texture on
-        the GPU. In addition, patch specifies how the values in this texture should be mapped to screen coordinates. In
-        the simplest form, the texture is just scaled to fit a square region on the screen. However, arbitrary mappings
-        are possible, allowing textures to be warped (e.g., to compensate for barrel distortion aberrations),
-        or even mapped to a completely different shape, such as a disk or ring (see :func:`.geometry.circular`),
-        such as used in Ref. :cite:`Mastiani2022`. More information can be found in the documentation of these classes.
-
-        If an SLM holds multiple patches, the patches are drawn in the order they are present in the
-        :attr:`~.SLM.patches` list. If patches overlap, the pixels of the previous patch are either overwritten (when the
-        :attr:`~.Patch.additive_blend` property of the patch is `False`), or added to the phase values of the previous
-        patch (when :attr:`~.Patch.additive_blend` is `True`).
-
-        This way, a large range of use cases is enabled, including:
-
-        - Drawing a single square patch with a single texture (the default).
-        - Mapping the phase values to a disk, with an effective resolution depending on the distance to the center
-          of the disk (see :func:`.geometry.circular`).
-        - Applying an additive patch (an 'offset layer') that corrects for system aberrations.
-
-    Lookup table:
-
-        Even though often the SLM device includes a hardware lookup table, there usually is no standard way to set it
-        from Python, making switching between lookup tables cumbersome. The OpenGL-accelerated lookup table in the
-        SLM object provides a solution to this problem, which is especially useful when working with tunable lasers,
-        for which the lookup table needs to be adjusted often. The SLM object has a :attr:`~.SLM.lookup_table`
-        property, which holds a table that is used to convert phase values from radians to gray values on the screen.
-        By default, this table is set to `range(256)`, meaning that a phase of 0 produces a gray value of 0,
-        and a phase of  255/256·2π produces a gray value of 255. A phase of 2π again produces a gray value of 0.
-        maps the phase values to gray values. By default, this is a linear table that maps wrapped phase values from
-        0-2pi to gray values from 0-255.
-
-    Synchronization:
-
-        The SLM object uses OpenGL to synchronize to the vertical retrace of the graphics port.
-        :meth:`~.SLM.update` blocks until all OpenGL commands are processed,
-        and a vertical retrace occurs (i.e., the hardware signals the start of a new frame).
-        This method a simple, automatic, way to synchronize measurements with the SLM.
-
+    See Section :numref:`Spatial Light Modulator`
 
     """
     __slots__ = ['_vertex_array', '_frame_buffer', '_monitor_id', '_position', '_refresh_rate',
@@ -398,6 +350,13 @@ class SLM(Actuator, PhaseSLM):
             To wait for the image stabilization explicitly, use 'wait()'.
             However, this should rarely be needed since all Detectors
             already call wait_finished before starting a measurement.
+
+        Note:
+            At the moment, :meth:`~.SLM.update` blocks until all OpenGL commands are processed,
+            and a vertical retrace occurs (i.e., the hardware signals the start of a new frame).
+            This behavior may change in the future and should not be relied on.
+            Instead, use the automatic synchronization mechanism to synchronize detectors with
+            the SLM hardware.
         """
         with self._context:
             # first draw all patches into the frame buffer

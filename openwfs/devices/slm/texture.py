@@ -1,5 +1,6 @@
-import numpy as np
 import warnings
+
+import numpy as np
 
 from .context import Context
 

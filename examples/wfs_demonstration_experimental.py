@@ -3,9 +3,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from openwfs.algorithms import FourierDualReference
-from openwfs.devices import Camera
+from openwfs.devices import Camera, SLM
 from openwfs.processors import SingleRoi
-from openwfs.slm import SLM
 
 # This script shows how a wavefront shaping experiment can be performed from Python
 cam = Camera(R"C:\Program Files\Basler\pylon 7\Runtime\x64\ProducerU3V.cti")

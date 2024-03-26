@@ -17,7 +17,7 @@ from .utilities import set_pixel_size
 class Device(ABC):
     """Base class for detectors and actuators
 
-        See :ref:`Key concepts` for more information.
+        See :ref:`key_concepts` for more information.
 
     """
     __slots__ = ('_end_time_ns', '_timeout_margin', '_locking_thread', '_error',
@@ -222,7 +222,7 @@ class Actuator(Device, ABC):
 class Detector(Device, ABC):
     """Base class for all detectors, cameras and other data sources with possible dynamic behavior.
 
-    See :ref:`Detectors` for more information.
+    See section :numref:`Detectors` in the documentation for more information.
     """
     __slots__ = ('_measurements_pending', '_lock_condition', '_pixel_size', '_data_shape')
 
@@ -271,7 +271,10 @@ class Detector(Device, ABC):
                 self._lock_condition.notify_all()
 
     def wait(self, up_to: Quantity[u.ms] = None) -> None:
-        """Waits until the harware has (almost) finished measuring
+        """Waits until the hardware has (almost) finished measuring
+
+        Due to the automatic synchronization between detectors and actuators, this function only needs to be called
+        explicitly when waiting for data to be stored in the `out` argument of :meth:`~.Detector.trigger()`.
 
         Args:
             up_to: if specified, this function may return `up_to` milliseconds *before* the hardware has finished measurements.
@@ -325,6 +328,19 @@ class Detector(Device, ABC):
         Note:
             To implement hardware triggering, do not override this function.
             Instead, override `_do_trigger()` to ensure proper synchronization and locking.
+
+        Args:
+            out: If specified, the data is stored in this array once it is available.
+            immediate: If True, the data is fetched in the current thread. This is useful for debugging,
+                and for cases where the data is needed immediately. It avoids the overhead (and debugging complications)
+                of dispatching the call to _fetch to a worker thread.
+            *args: Additional arguments passed to the _fetch function.
+                If any of these arguments is a `concurrent.futures.Future`, the data is awaited before calling _fetch,
+                and the data is passed instead of the `Future`.
+                This is useful for combining data from multiple sources (see `Processor`).
+            **kwargs: Additional keyword arguments passed to the _fetch function. Any `concurrent.futures.Future`
+                in the keyword arguments is awaited before calling _fetch,
+                and the data is passed instead of the `Future`.
         """
         self._increase_measurements_pending()
         try:
@@ -436,7 +452,6 @@ class Detector(Device, ABC):
 
         For cameras, this is the pixel size (in astropy length units).
         For detectors returning a time trace, this value is specified in astropy time units.
-
         The pixel_size is a 1-D array with an element for each dimension of the returned data.
 
         By default, the pixel size cannot be set.

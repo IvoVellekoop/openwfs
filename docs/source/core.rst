@@ -1,5 +1,8 @@
+.. _key_concepts:
+
 Key concepts
 ==================================================
+
 The OpenWFS framework is built around the concept of *devices*. Devices can be *detectors*, which capture, process, or synthesize data, or *actuators*, change the state of the system. The framework provides a common interface for working with detectors and actuators, and for synchronizing their operations.
 
 OpenWFS is not designed to be thread-safe, and the user is responsible for guaranteeing that devices are only accessed from a single thread at a time. For detectors, however, OpenWFS does provide threading support by the means of a worker thread that captures and/or processes data without blocking the main thread, as discussed in Section :numref:`Asynchronous measurements`.

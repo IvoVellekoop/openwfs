@@ -1,6 +1,6 @@
-from . import nidaq_gain
 from . import galvo_scanner
-
-from .nidaq_gain import Gain
-from .galvo_scanner import ScanningMicroscope
+from . import nidaq_gain
 from .camera import Camera
+from .galvo_scanner import ScanningMicroscope
+from .nidaq_gain import Gain
+from .slm import SLM

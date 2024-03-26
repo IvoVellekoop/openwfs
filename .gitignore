@@ -12,6 +12,7 @@ PyDevice.sln
 AutoConfig.props
 x64
 *.gif
+*.png
 dist
 *.egg-info
 /poetry.lock

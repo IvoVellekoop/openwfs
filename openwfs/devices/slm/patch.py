@@ -1,7 +1,8 @@
+import warnings
+from typing import Sequence
+
 import numpy as np
 from numpy.typing import ArrayLike
-from typing import Sequence
-import warnings
 
 from .context import Context
 
@@ -20,7 +21,7 @@ from .geometry import rectangle, Geometry
 from .shaders import default_vertex_shader, default_fragment_shader, \
     post_process_fragment_shader, post_process_vertex_shader
 from .texture import Texture
-from ..core import PhaseSLM
+from ...core import PhaseSLM
 
 
 class Patch(PhaseSLM):

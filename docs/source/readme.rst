@@ -6,7 +6,7 @@ OpenWFS
 ..
     NOTE: README.MD IS AUTO-GENERATED FROM DOCS/SOURCE/README.RST. DO NOT EDIT README.MD DIRECTLY.
 
-.. only::html
+.. only:: html
     .. image:: https://readthedocs.org/projects/openwfs/badge/?version=latest
        :target: https://openwfs.readthedocs.io/en/latest/?badge=latest
        :alt: Documentation Status
@@ -42,7 +42,7 @@ OpenWFS is a Python package for performing and for simulating wavefront shaping 
 
 .. only:: latex
 
-    Here, we first show how to get started using OpenWFS for simulating and controlling wavefront shaping experiments. An in-depth discussion of the core design of OpenWFS is given in Section :numref:`Key concepts`. The ability to simulate optical experiments is a key aspect of the package, which will be discussed in Section :numref:`Simulations`. Finally, OpenWFS is designed to be modular and easy to extend.  In Section :numref:`OpenWFS Development`, we show how to write custom hardware control modules and wavefront shaping algorithms. Note that not all functionality of the package is covered in this document, and we refer to the API documentation :cite:`readthedocsOpenWFS`for a complete overview of most recent version of the package.
+    Here, we first show how to get started using OpenWFS for simulating and controlling wavefront shaping experiments. An in-depth discussion of the core design of OpenWFS is given in Section :numref:`key_concepts`. The ability to simulate optical experiments is a key aspect of the package, which will be discussed in Section :numref:`Simulations`. Finally, OpenWFS is designed to be modular and easy to extend.  In Section :numref:`development`, we show how to write custom hardware control modules and wavefront shaping algorithms. Note that not all functionality of the package is covered in this document, and we refer to the API documentation :cite:`readthedocsOpenWFS` for a complete overview of most recent version of the package.
 
 
 Getting started
@@ -55,8 +55,7 @@ Below is an example of how to use OpenWFS to run a simple wavefront shaping expe
 
     import numpy as np
     import astropy.units as u
-    from openwfs.slm import SLM
-    from openwfs.devices import Camera
+    from openwfs.devices import SLM, Camera
     from openwfs.processors import SingleRoi
     from openwfs.algorithms import StepwiseSequential
 

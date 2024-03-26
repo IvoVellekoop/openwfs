@@ -3,13 +3,12 @@ API Reference
 .. toctree::
    :maxdepth: 2
 
-   core_module
-   algorithms
-   devices
-   processors
-   simulation
-   slm
-   utilities
+   api_core
+   api_algorithms
+   api_devices
+   api_processors
+   api_simulation
+   api_utilities
 
 
 
