@@ -10,4 +10,5 @@ OpenWFS - a library for conducting and simulating wavefront shaping experiments
     simulation_tools
     analysis_and_troubleshooting
     development
+    conclusion
     api
