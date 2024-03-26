@@ -5,9 +5,16 @@ from ..utilities.patterns import tilt
 
 
 class FourierBase:
-    """Base class definition for the Fourier algorithms.
+    """Base class definition for the Fourier algorithms as described in [1].
 
-      Can run natively, provided you input the k-space for the reference and measurement part of the SLM.
+      This algorithm optimises the wavefront in a Fourier-basis. The modes that are tested are provided into a 'k-space'
+      of which each 'k-vector' represents a certain angled wavefront that will be tested. (more detailed explanation is
+      found in _get_phase_pattern).
+
+      As described in [1], these modes are measured by interfering a certain mode on one half of the SLM with a
+      'reference beam'. This is done by not modulating the other half of the SLM. In order to find a full corrective
+      wavefront therefore, the experiment has to be repeated twice for each side of the SLM. Finally, the two wavefronts
+      are combined.
 
       [1]: Bahareh Mastiani, Gerwin Osnabrugge, and Ivo M. Vellekoop,
       "Wavefront shaping for forward scattering," Opt. Express 30, 37436-37445 (2022)
