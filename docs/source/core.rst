@@ -12,7 +12,7 @@ In addition, OpenWFS maintains metadata and units for all data arrays and proper
 
 Detectors
 ------------
-Detectors in OpenWFS are objects that capture, generate, or process data. All detectors derive from the :class:`~.Detector` base class. A Detector object may correspond to a physical device such as a camera, or it may be a software component that generates synthetic data (see Section :numref:`Simulations`). Detectors have the following properties and methods:
+Detectors in OpenWFS are objects that capture, generate, or process data. All detectors derive from the :class:`~.Detector` base class. A Detector object may correspond to a physical device such as a camera, or it may be a software component that generates synthetic data (see Section :numref:`section-simulations`). Detectors have the following properties and methods:
 
 .. code-block:: python
 

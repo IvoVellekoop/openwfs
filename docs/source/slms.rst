@@ -1,3 +1,5 @@
+.. _section-slms:
+
 Spatial Light Modulators
 ==============================
 Spatial Light Modulators are the heart of any wavefront shaping experiment. Currently, OpenWFS only supports phae-only spatial light modulators, which are controlled through the following simple interface:
@@ -10,13 +12,13 @@ Spatial Light Modulators are the heart of any wavefront shaping experiment. Curr
 
 The :meth:`~.PhaseSLM.set_phases()` method takes a scalar or a 2-D array of phase values in radians, which is wrapped to the range [0, 2π) and displayed on the SLM. This function calls :meth:`~.PhaseSLM.update()` by default to send the image to the SLM hardware. In more advanced scenarios, like texture blending (see below), this lt can be useful to postpone the update by passing ``update=False`` and manually cal :meth:`~.PhaseSLM.update()` later. The algorithms in OpenWFS only access SLMs through this simple interface. As a result, the details of the SLM hardware are decoupled from the wavefront shaping algorithm itself.
 
-Currently, there are two implementations of the `PhaseSLM` interface. The :class:`simulation.SLM` is used for simulating experiments and for testing algorithms (see Section :numref:`Simulation`).  The :class:`hardware.SLM` is an OpenGL-accelerated controller for using a phae-only SLM that is connected to the video output of a computer. The SLM can be created in windowed mode (useful for debugging), or full screen. It is possible to have multiple windowed SLMs on the same monitor, but only one full-screen SLM per monitor. The `SLM` object implements some advanced features that are discussed below.
+Currently, there are two implementations of the `PhaseSLM` interface. The :class:`simulation.SLM` is used for simulating experiments and for testing algorithms (see Section :numref:`section-simulations`).  The :class:`hardware.SLM` is an OpenGL-accelerated controller for using a phae-only SLM that is connected to the video output of a computer. The SLM can be created in windowed mode (useful for debugging), or full screen. It is possible to have multiple windowed SLMs on the same monitor, but only one full-screen SLM per monitor. The `SLM` object implements some advanced features that are discussed below.
 
 Texture mapping and blending
 -----------------------------------
 On top of the basic functionality, the :class:`hardware.SLM` object provides advanced functionality for controlling how the pixels in the phase map are mapped to the screen. An SLM object holds one or more :class:`~.Patch` objects that correspond to shapes that are drawn on the screen. Each patch holds a 2-d array of phase values, which stored as a texture on the graphics card. The user is completely free to define the shape of the patch, and the mapping between the phase values and the screen coordinates.  In the simplest form, the texture is just scaled to fit a square region on the screen. However, arbitrary mappings are possible, allowing textures to be warped (e.g., to compensate for barrel distortion aberrations), or even mapped to a completely different shape, such as a disk or ring (see :func:`.geometry.circular`), such as used in Ref. :cite:`Mastiani2022`.
 
-If an SLM holds multiple patches, the patches are drawn in the order they are present in the :attr:`~.SLM.patches` list. If patches overlap, the pixels of the previous patch are either overwritten (when the :attr:`~.Patch.additive_blend` property of the patch is `False`), or added to the phase values of the previous patch (when :attr:`~.Patch.additive_blend` is `True`).
+If an SLM holds multiple patches, the patches are drawn in the order they are present in the :attr:`~.slm.SLM.patches` list. If patches overlap, the pixels of the previous patch are either overwritten (when the :attr:`~.Patch.additive_blend` property of the patch is `False`), or added to the phase values of the previous patch (when :attr:`~.Patch.additive_blend` is `True`).
 
 This way, a large range of use cases is enabled, including:
 
@@ -59,14 +61,14 @@ The code below shows examples of texture warping and blending. The SLM object is
     pixels = slm.pixels.read()
     cv2.imwrite('slm_disk.png', pixels)
 
-The code above also showcases the use of the :attr:`~.SLM.pixels` attribute, which holds a holds a virtual camera that reads the gray values of the pixels currently displayed on the SLM. This virtual camera implements the :class:`~.Detector` interface, meaning that it can be used just like an actual camera.
+The code above also showcases the use of the :attr:`~.slm.SLM.pixels` attribute, which holds a holds a virtual camera that reads the gray values of the pixels currently displayed on the SLM. This virtual camera implements the :class:`~.Detector` interface, meaning that it can be used just like an actual camera.
 
 
 
 Lookup table
 ---------------------------------------
 
-Even though the SLM hardware itself often includes a hardware lookup table, there usually is no standard way to set it from Python, making switching between lookup tables cumbersome. The OpenGL-accelerated lookup table in the SLM object provides a solution to this problem, which is especially useful when working with tunable lasers, for which the lookup table needs to be adjusted often. The SLM object has a :attr:`~.SLM.lookup_table` property, which holds a table that is used to convert phase values from radians to gray values on the screen. By default, this table is set to `range(256)`, meaning that a phase of 0 produces a gray value of 0, and a phase of  255/256·2π produces a gray value of 255. A phase of 2π again produces a gray value of 0.
+Even though the SLM hardware itself often includes a hardware lookup table, there usually is no standard way to set it from Python, making switching between lookup tables cumbersome. The OpenGL-accelerated lookup table in the SLM object provides a solution to this problem, which is especially useful when working with tunable lasers, for which the lookup table needs to be adjusted often. The SLM object has a :attr:`~.slm.SLM.lookup_table` property, which holds a table that is used to convert phase values from radians to gray values on the screen. By default, this table is set to `range(256)`, meaning that a phase of 0 produces a gray value of 0, and a phase of  255/256·2π produces a gray value of 255. A phase of 2π again produces a gray value of 0.
 
 Synchronization
 ------------------------------------
