@@ -98,7 +98,7 @@ The `troubleshoot` function computes several image frame metrics such as Contras
     trouble = troubleshoot(algorithm=alg, background_feedback=roi_background, frame_source=cam, shutter=shutter)
     trouble.report()
 
-In this example, `alg` is the wavefront shaping algorithm object, `roi_background` is a `SingleRoi` object that computes the average speckle intensity, `cam` is a `Camera` object and `shutter` is an object to control the shutter. The `report()` method prints a report of the analysis and test results to the console. For a comprehensive overview of the practical considerations in wavefront shaping, please see TODO: ref (gesubmit naar arxiv, zou maandag public moeten worden).
+In this example, `alg` is the wavefront shaping algorithm object, `roi_background` is a `SingleRoi` object that computes the average speckle intensity, `cam` is a `Camera` object and `shutter` is an object to control the shutter. The `report()` method prints a report of the analysis and test results to the console. For a comprehensive overview of the practical considerations in wavefront shaping, please see :cite:`Mastiani2024PracticalConsiderations`.
 
 .. only:: html or markdown
 
