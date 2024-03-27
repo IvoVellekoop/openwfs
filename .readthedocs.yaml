@@ -8,11 +8,13 @@ build:
   jobs:
     post_create_environment:
       - pip install poetry
-      - poetry config virtualenvs.create false
-    post_install:
-      - poetry install --with docs --without opengl
-      - pip list
-      - poetry show
+      - pip install poetry-plugin-export
+      - poetry export -f requirements.txt -o requirements.txt --with docs --without opengl
+      - cat requirements.txt
+
+python:
+  install:
+    - requirements: requirements.txt
 
 sphinx:
   configuration: docs/source/conf.py
