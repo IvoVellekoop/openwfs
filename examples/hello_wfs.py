@@ -1,7 +1,12 @@
-"""hello_wfs.py
-================
-This script demonstrates how to use OpenWFS to perform a simple wavefront shaping experiment.
-To run this script, you need to have a camera and a spatial light modulator (SLM) connected to your computer."""
+"""
+Hello wavefront shaping
+===============================================
+This script demonstrates how to use OpenWFS to perform a simple
+wavefront shaping experiment. To run this script, you need to have
+a GenICam-compatible camera connected to your computer,
+and a spatial light modulator (SLM) connected to the secondary
+video output.
+"""
 
 import astropy.units as u
 import numpy as np
@@ -13,7 +18,7 @@ from openwfs.processors import SingleRoi
 # Display the SLM patterns on the secondary monitor
 slm = SLM(monitor_id=2)
 
-# Connect to a GenICam camera
+# Connect to a GenICam camera, average pixels to get feedback signal
 camera = Camera(R"C:\Program Files\Basler\pylon 7\Runtime\x64\ProducerU3V.cti")
 camera.exposure_time = 16.666 * u.ms
 feedback = SingleRoi(camera, pos=(320, 320), mask_type='disk', radius=2.5)
@@ -27,5 +32,4 @@ slm.set_phases(0)
 before = feedback.read()
 slm.set_phases(-np.angle(result.t))
 after = feedback.read()
-
-print(f"Wavefront shaping increased the intensity in the target from {before} to {after}")
+print(f"Intensity in the target increased from  {before} to {after}")

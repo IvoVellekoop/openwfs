@@ -5,8 +5,6 @@ Key concepts
 
 The OpenWFS framework is built around the concept of *devices*. Devices can be *detectors*, which capture, process, or synthesize data, or *actuators*, which change the state of the system. The framework provides a common interface for working with detectors and actuators, and for synchronizing their operations.
 
-OpenWFS is not designed to be thread-safe, and the user is responsible for guaranteeing that devices are only accessed from a single thread at a time. For detectors, however, OpenWFS does provide threading support by the means of a worker thread that captures and/or processes data without blocking the main thread, as discussed in Section :numref:`Asynchronous measurements`.
-
 In addition, OpenWFS maintains metadata and units for all data arrays and properties where relevant. This approach reduces the chance of errors caused by passing a quantity in incorrect units, and to simplify the computation of coordinates (see :numref:`Units and metadata`).
 
 
@@ -61,6 +59,7 @@ This code performs a wavefront shaping algorithm similar to the one described in
 
 The program does not wait for the data to become available and can directly proceed with preparing the next pattern to send to the SLM (also see Section :numref:`Synchronization`). After running the algorithm, `wait` is called to wait until all measurement data is stored in the array, and the utility function `analyze_phase_stepping` is used to extract the transmission matrix from the measurements, as well as a series of troubleshooting statistics (see Section :numref:`Analysis and troubleshooting`).
 
+Note that, except for this asynchronous mechanism for fetching and processing data, OpenWFS is not designed to be thread-safe, and the user is responsible for guaranteeing that devices are only accessed from a single thread at a time.
 
 Processors
 ------------
