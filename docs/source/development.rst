@@ -1,4 +1,4 @@
-.. _development:
+.. _section-development:
 
 OpenWFS Development
 ==============================================

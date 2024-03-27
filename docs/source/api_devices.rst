@@ -5,4 +5,12 @@ openwfs.devices
     :imported-members:
     :undoc-members:
     :show-inheritance:
-    :recursive:
+
+
+openwfs.devices.slm
+++++++++++++++++++++++++++
+.. automodule:: openwfs.devices.slm
+   :members:
+   :imported-members:
+   :undoc-members:
+   :show-inheritance:
