@@ -21,7 +21,7 @@ sys.path.append(root_dir)
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 extensions = ['sphinx.ext.napoleon', 'sphinx.ext.autodoc', 'sphinx.ext.mathjax',
               'sphinx.ext.viewcode', 'sphinx_autodoc_typehints', 'sphinxcontrib.bibtex', 'sphinx.ext.autosectionlabel',
-              'sphinx_markdown_builder']
+              'sphinx_markdown_builder', 'sphinx_gallery.gen_gallery']
 
 # basic project information
 project = 'OpenWFS'
@@ -92,6 +92,12 @@ latex_engine = 'xelatex'
 html_theme = 'sphinx_rtd_theme'
 add_module_names = False
 autodoc_preserve_defaults = True
+
+sphinx_gallery_conf = {
+    'examples_dirs': '../../examples',  # path to your example scripts
+    'ignore_pattern': 'set_path.py',
+    'gallery_dirs': 'auto_examples',  # path to where to save gallery generated output
+}
 
 # importing this module without OpenGL installed will fail,
 # so we need to mock it

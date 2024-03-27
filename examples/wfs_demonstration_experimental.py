@@ -1,3 +1,9 @@
+"""
+WFS demo experiment
+=====================
+This script demonstrates how to perform a wavefront shaping experiment using the openwfs library.
+"""
+
 import astropy.units as u
 import matplotlib.pyplot as plt
 import numpy as np

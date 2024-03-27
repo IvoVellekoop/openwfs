@@ -1,3 +1,8 @@
+"""hello_wfs.py
+================
+This script demonstrates how to use OpenWFS to perform a simple wavefront shaping experiment.
+To run this script, you need to have a camera and a spatial light modulator (SLM) connected to your computer."""
+
 import astropy.units as u
 import numpy as np
 

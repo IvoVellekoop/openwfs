@@ -4,6 +4,7 @@
 venv
 __pycache__
 .ipynb_checkpoints
+auto_examples
 build
 _build
 .vs

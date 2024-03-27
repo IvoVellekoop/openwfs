@@ -1,3 +1,9 @@
+"""
+SLM disk
+=============
+This script demonstrates how to create a circular geometry on an SLM and display a gradient pattern on it.
+"""
+
 import cv2
 import numpy as np
 

@@ -1,8 +1,15 @@
-import numpy as np
+""" Τroubleshooter demo
+=====================
+This script demonstrates how to use the troubleshooter to diagnose
+problems in a wavefront shaping experiment.
+"""
+
 import astropy.units as u
+import numpy as np
+
+from openwfs.algorithms import StepwiseSequential, troubleshoot
 from openwfs.processors import SingleRoi
 from openwfs.simulation import SLM, Microscope, Shutter
-from openwfs.algorithms import StepwiseSequential, troubleshoot
 from openwfs.utilities import set_pixel_size
 
 # === Define virtual devices for a WFS simulation ===

@@ -1,15 +1,17 @@
-import numpy as np
-import astropy.units as u
-import set_path  # noqa - needed for setting the module search path to find openwfs
-from openwfs.simulation import Microscope, StaticSource
-from openwfs.utilities import Transform
-from openwfs.plot_utilities import grab_and_show
-
-"""
-This script simulates a microscopic imaging system, generating a random noise image as a mock source and capturing it 
-through a microscope with adjustable magnification, numerical aperture, and wavelength. It visualizes the original and 
+""" Sample microscope
+=======================
+This script simulates a microscopic imaging system, generating a random noise image as a mock source and capturing it
+through a microscope with adjustable magnification, numerical aperture, and wavelength. It visualizes the original and
 processed images dynamically, demonstrating how changes in optical parameters affect image quality and resolution.
 """
+
+import astropy.units as u
+import numpy as np
+
+import set_path  # noqa - needed for setting the module search path to find openwfs
+from openwfs.plot_utilities import grab_and_show
+from openwfs.simulation import Microscope, StaticSource
+from openwfs.utilities import Transform
 
 # Parameters that can be altered
 
