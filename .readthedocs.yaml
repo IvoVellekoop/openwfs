@@ -11,6 +11,8 @@ build:
       - poetry config virtualenvs.create false
     post_install:
       - poetry install --with docs --without opengl
+      - pip list
+      - poetry list
 
 sphinx:
   configuration: docs/source/conf.py
