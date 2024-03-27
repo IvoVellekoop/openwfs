@@ -9,11 +9,7 @@ import shutil
 import sys
 from pathlib import Path
 
-try:
-    from sphinx_markdown_builder import MarkdownBuilder
-except ImportError:
-    class MarkdownBuilder:
-        pass
+from sphinx_markdown_builder import MarkdownBuilder
 
 # path setup (relevant for both local and read-the-docs builds)
 docs_source_dir = os.path.dirname(__file__)
