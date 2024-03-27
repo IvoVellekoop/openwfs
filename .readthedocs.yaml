@@ -12,7 +12,7 @@ build:
     post_install:
       - poetry install --with docs --without opengl
       - pip list
-      - poetry list
+      - poetry show
 
 sphinx:
   configuration: docs/source/conf.py
