@@ -10,7 +10,7 @@ In addition, OpenWFS maintains metadata and units for all data arrays and proper
 
 Detectors
 ------------
-Detectors in OpenWFS are objects that capture, generate, or process data. All detectors derive from the :class:`~.Detector` base class. A Detector object may correspond to a physical device such as a camera, or it may be a software component that generates synthetic data (see Section :numref:`section-simulations`). Detectors have the following properties and methods:
+Detectors in OpenWFS are objects that capture, generate, or process data. All detectors derive from the :class:`~.Detector` base class. A Detector object may correspond to a physical device such as a camera, or it may be a software component that generates synthetic data (see :numref:`section-simulations`). Detectors have the following properties and methods:
 
 .. code-block:: python
 
@@ -27,9 +27,9 @@ Detectors in OpenWFS are objects that capture, generate, or process data. All de
         extent: Quantity
 
 
-The :meth:`~.Detector.read()` method of a detector starts a measurement and returns the captured data. It triggers the detector and blocks until the data is available. Data is always returned as `numpy` array :cite:`numpy`. Subclasses of :class:`~.Detector` typically add a set of properties specific to that detector (e.g. shutter time, gain, etc.). In the simplest case, setting these properties and calling :meth:`.~Detector.read()` is all that is needed to capture data. As described in Section :numref:`Asynchronous measurements`, the :meth:`~.Detector.trigger()` method is used for asynchronous measurements. All other properties and methods are used for metadata and units, as described in Section :numref:`Units and metadata`.
+The :meth:`~.Detector.read()` method of a detector starts a measurement and returns the captured data. It triggers the detector and blocks until the data is available. Data is always returned as `numpy` array :cite:`numpy`. Subclasses of :class:`~.Detector` typically add a set of properties specific to that detector (e.g. shutter time, gain, etc.). In the simplest case, setting these properties and calling :meth:`.~Detector.read()` is all that is needed to capture data. As described in :numref:`Asynchronous measurements`, the :meth:`~.Detector.trigger()` method is used for asynchronous measurements. All other properties and methods are used for metadata and units, as described in :numref:`Units and metadata`.
 
-The detector object inherits some properties and methods from the base class :class:`~.Device`. These are used by the synchronization mechanism to determine when it is safe to start a measurement, as described in Section :numref:`Synchronization`.
+The detector object inherits some properties and methods from the base class :class:`~.Device`. These are used by the synchronization mechanism to determine when it is safe to start a measurement, as described in :numref:`Synchronization`.
 
 
 Asynchronous measurements
@@ -57,7 +57,7 @@ The asynchronous measurement mechanism can be seen in action in the `StepwiseSeq
 
 This code performs a wavefront shaping algorithm similar to the one described in :cite:`Vellekoop2007`. In this version, there is no pre-optimization. It works by cycling the phase of each of the n_x × n_y segments on the SLM between 0 and 2π, and measuring the feedback signal at each step. `self.feedback` holds a `Detector` object that is triggered, and stores the measurement in the `measurements` array when it becomes available. It is possible to find the optimized wavefront for multiple targets simultaneously by using a detector that returns an array of feedback values, one for each target. The number of targets is determined by the shape of the array returned by the detector, which equals `feedback.data_shape`.
 
-The program does not wait for the data to become available and can directly proceed with preparing the next pattern to send to the SLM (also see Section :numref:`Synchronization`). After running the algorithm, `wait` is called to wait until all measurement data is stored in the array, and the utility function `analyze_phase_stepping` is used to extract the transmission matrix from the measurements, as well as a series of troubleshooting statistics (see Section :numref:`Analysis and troubleshooting`).
+The program does not wait for the data to become available and can directly proceed with preparing the next pattern to send to the SLM (also see :numref:`Synchronization`). After running the algorithm, `wait` is called to wait until all measurement data is stored in the array, and the utility function `analyze_phase_stepping` is used to extract the transmission matrix from the measurements, as well as a series of troubleshooting statistics (see :numref:`Analysis and troubleshooting`).
 
 Note that, except for this asynchronous mechanism for fetching and processing data, OpenWFS is not designed to be thread-safe, and the user is responsible for guaranteeing that devices are only accessed from a single thread at a time.
 
@@ -111,7 +111,7 @@ Each device can either be *busy* or *ready*, and this state can be polled by cal
 
 Here, 'almost' refers to the fact that devices may have a *latency*. Latency is the time between sending a command to a device, and the moment the device starts responding. An important example is the SLM, which typically takes one or two frame periods to transfer the image data to the liquid crystal chip. Such devices can specify a non-zero `latency` attribute. When specified, the device 'promises' not to do anything until `latency` milliseconds after the start of the measurement or movement. When a latency is specified, detectors or actuators can be started slightly before the devices of the other type (actuators or detectors, respectively) have finished their operation. For example, this mechanism allows sending a new frame to the SLM *before* the measurements of the current frame are finished, since it is known that the SLM will not respond for `latency` milliseconds anyway. This way, measurements and SLM updates can be pipelined to maximize the number of measurements that can be done in a certain amount of time. To enable these pipelined measurements, the `Device` class also provides a `duration` attribute, which is the maximum time interval between triggering the detector or starting the actuator, and the moment the detector has finished measuring, or the actuator has finished moving.
 
-This synchronization is performed automatically. If desired, it is possible to explicitly wait for the device to become ready by calling :meth:`~.Device.wait()`. To accommodate taking into account the latency, this function takes an optional parameter `up_to`, which indicates that the function may return the specified time *before* the device hardware is ready. In user code, it is only necessary to call `wait` when using the `out` parameter to store measurements in a pre-defined location (see Section :numref:`Asynchronous measurements` above). A typical usage pattern is illustrated in the following snippet:
+This synchronization is performed automatically. If desired, it is possible to explicitly wait for the device to become ready by calling :meth:`~.Device.wait()`. To accommodate taking into account the latency, this function takes an optional parameter `up_to`, which indicates that the function may return the specified time *before* the device hardware is ready. In user code, it is only necessary to call `wait` when using the `out` parameter to store measurements in a pre-defined location (see :numref:`Asynchronous measurements` above). A typical usage pattern is illustrated in the following snippet:
 
 .. code-block:: python
 
