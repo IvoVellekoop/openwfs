@@ -1,7 +1,8 @@
 openwfs
 ----------------------
 .. automodule:: openwfs
-   :members:
-   :imported-members:
-   :undoc-members:
-   :show-inheritance:
+    :members:
+    :imported-members:
+    :undoc-members:
+    :noindex:
+    :show-inheritance:

@@ -1,7 +1,8 @@
 openwfs.utilities
 ----------------------
 .. automodule:: openwfs.utilities
-   :members:
-   :imported-members:
-   :undoc-members:
-   :show-inheritance:
+    :members:
+    :noindex:
+    :imported-members:
+    :undoc-members:
+    :show-inheritance:

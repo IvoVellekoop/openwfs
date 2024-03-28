@@ -51,7 +51,7 @@ OpenWFS is a Python package for performing and for simulating wavefront shaping 
 
 Getting started
 ----------------------
-OpenWFS is available on the PyPI repository, and it can be installed with the command ``pip install openwfs``. The latest documentation can be found on the `Read the Docs <https://openwfs.readthedocs.io/en/latest/>`_ website :cite:`openwfsdocumentation`. To use OpenWFS, you need to have Python 3.9 or later installed. At the time of writing, OpenWFS is tested up to Python version 3.11 only since not all dependencies were available for Python 3.12 yet. OpenWFS is developed and tested on Windows 11 and Ubuntu Linux.
+OpenWFS is available on the PyPI repository, and it can be installed with the command ``pip install openwfs``. The latest documentation can be found on the `Read the Docs <https://openwfs.readthedocs.io/en/latest/>`_ website :cite:`openwfsdocumentation`. To use OpenWFS, you need to have Python 3.9 or later installed. At the time of writing, OpenWFS is tested up to Python version 3.11 only since not all dependencies were available for Python 3.12 yet. OpenWFS is developed and tested on Windows 11 and Manjaro Linux.
 
 :numref:`hello-wfs` shows an example of how to use OpenWFS to run a simple wavefront shaping experiment. This example illustrates several of the main concepts of OpenWFS. First, the code initializes objects to control a spatial light modulator (SLM) connected to a video port, and a camera that provides feedback to the wavefront shaping algorithm.
 

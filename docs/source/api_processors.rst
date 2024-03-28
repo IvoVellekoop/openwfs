@@ -1,7 +1,8 @@
 openwfs.processors
 ----------------------
 .. automodule:: openwfs.processors
-   :members:
-   :imported-members:
-   :undoc-members:
-   :show-inheritance:
+    :members:
+    :noindex:
+    :imported-members:
+    :undoc-members:
+    :show-inheritance:

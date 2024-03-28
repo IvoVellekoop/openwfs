@@ -1,7 +1,8 @@
 openwfs.simulation
 ----------------------
 .. automodule:: openwfs.simulation
-   :members:
-   :imported-members:
-   :undoc-members:
-   :show-inheritance:
+    :members:
+    :noindex:
+    :imported-members:
+    :undoc-members:
+    :show-inheritance:

@@ -1,7 +1,8 @@
 openwfs.algorithms
 ----------------------
 .. automodule:: openwfs.algorithms
-   :members:
-   :imported-members:
-   :undoc-members:
-   :show-inheritance:
+    :members:
+    :noindex:
+    :imported-members:
+    :undoc-members:
+    :show-inheritance:
