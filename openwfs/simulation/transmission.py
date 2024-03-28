@@ -1,4 +1,7 @@
+from typing import Optional
+
 import numpy as np
+
 from .slm import SLM, Processor
 
 
@@ -14,7 +17,8 @@ class SimulatedWFS(Processor):
     For a more advanced (but slower) simulation, use `Microscope`
     """
 
-    def __init__(self, aberrations: np.ndarray, slm=None, multi_threaded=True):
+    def __init__(self, *, t: Optional[np.ndarray] = None, aberrations: Optional[np.ndarray] = None, slm=None,
+                 multi_threaded=True):
         """
         Initializes the optical system with specified aberrations and optionally a Gaussian beam profile.
 
@@ -24,7 +28,9 @@ class SimulatedWFS(Processor):
         Gaussian beam.
 
         Args:
-            aberrations (np.ndarray): An array containing the aberrations in radians.
+            t: Transmission matrix.
+            aberrations: An array containing the aberrations in radians. Can be used instead of a transmission matrix,
+                equivalent to specifying t = np.exp(1j * aberrations) / (aberrations.shape[0] * aberrations.shape[1]).
             slm:
             multi_threaded (bool, optional): If True, the simulation will use multiple threads to compute the
                 intensity in the focus. If False, the simulation will use a single thread. Defaults to True.
@@ -33,10 +39,10 @@ class SimulatedWFS(Processor):
         field at the SLM considering the aberrations and optionally the Gaussian beam profile, and initializes the
         system with these parameters.
         """
-        self.slm = slm if slm is not None else SLM(aberrations.shape[0:2])
 
         # transmission matrix (normalized so that the maximum transmission is 1)
-        self._t = np.exp(1.0j * aberrations) / (aberrations.shape[0] * aberrations.shape[1])
+        self._t = t if t is not None else np.exp(1.0j * aberrations) / (aberrations.shape[0] * aberrations.shape[1])
+        self.slm = slm if slm is not None else SLM(self._t.shape[0:2])
 
         super().__init__(self.slm.field, multi_threaded=multi_threaded)
 

@@ -14,7 +14,7 @@ class WFSResult:
             denote the columns of the transmission matrix (`a` indices), and the last dimensions(s) denote the targets,
             i.e., the rows of the transmission matrix (`b` indices).
         axis (int): Number of dimensions used for denoting a single column of the transmission matrix
-            (e.g., 2 dimensions representing the x and y coordinates of the SLM pixels).
+            (e. g., 2 dimensions representing the x and y coordinates of the SLM pixels).
         fidelity_noise (ndarray): The estimated loss in fidelity caused by the limited SNR (for each target).
         fidelity_amplitude (ndarray): Estimated reduction of the fidelity due to phase-only modulation (for each target)
             (≈ π/4 for fully developed speckle).
@@ -41,7 +41,7 @@ class WFSResult:
             t(ndarray): measured transmission matrix.
             axis(int):
                 number of dimensions used for denoting a single columns of the transmission matrix
-                (e.g. 2 dimensions representing the x and y coordinates of the SLM pixels)
+                (e. g. 2 dimensions representing the x and y coordinates of the SLM pixels)
             fidelity_noise(ArrayLike):
                 the estimated loss in fidelity caused by the the limited snr (for each target).
             fidelity_amplitude(ArrayLike):

@@ -138,9 +138,9 @@ def test_pearson_correlation_noise_compensated():
     noise2 = np.random.rand(N)
 
     # Generate fake signals
-    A1 = 3*a
-    A2 = 4*a
-    B2 = 5*b
+    A1 = 3 * a
+    A2 = 4 * a
+    B2 = 5 * b
     A_noisy1 = A1 + noise1
     A_noisy2 = A2 + noise2
     B_noisy2 = B2 + noise2
@@ -152,7 +152,7 @@ def test_pearson_correlation_noise_compensated():
     assert np.isclose(noise1.var(), noise2.var(), atol=2e-3)
     assert np.isclose(corr_AA, 1, atol=2e-3)
     assert np.isclose(corr_AB, 0, atol=2e-3)
-    A_spearman = 1 / np.sqrt((1 + noise1.var()/A1.var()) * (1 + noise2.var()/A2.var()))
+    A_spearman = 1 / np.sqrt((1 + noise1.var() / A1.var()) * (1 + noise2.var() / A2.var()))
     assert np.isclose(corr_AA_with_noise, A_spearman, atol=2e-3)
 
 
@@ -164,7 +164,7 @@ def test_fidelity_phase_calibration_ssa_noise_free(n_y, n_x, phase_steps, b, c, 
     """
     # Perfect SLM, noise-free
     aberrations = np.random.uniform(0.0, 2 * np.pi, (n_y, n_x))
-    sim = SimulatedWFS(aberrations)
+    sim = SimulatedWFS(aberrations=aberrations)
     alg = StepwiseSequential(feedback=sim, slm=sim.slm, n_x=n_x, n_y=n_y, phase_steps=phase_steps)
     result = alg.execute()
     assert result.fidelity_calibration > 0.99
@@ -220,7 +220,7 @@ def test_measure_modulated_light_dual_phase_stepping_noise_free(num_blocks, phas
     """Test fidelity estimation due to amount of modulated light. Noise-free."""
     # Perfect SLM, noise-free
     aberrations = np.random.uniform(0.0, 2 * np.pi, (20, 20))
-    sim = SimulatedWFS(aberrations)
+    sim = SimulatedWFS(aberrations=aberrations)
 
     # Measure the amount of modulated light (no non-modulated light present)
     fidelity_modulated = measure_modulated_light_dual_phase_stepping(
@@ -258,7 +258,7 @@ def test_measure_modulated_light_noise_free(phase_steps, modulated_field_amplitu
     aberrations = np.random.uniform(0.0, 2 * np.pi, (20, 20))
     slm = SLM(aberrations.shape, field_amplitude=modulated_field_amplitude,
               non_modulated_field_fraction=non_modulated_field)
-    sim = SimulatedWFS(aberrations, slm=slm)
+    sim = SimulatedWFS(aberrations=aberrations, slm=slm)
 
     # Measure the amount of modulated light (no non-modulated light present)
     fidelity_modulated = measure_modulated_light(slm=sim.slm, feedback=sim, phase_steps=phase_steps)

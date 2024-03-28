@@ -1,7 +1,8 @@
 """
 SLM disk
 =============
-This script demonstrates how to create a circular geometry on an SLM and display a gradient pattern on it.
+This script demonstrates how to create a circular geometry on an SLM
+and superpose a gradient pattern on it.
 """
 
 import cv2
@@ -18,7 +19,8 @@ slm = SLM(monitor_id=0, shape=slm_size)
 # onto a set of concentric rings. Display a gradient pattern
 shape = geometry.circular(radii=(0, 0.4, 0.7, 1.0), segments_per_ring=(4, 6, 8))
 slm.patches[0].geometry = shape
-slm.patches[0].set_phases(np.random.uniform(low=0, high=30, size=(1, 18)), update=False)
+phases = np.random.uniform(low=0, high=30, size=(1, 18))
+slm.patches[0].set_phases(phases, update=False)
 
 # add a second patch that corresponds to a linear gradient
 gradient = patterns.tilt(slm_size, (10, 25))

@@ -72,7 +72,7 @@ class Texture:
                 if value.ndim == 0:
                     value = value.reshape((1, 1))
                 elif value.ndim != 2:
-                    raise ValueError("Data should be a 2-d array or a scalar")
+                    raise ValueError("Data should be a 2-D array or a scalar")
                 if value.shape != self._data_shape:
                     glTexImage2D(GL.GL_TEXTURE_2D, 0, internal_format, value.shape[1], value.shape[0], 0,
                                  data_format, data_type, value)

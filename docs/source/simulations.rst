@@ -13,50 +13,22 @@ Mock devices are primarily used for testing and debugging. These devices mimic t
 
 *  :class:`~.NoiseSource`, can be used as a drop-in replacement for any other detector object and produces random data.
 
-* :class:`~.simulation.XYStage` simulates an x-y stage that can be moved to a certain position.
+* :class:`~.simulation.XYStage` simulates an x-y stage for which the position can be set and read.
 
 * :class:`~.Shutter`, is a processor that either copies the data from the input detector, or returns a zero-filled array of the same size, mimicking a physical shutter that can be opened and closed.
 
-* :class:`~ADCConverter` is a processor that converts the data from the source to 16-bit unsigned integer values. In the process, it also mimics detector saturation, and optionally adds shot noise and readout noise. The latter is especially useful when testing the effect of noise on a wavefront shaping algorithm.
+* :class:`~ADCProcessor` is a processor that converts the data from the source to 16-bit unsigned integer values. In the process, it also mimics detector saturation, and optionally adds shot noise and readout noise. The latter is especially useful for predicting the effect of noise on a wavefront shaping algorithm.
 
-* :class:`~Camera` is a processor that wraps a 2-D input source (such as a :class:`~StaticSource`) and adds functionality to set the region of interest through the `width`, `height`, `top` and `left` properties. It is a subclass of  :class:`~ADCConverter`. It is particularly useful when interfacing with other code that expects unsigned integer data and a settable region of interest.
+* :class:`~Camera` is a processor that wraps a 2-D input source (such as a :class:`~StaticSource`) and adds functionality to set the region of interest through the `width`, `height`, `top` and `left` properties. It is a subclass of  :class:`~ADCProcessor`. It is particularly useful when interfacing with other code that expects unsigned integer data and a settable region of interest.
 
 These classes play a pivotal role in automatic testing of various algorithms and experimental control scripts, as well as for testing the OpenWFS framework itself.
 
 Simulating experiments
 ++++++++++++++++++++++++++++++++++
-In addition to these classes, OpenWFS provides two means to simulate optical experiments.
+In addition to these classes, OpenWFS provides two means to simulate optical experiments. The first is the simple :class:`~SimulatedWFS` class, which simulates light propagation from an SLM through a scattering medium. The medium is represented by a transmission matrix `t`, which maps the field on the SLM to the field on the detector. The code below shows how to simulate a wavefront shaping algorithm using the `SimulatedWFS` class:
 
-The first is the simple :class:`~SimulatedWFS` class, which simulates light propagation from an SLM through a scattering medium. The medium is represented by a transmission matrix `t`, which maps the field on the SLM to the field on the detector. If `t` is a 2-dimensional array, it corresponds to propagation from the 2-dimensional SLM to a point detector. If `t` is a multi-dimensional array, the last two dimensions correspond to the SLM, and the remaining dimensions correspond to the detector 'pixels'.
-
-The code below shows how to simulate a wavefront shaping algorithm using the `SimulatedWFS` class:
-
-.. code-block:: python
-
-        import numpy as np
-        from openwfs.simulation import SimulatedWFS
-        from openwfs.algorithms import StepwiseSequential
-
-        # Create a simple simulation of an experiment,
-        # where light from an 'slm' is focused onto a 'detector'
-        # through a random phase plate with 25x25 segments.
-        t = exp(i * (np.random.uniform(0.0, 2 * np.pi, (25, 25))))
-        sim = SimulatedWFS(t)
-        slm = sim.slm
-
-        # Use the StepwiseSequential algorithm to optimize the phase pattern,
-        # using a correction pattern of 10x10 segments and 4 phase steps
-        alg = StepwiseSequential(feedback=sim, slm=slm, n_x=10, n_y=10, phase_steps=4)
-        result = alg.execute()
-
-        # Measure intensity with flat and shaped wavefronts
-        slm.set_phases(0)
-        before = sim.read()
-        slm.set_phases(-np.angle(result.t))
-        after = sim.read()
-
-        print(f"Wavefront shaping increased the intensity in the target from {before} to {after}")
-
+.. literalinclude:: ../../examples/wfs_simulated.py
+    :language: python
 
 The second method of simulating experiments is the :class:`~Microscope` class, which simulates a complete microscope, including aberrations and a pupil-conjugate SLM. The class is a :class:`~Processor`, that takes input from three sources: the specimen image, the SLM phase pattern, and the aberrations. When the microscope is 'triggered', it computes the point spread function using
 

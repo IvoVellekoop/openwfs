@@ -23,7 +23,7 @@ class Geometry:
     To start a new triangle strip, insert the special index 0xFFFF into the index array.
 
     (tx, ty) are the texture coordinates that determine which pixel of the texture
-    (e.g. the array passed to `set_phases`) is drawn at each vertex.
+    (e. g. the array passed to `set_phases`) is drawn at each vertex.
     For each triangle, the screen coordinates (x,y) define a triangle on the screen, whereas the texture coordinates
     (tx, ty) define a triangle in the texture.
     OpenGL maps the texture triangle onto the screen triangle, using linear interpolation of the coordinates between

@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 510.5 77.3">
+    <defs>
+        <style>
+            .cls-1, .cls-2, .cls-3, .cls-4, .cls-5, .cls-6 {
+            stroke: #231f20;
+            stroke-miterlimit: 10;
+            }
+
+            .cls-1, .cls-2, .cls-3, .cls-5, .cls-6 {
+            fill: none;
+            }
+
+            .cls-7, .cls-8, .cls-9, .cls-10 {
+            fill: #231f20;
+            }
+
+            .cls-7, .cls-11 {
+            stroke-width: 0px;
+            }
+
+            .cls-12 {
+            filter: url(#drop-shadow-4);
+            }
+
+            .cls-8 {
+            font-family: ArialNarrow-Italic, Arial;
+            font-size: 9px;
+            font-style: italic;
+            }
+
+            .cls-9 {
+            font-family: Consolas, Consolas;
+            font-size: 10px;
+            }
+
+            .cls-13 {
+            filter: url(#drop-shadow-3);
+            }
+
+            .cls-2 {
+            stroke-dasharray: 0 0 2.7 2.7;
+            }
+
+            .cls-2, .cls-3, .cls-5, .cls-6 {
+            stroke-width: 2px;
+            }
+
+            .cls-14 {
+            filter: url(#drop-shadow-1);
+            }
+
+            .cls-4, .cls-11 {
+            fill: #fff;
+            }
+
+            .cls-15 {
+            filter: url(#drop-shadow-2);
+            }
+
+            .cls-10 {
+            font-family: ArialNarrow, Arial;
+            font-size: 8px;
+            }
+
+            .cls-5 {
+            stroke-dasharray: 0 0 4 4;
+            }
+
+            .cls-6 {
+            stroke-dasharray: 0 0 4.7 4.7;
+            }
+        </style>
+        <filter id="drop-shadow-1" filterUnits="userSpaceOnUse">
+            <feOffset dx="3" dy="3"/>
+            <feGaussianBlur result="blur" stdDeviation="2"/>
+            <feFlood flood-color="#231f20" flood-opacity=".5"/>
+            <feComposite in2="blur" operator="in"/>
+            <feComposite in="SourceGraphic"/>
+        </filter>
+        <filter id="drop-shadow-2" filterUnits="userSpaceOnUse">
+            <feOffset dx="3" dy="3"/>
+            <feGaussianBlur result="blur-2" stdDeviation="2"/>
+            <feFlood flood-color="#231f20" flood-opacity=".5"/>
+            <feComposite in2="blur-2" operator="in"/>
+            <feComposite in="SourceGraphic"/>
+        </filter>
+        <filter id="drop-shadow-3" filterUnits="userSpaceOnUse">
+            <feOffset dx="3" dy="3"/>
+            <feGaussianBlur result="blur-3" stdDeviation="2"/>
+            <feFlood flood-color="#231f20" flood-opacity=".5"/>
+            <feComposite in2="blur-3" operator="in"/>
+            <feComposite in="SourceGraphic"/>
+        </filter>
+        <filter id="drop-shadow-4" filterUnits="userSpaceOnUse">
+            <feOffset dx="3" dy="3"/>
+            <feGaussianBlur result="blur-4" stdDeviation="2"/>
+            <feFlood flood-color="#231f20" flood-opacity=".5"/>
+            <feComposite in2="blur-4" operator="in"/>
+            <feComposite in="SourceGraphic"/>
+        </filter>
+    </defs>
+    <g id="Layer_1" data-name="Layer 1">
+        <g>
+            <line class="cls-11" x1="54" y1="27.4" x2="107" y2="27.4"/>
+            <g>
+                <line class="cls-3" x1="54" y1="27.4" x2="101" y2="27.4"/>
+                <path class="cls-7" d="M107,27.4c-2.8,1.1-6.4,2.9-8.5,4.8l1.7-4.8-1.7-4.8c2.2,1.9,5.7,3.7,8.5,4.8Z"/>
+            </g>
+        </g>
+        <text class="cls-10" transform="translate(61 21.4)">
+            <tspan x="0" y="0">image data</tspan>
+        </text>
+        <g>
+            <line class="cls-11" x1="225" y1="27.4" x2="279" y2="27.4"/>
+            <g>
+                <line class="cls-3" x1="225" y1="27.4" x2="273" y2="27.4"/>
+                <path class="cls-7" d="M279,27.4c-2.8,1.1-6.4,2.9-8.5,4.8l1.7-4.8-1.7-4.8c2.2,1.9,5.7,3.7,8.5,4.8Z"/>
+            </g>
+        </g>
+        <text class="cls-10" transform="translate(231 21.4)">
+            <tspan x="0" y="0">scalar value</tspan>
+        </text>
+        <text class="cls-8" transform="translate(188 74.4)">
+            <tspan x="0" y="0">light propagation through optical system</tspan>
+        </text>
+        <g>
+            <line class="cls-11" x1="387" y1="27.4" x2="459" y2="27.4"/>
+            <g>
+                <line class="cls-3" x1="387" y1="27.4" x2="453" y2="27.4"/>
+                <path class="cls-7" d="M459,27.4c-2.8,1.1-6.4,2.9-8.5,4.8l1.7-4.8-1.7-4.8c2.2,1.9,5.7,3.7,8.5,4.8Z"/>
+            </g>
+        </g>
+        <text class="cls-10" transform="translate(402 21.4)">
+            <tspan x="0" y="0">phase pattern</tspan>
+        </text>
+        <path class="cls-1" d="M36-44.6"/>
+        <g>
+            <line class="cls-3" x1="474" y1="45.4" x2="474" y2="47.4"/>
+            <line class="cls-6" x1="474" y1="52" x2="474" y2="59"/>
+            <polyline class="cls-3" points="474 61.4 474 63.4 472 63.4"/>
+            <line class="cls-5" x1="468" y1="63.4" x2="37" y2="63.4"/>
+            <polyline class="cls-3" points="35 63.4 33 63.4 33 61.4"/>
+            <line class="cls-2" x1="33" y1="58.7" x2="33" y2="54.7"/>
+            <line class="cls-3" x1="33" y1="53.4" x2="33" y2="51.4"/>
+            <path class="cls-7" d="M33,45.4c1.1,2.8,2.9,6.4,4.8,8.5l-4.8-1.7-4.8,1.7c1.9-2.2,3.7-5.7,4.8-8.5Z"/>
+        </g>
+    </g>
+    <g id="Layer_2" data-name="Layer 2">
+        <g class="cls-14">
+            <rect class="cls-4" x="279" y="9.4" width="117" height="36"/>
+            <text class="cls-9" transform="translate(288 30)">
+                <tspan x="0" y="0">StepwiseSequential</tspan>
+            </text>
+        </g>
+        <g class="cls-15">
+            <rect class="cls-4" x="108" y="9.4" width="117" height="36"/>
+            <text class="cls-9" transform="translate(117 30)">
+                <tspan x="0" y="0">SingleROIProcessor</tspan>
+            </text>
+        </g>
+        <g class="cls-13">
+            <rect class="cls-4" x="9" y="9.4" width="45" height="36"/>
+            <text class="cls-9" transform="translate(15 30)">
+                <tspan x="0" y="0">Camera</tspan>
+            </text>
+        </g>
+        <g class="cls-12">
+            <rect class="cls-4" x="459" y="9.4" width="45" height="36"/>
+            <text class="cls-9" transform="translate(473.3 30)">
+                <tspan x="0" y="0">SLM</tspan>
+            </text>
+        </g>
+    </g>
+</svg>

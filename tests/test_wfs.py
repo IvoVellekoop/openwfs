@@ -4,7 +4,8 @@ import pytest
 import skimage
 from scipy.ndimage import zoom
 
-from ..openwfs.algorithms import StepwiseSequential, FourierDualReference, WFSController, troubleshoot
+from ..openwfs.algorithms import StepwiseSequential, FourierDualReference, troubleshoot
+from ..openwfs.algorithms.utilities import WFSController
 from ..openwfs.processors import SingleRoi
 from ..openwfs.simulation import SimulatedWFS, StaticSource, SLM, Microscope, ADCProcessor, Shutter
 from ..openwfs.utilities import set_pixel_size
@@ -40,7 +41,7 @@ def test_ssa(n_y, n_x):
     and the test may sometimes fail due to statistical fluctuations.
     """
     aberrations = np.random.uniform(0.0, 2 * np.pi, (n_y, n_x))
-    sim = SimulatedWFS(aberrations)
+    sim = SimulatedWFS(aberrations=aberrations)
     alg = StepwiseSequential(feedback=sim, slm=sim.slm, n_x=n_x, n_y=n_y, phase_steps=4)
     result = alg.execute()
     print(np.mean(np.abs(result.t)))
@@ -57,7 +58,7 @@ def test_ssa_noise(n_y, n_x):
     """
     #    aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
     aberrations = np.random.uniform(0.0, 2 * np.pi, (n_y, n_x))
-    sim_no_noise = SimulatedWFS(aberrations)
+    sim_no_noise = SimulatedWFS(aberrations=aberrations)
     slm = sim_no_noise.slm
     scale = np.max(sim_no_noise.read())
     sim = ADCProcessor(sim_no_noise, analog_max=scale * 200.0, digital_max=10000, shot_noise=True)
@@ -75,7 +76,7 @@ def test_fourier(n_x):
     Use the 'cameraman' test image since it is relatively smooth.
     """
     aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
-    sim = SimulatedWFS(aberrations)
+    sim = SimulatedWFS(aberrations=aberrations)
     alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-n_x,
                                k_angles_max=n_x,
                                phase_steps=4)
@@ -87,7 +88,7 @@ def test_fourier2():
     """Test the Fourier dual reference algorithm using WFSController."""
     slm_shape = (1000, 1000)
     aberrations = skimage.data.camera() * ((2 * np.pi) / 255.0)
-    sim = SimulatedWFS(aberrations)
+    sim = SimulatedWFS(aberrations=aberrations)
     alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=slm_shape, k_angles_min=-5,
                                k_angles_max=5,
                                phase_steps=3)
@@ -103,7 +104,7 @@ def test_fourier3():
     """Test the Fourier dual reference algorithm using WFSController."""
     slm_shape = (32, 32)
     aberrations = np.random.uniform(0.0, 2 * np.pi, slm_shape)
-    sim = SimulatedWFS(aberrations)
+    sim = SimulatedWFS(aberrations=aberrations)
     alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=slm_shape, k_angles_min=-32,
                                k_angles_max=32,
                                phase_steps=3)
@@ -146,7 +147,7 @@ def test_fourier_correction_field():
     Check the field correlation between set aberration and optimized wavefront of the Fourier-based algorithm.
     """
     aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
-    sim = SimulatedWFS(aberrations)
+    sim = SimulatedWFS(aberrations=aberrations)
     alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-2,
                                k_angles_max=2,
                                phase_steps=3)
@@ -165,7 +166,7 @@ def test_phase_shift_correction():
     Without the bug, a phase shift of the entire correction should not influence the measurement.
     """
     aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
-    sim = SimulatedWFS(aberrations)
+    sim = SimulatedWFS(aberrations=aberrations)
     alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-1,
                                k_angles_max=1,
                                phase_steps=3)
@@ -198,7 +199,7 @@ def test_flat_wf_response_fourier():
     test the optimized wavefront by checking if it has irregularities.
     """
     aberrations = np.zeros(shape=(512, 512))
-    sim = SimulatedWFS(aberrations.reshape((*aberrations.shape, 1)))
+    sim = SimulatedWFS(aberrations=aberrations.reshape((*aberrations.shape, 1)))
 
     alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-1,
                                k_angles_max=1,
@@ -215,7 +216,7 @@ def test_flat_wf_response_ssa():
     Test the response of the SSA WFS method when the solution is flat.
     """
     aberrations = np.zeros(shape=(512, 512))
-    sim = SimulatedWFS(aberrations)
+    sim = SimulatedWFS(aberrations=aberrations)
 
     alg = StepwiseSequential(feedback=sim, slm=sim.slm, n_x=4, n_y=4, phase_steps=3)
 
@@ -230,7 +231,7 @@ def test_flat_wf_response_ssa():
 
 def test_multidimensional_feedback_ssa():
     aberrations = np.random.uniform(0.0, 2 * np.pi, (256, 256, 5, 2))
-    sim = SimulatedWFS(aberrations)
+    sim = SimulatedWFS(aberrations=aberrations)
 
     alg = StepwiseSequential(feedback=sim, slm=sim.slm)
     t = alg.execute().t
@@ -253,7 +254,7 @@ def test_multidimensional_feedback_ssa():
 
 def test_multidimensional_feedback_fourier():
     aberrations = np.random.uniform(0.0, 2 * np.pi, (256, 256, 5, 2))
-    sim = SimulatedWFS(aberrations)
+    sim = SimulatedWFS(aberrations=aberrations)
 
     # input the camera as a feedback object, such that it is multidimensional
     alg = FourierDualReference(feedback=sim, slm=sim.slm, k_angles_min=-1, k_angles_max=1, phase_steps=3)
@@ -272,6 +273,7 @@ def test_multidimensional_feedback_fourier():
 
     assert enhancement[2, 1] >= 3.0, f"""The algorithm did not enhance the focus as much as expected.
             Expected at least 3.0, got {enhancement}"""
+
 
 @pytest.mark.parametrize("gaussian_noise_std", (0.0, 0.1, 0.5, 3.0))
 def test_ssa_fidelity(gaussian_noise_std):

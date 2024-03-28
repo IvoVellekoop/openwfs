@@ -77,7 +77,7 @@ class ScanningMicroscope(Detector):
                 and the resolution can be changed by modifying the `binning` property.
             input: tuple[str, Quantity[u.V], Quantity[u.V]],
                  Description of the NI-DAQ channel to use for the input.
-                 Tuple of: (name of the channel (e.g., 'ai/1'), minimum voltage, maximum voltage).
+                 Tuple of: (name of the channel (e. g., 'ai/1'), minimum voltage, maximum voltage).
             axis0: tuple[str, Quantity[u.V], Quantity[u.V], TerminalConfiguration],
                  Description of the NI-DAQ channel to use for controlling the axis 0 galvo (slow axis).
                  The TerminalConfiguration element is optional and defaults to TerminalConfiguration.DEFAULT.
@@ -235,7 +235,7 @@ class ScanningMicroscope(Detector):
         self._write_task.start()
 
     def _raw_to_cropped(self, raw: np.ndarray) -> np.ndarray:
-        """Converts the raw scanner data back into a 2-Dimensional image.
+        """Converts the raw scanner data back into a 2-dimensional image.
 
         Because the scanner can return both signed and unsigned integers, both cases are accounted for.
         This function crops the data if padding was added, and it

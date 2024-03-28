@@ -123,7 +123,7 @@ class Device(ABC):
         )` and the stabilization of the device.
 
         If the duration of an operation is not known in advance,
-        (e.g., when waiting for a hardware trigger), this function should return `np.inf * u.ms`.
+        (e. g., when waiting for a hardware trigger), this function should return `np.inf * u.ms`.
 
         Note: A device may update the duration dynamically.
         For example, a stage may compute the required time to
@@ -154,7 +154,7 @@ class Device(ABC):
                 *before* the device is finished.
 
         Raises:
-            Any other exception raised by the device in another thread (e.g., during `_fetch`).
+            Any other exception raised by the device in another thread (e. g., during `_fetch`).
             TimeoutError: if the device has `duration = ∞`, and `busy` does not return `True` within
                 `self.timeout`
             RuntimeError: if `wait` is called from inside a setter or from inside `_fetch`.
@@ -238,7 +238,7 @@ class Detector(Device, ABC):
                 Subclassed can override the `pixel_size` property to return the actual pixel size.
             duration: The maximum amount of time that elapses between returning from `trigger()`
                 and the end of the measurement. If the duration of an operation is not known in advance,
-                (e.g., when waiting for a hardware trigger), this value should be `np.inf * u.ms`
+                (e. g., when waiting for a hardware trigger), this value should be `np.inf * u.ms`
                 and the `busy` method should be overridden to return `False` when the measurement is finished.
                 If None is passed, the subclass should override the `duration` property to return the actual duration.
             latency: The minimum amount of time between sending a command or trigger to the device
@@ -471,7 +471,7 @@ class Detector(Device, ABC):
 
         The coordinates are returned as an array with the same number of
         dimensions as `data_shape`, with the d-th dimension holding the coordinates.
-        This facilitates meshgrid-like computations, e.g.
+        This facilitates meshgrid-like computations, e. g.
         `cam.coordinates(0) + cam.coordinates(1)` gives a 2-dimensional array of coordinates.
 
         Args:
@@ -500,7 +500,7 @@ class Processor(Detector, ABC):
     """Base class for all Processors.
 
     Processors can be used to build data processing graphs, where each Processor takes input from one or
-    more input Detectors and processes that data (e.g., cropping an image, averaging over an ROI, etc.).
+    more input Detectors and processes that data (e. g., cropping an image, averaging over an ROI, etc.).
     A processor, itself, is a Detector to allow chaining multiple processors together to combine functionality.
 
     To implement a processor, implement `_fetch`, and optionally override `data_shape`, `pixel_size`, and `__init__`.

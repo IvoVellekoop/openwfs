@@ -157,7 +157,7 @@ class SLM(Actuator, PhaseSLM):
         """Updates shape and refresh rate to the actual values of the window.
 
         Note that these values are in pixels, which may be different from the window size because the window size is
-        in screen coordinates, which may not always the same as pixels (e.g. on a retina display).
+        in screen coordinates, which may not always the same as pixels (e. g. on a retina display).
 
         For windowed SLMs, the refresh rate property is set to the refresh rate of the primary monitor.
 

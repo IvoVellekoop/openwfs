@@ -1,10 +1,11 @@
+from dataclasses import dataclass
+from typing import Union, Sequence, Optional
+
+import cv2
+import numpy as np
 from astropy import units as u
 from astropy.units import Quantity
 from numpy.typing import ArrayLike
-from typing import Union, Sequence, Optional
-import numpy as np
-import cv2
-from dataclasses import dataclass
 
 # A coordinate is a sequence of two floats with an optional unit attached
 CoordinateType = Union[Sequence[float], np.ndarray, Quantity]
@@ -218,7 +219,7 @@ def place(out_shape: tuple[int, ...], out_pixel_size: Quantity, source: np.ndarr
     Parts of the source array that extend beyond the output are cropped, and parts of the array that are not
     covered by the source array are zero padded.
 
-    Note: this function currently works for 2-d inputs only
+    Note: this function currently works for 2-D inputs only
 
     Args:
 
@@ -238,7 +239,7 @@ def project(source: np.ndarray, *,
 
     The input image is scaled so that the pixel sizes match those of the output,
     and cropped/zero-padded so that the data shape matches that of the output.
-    Optionally, an additional transformation can be specified, e.g., to scale or translate the source image.
+    Optionally, an additional transformation can be specified, e. g., to scale or translate the source image.
     This transformation is specified as a 2x3 transformation matrix in homogeneous coordinates.
 
     Args:

@@ -16,5 +16,6 @@ x64
 *.png
 dist
 *.egg-info
+*.ai
 sg_execution_times.rst
 /poetry.lock

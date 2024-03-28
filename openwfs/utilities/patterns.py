@@ -1,6 +1,8 @@
-import numpy as np
 from typing import Union, Sequence, Optional
+
+import numpy as np
 from astropy.units import Quantity
+
 from .utilities import ExtentType, CoordinateType, unitless
 
 # shape of a numpy array, or a single integer that is broadcast to a square shape
@@ -93,7 +95,7 @@ def tilt(shape: ShapeType, g: ExtentType, extent: ExtentType = (2.0, 2.0), phase
           corresponds to having a ramp from -2 to +2 over the height of the pattern
           When this pattern is used as a phase in a pupil-conjugate configuration,
           this corresponds to a displacement of -2/π times the Abbe diffraction limit
-          (e.g. a positive x-gradient g causes the focal point to move in the _negative_ x-direction)
+          (e. g. a positive x-gradient g causes the focal point to move in the _negative_ x-direction)
         extent: see module documentation
         phase_offset: optional additional phase offset to be added to the pattern
     """

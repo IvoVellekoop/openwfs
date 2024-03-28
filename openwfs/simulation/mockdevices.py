@@ -199,7 +199,7 @@ class ADCProcessor(Processor):
 
 
 class Camera(ADCProcessor):
-    """Wraps any 2-d image source as a camera.
+    """Wraps any 2-D image source as a camera.
 
     To implement the camera interface, in addition to the Detector interface,
     we must implement left,right,top, and bottom.
