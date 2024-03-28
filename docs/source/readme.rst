@@ -79,13 +79,5 @@ If these fidelities are much lower than 1, this indicates a problem in the exper
 
 For further troubleshooting, the :func:`~.troubleshoot` function computes several image frame metrics such as the Contrast to Noise Ratio (CNR) and contrast enhancement. Furthermore, :func:`~.troubleshoot` tests the image capturing repeatability, stability and estimates the fidelity reduction due to non-modulated light and decorrelation. Lastly, all fidelity estimations are combined to make an order of magnitude estimation of the expected enhancement. :func:`~.troubleshoot` returns an object containing the outcome of the different tests and analyses, which can be printed to the console as a comprehensive troubleshooting report. See ``examples/troubleshooter_demo.py`` for an example of how to use the automatic troubleshooter.
 
-.. only:: html or markdown
+%endmatter%
 
-    Acknowledgments
-    --------------------
-    .. include:: acknowledgments.rst
-
-
-    Bibliography
-    --------------------
-    .. bibliography::

@@ -28,7 +28,7 @@ class SLM(Actuator, PhaseSLM):
     """
     An OpenGL object to control a spatial light modulator connected to a graphics card.
 
-    See Section :numref:`section-slms` for more information.
+    See :numref:`section-slms` for more information.
 
     """
     __slots__ = ['_vertex_array', '_frame_buffer', '_monitor_id', '_position', '_refresh_rate',

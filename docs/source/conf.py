@@ -77,7 +77,7 @@ latex_docclass = {
     'manual': 'scrartcl',
     'howto': 'scrartcl',
 }
-latex_documents = [('index', 'OpenWFS.tex',
+latex_documents = [('index_latex', 'OpenWFS.tex',
                     'OpenWFS - a  library for conducting and simulating wavefront shaping experiments',
                     'Jeroen Doornbos', 'howto')]
 latex_toplevel_sectioning = 'section'
@@ -86,7 +86,9 @@ bibtex_bibfiles = ['references.bib']
 numfig = True
 
 templates_path = ['_templates']
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', 'acknowledgments.rst', 'sg_execution_times.rst']
+master_doc = ''
+include_patterns = ['**']
 napoleon_use_rtype = False
 napoleon_use_param = True
 typehints_document_rtype = False
@@ -128,6 +130,8 @@ def setup(app):
     # register event handlers
     app.connect("autodoc-skip-member", skip)
     app.connect("build-finished", copy_readme)
+    app.connect("builder-inited", builder_inited)
+    app.connect("source-read", source_read)
 
     # monkey-patch the MarkdownTranslator class to support citations
     # TODO: this should be done in the markdown builder itself
@@ -136,10 +140,30 @@ def setup(app):
     cls.visit_label = visit_label
 
 
+def source_read(app, docname, source):
+    if docname == 'readme' or docname == 'conclusion':
+        if (app.builder.name == 'latex') == (docname == 'conclusion'):
+            source[0] = source[0].replace('%endmatter%', '.. include:: acknowledgments.rst')
+        else:
+            source[0] = source[0].replace('%endmatter%', '')
+
+
+def builder_inited(app):
+    if app.builder.name == 'html':
+        exclude_patterns.extend(['conclusion.rst', 'index_latex.rst', 'index_markdown.rst'])
+        app.config.master_doc = 'index'
+    elif app.builder.name == 'latex':
+        exclude_patterns.extend(['auto_examples/*', 'index_markdown.rst', 'index.rst', 'api*'])
+        app.config.master_doc = 'index_latex'
+    elif app.builder.name == 'markdown':
+        include_patterns.clear()
+        include_patterns.extend(['readme.rst', 'index_markdown.rst'])
+        app.config.master_doc = 'index_markdown'
+
+
 def copy_readme(app, exception):
     """Copy the readme file to the root of the documentation directory."""
-    if exception is None:
-        if app.builder.name == 'markdown':
-            source_file = Path(app.outdir) / 'readme.md'
-            destination_dir = Path(app.outdir).parents[3] / 'README.md'
-            shutil.copy(source_file, destination_dir)
+    if exception is None and app.builder.name == 'markdown':
+        source_file = Path(app.outdir) / 'readme.md'
+        destination_dir = Path(app.confdir).parents[1] / 'README.md'
+        shutil.copy(source_file, destination_dir)

@@ -222,7 +222,7 @@ class Actuator(Device, ABC):
 class Detector(Device, ABC):
     """Base class for all detectors, cameras and other data sources with possible dynamic behavior.
 
-    See section :numref:`Detectors` in the documentation for more information.
+    See :numref:`Detectors` in the documentation for more information.
     """
     __slots__ = ('_measurements_pending', '_lock_condition', '_pixel_size', '_data_shape')
 
