@@ -81,6 +81,11 @@ For further troubleshooting, the :func:`~.troubleshoot` function computes severa
 
 .. only:: html or markdown
 
+    Acknowledgments
+    --------------------
+    .. include:: acknowledgments.rst
+
+
     Bibliography
     --------------------
     .. bibliography::

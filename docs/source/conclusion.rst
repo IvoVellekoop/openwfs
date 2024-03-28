@@ -6,8 +6,8 @@ In this work we present OpenWFS, a user- and developer-focussed open-source wave
 We therefore encourage the reader to join us in developing new algorithms and components for this framework. Code and documentation for this project is available at `Read the Docs <https://openwfs.readthedocs.io/en/latest/>`_ :cite:`openwfsdocumentation`.
 
 Acknowledgments
-==================
+++++++++++++++++++++
 .. include:: acknowledgments.rst
 
 Code availability
-==================
+++++++++++++++++++++
