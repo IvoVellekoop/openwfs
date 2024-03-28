@@ -38,12 +38,11 @@ latex_elements = {
      """,
     'maketitle': r"""
         \author[1]{Daniël W. S. Cox}
-        \author[1]{Bahareh Mastiani}
-        \author[1]{Gerwin Osnabrugge}
         \author[1]{Tom Knop}
-        \author[1]{Harish Sasikumar}
+        \author[1,2]{Harish Sasikumar}
         \author[1]{Ivo M. Vellekoop} 
-        \affil[1]{Biomedical Photonic Imaging Group, University of Twente, Enschede, The Netherlands}
+        \affil[1]{University of Twente, Biomedical Photonic Imaging, TechMed Institute, P. O. Box 217, 7500 AE Enschede, The Netherlands}
+        \affil[2]{Imec (Netherlands), Holst Centre (HTC-31), 5656 AE, Eindhoven, The Netherlands}
         \publishers{%
             \normalfont\normalsize%
             \parbox{0.8\linewidth}{%
