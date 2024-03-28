@@ -181,6 +181,10 @@ class StabilityResult:
         self.framestack = framestack
 
     def plot(self):
+        """
+        Plot stability test results: image shift (x and y), correlation, contrast ratio,
+        all with respect to first frame and previous frame.
+        """
         # Comparisons with first frame
         plt.figure()
         plt.plot(self.timestamps, self.pixel_shifts_first, '.-', label='image-shift (pix)')
