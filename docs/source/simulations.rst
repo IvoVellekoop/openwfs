@@ -36,10 +36,8 @@ The second method of simulating experiments is the :class:`~Microscope` class, w
 
     \text{PSF} = \left\lVert\mathcal{F}\left( A_\text{SLM} e^{i (\phi_\text{aberrations} - \phi_\text{SLM})} \right) \right\rVert^2
 
-where :math:`mathcal{F}` denotes a fast Fourier transform, :math:`\phi_\text{aberrations}` are the pupil-plane aberrations, and :math:`A_\text{SLM}` and :math:`\phi_\text{SLM}` are the amplitude and phase of the light that is imaged from the SLM to the pupil plane. This incident light is first cropped to the numerical aperture of the microscope, to realistically take into account the diffraction limit. Finally, the specimen image is convolved with the point spread function to return the microscope image.
+where :math:`\mathcal{F}` denotes a fast Fourier transform, :math:`\phi_\text{aberrations}` are the pupil-plane aberrations, and :math:`A_\text{SLM}` and :math:`\phi_\text{SLM}` are the amplitude and phase of the light that is imaged from the SLM to the pupil plane. This incident light is first cropped to the numerical aperture of the microscope, to realistically take into account the diffraction limit. Finally, the specimen image is convolved with the point spread function to return the microscope image.
 
-Although this method does not simulate scattering in the sample, the approximation of fixed aberrations in the pupil plane of the microscope is valid for at least a small region in the sample, even in volumetric scattering tissue :cite:`osnabrugge2017generalized`.
-
-In addition, the microscope has a simulated XY translation stage, allowing the simulation of a full motorized microscope, or testing the effect of sample drift on the wavefront shaping algorithm. Sample code for using the `Microscope` class can be found in the ``wfs_simulated_microscope.py`` script.
+Although this method does not simulate scattering in the sample, the approximation of fixed aberrations in the pupil plane of the microscope is valid for at least a small region in the sample, even in volumetric scattering tissue :cite:`osnabrugge2017generalized`. In addition, the microscope has a simulated XY translation stage, allowing the simulation of a full motorized microscope, or testing the effect of sample drift on wavefront shaping. Sample code for using the :class:`~.Microscope` class can be found in the ``examples/wfs_simulated_microscope.py`` script.
 
 
