@@ -35,7 +35,7 @@ This way, a large range of use cases is enabled, including:
       of the disk.
     - Applying an additive patch (an 'offset layer') that corrects for system aberrations.
 
-The code that was used to create Figure :numref:`slmdemo` is shown in :numref:`slmcode`. The SLM object is constructed with two patches. The first patch holds an array of 18 random values which are mapped to three concentric rings, consisting of 4, 6, and 8 segments, respectively. Such an approach can be useful for equalizing the contribution of different segments on the SLM :cite:`mastiani2021noise`. Superposed onto this image is a linear gradient, which may be used to steer the light coming from the SLM. The `SLM` object  takes care of mapping, blending, and phase wrapping the phase patterns in real-time.
+The code that was used to create :numref:`slmdemo` is shown in :numref:`slmcode`. The SLM object is constructed with two patches. The first patch holds an array of 18 random values which are mapped to three concentric rings, consisting of 4, 6, and 8 segments, respectively. Such an approach can be useful for equalizing the contribution of different segments on the SLM :cite:`mastiani2021noise`. Superposed onto this image is a linear gradient, which may be used to steer the light coming from the SLM. The `SLM` object  takes care of mapping, blending, and phase wrapping the phase patterns in real-time.
 
 .. _slmcode:
 .. literalinclude:: ../../examples/slm_disk.py
