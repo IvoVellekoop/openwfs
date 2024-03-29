@@ -25,8 +25,8 @@ extensions = ['sphinx.ext.napoleon', 'sphinx.ext.autodoc', 'sphinx.ext.mathjax',
 
 # basic project information
 project = 'OpenWFS'
-copyright = '2023-, Ivo Vellekoop, Daniël W. S. Cox, and Jeroen Doornbos, University of Twente'
-author = 'Jeroen Doornbos, Daniël W. S. Cox, Tom Knop, Harish Sasikumar, Ivo M. Vellekoop'
+copyright = '2023-, Ivo Vellekoop, Daniël W. S. Cox, and Jeroen H. Doornbos, University of Twente'
+author = 'Jeroen H. Doornbos, Daniël W. S. Cox, Tom Knop, Harish Sasikumar, Ivo M. Vellekoop'
 release = '0.1.0rc2'
 html_title = "OpenWFS - a library for conducting and simulating wavefront shaping experiments"
 #   \renewenvironment{sphinxtheindex}{\setbox0\vbox\bgroup\begin{theindex}}{\end{theindex}}
@@ -79,7 +79,7 @@ latex_docclass = {
 }
 latex_documents = [('index_latex', 'OpenWFS.tex',
                     'OpenWFS - a  library for conducting and simulating wavefront shaping experiments',
-                    'Jeroen Doornbos', 'howto')]
+                    'Jeroen H. Doornbos', 'howto')]
 latex_toplevel_sectioning = 'section'
 bibtex_default_style = 'unsrt'
 bibtex_bibfiles = ['references.bib']
