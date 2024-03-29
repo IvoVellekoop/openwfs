@@ -86,7 +86,7 @@ bibtex_bibfiles = ['references.bib']
 numfig = True
 
 templates_path = ['_templates']
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', 'acknowledgments.rst', 'sg_execution_times.rst']
+exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', 'acknowledgements.rst', 'sg_execution_times.rst']
 master_doc = ''
 include_patterns = ['**']
 napoleon_use_rtype = False
@@ -143,7 +143,7 @@ def setup(app):
 def source_read(app, docname, source):
     if docname == 'readme' or docname == 'conclusion':
         if (app.builder.name == 'latex') == (docname == 'conclusion'):
-            source[0] = source[0].replace('%endmatter%', '.. include:: acknowledgments.rst')
+            source[0] = source[0].replace('%endmatter%', '.. include:: acknowledgements.rst')
         else:
             source[0] = source[0].replace('%endmatter%', '')
 
