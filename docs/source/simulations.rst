@@ -27,8 +27,9 @@ Simulating experiments
 ++++++++++++++++++++++++++++++++++
 In addition to these classes, OpenWFS provides two means to simulate optical experiments. The first is the simple :class:`~SimulatedWFS` class, which simulates light propagation from an SLM through a scattering medium. The medium is represented by a transmission matrix `t`, which maps the field on the SLM to the field on the detector. The code below shows how to simulate a wavefront shaping algorithm using the `SimulatedWFS` class:
 
-.. literalinclude:: ../../examples/wfs_simulated.py
+.. literalinclude:: ../../examples/hello_simulation.py
     :language: python
+    :caption: ``hello_simulation.py``. Example of a simulating a wavefront shaping experiment.
 
 The second method of simulating experiments is the :class:`~Microscope` class, which simulates a complete microscope, including aberrations and a pupil-conjugate SLM. The class is a :class:`~Processor`, that takes input from three sources: the specimen image, the SLM phase pattern, and the aberrations. When the microscope is 'triggered', it computes the point spread function using
 

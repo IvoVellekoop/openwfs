@@ -29,7 +29,7 @@ Detectors in OpenWFS are objects that capture, generate, or process data. All de
 
 The :meth:`~.Detector.read()` method of a detector starts a measurement and returns the captured data. It triggers the detector and blocks until the data is available. Data is always returned as `numpy` array :cite:`numpy`. Subclasses of :class:`~.Detector` typically add properties specific to that detector (e. g. shutter time, gain, etc.). In the simplest case, setting these properties and calling :meth:`.~Detector.read()` is all that is needed to capture data. The :meth:`~.Detector.trigger()` method is used for asynchronous measurements as described below. All other properties and methods are used for metadata and units, as described in :numref:`Units and metadata`.
 
-The detector object inherits some properties and methods from the base class :class:`~.Device`. These are used by the synchronization mechanism to determine when it is safe to start a measurement, as described in :numref:`Synchronization`.
+The detector object inherits some properties and methods from the base class :class:`~.Device`. These are used by the synchronization mechanism to determine when it is safe to start a measurement, as described in :numref:`device-synchronization`.
 
 
 Asynchronous measurements
@@ -57,7 +57,7 @@ The asynchronous measurement mechanism can be seen in action in the `StepwiseSeq
 
 This code performs a wavefront shaping algorithm similar to the one described in :cite:`Vellekoop2007`. In this version, there is no pre-optimization. It works by cycling the phase of each of the n_x × n_y segments on the SLM between 0 and 2π, and measuring the feedback signal at each step. `self.feedback` holds a `Detector` object that is triggered, and stores the measurement in a pre-allocated `measurements` array when it becomes available. It is possible to find the optimized wavefront for multiple targets simultaneously by using a detector that returns an array of size `feedback.data_shape`, which contains a feedback value for each of the targets.
 
-The program does not wait for the data to become available and can directly proceed with preparing the next pattern to send to the SLM (also see :numref:`Synchronization`). After running the algorithm, `wait` is called to wait until all measurement data is stored in the `measurements` array, and the utility function `analyze_phase_stepping` is used to extract the transmission matrix from the measurements, as well as a series of troubleshooting statistics (see :numref:`Analysis and troubleshooting`).
+The program does not wait for the data to become available and can directly proceed with preparing the next pattern to send to the SLM (also see :numref:`device-synchronization`). After running the algorithm, `wait` is called to wait until all measurement data is stored in the `measurements` array, and the utility function `analyze_phase_stepping` is used to extract the transmission matrix from the measurements, as well as a series of troubleshooting statistics (see :numref:`Analysis and troubleshooting`).
 
 Note that, except for this asynchronous mechanism for fetching and processing data, OpenWFS is not designed to be thread-safe, and the user is responsible for guaranteeing that devices are only accessed from a single thread at a time.
 
@@ -92,6 +92,7 @@ In addition, OpenWFS allows attaching pixel-size metadata to data arrays using t
 
 The data arrays returned by the :meth:`~.Detector.read()` function of a detector have `pixel_size` metadata attached whenever appropriate. The pixel size can be retrieved from the array using  :func:`~.get_pixel_size()`, or obtained from the  :attr:`~.Detector.pixel_size` attribute directly. As an alternative to accessing the pixel size directly, :func:`~get_extent()` and :class:`~.Detector.extent` provide access to the extent of the array, which is always equal to the pixel size times the shape of the array. Finally, the convenience function :meth:`~.Detector.coordinates` returns a vector of coordinates with appropriate units along a specified dimension of the array.
 
+.. _device-synchronization:
 
 Synchronization
 ---------------

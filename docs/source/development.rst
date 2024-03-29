@@ -54,7 +54,7 @@ To implement a custom device (actuator, detector, processor), it is important to
     - `moving = True`. One or more actuators may be busy. No measurements can be made (none of the detectors is busy).
     - `moving = False` (the 'measuring' state). One or more detectors may be busy. All actuators must remain static (none of the actuators is busy).
 
-When an actuator is started, or when a detector is triggered, it calls ``self._start`` to request a switch to the correct global state. If a state switch is needed, this function blocks until all devices of the other device type are ready. For example, if an actuator calls ``_start``, the framework waits for all detectors to complete their measurements (up to latency, see :numref:`Synchronization`) before the switch is made. Note that for  detectors and processors, ``_start`` is called automatically by `trigger()`, so there is never a need to call it explicitly.
+When an actuator is started, or when a detector is triggered, it calls ``self._start`` to request a switch to the correct global state. If a state switch is needed, this function blocks until all devices of the other device type are ready. For example, if an actuator calls ``_start``, the framework waits for all detectors to complete their measurements (up to latency, see :numref:`device-synchronization`) before the switch is made. Note that for  detectors and processors, ``_start`` is called automatically by `trigger()`, so there is never a need to call it explicitly.
 
 
 Implementing a detector

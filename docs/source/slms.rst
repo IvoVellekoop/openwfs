@@ -35,11 +35,12 @@ This way, a large range of use cases is enabled, including:
       of the disk.
     - Applying an additive patch (an 'offset layer') that corrects for system aberrations.
 
-The code that was used to create :numref:`slmdemo` is shown in :numref:`slmcode`. The SLM object is constructed with two patches. The first patch holds an array of 18 random values which are mapped to three concentric rings, consisting of 4, 6, and 8 segments, respectively. Such an approach can be useful for equalizing the contribution of different segments on the SLM :cite:`mastiani2021noise`. Superposed onto this image is a linear gradient, which may be used to steer the light coming from the SLM. The `SLM` object  takes care of mapping, blending, and phase wrapping the phase patterns in real-time.
-
 .. _slmcode:
 .. literalinclude:: ../../examples/slm_disk.py
     :language: python
+    :caption: ``slm_disk``. Illustration of texture warping and blending functionality of the :class:`hardware.SLM` object.
+
+The code that was used to create :numref:`slmdemo` is shown in :numref:`slmcode`. The SLM object is constructed with two patches. The first patch holds an array of 18 random values which are mapped to three concentric rings, consisting of 4, 6, and 8 segments, respectively. Such an approach can be useful for equalizing the contribution of different segments on the SLM :cite:`mastiani2021noise`. Superposed onto this image is a linear gradient, which may be used to steer the light coming from the SLM. The `SLM` object  takes care of mapping, blending, and phase wrapping the phase patterns in real-time.
 
 The code also showcases the use of the :attr:`~.slm.SLM.pixels` attribute, which holds a holds a virtual camera that reads the gray values of the pixels currently displayed on the SLM. This virtual camera implements the :class:`~.Detector` interface, meaning that it can be used just like an actual camera.
 
@@ -49,6 +50,8 @@ Lookup table
 ---------------------------------------
 
 Even though the SLM hardware itself often includes a hardware lookup table, there usually is no standard way to set it from Python, making switching between lookup tables cumbersome. The OpenGL-accelerated lookup table in the SLM object provides a solution to this problem, which is especially useful when working with tunable lasers, for which the lookup table needs to be adjusted often. The SLM object has a :attr:`~.slm.SLM.lookup_table` property, which holds a table that is used to convert phase values from radians to gray values on the screen. By default, this table is set to `range(256)`, meaning that a phase of 0 produces a gray value of 0, and a phase of  255/256·2π produces a gray value of 255. A phase of 2π again produces a gray value of 0.
+
+.. _slm-synchronization:
 
 Synchronization
 ------------------------------------
