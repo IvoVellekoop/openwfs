@@ -173,7 +173,7 @@ def inverse_phase_response_test_function(f, b, c, gamma):
 
 def lookup_table_test_function(f, b, c, gamma):
     """
-    Compute the lookup indices (i.e. a lookup table)
+    Compute the lookup indices (i. e. a lookup table)
     for countering the synthetic phase response test function: 2π*(b + c*(phi/2π)^gamma).
     """
     phase = inverse_phase_response_test_function(f, b, c, gamma)

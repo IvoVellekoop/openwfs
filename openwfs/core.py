@@ -50,7 +50,7 @@ class Device(ABC):
         and it may block until this state switch is completed.
 
         After switching, stores the time at which the operation will have ended in the `_end_time_ns`
-        field (i.e., `time.time_ns() + self.latency + self.duration`).
+        field (i. e., `time.time_ns() + self.latency + self.duration`).
         """
 
         # acquire a global lock, to prevent multiple threads to switch moving/measuring state simultaneously
@@ -135,7 +135,7 @@ class Device(ABC):
         return self._duration
 
     def wait(self, up_to: Optional[Quantity[u.ms]] = None) -> None:
-        """Waits until the device is (almost) in the `ready` state, i.e., has finished measuring or moving.
+        """Waits until the device is (almost) in the `ready` state, i. e., has finished measuring or moving.
 
         This function is called by `_start` automatically to ensure proper synchronization between detectors and
         actuators, and it is called by `__del__` to ensure the device is not active when it is destroyed.
@@ -533,7 +533,7 @@ class Processor(Detector, ABC):
     @property
     def duration(self) -> Quantity[u.ms]:
         """Returns the last end time minus the first start time for all detectors
-        i.e., max (duration + latency) - min(latency).
+        i. e., max (duration + latency) - min(latency).
 
         Note that `latency` is allowed to vary over time for devices that can only be triggered periodically,
         so this `duration` may also vary over time.

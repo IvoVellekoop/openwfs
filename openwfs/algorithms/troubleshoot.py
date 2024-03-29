@@ -96,7 +96,7 @@ def find_pixel_shift(f: np.ndarray, g: np.ndarray) -> tuple[int, ...]:
 
 def field_correlation(a: np.ndarray, b: np.ndarray) -> float:
     """
-    Compute field correlation, i.e. inner product of two fields, normalized by the product of the L2 norms,
+    Compute field correlation, i. e. inner product of two fields, normalized by the product of the L2 norms,
     such that field_correlation(f, s*f) == 1, where s is a scalar value.
     Also known as normalized first order correlation :math:`g_1`.
 

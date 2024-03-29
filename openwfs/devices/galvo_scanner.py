@@ -25,7 +25,7 @@ class ScanningMicroscope(Detector):
     and a scale parameter should be specified to convert these voltages to positions in the object plane.
     The number of pixels in the full scan range is specified with the `data_shape` parameter.
 
-    After construction, a sub-region of the scan range (i.e., a region of interest ROI) may be selected using
+    After construction, a sub-region of the scan range (i. e., a region of interest ROI) may be selected using
     the `top`, `left`, `height` and `width` properties.
     Note that changing the ROI does not change the pixel size.
     Only the number of pixels in the returned image changes, as with a regular camera.

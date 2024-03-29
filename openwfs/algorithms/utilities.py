@@ -12,7 +12,7 @@ class WFSResult:
     Attributes:
         t (ndarray): Measured transmission matrix. If multiple targets were used, the first dimension(s) of `t`
             denote the columns of the transmission matrix (`a` indices), and the last dimensions(s) denote the targets,
-            i.e., the rows of the transmission matrix (`b` indices).
+            i. e., the rows of the transmission matrix (`b` indices).
         axis (int): Number of dimensions used for denoting a single column of the transmission matrix
             (e. g., 2 dimensions representing the x and y coordinates of the SLM pixels).
         fidelity_noise (ndarray): The estimated loss in fidelity caused by the limited SNR (for each target).

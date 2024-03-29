@@ -353,7 +353,7 @@ class SLM(Actuator, PhaseSLM):
 
         Note:
             At the moment, :meth:`~.SLM.update` blocks until all OpenGL commands are processed,
-            and a vertical retrace occurs (i.e., the hardware signals the start of a new frame).
+            and a vertical retrace occurs (i. e., the hardware signals the start of a new frame).
             This behavior may change in the future and should not be relied on.
             Instead, use the automatic synchronization mechanism to synchronize detectors with
             the SLM hardware.

@@ -31,7 +31,7 @@ class FourierBase:
                 The slm may have the `extent` property set to indicate the extent of the back pupil of the microscope
                 objective in slm coordinates. By default, a value of 2.0, 2.0 is used (indicating that the pupil
                 corresponds to a circle of radius 1.0 on the SLM). However, to prevent artefacts at the edges of the
-                SLM,it may be overfilled, such that the `phases` image is mapped to an extent of e. g. (2.2, 2.2), i.e.
+                SLM,it may be overfilled, such that the `phases` image is mapped to an extent of e. g. (2.2, 2.2), i. e.
                 10% larger than the back pupil.
             slm_shape (tuple[int, int]): The shape of the SLM patterns and transmission matrices.
             k_left (numpy.ndarray): 2-row matrix containing the y, and x components of the spatial frequencies

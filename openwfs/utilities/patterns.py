@@ -165,7 +165,7 @@ def gaussian(shape: ShapeType, waist: ScalarType,
     Args:
         shape: see module documentation
         waist (ScalarType): location of the beam waist (1/e value)
-            relative to half of the size of the pattern (i.e. relative to the `radius` of the square)
+            relative to half of the size of the pattern (i. e. relative to the `radius` of the square)
         truncation_radius (ScalarType): when not None, specifies the radius of a disk that is used to truncate the
             Gaussian. All values outside the disk are set to 0.
         extent: see module documentation

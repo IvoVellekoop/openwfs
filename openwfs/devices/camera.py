@@ -1,9 +1,11 @@
-from astropy.units import Quantity
 from typing import Optional
-from ..core import Detector
-from harvesters.core import Harvester
-import numpy as np
+
 import astropy.units as u
+import numpy as np
+from astropy.units import Quantity
+from harvesters.core import Harvester
+
+from ..core import Detector
 
 
 class Camera(Detector):
@@ -19,7 +21,7 @@ class Camera(Detector):
             The node map should not be used to set properties that are available as properties in the Camera object,
             such as `duration` (exposure time), `width`, `height`, `binning`, etc.
 
-            Also, the node map should not be used to set properties while the camera is fetching a frame (i.e.,
+            Also, the node map should not be used to set properties while the camera is fetching a frame (i. e.,
             between `trigger()` and calling `result()` on the returned concurrent.futures.Future object).
 
     Note:

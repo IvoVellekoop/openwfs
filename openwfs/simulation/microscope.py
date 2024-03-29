@@ -62,7 +62,7 @@ class Microscope(Processor):
             incident_field: Produces 2-D complex images containing the field output of the SLM.
                 If no `slm_transform` is specified, the `pixel_size` attribute should
                  correspond to normalized pupil coordinates
-                (e. g. with a disk of radius 1.0, i.e. an extent of 2.0, corresponding to an NA of 1.0)
+                (e. g. with a disk of radius 1.0, i. e. an extent of 2.0, corresponding to an NA of 1.0)
             incident_transform (Optional[Transform]):
                 Optional Transform that transforms the phase pattern from the slm object
                 (in slm.pixel_size units) to normalized pupil coordinates.
