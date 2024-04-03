@@ -73,10 +73,11 @@ class StaticSource(Detector):
 
 class NoiseSource(Detector):
     def __init__(self, noise_type: str, *, data_shape: tuple[int, ...], pixel_size: Quantity, multi_threaded=True,
+                 generator=None,
                  **kwargs):
         self._noise_type = noise_type
         self._noise_arguments = kwargs
-        self._rng = np.random.default_rng()
+        self._rng = generator if generator is not None else np.random.default_rng()
         super().__init__(data_shape=data_shape, pixel_size=pixel_size, latency=0 * u.ms, duration=0 * u.ms,
                          multi_threaded=multi_threaded)
 
@@ -100,7 +101,8 @@ class ADCProcessor(Processor):
     """
 
     def __init__(self, source: Detector, analog_max: float = 0.0, digital_max: int = 0xFFFF,
-                 shot_noise: bool = False, gaussian_noise_std: float = 0.0, multi_threaded: bool = True):
+                 shot_noise: bool = False, gaussian_noise_std: float = 0.0, multi_threaded: bool = True,
+                 generator=None):
         """
         Initializes the ADCProcessor class, which mimics an analog-digital converter.
 
@@ -126,7 +128,7 @@ class ADCProcessor(Processor):
         self._digital_max = None
         self._shot_noise = None
         self._gaussian_noise_std = None
-        self._rng = np.random.default_rng()
+        self._rng = generator if generator is not None else np.random.default_rng()
         self.gaussian_noise_std = gaussian_noise_std
         self.shot_noise = shot_noise
         self.analog_max = analog_max  # check value

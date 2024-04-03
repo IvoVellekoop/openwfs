@@ -56,12 +56,12 @@ def test_ssa_noise(n_y, n_x):
     Note: this test fails if a smooth image is shown, indicating that the estimators
     only work well for strong scattering at the moment.
     """
-    #    aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
-    aberrations = np.random.uniform(0.0, 2 * np.pi, (n_y, n_x))
+    generator = np.random.default_rng(seed=12345)
+    aberrations = generator.uniform(0.0, 2 * np.pi, (n_y, n_x))
     sim_no_noise = SimulatedWFS(aberrations=aberrations)
     slm = sim_no_noise.slm
     scale = np.max(sim_no_noise.read())
-    sim = ADCProcessor(sim_no_noise, analog_max=scale * 200.0, digital_max=10000, shot_noise=True)
+    sim = ADCProcessor(sim_no_noise, analog_max=scale * 200.0, digital_max=10000, shot_noise=True, generator=generator)
     alg = StepwiseSequential(feedback=sim, slm=slm, n_x=n_x, n_y=n_y, phase_steps=10)
     result = alg.execute()
     print(result.fidelity_noise)
