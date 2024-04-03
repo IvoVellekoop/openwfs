@@ -1,11 +1,11 @@
-from typing import Sequence, Optional, Union
+from typing import Sequence, Optional
 
 import cv2
 import numpy as np
 from astropy.units import Quantity
 
 from ..core import Processor, Detector
-from ..utilities import project
+from ..utilities import project, Transform
 from ..utilities.patterns import disk, gaussian
 
 
@@ -338,39 +338,49 @@ def select_roi(source: Detector, mask_type: str):
 class TransformProcessor(Processor):
     """
     Performs a 2-D transform of the input data (including shifting, padding, cropping, resampling).
+
+    By default, the output shape and pixel_size are the same as the input shape.
+    If desired, explicit values can be provided for the output shape and pixel_size. The unit of the pixel_size
+    should match the unit of the input data after applying the transform.
     """
 
-    def __init__(self, source, transform, data_shape: Optional[Sequence[int]] = None,
-                 pixel_size: Union[Optional[Quantity], bool] = False, multi_threaded: bool = True):
+    def __init__(self, source: Detector,
+                 transform: Transform = None,
+                 data_shape: Optional[Sequence[int]] = None,
+                 pixel_size: Optional[Quantity] = None,
+                 multi_threaded: bool = True):
         """
 
         Args:
-            transform: Transform object that describes the transformation from the source
-            data_shape: defaults to source.data_shape
-            pixel_size: defaults to source.pixel_size.
-                Specify any pixel size (including `None`) to override the pixel size of the source.
-        """
+            transform: Transform object that describes the transformation from the source to the target image
+            data_shape: Shape of the output. If omitted, the shape of the input data is used.
+            multi_threaded: Whether to perform processing in a worker thread.
+            """
         if (data_shape is not None and len(data_shape) != 2) or len(source.data_shape) != 2:
             raise ValueError("TransformProcessor only supports 2-D data")
+        if transform is None:
+            transform = Transform()
 
+        # check if input and output pixel sizes are compatible
+        dst_unit = transform.destination_unit(source.pixel_size.unit)
+        if pixel_size is not None and not pixel_size.unit.is_equivalent(dst_unit):
+            raise ValueError("Pixel size unit does not match the unit of the transformed data")
+        if pixel_size is None and not source.pixel_size.unit.is_equivalent(dst_unit):
+            raise ValueError("The transform changes the unit of the coordinates."
+                             " An output pixel_size must be provided.")
+
+        self.transform = transform
+        super().__init__(source, multi_threaded=multi_threaded)
         self._pixel_size = pixel_size
         self._data_shape = data_shape
-        super().__init__(source, multi_threaded=multi_threaded)
-        self.transform = transform
 
     @property
     def data_shape(self):
-        if self._data_shape is not None:
-            return self._data_shape
-        else:
-            return super().data_shape
+        return self._data_shape if self._data_shape is not None else super().data_shape
 
     @property
     def pixel_size(self) -> Optional[Quantity]:
-        if self._pixel_size is not False:
-            return self._pixel_size
-        else:
-            return super().pixel_size
+        return self._pixel_size if self._pixel_size is not None else super().pixel_size
 
     def _fetch(self, source: np.ndarray) -> np.ndarray:  # noqa
         """

@@ -52,10 +52,15 @@ def unitless(data: ArrayLike) -> np.ndarray:
 
 @dataclass
 class Transform:
-    """Represents a transformation from one coordinate system to the other.
+    """Represents a transformation from one 2-d coordinate system to another.
 
     Transform objects are used to specify any combination of shift, (anisotropic) scaling, rotation and shear.
-    Elements of the transformation are specified with an `astropy.unit` attached.
+    The transform matrix, as well as the source and destination origins, can be specified with astropy units attached.
+
+    Note that a Transform object does not contain any information about the extent and pixel size
+    of the source or destination image, it only specifies the coordinate transformation itself.
+    When a Transform object is used to transform image data (see :func:`project` and :func:`place`),
+    the pixel_size information should be specified separately.
     """
 
     """
@@ -92,13 +97,33 @@ class Transform:
         self.source_origin = Quantity(source_origin) if source_origin is not None else None
         self.destination_origin = Quantity(destination_origin) if destination_origin is not None else None
 
-    def cv2_matrix(self, source_shape: Sequence[int],
+        if source_origin is not None:
+            self.destination_unit(self.source_origin.unit)  # check if the units are consistent
+
+    def destination_unit(self, src_unit: u.Unit) -> u.Unit:
+        """Computes the unit of the output of the transformation, given the unit of the input.
+
+        Raises:
+            ValueError: If src_unit does not match the unit of the source_origin (if specified) or
+                if dst_unit does not match the unit of the destination_origin (if specified).
+        """
+        if self.source_origin is not None and not self.source_origin.unit.is_equivalent(src_unit):
+            raise ValueError("src_unit must match the units of source_origin.")
+
+        dst_unit = (self.transform[0, 0] * src_unit).unit
+        if self.destination_origin is not None and not self.destination_origin.unit.is_equivalent(dst_unit):
+            raise ValueError("dst_unit must match the units of destination_origin.")
+
+        return dst_unit
+
+    def cv2_matrix(self,
+                   source_shape: Sequence[int],
                    source_pixel_size: CoordinateType,
                    destination_shape: Sequence[int],
                    destination_pixel_size: CoordinateType) -> np.ndarray:
         """Returns the transformation matrix in the format used by cv2.warpAffine."""
 
-        # correct the origin. OpenCV uses the _center_ of teh top-left corner as the origin
+        # correct the origin. OpenCV uses the _center_ of the top-left corner as the origin
         # and openwfs uses the center of the image as the origin, so we need to shift the origin
         # by half the image size minus half a pixel.
         if min(source_shape) < 1 or min(destination_shape) < 1:
@@ -229,12 +254,13 @@ def place(out_shape: tuple[int, ...], out_pixel_size: Quantity, source: np.ndarr
     return project(source, out_extent=out_extent, out_shape=out_shape, transform=transform, out=out)
 
 
-def project(source: np.ndarray, *,
-            transform: Optional[Transform] = None,
-            out: Optional[np.ndarray] = None,
-            source_extent: Optional[ExtentType] = None,
-            out_extent: Optional[ExtentType] = None,
-            out_shape: Optional[tuple[int, ...]] = None) -> np.ndarray:
+def project(
+        source: np.ndarray, *,
+        source_extent: Optional[ExtentType] = None,
+        transform: Optional[Transform] = None,
+        out: Optional[np.ndarray] = None,
+        out_extent: Optional[ExtentType] = None,
+        out_shape: Optional[tuple[int, ...]] = None) -> np.ndarray:
     """Projects the input image onto an array with specified shape and resolution.
 
     The input image is scaled so that the pixel sizes match those of the output,

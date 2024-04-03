@@ -11,7 +11,7 @@ from ..core import Processor, Detector
 from ..plot_utilities import imshow  # noqa - for debugging
 from ..processors import TransformProcessor
 from ..simulation.mockdevices import XYStage, Camera, StaticSource
-from ..utilities import project, place, Transform, get_pixel_size, patterns
+from ..utilities import project, place, Transform, get_pixel_size, patterns, CoordinateType
 
 
 class Microscope(Processor):
@@ -225,7 +225,10 @@ class Microscope(Processor):
         """Returns the shape of the image in the image plane"""
         return self._data_shape
 
-    def get_camera(self, *, transform: Optional[Transform] = None, **kwargs) -> Detector:
+    def get_camera(self, *, transform: Optional[Transform] = None,
+                   data_shape: Optional[tuple[int, int]] = None,
+                   pixel_size: Optional[CoordinateType] = None,
+                   **kwargs) -> Detector:
         """
         Returns a simulated camera that observes the microscope image.
 
@@ -241,9 +244,9 @@ class Microscope(Processor):
         Returns:
 
         """
-        if transform is None:
+        if transform is None and data_shape is None and pixel_size is None:
             src = self
         else:
-            src = TransformProcessor(self, transform)
+            src = TransformProcessor(self, data_shape=data_shape, pixel_size=pixel_size, transform=transform)
 
         return Camera(src, **kwargs)
