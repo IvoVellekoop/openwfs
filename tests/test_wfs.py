@@ -3,6 +3,7 @@ import numpy as np
 import pytest
 import skimage
 from scipy.ndimage import zoom
+from skimage.transform import resize
 
 from ..openwfs.algorithms import StepwiseSequential, FourierDualReference, troubleshoot
 from ..openwfs.algorithms.utilities import WFSController
@@ -67,6 +68,45 @@ def test_ssa_noise(n_y, n_x):
     print(result.fidelity_noise)
 
     assert_enhancement(slm, sim, result)
+
+
+def test_ssa_enhancement():
+    input_shape = (40, 40)
+    output_shape = (200, 200)  # todo: resize
+    rng = np.random.default_rng(seed=12345)
+
+    def get_random_aberrations():
+        return resize(rng.uniform(size=input_shape) * 2 * np.pi, output_shape, order=0)
+
+    # Define mock hardware and algorithm
+    slm = SLM(shape=output_shape)
+
+    # Find average background intensity
+    unshaped_intensities = np.zeros((30,))
+    for n in range(len(unshaped_intensities)):
+        signal = SimulatedWFS(aberrations=get_random_aberrations(), slm=slm)
+        unshaped_intensities[n] = signal.read()
+
+    num_runs = 10
+    shaped_intensities_ssa = np.zeros(num_runs)
+    for r in range(num_runs):
+        sim = SimulatedWFS(aberrations=get_random_aberrations(), slm=slm)
+
+        # SSA
+        print(f'SSA run {r + 1}/{num_runs}')
+        alg_ssa = StepwiseSequential(feedback=sim, slm=sim.slm, n_x=13, n_y=13, phase_steps=6)
+        wfs_result_ssa = alg_ssa.execute()
+        sim.slm.set_phases(-np.angle(wfs_result_ssa.t))
+        shaped_intensities_ssa[r] = sim.read()
+
+    # Compute enhancements and error margins
+    enhancement_ssa = shaped_intensities_ssa.mean() / unshaped_intensities.mean()
+    enhancement_ssa_std = shaped_intensities_ssa.std() / unshaped_intensities.mean()
+
+    print(
+        f'SSA enhancement (squared signal): {enhancement_ssa:.2f}, std={enhancement_ssa_std:.2f}, with {wfs_result_ssa.n} modes')
+
+    assert enhancement_ssa > 100.0
 
 
 @pytest.mark.parametrize("n_x", [2, 3])
