@@ -1,3 +1,5 @@
+from typing import Optional
+
 import numpy as np
 
 from .utilities import analyze_phase_stepping, WFSResult
@@ -22,7 +24,7 @@ class FourierBase:
       """
 
     def __init__(self, feedback: Detector, slm: PhaseSLM, slm_shape: tuple[int, int], k_left: np.ndarray,
-                 k_right: np.ndarray, phase_steps: int = 4):
+                 k_right: np.ndarray, phase_steps: int = 4, analyzer: Optional[callable] = analyze_phase_stepping):
         """
 
         Args:
@@ -43,6 +45,7 @@ class FourierBase:
                 for the right-hand side of the SLM.
                 The number of frequencies need not be equal for k_left and k_right.
             phase_steps (int): The number of phase steps for each mode (default is 4).
+            analyzer (callable): The function used to analyze the phase stepping data. Must return a WFSResult object.
         """
         self._execute_button = False
         self.slm = slm
@@ -51,6 +54,7 @@ class FourierBase:
         self.k_left = k_left
         self.k_right = k_right
         self.slm_shape = slm_shape
+        self.analyzer = analyzer
 
     def execute(self) -> WFSResult:
         """
@@ -94,7 +98,7 @@ class FourierBase:
                 self.feedback.trigger(out=measurements[i, p, ...])
 
         self.feedback.wait()
-        return analyze_phase_stepping(measurements, axis=1)
+        return self.analyzer(measurements, axis=1)
 
     def _get_phase_pattern(self,
                            k: np.ndarray,
