@@ -1,6 +1,10 @@
+from typing import Optional
+
+import numpy as np
+
+from .utilities import analyze_phase_stepping
 from .fourier import FourierBase
 from ..core import Detector, PhaseSLM
-import numpy as np
 
 
 class FourierDualReference(FourierBase):
@@ -14,7 +18,7 @@ class FourierDualReference(FourierBase):
     """
 
     def __init__(self, feedback: Detector, slm: PhaseSLM, slm_shape=(500, 500), phase_steps=4, k_angles_min=-3,
-                 k_angles_max=3):
+                 k_angles_max=3, analyzer: Optional[callable] = analyze_phase_stepping):
         """
         Args:
             feedback (Detector): Source of feedback
@@ -25,7 +29,8 @@ class FourierDualReference(FourierBase):
             k_angles_min (int): The minimum k-angle.
             k_angles_max (int): The maximum k-angle.
         """
-        super().__init__(feedback, slm, slm_shape, np.array((0, 0)), np.array((0, 0)), phase_steps=phase_steps)
+        super().__init__(feedback, slm, slm_shape, np.array((0, 0)), np.array((0, 0)), phase_steps=phase_steps,
+                         analyzer=analyzer)
         self._k_angles_min = k_angles_min
         self._k_angles_max = k_angles_max
 
