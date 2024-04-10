@@ -11,7 +11,7 @@ class FourierDualReference(FourierBase):
     """Fourier double reference algorithm, based on Mastiani et al. [1].
 
     It constructs a symmetric k-space for the algorithm.
-    The k-space initializer is set to None because for custom k-spaces, you should use FourierDualRef directly.
+    Note: for custom k-spaces, you should use the FourierBase class.
 
     [1]: Bahareh Mastiani, Gerwin Osnabrugge, and Ivo M. Vellekoop,
     "Wavefront shaping for forward scattering," Opt. Express 30, 37436-37445 (2022)
@@ -39,17 +39,18 @@ class FourierDualReference(FourierBase):
     def _build_k_space(self):
         """
         Constructs the k-space by creating Cartesian products of k_x and k_y angles.
-        Fills the k_left and k_right matrices with the same k-space.
+        Fills the k_left and k_right matrices with the same k-space. (k_x, k_y) denote the k-space coords of the whole
+        SLM. Only half the SLM is modulated at a time, hence ky must make steps of 2.
 
         Returns:
             None: The function updates the instance attributes.
         """
         kx_angles = np.arange(self._k_angles_min, self._k_angles_max + 1, 1)
-        ky_angles = np.arange(self._k_angles_min, self._k_angles_max + 1, 1)
+        ky_angles = np.arange(self._k_angles_min, self._k_angles_max + 1, 2)
         # Make the cartesian product of kx_angles and ky_angles to make a square k-space
 
         k_x = np.repeat(np.array(kx_angles)[np.newaxis, :], len(ky_angles), axis=0).flatten()
-        k_y = np.repeat(np.array(ky_angles)[:, np.newaxis], len(ky_angles), axis=1).flatten()
+        k_y = np.repeat(np.array(ky_angles)[:, np.newaxis], len(kx_angles), axis=1).flatten()
         self.k_left = np.vstack((k_x, k_y))
         self.k_right = np.vstack((k_x, k_y))
 

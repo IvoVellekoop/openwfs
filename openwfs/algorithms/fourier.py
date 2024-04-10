@@ -108,7 +108,7 @@ class FourierBase:
         Generates a phase pattern for the SLM based on the given spatial frequency, phase offset, and side.
 
         Args:
-            k (np.ndarray): A 2-element array representing the spatial frequency.
+            k (np.ndarray): A 2-element array representing the spatial frequency over the whole pupil plane.
             phase_offset (float): The phase offset to apply to the pattern.
             side (int): Indicates the side of the SLM for the pattern (0 for left, 1 for right).
 
@@ -116,10 +116,10 @@ class FourierBase:
             np.ndarray: The generated phase pattern.
         """
         # tilt generates a pattern from -2.0 to 2.0 (The convention for Zernike modes normalized to an RMS of 1).
-        # The natural step to take is the Abbe diffraction limit, which corresponds to a gradient from
-        # -π to π.
-        num_columns = int(0.5 * self.slm_shape[1])
-        tilted_front = tilt([self.slm_shape[0], num_columns], k * (0.5 * np.pi),
+        # The natural step to take is the Abbe diffraction limit of the modulated part, which corresponds to a gradient
+        # from -π to π over the modulated part.
+        num_columns = self.slm_shape[1] // 2
+        tilted_front = tilt([self.slm_shape[0], num_columns], k * (0.5 * np.pi), extent=(2.0, 1.0),
                             phase_offset=phase_offset)
 
         # Handle side-dependent pattern
@@ -133,6 +133,12 @@ class FourierBase:
         else:
             # Place the pattern on the right
             result = np.concatenate((empty_part, tilted_front), axis=1)
+
+        # Plot the pattern
+        import matplotlib.pyplot as plt
+        plt.imshow(result % (2*np.pi) - np.pi, cmap='hsv', vmin=-np.pi, vmax=np.pi, interpolation='none')
+        plt.title(f"Phase pattern for $k_{{whole}}={k}$ on side {side}")
+        plt.show()
 
         return result
 
