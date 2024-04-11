@@ -154,12 +154,12 @@ def test_fourier3():
     assert_enhancement(sim.slm, sim, controller._result, np.exp(1j * scaled_aberration))
 
 
-@pytest.mark.parametrize("k_radius", 2.5)
-def test_fourier_circle(k_radius):
+@pytest.mark.parametrize("k_radius, g", [[2.5, (1.0, 0.0)], [2.5, (0.0, 2.0)]],)
+def test_fourier_circle(k_radius, g):
     """
     Test Fourier dual reference algorithm with a circular k-space, with a tilt 'aberration'.
     """
-    aberrations = tilt(shape=(100, 100), extent=(2, 2), g=(1.0, 0.0), phase_offset=0.5)
+    aberrations = tilt(shape=(100, 100), extent=(2, 2), g=g, phase_offset=0.5)
     sim = SimulatedWFS(aberrations=aberrations)
     alg = FourierDualReferenceCircle(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_radius=k_radius,
                                      phase_steps=4)
