@@ -134,12 +134,6 @@ class FourierBase:
             # Place the pattern on the right
             result = np.concatenate((empty_part, tilted_front), axis=1)
 
-        # Plot the pattern
-        import matplotlib.pyplot as plt
-        plt.imshow(result % (2*np.pi) - np.pi, cmap='hsv', vmin=-np.pi, vmax=np.pi, interpolation='none')
-        plt.title(f"Phase pattern for $k_{{whole}}={k}$ on side {side}")
-        plt.show()
-
         return result
 
     def compute_t(self, left: WFSResult, right: WFSResult, k_left, k_right) -> WFSResult:
