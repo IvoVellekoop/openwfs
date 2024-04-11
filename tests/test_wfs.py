@@ -5,11 +5,11 @@ import skimage
 from scipy.ndimage import zoom
 from skimage.transform import resize
 
-from ..openwfs.algorithms import StepwiseSequential, FourierDualReference, troubleshoot
+from ..openwfs.algorithms import StepwiseSequential, FourierDualReference, FourierDualReferenceCircle, troubleshoot
 from ..openwfs.algorithms.utilities import WFSController
 from ..openwfs.processors import SingleRoi
 from ..openwfs.simulation import SimulatedWFS, StaticSource, SLM, Microscope, ADCProcessor, Shutter
-from ..openwfs.utilities import set_pixel_size
+from ..openwfs.utilities import set_pixel_size, tilt
 
 
 def assert_enhancement(slm, feedback, wfs_results, t_correct=None):
@@ -154,6 +154,19 @@ def test_fourier3():
     assert_enhancement(sim.slm, sim, controller._result, np.exp(1j * scaled_aberration))
 
 
+@pytest.mark.parametrize("k_radius", 2.5)
+def test_fourier_circle(k_radius):
+    """
+    Test Fourier dual reference algorithm with a circular k-space, with a tilt 'aberration'.
+    """
+    aberrations = tilt(shape=(100, 100), extent=(2, 2), g=(1.0, 0.0), phase_offset=0.5)
+    sim = SimulatedWFS(aberrations=aberrations)
+    alg = FourierDualReferenceCircle(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_radius=k_radius,
+                                     phase_steps=4)
+    results = alg.execute()
+    assert_enhancement(sim.slm, sim, results, np.exp(1j * aberrations))
+
+
 def test_fourier_microscope():
     aberration_phase = skimage.data.camera() * ((2 * np.pi) / 255.0) + np.pi
     aberration = StaticSource(aberration_phase, pixel_size=2.0 / np.array(aberration_phase.shape))
@@ -241,9 +254,9 @@ def test_flat_wf_response_fourier():
     aberrations = np.zeros(shape=(512, 512))
     sim = SimulatedWFS(aberrations=aberrations.reshape((*aberrations.shape, 1)))
 
+    from ..openwfs.algorithms.basic_fourier import FourierDualReferenceCircle
     alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-1,
-                               k_angles_max=1,
-                               phase_steps=3)
+                               k_angles_max=1, phase_steps=3)
 
     t = alg.execute().t
 
