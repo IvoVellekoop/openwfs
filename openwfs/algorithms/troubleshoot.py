@@ -376,6 +376,8 @@ class WFSTroubleshootResult:
         phase_calibration_ratio: A ratio indicating the correctness of the SLM phase response. An incorrect phase
             response produces a value < 1.
         wfs_result (WFSResult): Object containing the analyzed result of running the WFS algorithm.
+        feedback_before: Feedback from before running the WFS algorithm, with a flat wavefront.
+        feedback_after: Feedback from after running the WFS algorithm, with a flat wavefront.
         frame_signal_std_before: Signal unbiased standard deviation of frame captured before running the WFS algorithm.
         frame_signal_std_after: Signal unbiased standard deviation of frame captured after running the WFS algorithm.
         frame_cnr_before: Unbiased contrast ratio of frame captured before running the WFS algorithm.
@@ -405,6 +407,7 @@ class WFSTroubleshootResult:
         self.wfs_result = None
         self.average_background = None
         self.feedback_before = None
+        self.feedback_after = None
         self.measured_enhancement = None
 
         # Frame metrics
@@ -555,6 +558,8 @@ def troubleshoot(algorithm, background_feedback: Detector, frame_source: Detecto
             dark_frame=trouble.dark_frame,
             do_save_frames=stability_do_save_frames)
 
+    trouble.feedback_before = algorithm.feedback.read()
+
     # WFS experiment
     logging.info('Run WFS algorithm...')
     trouble.wfs_result = algorithm.execute()  # Execute WFS algorithm
@@ -562,6 +567,7 @@ def troubleshoot(algorithm, background_feedback: Detector, frame_source: Detecto
     # Flat wavefront
     algorithm.slm.set_phases(0.0)
     trouble.average_background = background_feedback.read()
+    trouble.feedback_after = algorithm.feedback.read()
 
     if do_frame_capture:
         logging.info('Capturing frames after WFS...')
