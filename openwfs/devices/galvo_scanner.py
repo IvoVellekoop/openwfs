@@ -227,7 +227,6 @@ class ScanningMicroscope(Detector):
         self._write_task.wait_until_done()
 
         # write the samples to output in the x-y channels
-        print(self._scan_pattern.size)
         self._writer.write_many_sample(self._scan_pattern)
 
         # Start the tasks
