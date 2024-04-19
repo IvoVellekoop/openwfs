@@ -3,6 +3,7 @@ from typing import Optional
 import numpy as np
 
 from .slm import SLM, Processor
+from openwfs.utilities.patterns import ScalarType
 
 
 class SimulatedWFS(Processor):
@@ -18,7 +19,7 @@ class SimulatedWFS(Processor):
     """
 
     def __init__(self, *, t: Optional[np.ndarray] = None, aberrations: Optional[np.ndarray] = None, slm=None,
-                 multi_threaded=True):
+                 multi_threaded=True, beam_amplitude: ScalarType = 1.0):
         """
         Initializes the optical system with specified aberrations and optionally a Gaussian beam profile.
 
@@ -34,6 +35,7 @@ class SimulatedWFS(Processor):
             slm:
             multi_threaded (bool, optional): If True, the simulation will use multiple threads to compute the
                 intensity in the focus. If False, the simulation will use a single thread. Defaults to True.
+            beam_amplitude (ScalarType, optional): The beam profile amplitude. Can be an np.ndarray. Defaults to 1.0.
 
         The constructor creates a MockSLM instance based on the shape of the aberrations, calculates the electric
         field at the SLM considering the aberrations and optionally the Gaussian beam profile, and initializes the
@@ -45,6 +47,7 @@ class SimulatedWFS(Processor):
         self.slm = slm if slm is not None else SLM(self._t.shape[0:2])
 
         super().__init__(self.slm.field, multi_threaded=multi_threaded)
+        self.beam_amplitude = beam_amplitude
 
     def _fetch(self, incident_field):  # noqa
         """
@@ -61,7 +64,7 @@ class SimulatedWFS(Processor):
             np.ndarray: A numpy array containing the calculated intensity in the focus.
 
         """
-        field = np.tensordot(incident_field, self._t, 2)
+        field = np.tensordot(incident_field * self.beam_amplitude, self._t, 2)
         return np.abs(field) ** 2
 
     @property
