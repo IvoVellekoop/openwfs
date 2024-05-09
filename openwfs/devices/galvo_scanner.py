@@ -280,6 +280,11 @@ class ScanningMicroscope(Detector):
             raise TypeError(f"Invalid type for {self._preprocess}. Should be callable or None.")
         return self._raw_to_cropped(preprocessed_raw)
 
+    def close(self):
+        """Close connection to the NI-DAQ."""
+        self._read_task.close()
+        self._write_task.close()
+
     @property
     def preprocess(self):
         """The function to preprocess raw data before cropping."""
