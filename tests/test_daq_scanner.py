@@ -15,7 +15,8 @@ def test_scan_pattern_delay():
     try:
         scanner = ScanningMicroscope(bidirectional=True, sample_rate=0.5 * u.MHz,
                                      axis0=('Dev4/ao0', -1.0 * u.V, 1.0 * u.V),
-                                     axis1=('Dev4/ao1', -1.0 * u.V, 1.0 * u.V), input=('Dev4/ai0', -1 * u.V, 1.0 * u.V),
+                                     axis1=('Dev4/ao1', -1.0 * u.V, 1.0 * u.V),
+                                     input=('Dev4/ai0', -1.0 * u.V, 1.0 * u.V),
                                      data_shape=(5, 5), scale=440 * u.um / u.V)
         pattern = scanner._scan_pattern
         print(pattern)
@@ -67,3 +68,27 @@ def test_daq_connection():
     except (nidaqmx.DaqError, DaqNotFoundError):
         print('No NI-DAQ card found or NI-DAQ MAX not installed')
         pytest.skip()
+
+
+def test_park_beam():
+    """A unit test for parking the beam of a DAQ scanner."""
+    try:
+        sample_rate = 0.05 * u.MHz
+        scanner = ScanningMicroscope(bidirectional=True, sample_rate=sample_rate,
+                                     axis0=('Dev4/ao0', -1.0 * u.V, 1.0 * u.V),
+                                     axis1=('Dev4/ao1', -1.0 * u.V, 1.0 * u.V),
+                                     input=('Dev4/ai0', 0.1 * u.V, 1.0 * u.V),
+                                     data_shape=(40, 30), scale=440 * u.um / u.V, delay=9.0, padding=0.1)
+    except (nidaqmx.DaqError, DaqNotFoundError):
+        print('No NI-DAQ card found or NI-DAQ MAX not installed')
+        pytest.skip()
+        return
+
+    # Choose ROI of a single point
+    scanner.top = 3
+    scanner.left = 4
+    scanner.width = 1
+    scanner.height = 1
+
+    img = scanner.read()
+    assert img.size == 1
