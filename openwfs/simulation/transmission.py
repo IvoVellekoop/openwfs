@@ -3,7 +3,7 @@ from typing import Optional
 import numpy as np
 
 from .slm import SLM, Processor
-from openwfs.utilities.patterns import ScalarType
+from ..utilities.patterns import ScalarType
 
 
 class SimulatedWFS(Processor):
