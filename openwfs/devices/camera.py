@@ -29,10 +29,9 @@ class Camera(Detector):
         which is a generic adapter for GenICam/GenTL cameras.
 
     Example:
-        >>> camera = Camera(serial_number='12345678')
-        >>> camera.start()
-        >>> frame = camera.capture_frame()
-        >>> camera.stop()
+        >>> camera = Camera(cti_file=R"C:\\Program Files\\Basler\\pylon 7\\Runtime\\x64\\ProducerU3V.cti")
+        >>> camera.exposure_time = 10 * u.ms
+        >>> frame = camera.read()
         """
 
     def __init__(self, cti_file: str, serial_number: Optional[str] = None, multi_threaded=True, **kwargs):
