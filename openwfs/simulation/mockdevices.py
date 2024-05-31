@@ -126,8 +126,8 @@ class ADCProcessor(Processor):
         super().__init__(source, multi_threaded=multi_threaded)
         self._analog_max = None
         self._digital_max = None
-        self._shot_noise = None
-        self._gaussian_noise_std = None
+        self._shot_noise = False
+        self._gaussian_noise_std = 0.0
         self._rng = generator if generator is not None else np.random.default_rng()
         self.gaussian_noise_std = gaussian_noise_std
         self.shot_noise = shot_noise
@@ -144,7 +144,7 @@ class ADCProcessor(Processor):
         else:
             data = data * (self.digital_max / self.analog_max)
 
-        if self.shot_noise:
+        if self._shot_noise:
             data = self._rng.poisson(data)
 
         if self._gaussian_noise_std > 0.0:
@@ -189,15 +189,15 @@ class ADCProcessor(Processor):
 
     @shot_noise.setter
     def shot_noise(self, value: bool):
-        self._shot_noise = value
+        self._shot_noise = bool(value)
 
     @property
-    def gaussian_noise_std(self) -> int:
+    def gaussian_noise_std(self) -> float:
         return self._gaussian_noise_std
 
     @gaussian_noise_std.setter
-    def gaussian_noise_std(self, value: int):
-        self._gaussian_noise_std = value
+    def gaussian_noise_std(self, value: float):
+        self._gaussian_noise_std = float(value)
 
 
 class Camera(ADCProcessor):
