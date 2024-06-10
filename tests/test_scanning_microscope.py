@@ -7,38 +7,44 @@ from ..openwfs.devices import ScanningMicroscope, Axis
 from ..openwfs.utilities import place, set_pixel_size, get_pixel_size, coordinate_range
 
 
-def test_scan_axis():
+@pytest.mark.parametrize("start, stop", [(0.0, 1.0), (1.0, 0.0)])
+def test_scan_axis(start, stop):
     """Tests if the Axis class generates the correct voltage sequences for stepping and scanning."""
     maximum_acceleration = 1 * u.V / u.ms ** 2
-    a = Axis(channel='Dev4/ao0', v_min=-1.0 * u.V, v_max=2.0 * u.V, maximum_acceleration=maximum_acceleration)
+    v_min = -1.0 * u.V
+    v_max = 2.0 * u.V
+    a = Axis(channel='Dev4/ao0', v_min=v_min, v_max=v_max, maximum_acceleration=maximum_acceleration)
     assert a.channel == 'Dev4/ao0'
-    assert a.v_min == -1.0 * u.V
-    assert a.v_max == 2.0 * u.V
+    assert a.v_min == v_min
+    assert a.v_max == v_max
     assert a.maximum_acceleration == maximum_acceleration
-    assert a.to_volt(0.0) == -1.0 * u.V
-    assert a.to_volt(1.0) == 2.0 * u.V
-    assert a.to_volt(2.0) == 2.0 * u.V  # test clipping
-    assert a.to_volt(-0.1) == -1.0 * u.V  # test clipping
+    assert a.to_volt(0.0) == v_min
+    assert a.to_volt(1.0) == v_max
+    assert a.to_volt(2.0) == v_max  # test clipping
+    assert a.to_volt(-0.1) == v_min  # test clipping
 
     # test step
     sample_rate = 0.5 * u.MHz
-    step = a.step(0.0, 1.0, sample_rate)
+    step = a.step(start, stop, sample_rate)
     # plt.plot(step)
     # plt.show()
-    assert np.isclose(step[0], -1.0 * u.V)
-    assert np.isclose(step[-1], 2.0 * u.V)
-    assert np.all(step >= -1.0 * u.V)
-    assert np.all(step <= 2.0 * u.V)
+    assert np.isclose(step[0], -1.0 * u.V if start == 0.0 else 2.0 * u.V)
+    assert np.isclose(step[-1], 2.0 * u.V if start == 0.0 else -1.0 * u.V)
+    assert np.all(step >= v_min)
+    assert np.all(step <= v_max)
     acceleration = np.diff(np.diff(step)) * sample_rate ** 2
     assert np.all(np.abs(acceleration) <= maximum_acceleration * 1.01)
+    center = 0.5 * (start + stop)
+    amplitude = 0.5 * (stop - start)
 
     # test clipping
-    assert np.allclose(step, a.step(-0.1, 2.1, sample_rate))
+    assert np.allclose(step, a.step(center - 1.1 * amplitude, center + 1.1 * amplitude, sample_rate))
 
     # test scan. Note that we cannot use the full scan range because we need
     # some time to accelerate / decelerate
     sample_count = 10000
-    scan, launch, land, linear_region = a.scan(0.2, 0.8, sample_count, sample_rate)
+    scan, launch, land, linear_region = a.scan(center - 0.8 * amplitude, center + 0.8 * amplitude, sample_count,
+                                               sample_rate)
     plt.plot(scan)
     plt.show()
     assert linear_region.stop - linear_region.start == sample_count
@@ -54,8 +60,9 @@ def test_scan_axis():
 @pytest.mark.parametrize("direction", ['horizontal', 'vertical'])
 def test_scan_pattern(direction):
     scale = 440 * u.um / u.V
-    y_axis = Axis(channel='Dev4/ao0', v_min=-2.0 * u.V, v_max=2.0 * u.V, maximum_acceleration=1 * u.V / u.ms ** 2)
-    x_axis = Axis(channel='Dev4/ao1', v_min=-2.0 * u.V, v_max=2.0 * u.V, maximum_acceleration=1 * u.V / u.ms ** 2)
+    sample_rate = 0.5 * u.MHz
+    y_axis = Axis(channel='Dev4/ao0', v_min=-2.0 * u.V, v_max=2.0 * u.V, maximum_acceleration=10 * u.V / u.ms ** 2)
+    x_axis = Axis(channel='Dev4/ao1', v_min=-2.0 * u.V, v_max=2.0 * u.V, maximum_acceleration=10 * u.V / u.ms ** 2)
     scanner = ScanningMicroscope(bidirectional=True, sample_rate=0.5 * u.MHz,
                                  input=('Dev4/ai0', -1.0 * u.V, 1.0 * u.V), axis0=y_axis, axis1=x_axis,
                                  scale=scale, simulation=direction)

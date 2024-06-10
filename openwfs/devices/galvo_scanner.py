@@ -53,20 +53,18 @@ class Axis:
         Returns:
             Quantity[u.V]: voltage sequence
         """
-        start = np.clip(start, 0.0, 1.0)
-        stop = np.clip(stop, 0.0, 1.0)
         v_start = self.to_volt(start)
         v_end = self.to_volt(stop)
 
         # t is measured in samples
         # a is measured in volt/sample²
-        a = self.maximum_acceleration / sample_rate ** 2
-        t_total = unitless(2.0 * np.sqrt(np.abs(v_end - v_start) / a))
+        a = self.maximum_acceleration / sample_rate ** 2 * np.sign(v_end - v_start)
+        t_total = unitless(2.0 * np.sqrt((v_end - v_start) / a))
         t = np.arange(np.ceil(t_total + 1E-6))  # add a small number to deal with case t=0 (start=end)
         v_accel = v_start + 0.5 * a * t[:len(t) // 2] ** 2  # acceleration part
         v_decel = v_end - 0.5 * a * (t_total - t[len(t) // 2:]) ** 2  # deceleration part
         v_decel[-1] = v_end  # fix last point because t may be > t_total due to rounding
-        return np.concatenate((v_accel, v_decel))
+        return np.clip(np.concatenate((v_accel, v_decel)), self.v_min, self.v_max)
 
     def scan(self, start: float, stop: float, sample_count: int, sample_rate: Quantity[u.Hz]):
         """
@@ -87,7 +85,7 @@ class Axis:
         v_end = self.to_volt(stop)
 
         scan_speed = (v_end - v_start) / sample_count  # V per sample
-        a = self.maximum_acceleration / sample_rate ** 2  # V per sample²
+        a = self.maximum_acceleration / sample_rate ** 2 * np.sign(scan_speed)  # V per sample²
 
         # construct a sequence to accelerate from speed 0 to the scan speed
         # we start by constructing a sequence with a maximum acceleration.
@@ -95,7 +93,8 @@ class Axis:
         # This last sample is replaced by movement at a linear scan speed
         t_launch = np.arange(np.ceil(unitless(scan_speed / a)))  # in samples
         v_accel = 0.5 * a * t_launch ** 2  # last 1 to 2 samples may have faster scan speed than needed
-        v_accel[-1] = np.minimum(v_accel[-1], v_accel[-2] + scan_speed)
+        if np.abs(v_accel[-1] - v_accel[-2]) > np.abs(scan_speed):
+            v_accel[-1] = v_accel[-2] + scan_speed
         v_launch = v_start - v_accel[-1] - scan_speed  # launch point
         v_land = v_end + v_accel[-1]  # landing point
 
@@ -227,11 +226,10 @@ class ScanningMicroscope(Detector):
                 will be skipped. The function must take input arguments data and sample_rate, and must return the
                 preprocessed data.
         """
-        axis0._sample_rate = sample_rate.to(u.MHz)
-        axis1._sample_rate = axis0._sample_rate
         self._y_axis = axis0
         self._x_axis = axis1
         self._scale = scale.repeat(2) if scale.size == 1 else scale
+        self._sample_rate = sample_rate.to(u.MHz)
         self._binning = 1  # binning factor = sample_rate · dwell_time
         self._base_resolution = int(base_resolution)
         self._roi_top = 0
@@ -270,34 +268,33 @@ class ScanningMicroscope(Detector):
         height = self._data_shape[0]
 
         # Compute the retrace pattern for the slow axis
-        v_yr = self._y_axis.step(roi_bottom, roi_top)
+        v_yr = self._y_axis.step(roi_bottom, roi_top, self._sample_rate)
 
         # Compute the scan pattern for the fast axis
-        v_x_even, x_launch, x_land, mask = self._x_axis.scan(roi_left, roi_right, width)
+        v_x_even, x_launch, x_land, mask = self._x_axis.scan(roi_left, roi_right, width, self._sample_rate)
         if self._bidirectional:
-            v_x_odd, _, _, _ = self._x_axis.scan(roi_right, roi_left, width)
+            v_x_odd, _, _, _ = self._x_axis.scan(roi_right, roi_left, width, self._sample_rate)
         else:
-            v_xr = self._x_axis.step(x_land, x_launch)
+            v_xr = self._x_axis.step(x_land, x_launch, self._sample_rate)  # horizontal retrace
             v_x_even = np.concatenate((v_x_even, v_xr))
             v_x_odd = v_x_even
 
-        # Allocate memory for the total scan pattern
+        # Set voltages for the scan.
+        # The horizontal scan pattern consists of alternating even/odd scan lines
+        # For unidirectional mode, these are the same
+        # For bidirectional mode, the scan pattern is padded to always have an even number of scan lines
+        # The horizontal pattern is repeated continuously, so even during the
+        # vertical retrace. In bidirectional scan mode, th
         n_rows = self._data_shape[0] + np.ceil(len(v_yr) / len(v_x_odd)).astype('int32')
         n_cols = len(v_x_odd)
+        if self._bidirectional and n_rows % 2 == 1:
+            n_rows += 1
 
-        # set voltages for the scan
         self._scan_pattern = np.zeros((2, n_rows, n_cols))
-        self._scan_pattern[0, 0:height:2, :] = v_x_even  # .reshape((1, -1))
-        self._scan_pattern[0, 1:height:2, :] = v_x_odd
-        self._scan_pattern[1, :, :] = self._y_axis.to_volt(np.linspace(roi_top, roi_bottom, height))
-
-        # in bidirectional mode with an odd number of scan lines, add one row so that we return to the start
-        # after returning to the start, keep the mirror stationary in the launch position
-        if self._bidirectional and height % 2 == 1:
-            self._scan_pattern[0, height, :] = v_x_odd
-            self._scan_pattern[0, height + 1:, :] = v_x_odd[-1]  # keep position
-        else:
-            self._scan_pattern[0, height:, :] = v_x_odd[-1]  # keep position
+        self._scan_pattern[0, 0::2, :] = v_x_even  # .reshape((1, -1))
+        self._scan_pattern[0, 1::2, :] = v_x_odd
+        self._scan_pattern[1, :height, :] = self._y_axis.to_volt(np.linspace(roi_top, roi_bottom, height)).reshape(-1,
+                                                                                                                   1)
 
         # The last row(s) are used for the vertical retrace
         self._scan_pattern[1, height:, :].reshape(-1)[0:len(v_yr)] = v_yr
