@@ -96,7 +96,7 @@ class SLM(Actuator, PhaseSLM):
         self._coordinate_system = coordinate_system
         self.transform = Transform() if transform is None else transform
         self._vertex_array = VertexArray()
-        self._clones = []
+        self._clones = WeakSet()
 
         # Create a single patch for displaying phase.
         # this default patch is square 1.0, and can be accessed through the 'primary_phase_patch' attribute
@@ -533,7 +533,9 @@ class SLM(Actuator, PhaseSLM):
 
         This is useful for demonstration and debugging purposes.
         """
-        self._clones.append(ClonedSLM(monitor_id=monitor_id, shape=shape, pos=pos))
+        clone = ClonedSLM(monitor_id=monitor_id, shape=shape, pos=pos)
+        self._clones.add(clone)
+        return clone
 
 
 class ClonedSLM(SLM):

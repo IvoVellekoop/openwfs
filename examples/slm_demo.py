@@ -36,10 +36,12 @@ p4.additive_blend = False
 
 pf.phases = patterns.lens(100, f=1 * u.m, wavelength=0.8 * u.um, extent=(10 * u.mm, 10 * u.mm))
 rng = np.random.default_rng()
-for n in range(50):
+for n in range(200):
     random_data = rng.random([10, 10], np.float32) * 2.0 * np.pi
     s1.set_phases(random_data)
     s2.set_phases(n / 4.0)
+    if n == 100:
+        del s3
 
 p1 = None  # test deletion. After deleting the two windowed SLMs, we can create a new full screen one
 s1.patches.clear()
