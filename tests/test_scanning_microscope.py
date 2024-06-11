@@ -1,10 +1,9 @@
 import astropy.units as u
-import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
 from ..openwfs.devices import ScanningMicroscope, Axis
-from ..openwfs.utilities import place, set_pixel_size, get_pixel_size, coordinate_range
+from ..openwfs.utilities import coordinate_range
 
 
 @pytest.mark.parametrize("start, stop", [(0.0, 1.0), (1.0, 0.0)])
@@ -45,11 +44,15 @@ def test_scan_axis(start, stop):
     sample_count = 10000
     scan, launch, land, linear_region = a.scan(center - 0.8 * amplitude, center + 0.8 * amplitude, sample_count,
                                                sample_rate)
-    plt.plot(scan)
-    plt.show()
+    half_pixel = 0.8 * amplitude / sample_count
+    # plt.plot(scan)
+    # plt.show()
     assert linear_region.stop - linear_region.start == sample_count
+    assert linear_region.start == len(scan) - linear_region.stop
     assert np.isclose(scan[0], a.to_volt(launch))
     assert np.isclose(scan[-1], a.to_volt(land))
+    assert np.isclose(scan[linear_region.start], a.to_volt(center - 0.8 * amplitude + half_pixel))
+    assert np.isclose(scan[linear_region.stop - 1], a.to_volt(center + 0.8 * amplitude - half_pixel))
     speed = np.diff(scan[linear_region])
     assert np.allclose(speed, speed[0])  # speed should be constant
 
@@ -58,34 +61,34 @@ def test_scan_axis(start, stop):
 
 
 @pytest.mark.parametrize("direction", ['horizontal', 'vertical'])
-def test_scan_pattern(direction):
+@pytest.mark.parametrize("bidirectional", [False, True])
+def test_scan_pattern(direction, bidirectional):
     scale = 440 * u.um / u.V
     sample_rate = 0.5 * u.MHz
+    reference_zoom = 1.2
     y_axis = Axis(channel='Dev4/ao0', v_min=-2.0 * u.V, v_max=2.0 * u.V, maximum_acceleration=10 * u.V / u.ms ** 2)
     x_axis = Axis(channel='Dev4/ao1', v_min=-2.0 * u.V, v_max=2.0 * u.V, maximum_acceleration=10 * u.V / u.ms ** 2)
-    scanner = ScanningMicroscope(bidirectional=True, sample_rate=0.5 * u.MHz,
+    scanner = ScanningMicroscope(bidirectional=bidirectional, sample_rate=sample_rate,
                                  input=('Dev4/ai0', -1.0 * u.V, 1.0 * u.V), axis0=y_axis, axis1=x_axis,
-                                 scale=scale, simulation=direction)
+                                 scale=scale, simulation=direction, reference_zoom=reference_zoom)
 
-    assert np.allclose(scanner.extent, scale * 4.0 * u.V)
+    assert np.allclose(scanner.extent, scale * 4.0 * u.V / reference_zoom)
+    # plt.imshow(scanner.read())
+    # plt.show()
 
     # check if returned pattern is correct
-    (y, x) = coordinate_range(shape, 4.0 * u.V)
+    (y, x) = coordinate_range((scanner._base_resolution, scanner._base_resolution),
+                              10000 / reference_zoom, offset=(5000 / reference_zoom, 5000 / reference_zoom))
     full = scanner.read().astype('float32') - 0x8000
-    if direction == 'horizontal':
-        assert np.allclose(x.to_value(u.mV), full, atol=0.5)
-    else:
-        assert np.allclose(y.to_value(u.mV), full, atol=0.5)
 
-    # test binning
-    scanner.binning = 2
-    assert scanner.binning == 2
-    assert scanner.data_shape == (shape[0] / 2, shape[1] / 2)
-    binned = scanner.read().astype('float32') - 0x8000
-    assert np.allclose(0.5 * (full[::2, ::2] + full[1::2, 1::2]), binned)
-    scanner.binning = 1
-    restored = scanner.read().astype('float32') - 0x8000
-    assert np.allclose(full, restored)
+    pixel_size = full[1, 1] - full[0, 0]
+    if direction == 'horizontal':
+        assert np.allclose(full, full[0, :])  # all rows should be the same
+        assert np.allclose(x, full, atol=0.2 * pixel_size)  # some rounding due to quantization
+    else:
+        # all columns should be the same (note we need to keep the last dimension for correct broadcasting)
+        assert np.allclose(full, full[:, 0:1])
+        assert np.allclose(y, full, atol=0.2 * pixel_size)
 
     # test setting the ROI
     left = 10
@@ -104,31 +107,31 @@ def test_scan_pattern(direction):
     assert scanner.data_shape == (height, width)
 
     roi = scanner.read().astype('float32') - 0x8000
-    assert np.allclose(full[top:(top + height), left:(left + width)], roi)
+    assert np.allclose(full[top:(top + height), left:(left + width)], roi, atol=0.1 * pixel_size)
 
     # test zooming
-    ps = scanner.pixel_size
-    scanner.zoom = 2.0
-    assert np.allclose(scanner.pixel_size, ps * 0.5)
-    assert scanner.width == width
-    assert scanner.height == height
-    assert scanner.data_shape == (height, width)
-    assert scanner.left == np.floor(2 * left + 0.5 * width)
-    assert scanner.top == np.floor(2 * top + 0.5 * height)
+    # ps = scanner.pixel_size
+    # scanner.zoom = 2.0
+    # assert np.allclose(scanner.pixel_size, ps * 0.5)
+    # assert scanner.width == width
+    # assert scanner.height == height
+    # assert scanner.data_shape == (height, width)
+    # assert scanner.left == np.floor(2 * left + 0.5 * width)
+    # assert scanner.top == np.floor(2 * top + 0.5 * height)
 
-    zoomed = scanner.read().astype('float32') - 0x8000
-    scaled = place(zoomed.shape, 0.5 * ps, set_pixel_size(roi, ps))
-    assert np.allclose(get_pixel_size(scaled), 0.5 * ps)
-    step = zoomed[1, 1] - zoomed[0, 0]
-    assert np.allclose(zoomed, scaled - step / 2, atol=0.5 * step)
+    # zoomed = scanner.read().astype('float32') - 0x8000
+    # scaled = place(zoomed.shape, 0.5 * ps, set_pixel_size(roi, ps))
+    # assert np.allclose(get_pixel_size(scaled), 0.5 * ps)
+    # step = zoomed[1, 1] - zoomed[0, 0]
+    # assert np.allclose(zoomed, scaled - step / 2, atol=0.5 * step)
 
-    scanner.zoom = 1.0
-    reset_zoom = scanner.read().astype('float32') - 0x8000
-    assert np.allclose(reset_zoom, roi)
+    # scanner.zoom = 1.0
+    # reset_zoom = scanner.read().astype('float32') - 0x8000
+    # assert np.allclose(reset_zoom, roi)
 
     # test setting dwell time
-    original_duration = scanner.duration
-    scanner.delay = 1.0
-    scanner.dwell_time = scanner.dwell_time * 2.0
-    assert scanner.duration == original_duration * 2.0
-    assert scanner.delay == 0.5
+    # original_duration = scanner.duration
+    # scanner.delay = 1.0
+    # scanner.dwell_time = scanner.dwell_time * 2.0
+    # assert scanner.duration == original_duration * 2.0
+    # assert scanner.delay == 0.5

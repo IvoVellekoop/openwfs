@@ -68,15 +68,23 @@ class Axis:
 
     def scan(self, start: float, stop: float, sample_count: int, sample_rate: Quantity[u.Hz]):
         """
-        Generate a voltage sequence to scan with a constant velocity from start to stop
+        Generate a voltage sequence to scan with a constant velocity from start to stop, including acceleration and deceleration.
 
         Before starting this sequence, the mirror is assumed to be standing still at the launch point,
         which is some distance _before_ start.
         After the scan sequence, the mirror is stopped at the landing point,
         which is some distance _after_ stop.
         The launch point and landing point are returned along with the scan sequence.
+
         This function also returns a slice object, which represents the part of the sequence
-        that corresponds to a linear movement from start to stop. slice.end - slice.start = sample_count.
+        that corresponds to a linear movement from start to stop. `slice.stop - slice.start = sample_count`.
+
+        The scan follows the coordinate convention used throughout OpenWFS and Astropy,
+        where the coordinates correspond to the centers of the pixels.
+        Therefore, while the linear part of the scan starts at start and ends at stop,
+        the sample points in this range correspond to the centers of the pixels,
+        so the sample at slice.start lies half a pixel _after_ start,
+        and the sample at slice.stop - 1 lies half a pixel _before_ stop.
 
         Returns:
             (Quantity[u.V], float, float, slice): voltage sequence, launch point, landing point, slice object
@@ -95,11 +103,11 @@ class Axis:
         v_accel = 0.5 * a * t_launch ** 2  # last 1 to 2 samples may have faster scan speed than needed
         if np.abs(v_accel[-1] - v_accel[-2]) > np.abs(scan_speed):
             v_accel[-1] = v_accel[-2] + scan_speed
-        v_launch = v_start - v_accel[-1] - scan_speed  # launch point
-        v_land = v_end + v_accel[-1]  # landing point
+        v_launch = v_start - v_accel[-1] - 0.5 * scan_speed  # launch point
+        v_land = v_end + v_accel[-1] + 0.5 * scan_speed  # landing point
 
         # linear part of the scan
-        v_linear = v_start + scan_speed * np.arange(sample_count)
+        v_linear = v_start + scan_speed * (np.arange(sample_count) + 0.5)
 
         # combine the parts
         v = np.concatenate((v_launch + v_accel, v_linear, v_land - v_accel[::-1]))
@@ -228,14 +236,14 @@ class ScanningMicroscope(Detector):
         """
         self._y_axis = axis0
         self._x_axis = axis1
+        (self._input_channel, self._input_v_min, self._input_v_max) = input
+        self._input_terminal_configuration = input[3] if len(input) == 4 else TerminalConfiguration.DEFAULT
         self._scale = scale.repeat(2) if scale.size == 1 else scale
         self._sample_rate = sample_rate.to(u.MHz)
         self._binning = 1  # binning factor = sample_rate · dwell_time
         self._base_resolution = int(base_resolution)
         self._roi_top = 0
         self._roi_left = 0
-        self._roi_height = self._base_resolution
-        self._roi_width = self._base_resolution
         self._delay = delay.to(u.us)
         self._reference_zoom = float(reference_zoom)
         self._zoom = 1.0
@@ -259,19 +267,19 @@ class ScanningMicroscope(Detector):
     def _update(self):
         """Computes the scan pattern"""
 
-        roi_scale = 1.0 / (self._reference_zoom * self._zoom) / self._base_resolution
-        roi_left = self._roi_left * roi_scale
-        roi_right = (self._roi_left + self._roi_width) * roi_scale
-        roi_top = self._roi_top * roi_scale
-        roi_bottom = (self._roi_top + self._roi_height) * roi_scale
         width = self._data_shape[1]
         height = self._data_shape[0]
+        roi_scale = 1.0 / (self._reference_zoom * self._zoom) / self._base_resolution
+        roi_left = self._roi_left * roi_scale
+        roi_right = (self._roi_left + width) * roi_scale
+        roi_top = self._roi_top * roi_scale
+        roi_bottom = (self._roi_top + height) * roi_scale
 
         # Compute the retrace pattern for the slow axis
         v_yr = self._y_axis.step(roi_bottom, roi_top, self._sample_rate)
 
         # Compute the scan pattern for the fast axis
-        v_x_even, x_launch, x_land, mask = self._x_axis.scan(roi_left, roi_right, width, self._sample_rate)
+        v_x_even, x_launch, x_land, self._mask = self._x_axis.scan(roi_left, roi_right, width, self._sample_rate)
         if self._bidirectional:
             v_x_odd, _, _, _ = self._x_axis.scan(roi_right, roi_left, width, self._sample_rate)
         else:
@@ -286,19 +294,28 @@ class ScanningMicroscope(Detector):
         # The horizontal pattern is repeated continuously, so even during the
         # vertical retrace. In bidirectional scan mode, th
         n_rows = self._data_shape[0] + np.ceil(len(v_yr) / len(v_x_odd)).astype('int32')
-        n_cols = len(v_x_odd)
+        self._n_cols = len(v_x_odd)
         if self._bidirectional and n_rows % 2 == 1:
             n_rows += 1
 
-        self._scan_pattern = np.zeros((2, n_rows, n_cols))
-        self._scan_pattern[0, 0::2, :] = v_x_even  # .reshape((1, -1))
-        self._scan_pattern[0, 1::2, :] = v_x_odd
-        self._scan_pattern[1, :height, :] = self._y_axis.to_volt(np.linspace(roi_top, roi_bottom, height)).reshape(-1,
-                                                                                                                   1)
+        scan_pattern = np.zeros((2, n_rows, self._n_cols))
+        scan_pattern[1, 0::2, :] = v_x_even  # .reshape((1, -1))
+        scan_pattern[1, 1::2, :] = v_x_odd
+
+        # todo: use function from patterns / utilities
+        y_coord = (np.arange(height) + 0.5) * roi_scale + roi_top
+        scan_pattern[0, :height, :] = self._y_axis.to_volt(y_coord).reshape(-1, 1)
 
         # The last row(s) are used for the vertical retrace
-        self._scan_pattern[1, height:, :].reshape(-1)[0:len(v_yr)] = v_yr
-        self._scan_pattern = self._scan_pattern.reshape(2, -1)
+        # We park the mirror after the vertical retrace, to allow
+        # the horizontal scan mirror to finish its scan.
+        # Note: this may not always be needed, but it guarantees
+        # that the horizontal scan mirror is always scanning at the same frequency
+        # which is essential for resonant scanning.
+        retrace = scan_pattern[0, height:, :].reshape(-1)
+        retrace[0:len(v_yr)] = v_yr
+        retrace[len(v_yr):] = v_yr[-1]
+        self._scan_pattern = scan_pattern.reshape(2, -1)
 
         if self._simulation is not None:
             return
@@ -316,25 +333,25 @@ class ScanningMicroscope(Detector):
 
         # Configure the sample clock task
         sample_rate = self._sample_rate.to_value(u.Hz)
-        sample_count = self._padded_data_shape[0] * self._padded_data_shape[1]
+        sample_count = self._scan_pattern.shape[1]
 
         # Configure the analog output task (two channels)
-        self._write_task.ao_channels.add_ao_voltage_chan(self._axis0_channel,
-                                                         min_val=self._out_v_min[0].to_value(u.V),
-                                                         max_val=self._out_v_max[0].to_value(u.V))
-        self._write_task.ao_channels.add_ao_voltage_chan(self._axis1_channel,
-                                                         min_val=self._out_v_min[1].to_value(u.V),
-                                                         max_val=self._out_v_max[1].to_value(u.V))
+        self._write_task.ao_channels.add_ao_voltage_chan(self._x_axis.channel,
+                                                         min_val=self._x_axis.v_min.to_value(u.V),
+                                                         max_val=self._x_axis.v_max.to_value(u.V))
+        self._write_task.ao_channels.add_ao_voltage_chan(self._y_axis.channel,
+                                                         min_val=self._y_axis.v_min.to_value(u.V),
+                                                         max_val=self._y_axis.v_max.to_value(u.V))
         self._write_task.timing.cfg_samp_clk_timing(sample_rate, samps_per_chan=sample_count)
 
         # Configure the analog input task (one channel)
-        self._read_task.ai_channels.add_ai_voltage_chan(self._in_channel,
-                                                        min_val=self._in_v_min.to_value(u.V),
-                                                        max_val=self._in_v_max.to_value(u.V),
-                                                        terminal_config=self._in_terminal_configuration)
+        self._read_task.ai_channels.add_ai_voltage_chan(self._input_channel,
+                                                        min_val=self._input_v_min.to_value(u.V),
+                                                        max_val=self._input_v_max.to_value(u.V),
+                                                        terminal_config=self._input_terminal_configuration)
         self._read_task.timing.cfg_samp_clk_timing(sample_rate, samps_per_chan=sample_count)
         self._read_task.triggers.start_trigger.cfg_dig_edge_start_trig(self._write_task.triggers.start_trigger.term)
-        delay = (self._delay / self._sample_rate).to_value(u.s)
+        delay = self._delay.to_value(u.s)
         if delay > 0.0:
             self._read_task.triggers.start_trigger.delay = delay
             self._read_task.triggers.start_trigger.delay_units = nidaqmx.constants.DigitalWidthUnits.SECONDS
@@ -366,19 +383,16 @@ class ScanningMicroscope(Detector):
         This function crops the data if padding was added, and it
         flips the even rows back if scanned in bidirectional mode.
         """
-        start = (self._padded_data_shape - self._data_shape) // 2
-        end = self._padded_data_shape - start
-
+        # convert data to 2-d, discard padding
+        cropped = raw.reshape(-1, self._n_cols)[:self._data_shape[0], self._mask]
         # Change the data type into uint16 if necessary
-        if raw.dtype == np.int16:
+        if cropped.dtype == np.int16:
             # add 32768 to go from -32768-32767 to 0-65535
-            cropped = raw.reshape(self._padded_data_shape).view('uint16')[start[0]:end[0], start[1]:end[1]] + 0x8000
-        elif raw.dtype == np.uint16:
-            cropped = raw.reshape(self._padded_data_shape)[start[0]:end[0], start[1]:end[1]]
-        else:
+            cropped = cropped.view('uint16') + 0x8000
+        elif cropped.dtype != np.uint16:
             raise ValueError('Only int16 and uint16 data types are supported at the moment.')
 
-        if self._bidirectional:
+        if self._bidirectional:  # note: requires the mask to be symmetrical
             cropped[1::2, :] = cropped[1::2, ::-1]
 
         return cropped
@@ -390,9 +404,9 @@ class ScanningMicroscope(Detector):
             self._read_task.stop()
             self._write_task.stop()
         elif self._simulation == 'horizontal':
-            raw = (self._scan_pattern[1, :] * 1000.0).round().astype('int16')  # in mV
+            raw = (self._x_axis._to_pos(self._scan_pattern[1, :] * u.V) * 10000).round().astype('int16')  # in mV
         elif self._simulation == 'vertical':
-            raw = (self._scan_pattern[0, :] * 1000.0).round().astype('int16')
+            raw = (self._y_axis._to_pos(self._scan_pattern[0, :] * u.V) * 10000).round().astype('int16')
         else:
             raise ValueError(
                 f"Invalid simulation option {self._simulation}. Should be 'horizontal', 'vertical', or 'None'")
@@ -425,42 +439,44 @@ class ScanningMicroscope(Detector):
     @property
     def pixel_size(self) -> Quantity:
         """The size of a pixel in the object plane."""
-        return self._original_pixel_size * self._binning / self._zoom
+        extent_y = (self._y_axis.v_max - self._y_axis.v_min) * self._scale[0]
+        extent_x = (self._x_axis.v_max - self._x_axis.v_min) * self._scale[1]
+        return (Quantity(extent_y, extent_x) / self._base_resolution / (self._reference_zoom * self._zoom)).to(u.um)
 
     @property
     def duration(self) -> Quantity[u.ms]:
         """Total duration of scanning for one frame."""
-        return self._padded_data_shape[0] * self._padded_data_shape[1] * self.dwell_time
+        # TODO: this is currently only updated after a trigger.
+        return (self._scan_pattern.shape[1] / self._sample_rate).to(u.ms)
 
     @property
     def left(self) -> int:
         """The leftmost pixel of the Region of Interest (ROI) in the scan range."""
-        return int(np.round(self._roi_start[1] * self._scale[1] / self.pixel_size[1]))
+        return self._roi_left
 
     @left.setter
     def left(self, value: int):
-        self._roi_start[1] = value * self.pixel_size[1] / self._scale[1]
+        self._roi_left = int(value)
         self._valid = False
 
     @property
     def top(self) -> int:
         """The topmost pixel of the ROI in the scan range."""
-        return int(np.round(self._roi_start[0] * self._scale[0] / self.pixel_size[0]))
+        return self._roi_top
 
     @top.setter
     def top(self, value: int):
-        self._roi_start[0] = value * self.pixel_size[0] / self._scale[0]
+        self._roi_top = int(value)
         self._valid = False
 
     @property
     def height(self) -> int:
         """The number of pixels in the vertical dimension of the ROI."""
-        return self.data_shape[0]
+        return self._data_shape[0]
 
     @height.setter
     def height(self, value):
         self._data_shape = (int(value), int(self.data_shape[1]))
-        self._roi_end = self._roi_start + self.pixel_size * self._data_shape / self._scale
         self._valid = False
 
     @property
@@ -471,40 +487,25 @@ class ScanningMicroscope(Detector):
     @width.setter
     def width(self, value):
         self._data_shape = (self.data_shape[0], int(value))
-        self._roi_end = self._roi_start + self.pixel_size * self._data_shape / self._scale
         self._valid = False
 
     @property
     def dwell_time(self) -> Quantity[u.us]:
         """The time spent on each pixel during scanning."""
-        return (1.0 / self._sample_rate).to(u.us)
+        return (self._binning / self._sample_rate).to(u.us)
 
     @dwell_time.setter
     def dwell_time(self, value: Quantity[u.us]):
-        old = self._sample_rate
-        self._sample_rate = (1.0 / value).to(u.Hz)
-        self._delay = float(self._delay / old * self._sample_rate)
-        self._valid = False
+        self._binning = int(np.ceil(value * self._sample_rate))
 
     @property
-    def delay(self) -> float:
+    def delay(self) -> Quantity[u.us]:
         """Delay between the control signal to the mirrors and the start of data acquisition."""
         return self._delay  # add unit
 
     @delay.setter
-    def delay(self, value: float):
+    def delay(self, value: Quantity[u.us]):
         self._delay = value
-        self._valid = False
-
-    @property
-    def padding(self) -> float:
-        """Fraction of the scan range at the edges to discard to reduce edge artifacts."""
-        return float(self._padding[1])
-
-    @padding.setter
-    def padding(self, value: float):
-        self._padding[1] = float(value)
-        self._v_origin = self._out_v_min + (self._out_v_max - self._out_v_min) * self._padding * 0.5
         self._valid = False
 
     @property
@@ -521,19 +522,18 @@ class ScanningMicroscope(Detector):
     def zoom(self) -> float:
         """Zoom factor.
         The zoom factor determines the pixel size relative to the original pixel size.
-        The original pixel size is given by `_scale * (_out_v_max - _out_v_min) / _data_shape`
-        When the zoom factor is changed,
+        TODO: When the zoom factor is changed,
         the center of the region of interest and the number of pixels in the data remain constant.
         """
         return self._zoom
 
     @zoom.setter
     def zoom(self, value: float):
-        roi_center = 0.5 * (self._roi_end + self._roi_start)
-        roi_width_old = self._roi_end - self._roi_start
-        roi_width_new = roi_width_old * self._zoom / value
-        self._roi_start = roi_center - 0.5 * roi_width_new
-        self._roi_end = roi_center + 0.5 * roi_width_new
+        # roi_center = 0.5 * self._data_shape[1] + self._roi_start
+        # roi_width_old = self._roi_end - self._roi_start
+        # roi_width_new = roi_width_old * self._zoom / value
+        # self._roi_start = roi_center - 0.5 * roi_width_new
+        # self._roi_end = roi_center + 0.5 * roi_width_new
         self._zoom = float(value)
         self._valid = False
 
@@ -556,10 +556,7 @@ class ScanningMicroscope(Detector):
 
     @binning.setter
     def binning(self, value: int):
-        ratio = self._binning / value
-        self._binning = value
-        self._data_shape = tuple(int(s) for s in np.round(np.array(self._data_shape) * ratio))
-        self._roi_end = self._roi_start + self.pixel_size * self._data_shape / self._scale
+        self._binning = int(value)
         self._valid = False
 
     @staticmethod
