@@ -359,9 +359,13 @@ class ScanningMicroscope(Detector):
         self._writer = AnalogMultiChannelWriter(self._write_task.out_stream)
         self._valid = True
 
-    def _do_trigger(self):
+    def _ensure_valid(self):
         if not self._valid:
             self._update()
+
+    def _do_trigger(self):
+        """Makes sure scan patterns are up-to-date, and triggers the NI-DAQ tasks."""
+        self._ensure_valid()
 
         if self._simulation is not None:
             return
@@ -432,7 +436,7 @@ class ScanningMicroscope(Detector):
 
     @preprocess.setter
     def preprocess(self, value: Optional[callable]):
-        if not callable(value) and not (value is None):
+        if not callable(value) and value is not None:
             raise TypeError(f"Invalid type for {self._preprocess}. Should be callable or None.")
         self._preprocess = value
 
@@ -446,7 +450,7 @@ class ScanningMicroscope(Detector):
     @property
     def duration(self) -> Quantity[u.ms]:
         """Total duration of scanning for one frame."""
-        # TODO: this is currently only updated after a trigger.
+        self._ensure_valid()
         return (self._scan_pattern.shape[1] / self._sample_rate).to(u.ms)
 
     @property
