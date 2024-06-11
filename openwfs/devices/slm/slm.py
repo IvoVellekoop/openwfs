@@ -33,7 +33,7 @@ class SLM(Actuator, PhaseSLM):
     """
     __slots__ = ['_vertex_array', '_frame_buffer', '_monitor_id', '_position', '_refresh_rate',
                  '_transform', '_shape', '_window', '_globals', '_frame_buffer', 'patches', 'primary_patch',
-                 '_coordinate_system', '_pixel_reader', '_phase_reader', '_field_reader', '_context']
+                 '_coordinate_system', '_pixel_reader', '_phase_reader', '_field_reader', '_context', '_clones']
 
     _active_slms = WeakSet()
     """Keep track of all active SLMs. This is done for two reasons. First, to check if we are not putting two
@@ -96,6 +96,7 @@ class SLM(Actuator, PhaseSLM):
         self._coordinate_system = coordinate_system
         self.transform = Transform() if transform is None else transform
         self._vertex_array = VertexArray()
+        self._clones = []
 
         # Create a single patch for displaying phase.
         # this default patch is square 1.0, and can be accessed through the 'primary_phase_patch' attribute
@@ -371,6 +372,14 @@ class SLM(Actuator, PhaseSLM):
 
             glfw.poll_events()  # process window messages
 
+            if len(self._clones) > 0:
+                self._context.__exit__(None, None, None)  # release context before updating clones
+                for clone in self._clones:
+                    with clone._context:
+                        self._frame_buffer._draw()  # noqa - ok to access 'friend class'
+                        glfw.swap_buffers(clone._window)
+                self._context.__enter__()  # re-enter context
+
             # start 'moving' phase, then display the newly rendered image
             self._start()
             glfw.swap_buffers(self._window)
@@ -517,6 +526,24 @@ class SLM(Actuator, PhaseSLM):
         if self._phase_reader is None:
             self._phase_reader = FrameBufferReader(self)
         return self._phase_reader
+
+    def clone(self, monitor_id: int = WINDOWED, shape: Optional[tuple[int, int]] = None,
+              pos: tuple[int, int] = (0, 0)):
+        """Creates a new SLM window that mirrors the content of this SLM window.
+
+        This is useful for demonstration and debugging purposes.
+        """
+        self._clones.append(ClonedSLM(monitor_id=monitor_id, shape=shape, pos=pos))
+
+
+class ClonedSLM(SLM):
+    """An SLM window that mirrors the content of another SLM window.
+
+    Used for demonstration and debugging purposes.
+    """
+
+    def __init__(self, monitor_id: int, shape: tuple[int, int], pos: tuple[int, int]):
+        super().__init__(monitor_id=monitor_id, shape=shape, pos=pos)
 
 
 class FrontBufferReader(Detector):

@@ -21,6 +21,7 @@ from openwfs.utilities import patterns
 numerical_aperture = 0.8
 s1 = SLM(0, shape=(300, 200))
 s2 = SLM(0, pos=(0, 300))
+s3 = s1.clone(0, pos=(300, 0), shape=(400, 500))
 g = geometry.rectangle(numerical_aperture)
 
 # p1 = Patch(s1, g)
