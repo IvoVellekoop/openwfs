@@ -375,9 +375,9 @@ class SLM(Actuator, PhaseSLM):
             if len(self._clones) > 0:
                 self._context.__exit__(None, None, None)  # release context before updating clones
                 for clone in self._clones:
-                    with clone._context:
+                    with clone.slm._context:  # noqa
                         self._frame_buffer._draw()  # noqa - ok to access 'friend class'
-                        glfw.swap_buffers(clone._window)
+                        glfw.swap_buffers(clone.slm._window)  # noqa
                 self._context.__enter__()  # re-enter context
 
             # start 'moving' phase, then display the newly rendered image
@@ -532,20 +532,29 @@ class SLM(Actuator, PhaseSLM):
         """Creates a new SLM window that mirrors the content of this SLM window.
 
         This is useful for demonstration and debugging purposes.
+        The image in the clone window is updated automatically when the SLM
+        is updated.
+
+        Args:
+            monitor_id: ID of the monitor to display the window on. Defaults to WINDOWED (0) mode
+            shape: shape (height, width) of the window.
+            pos: position (y, x) of the window.
+
+        Returns:
+            Returns an object that should be stored in a variable to keep the SLM window open.
+            When the variable is cleared or leaves the current scope, the SLM window is closed.
+            See `slm_demo.py` for an example.
         """
-        clone = ClonedSLM(monitor_id=monitor_id, shape=shape, pos=pos)
+        clone = _Clone(slm=SLM(monitor_id=monitor_id, shape=shape, pos=pos))
         self._clones.add(clone)
         return clone
 
 
-class ClonedSLM(SLM):
-    """An SLM window that mirrors the content of another SLM window.
+class _Clone:
+    slm: SLM
 
-    Used for demonstration and debugging purposes.
-    """
-
-    def __init__(self, monitor_id: int, shape: tuple[int, int], pos: tuple[int, int]):
-        super().__init__(monitor_id=monitor_id, shape=shape, pos=pos)
+    def __init__(self, slm: SLM):
+        self.slm = slm
 
 
 class FrontBufferReader(Detector):
