@@ -344,7 +344,7 @@ class ScanningMicroscope(Detector):
         retrace[len(v_yr):] = v_yr[-1]
         self._scan_pattern = scan_pattern.reshape(2, -1)
 
-        if self._test_pattern is not None:
+        if self._test_pattern != TestPatternType.NONE:
             return
 
         # Sets up NI-DAQ task and i/o channels
@@ -395,7 +395,7 @@ class ScanningMicroscope(Detector):
         """Makes sure scan patterns are up-to-date, and triggers the NI-DAQ tasks."""
         self._ensure_valid()
 
-        if self._test_pattern is not None:
+        if self._test_pattern != TestPatternType.NONE:
             return
 
         self._read_task.wait_until_done()
