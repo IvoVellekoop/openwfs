@@ -1,11 +1,12 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
+from typing import Optional, Annotated
 
 import astropy.units as u
 import nidaqmx as ni
 import nidaqmx.system
 import numpy as np
+from annotated_types import Ge, Le
 from astropy.units import Quantity
 from nidaqmx.constants import TaskMode
 from nidaqmx.constants import TerminalConfiguration
@@ -34,6 +35,34 @@ class Axis:
     def _to_pos(self, volt: Quantity[u.V]) -> ArrayLike:
         """Converts voltage [V_min .. V_max] to relative position [0.0 .. 1.0]"""
         return unitless((volt - self.v_min) / (self.v_max - self.v_min))
+
+    def maximum_scan_speed(self, linear_range: float):
+        """Computes the maximum scan speed in V per sample
+
+        It is assumed that the mirror accelerates and decelerates at the maximum
+        acceleration, and scans with a constant velocity over the linear range.
+        There are two limits to the scan speed:
+        * A practical limit: if it takes longer to perform the acceleration + deceleration than
+            it does to traverse the linear range, it does not make sense to set the scan speed so high.
+            The speed at which acceleration + deceleration takes as long as the linear range is the maximum speed.
+        * A hardware limit: when accelerating with the maximum acceleration over a distance 0.5 * (V_max-V_min) * (1-linear_range),
+            the mirror will reach the maximum possible speed.
+
+        Args:
+            linear_range (float): fraction of the full range that is used for the linear part of the scan
+
+        Returns:
+            Quantity[u.V/u.s]: maximum scan speed
+        """
+        # x = 0.5 · a · t² = 0.5 (v_max - v_min) · (1 - linear_range)
+        t_accel = np.sqrt((self.v_max - self.v_min) * (1 - linear_range) / self.maximum_acceleration)
+        hardware_limit = t_accel * self.maximum_acceleration
+
+        # t_linear = linear_range · (v_max - v_min) / maximum_speed
+        # t_accel = maximum_speed / maximum_acceleration
+        # 0.5·t_linear == t_accel => 0.5·linear_range · (v_max-v_min) · maximum_acceleration = maximum_speed²
+        practical_limit = np.sqrt(0.5 * linear_range * (self.v_max - self.v_min) * self.maximum_acceleration)
+        return np.minimum(hardware_limit, practical_limit)
 
     def step(self, start: float, stop: float, sample_rate: Quantity[u.Hz]) -> Quantity[u.V]:
         """
@@ -101,8 +130,8 @@ class Axis:
         # This sequence may be up to 1  sample longer than needed to reach the scan speed.
         # This last sample is replaced by movement at a linear scan speed
         t_launch = np.arange(np.ceil(unitless(scan_speed / a)))  # in samples
-        v_accel = 0.5 * a * t_launch ** 2  # last 1 to 2 samples may have faster scan speed than needed
-        if np.abs(v_accel[-1] - v_accel[-2]) > np.abs(scan_speed):
+        v_accel = 0.5 * a * t_launch ** 2  # last sample may have faster scan speed than needed
+        if len(v_accel) > 1 and np.abs(v_accel[-1] - v_accel[-2]) > np.abs(scan_speed):
             v_accel[-1] = v_accel[-2] + scan_speed
         v_launch = v_start - v_accel[-1] - 0.5 * scan_speed  # launch point
         v_land = v_end + v_accel[-1] + 0.5 * scan_speed  # landing point
@@ -219,7 +248,7 @@ class ScanningMicroscope(Detector):
         self._input_terminal_configuration = input[3] if len(input) == 4 else TerminalConfiguration.DEFAULT
         self._scale = scale.repeat(2) if scale.size == 1 else scale
         self._sample_rate = sample_rate.to(u.MHz)
-        self._binning = 1  # binning factor = sample_rate · dwell_time
+        self._binning = 1  # binning factor
         self._resolution = int(resolution)
         self._roi_top = 0  # in pixels
         self._roi_left = 0  # in pixels
@@ -229,12 +258,16 @@ class ScanningMicroscope(Detector):
         self._reference_zoom = float(reference_zoom)
         self._zoom = 1.0
         self._bidirectional = bool(bidirectional)
+        self._oversampling = 1  # oversampling factor
+        self._scan_speed = 0.5  # scan speed relative to maximum
+
         self._test_pattern = TestPatternType(test_pattern)
         self._test_image = None
         if test_image is not None:
             self._test_image = np.array(test_image, dtype='uint16')
             while self._test_image.ndim > 2:
                 self._test_image = np.mean(self._test_image, 2).astype('uint16')
+
         self._preprocess = preprocess
 
         self._write_task = None
@@ -267,7 +300,12 @@ class ScanningMicroscope(Detector):
         v_yr = self._y_axis.step(roi_bottom, roi_top, self._sample_rate)
 
         # Compute the scan pattern for the fast axis
-        oversampled_width = width * self._binning
+        # First, adjust the oversampling to match the scan speed
+        naive_speed = (self._x_axis.v_max - self._x_axis.v_min) * (roi_right - roi_left) * self._sample_rate / width
+        max_speed = self._x_axis.maximum_scan_speed(roi_right - roi_left) * self._scan_speed
+        self._oversampling = int(np.ceil(unitless(naive_speed / max_speed)))
+        oversampled_width = width * self._oversampling
+
         v_x_even, x_launch, x_land, self._mask = self._x_axis.scan(roi_left, roi_right, oversampled_width,
                                                                    self._sample_rate)
         if self._bidirectional:
@@ -381,9 +419,9 @@ class ScanningMicroscope(Detector):
         cropped = raw.reshape(-1, self._n_cols)[:self._data_shape[0], self._mask]
 
         # downsample along fast axis if needed
-        if self._binning > 1:
-            cropped = cropped[:, :(cropped.shape[1] // self._binning) * self._binning]
-            cropped = cropped.reshape(cropped.shape[0], -1, self._binning)
+        if self._oversampling > 1:
+            cropped = cropped[:, :(cropped.shape[1] // self._oversampling) * self._oversampling]
+            cropped = cropped.reshape(cropped.shape[0], -1, self._oversampling)
             cropped = np.round(np.mean(cropped, 2)).astype(cropped.dtype)  # todo: faster alternative?
 
         # Change the data type into uint16 if necessary
@@ -462,8 +500,7 @@ class ScanningMicroscope(Detector):
         extent_y = (self._y_axis.v_max - self._y_axis.v_min) * self._scale[0]
         extent_x = (self._x_axis.v_max - self._x_axis.v_min) * self._scale[1]
         return (Quantity(extent_y, extent_x) / (
-                self._reference_zoom * self._zoom * self._resolution / self._binning)).to(
-            u.um)
+                self._reference_zoom * self._zoom * self._resolution)).to(u.um)
 
     @property
     def duration(self) -> Quantity[u.ms]:
@@ -512,21 +549,9 @@ class ScanningMicroscope(Detector):
         self._valid = False
 
     @property
-    def resolution(self) -> int:
-        return self._resolution
-
-    @resolution.setter
-    def resolution(self, value: int):
-        self._resolution = int(value)
-
-    @property
     def dwell_time(self) -> Quantity[u.us]:
         """The time spent on each pixel during scanning."""
-        return (self._binning / self._sample_rate).to(u.us)
-
-    @dwell_time.setter
-    def dwell_time(self, value: Quantity[u.us]):
-        self._binning = int(np.ceil(value * self._sample_rate))
+        return (self._oversampling / self._sample_rate).to(u.us)
 
     @property
     def delay(self) -> Quantity[u.us]:
@@ -573,6 +598,26 @@ class ScanningMicroscope(Detector):
         self._valid = False
 
     @property
+    def resolution(self) -> int:
+        return self._resolution
+
+    @resolution.setter
+    def resolution(self, value: int):
+        self._scale_roi(value / self._resolution)
+
+    def _scale_roi(self, factor: float):
+        """Adjusts resolution, top, left, width and height by the same factor."""
+
+        def adjust(x):
+            return int(np.round(x * factor))
+
+        self._roi_left = adjust(self._roi_left)
+        self._roi_top = adjust(self._roi_top)
+        self._data_shape = (adjust(self._data_shape[0]), adjust(self._data_shape[1]))
+        self._resolution = adjust(self._resolution)
+        self._valid = False
+
+    @property
     def binning(self) -> int:
         """Undersampling factor.
 
@@ -591,14 +636,19 @@ class ScanningMicroscope(Detector):
 
     @binning.setter
     def binning(self, value: int):
-        factor = self._binning / int(value)
         if value < 1:
             raise ValueError('Binning value should be a positive integer')
-        self._roi_left *= factor
-        self._roi_top *= factor
-        self._data_shape = (int(np.round(self._data_shape[0] * factor)), int(np.round(self._data_shape[1] * factor)))
+        self._scale_roi(self._binning / int(value))
         self._binning = int(value)
-        self._valid = False
+
+    @property
+    def scan_speed(self) -> Annotated[float, Ge(0.05), Le(1.0)]:
+        """The scan speed relative to the maximum scan speed."""
+        return self._scan_speed
+
+    @scan_speed.setter
+    def scan_speed(self, value):
+        self._scan_speed = np.clip(float(value), 0.05, 1.0)
 
     @staticmethod
     def list_devices():
