@@ -70,14 +70,14 @@ def test_scan_pattern(direction, bidirectional):
     x_axis = Axis(channel='Dev4/ao1', v_min=-2.0 * u.V, v_max=2.0 * u.V, maximum_acceleration=10 * u.V / u.ms ** 2)
     scanner = ScanningMicroscope(bidirectional=bidirectional, sample_rate=sample_rate,
                                  input=('Dev4/ai0', -1.0 * u.V, 1.0 * u.V), y_axis=y_axis, x_axis=x_axis,
-                                 scale=scale, simulation=direction, reference_zoom=reference_zoom)
+                                 scale=scale, test_pattern=direction, reference_zoom=reference_zoom)
 
     assert np.allclose(scanner.extent, scale * 4.0 * u.V / reference_zoom)
     # plt.imshow(scanner.read())
     # plt.show()
 
     # check if returned pattern is correct
-    (y, x) = coordinate_range((scanner._base_resolution, scanner._base_resolution),
+    (y, x) = coordinate_range((scanner._resolution, scanner._resolution),
                               10000 / reference_zoom, offset=(5000 / reference_zoom, 5000 / reference_zoom))
     full = scanner.read().astype('float32') - 0x8000
 

@@ -26,7 +26,8 @@ scanner = ScanningMicroscope(sample_rate=sample_rate,
                              scale=scale, test_pattern='image', reference_zoom=reference_zoom,
                              test_image=test_image)
 
-if __file__ == '__main__':
+if __name__ == '__main__':
+    scanner.binning = 4
     plt.imshow(scanner.read(), cmap='gray')
     plt.colorbar()
     plt.show()
