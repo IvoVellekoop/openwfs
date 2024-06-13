@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from enum import Enum
 from typing import Optional
 
 import astropy.units as u
@@ -32,7 +33,7 @@ class Axis:
 
     def _to_pos(self, volt: Quantity[u.V]) -> ArrayLike:
         """Converts voltage [V_min .. V_max] to relative position [0.0 .. 1.0]"""
-        return (volt - self.v_min) / (self.v_max - self.v_min)
+        return unitless((volt - self.v_min) / (self.v_max - self.v_min))
 
     def step(self, start: float, stop: float, sample_rate: Quantity[u.Hz]) -> Quantity[u.V]:
         """
@@ -117,99 +118,76 @@ class Axis:
         return v, launch, land, slice(len(v_accel), len(v_accel) + sample_count)
 
 
+class TestPatternType(Enum):
+    """Type of test pattern to use for simulation."""
+    NONE = 'none'
+    HORIZONTAL = 'horizontal'
+    VERTICAL = 'vertical'
+    IMAGE = 'image'
+
+
 class ScanningMicroscope(Detector):
-    """Controller for a laser-scanning microscope with two galvo mirrors
-    controlled by a National Instruments data acquisition card (nidaq).
+    """Laser scanning microscope with galvo mirrors controlled by a National Instruments data acquisition card (nidaq).
 
     Effectively, a `ScanningMicroscope` works like a camera, which can be triggered and returns 2-D images.
     These images are obtained by raster-scanning a focus using two galvo mirrors, controlled by a nidaq card,
     and recording a detector signal (typically from a photon multiplier tube (PMT)) with the same card.
 
-    Upon construction, the maximum voltage range is set for both axes.
-    To avoid possible damage to the hardware, this range cannot be exceeded during scanning,
-    and the value cannot be changed after construction of the ScanningMicroscope.
+    Region of Interest (ROI):
+        Upon construction, the maximum voltage range is set for both axes.
+        To avoid possible damage to the hardware, this range cannot be exceeded during scanning,
+        and the value cannot be changed after construction of the ScanningMicroscope.
+        It is recommended to set this voltage range slightly larger than the maximum field of view
+        of the microscope (but still within the limits that may cause damage to the hardware),
+        so that the mirror has some room to accelerate and decelerate at the edges of the scan range.
 
-    It is recommended to set this voltage range slightly _larger_ than the maximum field of view
-    of the microscope (but still within the limits that may cause damage to the hardware),
-    and then set the `reference_zoom` so that the exact field of view is covered.
-    The user can later choose a smaller field of view in two ways:
-    1. by setting the zoom factor. This will keep the number of pixels the same, and thus change the pixel size
-    2. by changing the roi width and height. This will change the number of pixels, but keeps the pixel size the same.
+        The scan region is defined by the following equation:
 
-    Example:
-        >>> # construct the microscope object.
-        >>> # The voltage range is larger than the field of view, but small enough not to damage anything
-        >>> # The reference zoom factor is set to the amount we need to zoom in to exactly scan the maximum field of view.
-        >>> # So, assuming that the full voltage range corresponds to overscanning the field of view by 10%, we set a reference_zoom of 1.1.
-        >>> # The zoom property of the microscope is multiplied by the reference zoom factor, so that zoom=1.0 corresponds to the full field of view
-        >>> microscope = ScanningMicroscope(
-        >>>         axis0=('Dev4/ao0', -2.0 * u.V, 2.0 * u.V),
-        >>>         axis1=('Dev4/ao1', -2.0 * u.V, 2.0 * u.V),
-        >>>         input=('Dev4/ai0', 0.1 * u.V, 1.0 * u.V),
-        >>>         sample_rate=0.5 * u.MHz,
-        >>>         data_shape=(500,500),
-        >>>         reference_zoom=1.1,
-        >>>         scale=440 * u.um / u.V)
-        >>>
-        >>> # crop the region of interest to the maximum field of view
-        >>> full_fov = (50, 50, 400, 400)
-        >>> microscope.roi = full_fov
-        >>>
-        >>> # add some overscan to reduce edge artifacts caused by the mirror changing direction
-        >>> # this will cause the mirror to move slightly beyond the region of interest in the top-left corner
-        >>> # and the data will be cropped to the region of interest after the scan
-        >>> # this way, the mirror is moving at a constant speed when scanning the region of interest.
-        >>> microscope.overscan_x = 30  # fast axis, overscan in pixels
-        >>> microscope.overscan_y = 1  # slow axis, overscan in pixels
-        >>>
-        >>> # trigger the microscope and read the image
-        >>> frame = microscope.read()
-        >>>
-        >>> # select a specific region of interest
-        >>> microscope.roi = (100, 100, 200, 200)
-        >>>
-        >>> # Switch to a higher resolution (half the pixel size).
-        >>> # Note: this does not affect the physical size or position of roi, but it does double the number of pixels in the roi
-        >>> # therefore, the roi is now at (200, 200, 400, 400)
-        >>> microscope.binning = microscope.binning // 2
+        V_start = V_min + (center - 0.5 / (reference_zoom * zoom)) * (V_max - V_min)
+        V_stop = V_min + (center + 0.5 / (reference_zoom * zoom)) * (V_max - V_min)
 
-    The image quality at the start of the scan range is usually low due to the fact
-    that the mirror requires some time to return to the start position (for the slow axis or unidirectional scans)
-    or requires some time to change scan direction (for the fast axis of bidirectional scans)
-    To reduce these artifacts, the overscan_x and overscan_y properties can be set.
-    These properties specify the number
-    has justed changed scan direction and mayis rapidly changing the scan direction.
-    The `overscanpadding` attribute corresponds to a fraction of the full voltage range along the fast axis (axis 1).
-    This part of the data is discarded after the measurement.
-    Note: the padding affects the physical size of the ROI, and hence the pixel_size
-    The padding does not affect the number of pixels (`data_shape`) in the returned image.
+        or, in relative coordinates:
 
-    Example:
-        >>> scanner = ScanningMicroscope(
-                                bidirectional=True,
-                                sample_rate=0.5 * u.MHz,
-                                axis0=('Dev4/ao0', -2.0 * u.V, 2.0 * u.V),
-                                axis1=('Dev4/ao1', -2.0 * u.V, 2.0 * u.V),
-                                input=('Dev4/ai0', -1.0 * u.V, 1.0 * u.V),
-                                data_shape=(1000, 1000),
-                                scale=440 * u.um / u.V)
-        >>> frame = scanner.read()
+        start_full = center - 0.5 / (reference_zoom * zoom)
+        stop_full = center + 0.5 / (reference_zoom * zoom)
+
+        with
+        * V_min, V_max: The voltage ranges set for both axes:
+        * zoom, reference_zoom: The zoom factors
+        * center: The center of the image relative to the full voltage range, default value is 0.5
+
+        The scan region is divided into `base_resolution × base_resolution` pixels.
+        Within this scan region, a smaller region of interest (ROI) can be defined by setting
+        `top`, `left`, `height`, and `width` properties. The ROI is defined in pixels,
+        with `(0,0,base_resolution, base_resolution)` corresponding to the full field of view.
+
+        start = center + (left / base_resolution - 0.5) / (reference_zoom * zoom)
+        stop = center + ((left + width) / base_resolution - 0.5) / (reference_zoom * zoom)
+
+    Scan pattern:
+        The scanner performs a raster scan, with `y` being the slow axis and `x` the fast axis.
+        The pattern is computed such that the mirrors have a constant velocity during the scan.
+        The start and end of each scan line, where the mirror accelerates or decelerates are discarded from the data.
+        By default, the scanner uses bidirectional scanning along the fast axis, which reduces the time needed for a full scan.
+        Especially for bidirectional scanning, the synchronization between output and input is crucial, otherwise the
+        image will appear teared (even and odd scan lines not aligning). To fine-tune this synchronization, the `delay`
+        parameter can be used.
     """
 
-    # LaserScanner(input=("ai/8", -1.0 * u.V, 1.0 * u.V))
     def __init__(self,
                  input: tuple[str, Quantity[u.V], Quantity[u.V]],  # noqa
-                 axis0: Axis,
-                 axis1: Axis,
+                 y_axis: Axis,
+                 x_axis: Axis,
                  scale: Quantity[u.um / u.V],
                  sample_rate: Quantity[u.MHz],
                  base_resolution: int = 512,
                  delay: Quantity[u.us] = 0.0 * u.us,
                  reference_zoom: float = 1.0,
                  bidirectional: bool = True,
-                 simulation: Optional[str] = None,
+                 test_pattern: Optional[TestPatternType] = TestPatternType.NONE,
                  multi_threaded: bool = True,
-                 preprocess: Optional[callable] = None):
+                 preprocess: Optional[callable] = None,
+                 test_image=None):
         """
         Args:
             base_resolution (int): number of pixels (height and width) in the full field of view.
@@ -217,9 +195,9 @@ class ScanningMicroscope(Detector):
             input: tuple[str, Quantity[u.V], Quantity[u.V]],
                  Description of the NI-DAQ channel to use for the input.
                  Tuple of: (name of the channel (e. g., 'ai/1'), minimum voltage, maximum voltage).
-            axis0: Axis
+            y_axis: Axis
                  Description of the NI-DAQ channel to use for controlling the slow axis.
-            axis1: Axis
+            x_axis: Axis
                  Description of the NI-DAQ channel to use for controlling the fast axis.
             scale (u.um / u.V):
                 Conversion factor between voltage at the NI-DAQ card and displacement of the focus in the object plane.
@@ -234,21 +212,28 @@ class ScanningMicroscope(Detector):
                 will be skipped. The function must take input arguments data and sample_rate, and must return the
                 preprocessed data.
         """
-        self._y_axis = axis0
-        self._x_axis = axis1
+        self._y_axis = y_axis
+        self._x_axis = x_axis
         (self._input_channel, self._input_v_min, self._input_v_max) = input
         self._input_terminal_configuration = input[3] if len(input) == 4 else TerminalConfiguration.DEFAULT
         self._scale = scale.repeat(2) if scale.size == 1 else scale
         self._sample_rate = sample_rate.to(u.MHz)
         self._binning = 1  # binning factor = sample_rate · dwell_time
         self._base_resolution = int(base_resolution)
-        self._roi_top = 0
-        self._roi_left = 0
+        self._roi_top = 0  # in pixels
+        self._roi_left = 0  # in pixels
+        self._center_x = 0.5  # in relative coordinates (relative to the full field of view)
+        self._center_y = 0.5  # in relative coordinates (relative to the full field of view)
         self._delay = delay.to(u.us)
         self._reference_zoom = float(reference_zoom)
         self._zoom = 1.0
-        self._bidirectional = bidirectional
-        self._simulation = simulation
+        self._bidirectional = bool(bidirectional)
+        self._test_pattern = TestPatternType(test_pattern)
+        self._test_image = None
+        if test_image is not None:
+            self._test_image = np.array(test_image, dtype='uint16')
+            while self._test_image.ndim > 2:
+                self._test_image = np.mean(self._test_image, 2).astype('uint16')
         self._preprocess = preprocess
 
         self._write_task = None
@@ -270,10 +255,11 @@ class ScanningMicroscope(Detector):
         width = self._data_shape[1]
         height = self._data_shape[0]
         roi_scale = 1.0 / (self._reference_zoom * self._zoom) / self._base_resolution
-        roi_left = self._roi_left * roi_scale
-        roi_right = (self._roi_left + width) * roi_scale
-        roi_top = self._roi_top * roi_scale
-        roi_bottom = (self._roi_top + height) * roi_scale
+
+        roi_left = self._center_x + (self._roi_left - 0.5 * self._base_resolution) * roi_scale
+        roi_right = self._center_x + (self._roi_left + width - 0.5 * self._base_resolution) * roi_scale
+        roi_top = self._center_y + (self._roi_top - 0.5 * self._base_resolution) * roi_scale
+        roi_bottom = self._center_y + (self._roi_top + height - 0.5 * self._base_resolution) * roi_scale
 
         # Compute the retrace pattern for the slow axis
         v_yr = self._y_axis.step(roi_bottom, roi_top, self._sample_rate)
@@ -317,7 +303,7 @@ class ScanningMicroscope(Detector):
         retrace[len(v_yr):] = v_yr[-1]
         self._scan_pattern = scan_pattern.reshape(2, -1)
 
-        if self._simulation is not None:
+        if self._test_pattern is not None:
             return
         # Sets up NI-DAQ task and i/o channels
         if self._read_task:
@@ -367,7 +353,7 @@ class ScanningMicroscope(Detector):
         """Makes sure scan patterns are up-to-date, and triggers the NI-DAQ tasks."""
         self._ensure_valid()
 
-        if self._simulation is not None:
+        if self._test_pattern is not None:
             return
 
         self._read_task.wait_until_done()
@@ -394,7 +380,7 @@ class ScanningMicroscope(Detector):
             # add 32768 to go from -32768-32767 to 0-65535
             cropped = cropped.view('uint16') + 0x8000
         elif cropped.dtype != np.uint16:
-            raise ValueError('Only int16 and uint16 data types are supported at the moment.')
+            raise ValueError(f'Only int16 and uint16 data types are supported at the moment, got type {cropped.dtype}.')
 
         if self._bidirectional:  # note: requires the mask to be symmetrical
             cropped[1::2, :] = cropped[1::2, ::-1]
@@ -403,17 +389,28 @@ class ScanningMicroscope(Detector):
 
     def _fetch(self) -> np.ndarray:  # noqa
         """Reads the acquired data from the input task."""
-        if self._simulation is None:
+        if self._test_pattern is None:
             raw = self._read_task.in_stream.read()
             self._read_task.stop()
             self._write_task.stop()
-        elif self._simulation == 'horizontal':
-            raw = (self._x_axis._to_pos(self._scan_pattern[1, :] * u.V) * 10000).round().astype('int16')  # in mV
-        elif self._simulation == 'vertical':
-            raw = (self._y_axis._to_pos(self._scan_pattern[0, :] * u.V) * 10000).round().astype('int16')
+        elif self._test_pattern == TestPatternType.HORIZONTAL:
+            raw = np.round(self._x_axis._to_pos(self._scan_pattern[1, :] * u.V) * 10000).astype('int16')
+        elif self._test_pattern == 'vertical':
+            raw = np.round(self._y_axis._to_pos(self._scan_pattern[0, :] * u.V) * 10000).astype('int16')
+        elif self._test_pattern == 'image':
+            if self._test_image is None:
+                raise ValueError('No test image was provided for the image simulation.')
+            # todo: cache the test image
+            row = np.floor(
+                self._y_axis._to_pos(self._scan_pattern[0, :] * u.V) * (self._test_image.shape[0] - 1)).astype(
+                'int32')
+            column = np.floor(
+                self._x_axis._to_pos(self._scan_pattern[1, :] * u.V) * (self._test_image.shape[1] - 1)).astype(
+                'int32')
+            raw = self._test_image[row, column]
         else:
             raise ValueError(
-                f"Invalid simulation option {self._simulation}. Should be 'horizontal', 'vertical', or 'None'")
+                f"Invalid simulation option {self._test_pattern}. Should be 'horizontal', 'vertical', 'image', or 'None'")
 
         # Preprocess raw data if a preprocess function is set
         if self._preprocess is None:
@@ -428,6 +425,14 @@ class ScanningMicroscope(Detector):
         """Close connection to the NI-DAQ."""
         self._read_task.close()
         self._write_task.close()
+
+    @property
+    def test_pattern(self) -> TestPatternType:
+        return self._test_pattern
+
+    @test_pattern.setter
+    def test_pattern(self, value: TestPatternType):
+        self._test_pattern = TestPatternType(value)
 
     @property
     def preprocess(self):
@@ -511,6 +516,11 @@ class ScanningMicroscope(Detector):
     def delay(self, value: Quantity[u.us]):
         self._delay = value
         self._valid = False
+
+    @property
+    def exposure(self) -> Quantity[u.ms]:
+        """The time the detector is exposed to the sample."""
+        return self.duration
 
     @property
     def bidirectional(self) -> bool:

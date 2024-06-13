@@ -69,7 +69,7 @@ def test_scan_pattern(direction, bidirectional):
     y_axis = Axis(channel='Dev4/ao0', v_min=-2.0 * u.V, v_max=2.0 * u.V, maximum_acceleration=10 * u.V / u.ms ** 2)
     x_axis = Axis(channel='Dev4/ao1', v_min=-2.0 * u.V, v_max=2.0 * u.V, maximum_acceleration=10 * u.V / u.ms ** 2)
     scanner = ScanningMicroscope(bidirectional=bidirectional, sample_rate=sample_rate,
-                                 input=('Dev4/ai0', -1.0 * u.V, 1.0 * u.V), axis0=y_axis, axis1=x_axis,
+                                 input=('Dev4/ai0', -1.0 * u.V, 1.0 * u.V), y_axis=y_axis, x_axis=x_axis,
                                  scale=scale, simulation=direction, reference_zoom=reference_zoom)
 
     assert np.allclose(scanner.extent, scale * 4.0 * u.V / reference_zoom)
