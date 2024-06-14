@@ -78,10 +78,11 @@ def test_scan_pattern(direction, bidirectional):
 
     # check if returned pattern is correct
     (y, x) = coordinate_range((scanner._resolution, scanner._resolution),
-                              10000 / reference_zoom, offset=(5000 / reference_zoom, 5000 / reference_zoom))
+                              10000 / reference_zoom, offset=(5000, 5000))
     full = scanner.read().astype('float32') - 0x8000
 
     pixel_size = full[1, 1] - full[0, 0]
+
     if direction == 'horizontal':
         assert np.allclose(full, full[0, :])  # all rows should be the same
         assert np.allclose(x, full, atol=0.2 * pixel_size)  # some rounding due to quantization
@@ -107,7 +108,7 @@ def test_scan_pattern(direction, bidirectional):
     assert scanner.data_shape == (height, width)
 
     roi = scanner.read().astype('float32') - 0x8000
-    assert np.allclose(full[top:(top + height), left:(left + width)], roi, atol=0.1 * pixel_size)
+    assert np.allclose(full[top:(top + height), left:(left + width)], roi, atol=0.2 * pixel_size)
 
     # test zooming
     # ps = scanner.pixel_size

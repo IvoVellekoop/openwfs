@@ -259,7 +259,7 @@ class ScanningMicroscope(Detector):
         self._zoom = 1.0
         self._bidirectional = bool(bidirectional)
         self._oversampling = 1  # oversampling factor
-        self._scan_speed = 0.5  # scan speed relative to maximum
+        self._scan_speed_factor = 0.5  # scan speed relative to maximum
 
         self._test_pattern = TestPatternType(test_pattern)
         self._test_image = None
@@ -302,7 +302,7 @@ class ScanningMicroscope(Detector):
         # Compute the scan pattern for the fast axis
         # First, adjust the oversampling to match the scan speed
         naive_speed = (self._x_axis.v_max - self._x_axis.v_min) * (roi_right - roi_left) * self._sample_rate / width
-        max_speed = self._x_axis.maximum_scan_speed(roi_right - roi_left) * self._scan_speed
+        max_speed = self._x_axis.maximum_scan_speed(roi_right - roi_left) * self._scan_speed_factor
         self._oversampling = int(np.ceil(unitless(naive_speed / max_speed)))
         oversampled_width = width * self._oversampling
 
@@ -420,7 +420,8 @@ class ScanningMicroscope(Detector):
 
         # downsample along fast axis if needed
         if self._oversampling > 1:
-            cropped = cropped[:, :(cropped.shape[1] // self._oversampling) * self._oversampling]
+            cropped = cropped[:, :(cropped.shape[
+                                       1] // self._oversampling) * self._oversampling]  # remove samples if not divisible by oversampling factor
             cropped = cropped.reshape(cropped.shape[0], -1, self._oversampling)
             cropped = np.round(np.mean(cropped, 2)).astype(cropped.dtype)  # todo: faster alternative?
 
@@ -688,11 +689,11 @@ class ScanningMicroscope(Detector):
     @property
     def scan_speed(self) -> Annotated[float, Ge(0.05), Le(1.0)]:
         """The scan speed relative to the maximum scan speed."""
-        return self._scan_speed
+        return self._scan_speed_factor
 
     @scan_speed.setter
     def scan_speed(self, value):
-        self._scan_speed = np.clip(float(value), 0.05, 1.0)
+        self._scan_speed_factor = np.clip(float(value), 0.05, 1.0)
 
     @staticmethod
     def list_devices():
