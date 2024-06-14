@@ -582,19 +582,63 @@ class ScanningMicroscope(Detector):
     def zoom(self) -> float:
         """Zoom factor.
         The zoom factor determines the pixel size relative to the original pixel size.
-        TODO: When the zoom factor is changed,
-        the center of the region of interest and the number of pixels in the data remain constant.
+        When zooming in or out, the center of the region of interest is kept constant.
+        Note that this may cause the field of view to get extended to outside the original FOV
         """
         return self._zoom
 
     @zoom.setter
     def zoom(self, value: float):
-        # roi_center = 0.5 * self._data_shape[1] + self._roi_start
-        # roi_width_old = self._roi_end - self._roi_start
-        # roi_width_new = roi_width_old * self._zoom / value
-        # self._roi_start = roi_center - 0.5 * roi_width_new
-        # self._roi_end = roi_center + 0.5 * roi_width_new
+        # compute how far the roi center is away from the _center_x before the zoom
+        roi_scale = 1.0 / (self._reference_zoom * self._zoom) / self._resolution
+        center_y_before = (self._roi_top + 0.5 * self._data_shape[0]) * roi_scale
+        center_x_before = (self._roi_left + 0.5 * self._data_shape[1]) * roi_scale
+
+        # compute how far it will be from _center_x after adjusting the zoom
+        center_y_after = center_y_before * self._zoom / value
+        center_x_after = center_x_before * self._zoom / value
+
+        # correct the center position such that the center of the roi does not move
+        self._center_y += center_y_before - center_y_after
+        self._center_x += center_x_before - center_x_after
+
         self._zoom = float(value)
+        self._valid = False
+
+    @property
+    def offset_x(self) -> float:
+        """The center of the full field of view in the horizontal direction.
+
+        The offset is relative to the full voltage range specified in the Axis objects,
+        with 0.0 corresponding to the center of the voltage range,
+        and -0.5 and +0.5 to the edges of the voltage range.
+
+        Note that changing the offset may cause the ROI to move outside the original field of view.
+        Also, it may cause the scan speed to change, as the mirror has a shorter distance to accelerate or decelerate.
+        """
+        return self._center_x - 0.5
+
+    @offset_x.setter
+    def offset_x(self, value: float):
+        self._center_x = float(value) + 0.5
+        self._valid = False
+
+    @property
+    def offset_y(self) -> float:
+        """The center of the full field of view in the vertical direction.
+
+        The offset is relative to the full voltage range specified in the Axis objects,
+        with 0.0 corresponding to the center of the voltage range,
+        and -0.5 and +0.5 to the edges of the voltage range.
+
+        Note that changing the offset may cause the ROI to move outside the original field of view.
+        Also, it may cause the scan speed to change, as the mirror has a shorter distance to accelerate or decelerate.
+        """
+        return self._center_y - 0.5
+
+    @offset_y.setter
+    def offset_y(self, value: float):
+        self._center_y = float(value) + 0.5
         self._valid = False
 
     @property
@@ -652,4 +696,52 @@ class ScanningMicroscope(Detector):
 
     @staticmethod
     def list_devices():
+        """Returns a list of all nidaq devices available on the system."""
         return [d.name for d in nidaqmx.system.System().devices]
+
+    @staticmethod
+    def compute_scale(*, optical_deflection: Quantity[u.deg / u.V], galvo_to_pupil_magnification: float,
+                      objective_magnification: float, reference_tube_lens: Quantity[u.mm]) -> Quantity[u.um / u.V]:
+        """Computes the conversion factor between voltage and displacement in the object plane.
+
+        Args:
+            optical_deflection (Quantity[u.deg/u.V]): 
+                The optical deflection (i. e. twice the mechanical angle) of the galvo mirrors as a function of applied voltage.
+            galvo_to_pupil_magnification (float):
+                The magnification of the relay system between the galvo mirrors and the pupil.
+            objective_magnification (Quantity[u.mm]): 
+                The magnification of the microscope objective.
+            reference_tube_lens (Quantity[u.mm]):
+                The tube lens focal length on which the objective magnification is based.
+                This value is manufacturer-specific. Typical values are:
+                - 200 mm for Thorlabs, Nikon, Leica, and Mitutoyo
+                - 180 mm for Olympus/Evident
+                - 165 mm for Zeiss
+
+        Returns:
+            Quantity[u.um/u.V]: The conversion factor between voltage and displacement in the object plane.
+        """
+        f_objective = reference_tube_lens / objective_magnification
+        angle_to_displacement = f_objective / u.rad
+        return ((optical_deflection / galvo_to_pupil_magnification) * angle_to_displacement).to(u.um / u.V)
+
+    @staticmethod
+    def compute_acceleration(*, optical_deflection: Quantity[u.deg / u.V], torque_constant: Quantity[u.N * u.m / u.A],
+                             rotor_inertia: Quantity[u.kg * u.m ** 2],
+                             maximum_current: Quantity[u.A]) -> Quantity[u.V / u.s ** 2]:
+        """Computes the angular acceleration of the focus of the galvo mirror.
+
+         The result is returned in the unit V / second², where the voltage can be converted to displacement using the scale factor.
+
+        Args:
+            optical_deflection (Quantity[u.deg/u.V]):
+                The optical deflection (i. e. twice the mechanical angle) of the galvo mirrors as a function of applied voltage.
+            torque_constant (Quantity[u.N*u.m/u.A]):
+                The torque constant of the galvo mirror driving coil. May also be given in the equivalent unit of dyne·cm/A.
+            rotor_inertia (Quantity[u.kg*u.m**2]):
+                The moment of inertia of the rotor. May also be given in the equivalent unit of g·cm².
+            maximum_current (Quantity[u.A]):
+                The maximum current that can be applied to the galvo mirror.
+        """
+        angular_acceleration = (torque_constant * maximum_current / rotor_inertia).to(u.s ** -2) * u.rad
+        return (angular_acceleration / optical_deflection).to(u.V / u.s ** 2)

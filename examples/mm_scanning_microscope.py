@@ -14,11 +14,24 @@ import skimage
 import set_path  # noqa
 from openwfs.devices import ScanningMicroscope, Axis
 
-scale = 440 * u.um / u.V
+# parameters for Thorlabs SS30X-AG
+scale = ScanningMicroscope.compute_scale(
+    optical_deflection=1.0 / (0.22 * u.V / u.deg),
+    galvo_to_pupil_magnification=2,
+    objective_magnification=16,
+    reference_tube_lens=200 * u.mm)
+
+acceleration = ScanningMicroscope.compute_acceleration(
+    optical_deflection=1.0 / (0.22 * u.V / u.deg),
+    torque_constant=2.8E5 * u.dyne * u.cm / u.A,
+    rotor_inertia=8.25 * u.g * u.cm ** 2,
+    maximum_current=4 * u.A)
+
+# scale = 440 * u.um / u.V (calibrated)
 sample_rate = 0.5 * u.MHz
 reference_zoom = 1.2
-y_axis = Axis(channel='Dev4/ao0', v_min=-2.0 * u.V, v_max=2.0 * u.V, maximum_acceleration=10 * u.V / u.ms ** 2)
-x_axis = Axis(channel='Dev4/ao1', v_min=-2.0 * u.V, v_max=2.0 * u.V, maximum_acceleration=10 * u.V / u.ms ** 2)
+y_axis = Axis(channel='Dev4/ao0', v_min=-2.0 * u.V, v_max=2.0 * u.V, maximum_acceleration=acceleration)
+x_axis = Axis(channel='Dev4/ao1', v_min=-2.0 * u.V, v_max=2.0 * u.V, maximum_acceleration=acceleration)
 test_image = skimage.data.hubble_deep_field() * 256
 
 scanner = ScanningMicroscope(sample_rate=sample_rate,
