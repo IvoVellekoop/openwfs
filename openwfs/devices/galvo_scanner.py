@@ -84,6 +84,8 @@ class Axis:
             Quantity[u.V]: voltage sequence
         """
         v_start = self.to_volt(start)
+        if start == stop:
+            return np.zeros((0,)) * u.V  # return empty array
         v_end = self.to_volt(stop)
 
         # t is measured in samples
@@ -120,15 +122,17 @@ class Axis:
             (Quantity[u.V], float, float, slice): voltage sequence, launch point, landing point, slice object
         """
         v_start = self.to_volt(start)
-        v_end = self.to_volt(stop)
+        if start == stop:  # todo: tolerance?
+            return np.ones((sample_count,)) * v_start, start, start, slice(0, sample_count)
 
+        v_end = self.to_volt(stop)
         scan_speed = (v_end - v_start) / sample_count  # V per sample
-        a = self.maximum_acceleration / sample_rate ** 2 * np.sign(scan_speed)  # V per sample²
 
         # construct a sequence to accelerate from speed 0 to the scan speed
         # we start by constructing a sequence with a maximum acceleration.
         # This sequence may be up to 1  sample longer than needed to reach the scan speed.
         # This last sample is replaced by movement at a linear scan speed
+        a = self.maximum_acceleration / sample_rate ** 2 * np.sign(scan_speed)  # V per sample²
         t_launch = np.arange(np.ceil(unitless(scan_speed / a)))  # in samples
         v_accel = 0.5 * a * t_launch ** 2  # last sample may have faster scan speed than needed
         if len(v_accel) > 1 and np.abs(v_accel[-1] - v_accel[-2]) > np.abs(scan_speed):
@@ -215,7 +219,7 @@ class ScanningMicroscope(Detector):
                  bidirectional: bool = True,
                  test_pattern: TestPatternType = TestPatternType.NONE,
                  multi_threaded: bool = True,
-                 preprocess: Optional[callable] = None,
+                 preprocessor: Optional[callable] = None,
                  test_image=None):
         """
         Args:
@@ -238,7 +242,7 @@ class ScanningMicroscope(Detector):
             reference_zoom (float): Zoom factor that corresponds to fitting the full field of view exactly.
                 The zoom factor in the `zoom` property is multiplied by the `reference_zoom` to compute the scan range.
             bidirectional (bool): If true, enables bidirectional scanning along the fast axis.
-            preprocess (callable): Process the raw data with this function before cropping. When None, the preprocessing
+            preprocessor (callable): Process the raw data with this function before cropping. When None, the preprocessing
                 will be skipped. The function must take input arguments data and sample_rate, and must return the
                 preprocessed data.
         """
@@ -268,7 +272,7 @@ class ScanningMicroscope(Detector):
             while self._test_image.ndim > 2:
                 self._test_image = np.mean(self._test_image, 2).astype('uint16')
 
-        self._preprocess = preprocess
+        self._preprocessor = preprocessor
 
         self._write_task = None
         self._read_task = None
@@ -288,24 +292,44 @@ class ScanningMicroscope(Detector):
 
         width = self._data_shape[1]
         height = self._data_shape[0]
-        roi_scale = 1.0 / (self._reference_zoom * self._zoom) / self._resolution
         center = 0.5 * self._resolution
+
+        # compute the size of a pixel relative to the maximum voltage range
+        actual_zoom = self._reference_zoom * self._zoom
+        roi_scale = 1.0 / actual_zoom / self._resolution
 
         roi_left = self._center_x + (self._roi_left - center) * roi_scale
         roi_right = self._center_x + (self._roi_left + width - center) * roi_scale
         roi_top = self._center_y + (self._roi_top - center) * roi_scale
         roi_bottom = self._center_y + (self._roi_top + height - center) * roi_scale
+        # special case for roi width or height of 1. Treat as roi size zero
+        if width == 1:
+            roi_right = 0.5 * (roi_left + roi_right)
+            roi_left = roi_right
+
+        if height == 1:
+            roi_bottom = 0.5 * (roi_top + roi_bottom)
+            roi_top = roi_bottom
 
         # Compute the retrace pattern for the slow axis
         v_yr = self._y_axis.step(roi_bottom, roi_top, self._sample_rate)
 
         # Compute the scan pattern for the fast axis
-        # First, adjust the oversampling to match the scan speed
-        naive_speed = (self._x_axis.v_max - self._x_axis.v_min) * (roi_right - roi_left) * self._sample_rate / width
-        max_speed = self._x_axis.maximum_scan_speed(roi_right - roi_left) * self._scan_speed_factor
+        # The naive speed is the scan speed assuming one pixel per sample
+        # The maximum speed is the maximum speed that the mirror can achieve over the scan range
+        # (at least, without spending more time on accelerating and decelerating than the scan itself)
+        # The user can set the scan speed relative to the maximum speed.
+        # If this set speed is lower than naive scan speed, multiple samples are taken per pixel.
+        naive_speed = (self._x_axis.v_max - self._x_axis.v_min) * roi_scale * self._sample_rate
+        max_speed = self._x_axis.maximum_scan_speed(1.0 / actual_zoom) * self._scan_speed_factor
+        if max_speed == 0.0:
+            # this may happen if the ROI reaches to or beyond [0,1]. In this case, the mirror has no time to accelerate
+            # TODO: implement an auto-adjust option instead of raising an error
+            raise ValueError(
+                "Maximum scan speed is zero. This may be because the region of interest exceeds the maximum voltage range")
+
         self._oversampling = int(np.ceil(unitless(naive_speed / max_speed)))
         oversampled_width = width * self._oversampling
-
         v_x_even, x_launch, x_land, self._mask = self._x_axis.scan(roi_left, roi_right, oversampled_width,
                                                                    self._sample_rate)
         if self._bidirectional:
@@ -339,11 +363,12 @@ class ScanningMicroscope(Detector):
         # Note: this may not always be needed, but it guarantees
         # that the horizontal scan mirror is always scanning at the same frequency
         # which is essential for resonant scanning.
-        retrace = scan_pattern[0, height:, :].reshape(-1)
-        retrace[0:len(v_yr)] = v_yr
-        retrace[len(v_yr):] = v_yr[-1]
-        self._scan_pattern = scan_pattern.reshape(2, -1)
+        if len(v_yr) > 0:
+            retrace = scan_pattern[0, height:, :].reshape(-1)
+            retrace[0:len(v_yr)] = v_yr
+            retrace[len(v_yr):] = v_yr[-1]
 
+        self._scan_pattern = scan_pattern.reshape(2, -1)
         if self._test_pattern != TestPatternType.NONE:
             return
 
@@ -420,8 +445,8 @@ class ScanningMicroscope(Detector):
 
         # downsample along fast axis if needed
         if self._oversampling > 1:
-            cropped = cropped[:, :(cropped.shape[
-                                       1] // self._oversampling) * self._oversampling]  # remove samples if not divisible by oversampling factor
+            # remove samples if not divisible by oversampling factor
+            cropped = cropped[:, :(cropped.shape[1] // self._oversampling) * self._oversampling]
             cropped = cropped.reshape(cropped.shape[0], -1, self._oversampling)
             cropped = np.round(np.mean(cropped, 2)).astype(cropped.dtype)  # todo: faster alternative?
 
@@ -463,12 +488,12 @@ class ScanningMicroscope(Detector):
                 f"Invalid simulation option {self._test_pattern}. Should be 'horizontal', 'vertical', 'image', or 'None'")
 
         # Preprocess raw data if a preprocess function is set
-        if self._preprocess is None:
+        if self._preprocessor is None:
             preprocessed_raw = raw
-        elif callable(self._preprocess):
-            preprocessed_raw = self._preprocess(data=raw, sample_rate=self._sample_rate)
+        elif callable(self._preprocessor):
+            preprocessed_raw = self._preprocessor(data=raw, sample_rate=self._sample_rate)
         else:
-            raise TypeError(f"Invalid type for {self._preprocess}. Should be callable or None.")
+            raise TypeError(f"Invalid type for {self._preprocessor}. Should be callable or None.")
         return self._raw_to_cropped(preprocessed_raw)
 
     def close(self):
@@ -485,15 +510,20 @@ class ScanningMicroscope(Detector):
         self._test_pattern = TestPatternType(value)
 
     @property
-    def preprocess(self):
-        """The function to preprocess raw data before cropping."""
-        return self._preprocess
+    def preprocessor(self):
+        """An optional function to preprocess raw data before cropping.
 
-    @preprocess.setter
-    def preprocess(self, value: Optional[callable]):
+        The function takes a linear array of raw data as required arguments,
+         and a list of keyword arguments. Currently, the following arguments are passed:
+            - sample_rate (Quantity[u.MHz]): the sample rate of the NI-DAQ input channel
+        """
+        return self._preprocessor
+
+    @preprocessor.setter
+    def preprocessor(self, value: Optional[callable]):
         if not callable(value) and value is not None:
-            raise TypeError(f"Invalid type for {self._preprocess}. Should be callable or None.")
-        self._preprocess = value
+            raise TypeError(f"Invalid type for {self._preprocessor}. Should be callable or None.")
+        self._preprocessor = value
 
     @property
     def pixel_size(self) -> Quantity:
@@ -536,16 +566,28 @@ class ScanningMicroscope(Detector):
 
     @height.setter
     def height(self, value):
+        if value < 1 or value > self._resolution:
+            raise ValueError(f"Height must be between 1 and {self._resolution}")
         self._data_shape = (int(value), int(self.data_shape[1]))
         self._valid = False
 
     @property
     def width(self) -> int:
-        """The number of pixels in the horizontal dimension of the ROI."""
+        """The number of pixels in the horizontal dimension of the ROI.
+
+        Depending on the scan speed and sample rate, the scanner may
+        acquire multiple data points along a scan line, and return the
+        averaged value.
+        A value of 1 is treated as a special case,
+        where the beam does not move horizontally.at all
+        (i.e. it does not scan back and forth over the size of this single pixel).
+        """
         return self.data_shape[1]
 
     @width.setter
     def width(self, value):
+        if value < 1 or value > self._resolution:
+            raise ValueError(f"Width must be between 1 and {self._resolution}")
         self._data_shape = (self.data_shape[0], int(value))
         self._valid = False
 
