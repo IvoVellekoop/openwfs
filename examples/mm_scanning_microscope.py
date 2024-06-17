@@ -37,7 +37,7 @@ test_image = skimage.data.hubble_deep_field() * 256
 scanner = ScanningMicroscope(sample_rate=sample_rate,
                              input=('Dev4/ai0', -1.0 * u.V, 1.0 * u.V), y_axis=y_axis, x_axis=x_axis,
                              scale=scale, test_pattern='image', reference_zoom=reference_zoom,
-                             test_image=test_image)
+                             resolution=1024, test_image=test_image)
 
 if __name__ == '__main__':
     scanner.binning = 4
