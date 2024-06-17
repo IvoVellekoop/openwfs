@@ -302,17 +302,19 @@ class ScanningMicroscope(Detector):
         roi_right = self._center_x + (self._roi_left + width - center) * roi_scale
         roi_top = self._center_y + (self._roi_top - center) * roi_scale
         roi_bottom = self._center_y + (self._roi_top + height - center) * roi_scale
-        # special case for roi width or height of 1. Treat as roi size zero
+
+        # special case for roi width or height of 1.
+        # Treat as roi size zero so that the beam does not scan across this single pixel.
+        # note: this special handling is not needed for the height, because
+        # in the vertical direction the beam does not scan over the pixel,
+        # it just steps to the next line at the end of the line
         if width == 1:
             roi_right = 0.5 * (roi_left + roi_right)
             roi_left = roi_right
 
-        if height == 1:
-            roi_bottom = 0.5 * (roi_top + roi_bottom)
-            roi_top = roi_bottom
-
         # Compute the retrace pattern for the slow axis
-        v_yr = self._y_axis.step(roi_bottom, roi_top, self._sample_rate)
+        # The scan starts at half a pixel after roi_bottom and ends half a pixel before roi_top
+        v_yr = self._y_axis.step(roi_bottom - 0.5 * roi_scale, roi_top + 0.5 * roi_scale, self._sample_rate)
 
         # Compute the scan pattern for the fast axis
         # The naive speed is the scan speed assuming one pixel per sample

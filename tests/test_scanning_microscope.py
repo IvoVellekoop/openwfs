@@ -66,7 +66,7 @@ def make_scanner(bidirectional, direction, reference_zoom):
     reference_zoom = 1.2
     y_axis = Axis(channel='Dev4/ao0', v_min=-2.0 * u.V, v_max=2.0 * u.V, maximum_acceleration=10 * u.V / u.ms ** 2)
     x_axis = Axis(channel='Dev4/ao1', v_min=-2.0 * u.V, v_max=2.0 * u.V, maximum_acceleration=10 * u.V / u.ms ** 2)
-    return ScanningMicroscope(bidirectional=bidirectional, sample_rate=sample_rate,
+    return ScanningMicroscope(bidirectional=bidirectional, sample_rate=sample_rate, resolution=1024,
                               input=('Dev4/ai0', -1.0 * u.V, 1.0 * u.V), y_axis=y_axis, x_axis=x_axis,
                               scale=scale, test_pattern=direction, reference_zoom=reference_zoom)
 
@@ -122,18 +122,33 @@ def test_park_beam(bidirectional):
     reference_zoom = 1.2
     scanner = make_scanner(bidirectional, 'horizontal', reference_zoom)
 
-    # Choose ROI of a single point. This will still scan the beam over the extent of the pixel in the x-direction
+    # Park beam horizontally
     scanner.top = 3
     scanner.left = 4
     scanner.width = 1
-    scanner.height = 1
+    scanner.height = 2
 
     img = scanner.read()
-    assert img.shape == (1, 1)
-
+    assert img.shape == (2, 1)
     voltages = scanner._scan_pattern
-    assert np.allclose(voltages[0, :], voltages[0, 0])  # all voltages should be the same
     assert np.allclose(voltages[1, :], voltages[1, 0])  # all voltages should be the same
+
+    # Park beam vertically
+    scanner.width = 2
+    scanner.height = 1
+    img = scanner.read()
+    assert img.shape == (1, 2)
+    voltages = scanner._scan_pattern
+    assert np.allclose(voltages[0, :], voltages[0, 0])
+
+    # Park beam horizontally and vertically
+    scanner.width = 1
+    scanner.height = 1
+    img = scanner.read()
+    assert img.shape == (1, 1)
+    voltages = scanner._scan_pattern
+    assert np.allclose(voltages[1, :], voltages[1, 0])  # all voltages should be the same
+    assert np.allclose(voltages[0, :], voltages[0, 0])  # all voltages should be the same
 
 # test zooming
 # ps = scanner.pixel_size
