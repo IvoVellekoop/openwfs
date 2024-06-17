@@ -213,13 +213,13 @@ class ScanningMicroscope(Detector):
                  x_axis: Axis,
                  scale: Quantity[u.um / u.V],
                  sample_rate: Quantity[u.MHz],
-                 resolution: int = 1024,
+                 resolution: int,
+                 reference_zoom: float, *,
                  delay: Quantity[u.us] = 0.0 * u.us,
-                 reference_zoom: float = 1.0,
                  bidirectional: bool = True,
-                 test_pattern: TestPatternType = TestPatternType.NONE,
                  multi_threaded: bool = True,
                  preprocessor: Optional[callable] = None,
+                 test_pattern: TestPatternType = TestPatternType.NONE,
                  test_image=None):
         """
         Args:
@@ -370,6 +370,7 @@ class ScanningMicroscope(Detector):
 
         self._scan_pattern = scan_pattern.reshape(2, -1)
         if self._test_pattern != TestPatternType.NONE:
+            self._valid = True
             return
 
         # Sets up NI-DAQ task and i/o channels
