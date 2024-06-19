@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, Annotated
+from typing import Optional, Annotated, Union
 
 import astropy.units as u
 import nidaqmx as ni
@@ -11,7 +11,6 @@ from astropy.units import Quantity
 from nidaqmx.constants import TaskMode
 from nidaqmx.constants import TerminalConfiguration
 from nidaqmx.stream_writers import AnalogMultiChannelWriter
-from numpy._typing import ArrayLike
 
 from ..core import Detector
 from ..utilities import unitless
@@ -25,14 +24,14 @@ class Axis:
     maximum_acceleration: Quantity[u.V / u.s ** 2]
     terminal_configuration: TerminalConfiguration = TerminalConfiguration.DEFAULT
 
-    def to_volt(self, pos: ArrayLike) -> Quantity[u.V]:
-        """Converts relative position [0.0 .. 1.0] to voltage [V_min .. V_max]
+    def to_volt(self, pos: Union[np.ndarray, float]) -> Quantity[u.V]:
+        """Converts relative position [0.0 ... 1.0] to voltage [V_min ... V_max]
 
         Currently, this is just a linear conversion, but a lookup table may be used in the future.
         """
         return self.v_min + np.clip(pos, 0.0, 1.0) * (self.v_max - self.v_min)
 
-    def _to_pos(self, volt: Quantity[u.V]) -> ArrayLike:
+    def to_pos(self, volt: Quantity[u.V]) -> np.ndarray:
         """Converts voltage [V_min .. V_max] to relative position [0.0 .. 1.0]"""
         return unitless((volt - self.v_min) / (self.v_max - self.v_min))
 
@@ -45,14 +44,15 @@ class Axis:
         * A practical limit: if it takes longer to perform the acceleration + deceleration than
             it does to traverse the linear range, it does not make sense to set the scan speed so high.
             The speed at which acceleration + deceleration takes as long as the linear range is the maximum speed.
-        * A hardware limit: when accelerating with the maximum acceleration over a distance 0.5 * (V_max-V_min) * (1-linear_range),
+        * A hardware limit: when accelerating with the maximum acceleration over a distance
+            0.5 * (V_max-V_min) * (1-linear_range),
             the mirror will reach the maximum possible speed.
 
         Args:
             linear_range (float): fraction of the full range that is used for the linear part of the scan
 
         Returns:
-            Quantity[u.V/u.s]: maximum scan speed
+            Quantity[u.V / u.s]: maximum scan speed
         """
         # x = 0.5 · a · t² = 0.5 (v_max - v_min) · (1 - linear_range)
         t_accel = np.sqrt((self.v_max - self.v_min) * (1 - linear_range) / self.maximum_acceleration)
@@ -88,19 +88,20 @@ class Axis:
             return np.zeros((0,)) * u.V  # return empty array
         v_end = self.to_volt(stop)
 
-        # t is measured in samples
-        # a is measured in volt/sample²
+        # `t` is measured in samples
+        # `a` is measured in volt/sample²
         a = self.maximum_acceleration / sample_rate ** 2 * np.sign(v_end - v_start)
         t_total = unitless(2.0 * np.sqrt((v_end - v_start) / a))
         t = np.arange(np.ceil(t_total + 1E-6))  # add a small number to deal with case t=0 (start=end)
         v_accel = v_start + 0.5 * a * t[:len(t) // 2] ** 2  # acceleration part
         v_decel = v_end - 0.5 * a * (t_total - t[len(t) // 2:]) ** 2  # deceleration part
         v_decel[-1] = v_end  # fix last point because t may be > t_total due to rounding
-        return np.clip(np.concatenate((v_accel, v_decel)), self.v_min, self.v_max)
+        return np.clip(np.concatenate((v_accel, v_decel)), self.v_min, self.v_max)  # noqa ignore incorrect type warning
 
     def scan(self, start: float, stop: float, sample_count: int, sample_rate: Quantity[u.Hz]):
         """
-        Generate a voltage sequence to scan with a constant velocity from start to stop, including acceleration and deceleration.
+        Generate a voltage sequence to scan with a constant velocity from start to stop,
+        including acceleration and deceleration.
 
         Before starting this sequence, the mirror is assumed to be standing still at the launch point,
         which is some distance _before_ start.
@@ -146,8 +147,8 @@ class Axis:
         # combine the parts
         v = np.concatenate((v_launch + v_accel, v_linear, v_land - v_accel[::-1]))
         v = np.clip(v, self.v_min, self.v_max)
-        launch = self._to_pos(v_launch)
-        land = self._to_pos(v_land)
+        launch = self.to_pos(v_launch)
+        land = self.to_pos(v_land)
         return v, launch, land, slice(len(v_accel), len(v_accel) + sample_count)
 
 
@@ -201,7 +202,8 @@ class ScanningMicroscope(Detector):
         The scanner performs a raster scan, with `y` being the slow axis and `x` the fast axis.
         The pattern is computed such that the mirrors have a constant velocity during the scan.
         The start and end of each scan line, where the mirror accelerates or decelerates are discarded from the data.
-        By default, the scanner uses bidirectional scanning along the fast axis, which reduces the time needed for a full scan.
+        By default, the scanner uses bidirectional scanning along the fast axis,
+        which reduces the time needed for a full scan.
         Especially for bidirectional scanning, the synchronization between output and input is crucial, otherwise the
         image will appear teared (even and odd scan lines not aligning). To fine-tune this synchronization, the `delay`
         parameter can be used.
@@ -219,7 +221,7 @@ class ScanningMicroscope(Detector):
                  bidirectional: bool = True,
                  multi_threaded: bool = True,
                  preprocessor: Optional[callable] = None,
-                 test_pattern: TestPatternType = TestPatternType.NONE,
+                 test_pattern: Union[TestPatternType, str] = TestPatternType.NONE,
                  test_image=None):
         """
         Args:
@@ -242,8 +244,9 @@ class ScanningMicroscope(Detector):
             reference_zoom (float): Zoom factor that corresponds to fitting the full field of view exactly.
                 The zoom factor in the `zoom` property is multiplied by the `reference_zoom` to compute the scan range.
             bidirectional (bool): If true, enables bidirectional scanning along the fast axis.
-            preprocessor (callable): Process the raw data with this function before cropping. When None, the preprocessing
-                will be skipped. The function must take input arguments data and sample_rate, and must return the
+            preprocessor (callable): Process the raw data with this function before cropping.
+                When None, the preprocessing will be skipped.
+                The preprocessor function must take input arguments data and sample_rate, and must return the
                 preprocessed data.
         """
         self._y_axis = y_axis
@@ -327,8 +330,8 @@ class ScanningMicroscope(Detector):
         if max_speed == 0.0:
             # this may happen if the ROI reaches to or beyond [0,1]. In this case, the mirror has no time to accelerate
             # TODO: implement an auto-adjust option instead of raising an error
-            raise ValueError(
-                "Maximum scan speed is zero. This may be because the region of interest exceeds the maximum voltage range")
+            raise ValueError("Maximum scan speed is zero. "
+                             "This may be because the region of interest exceeds the maximum voltage range")
 
         self._oversampling = int(np.ceil(unitless(naive_speed / max_speed)))
         oversampled_width = width * self._oversampling
@@ -446,7 +449,7 @@ class ScanningMicroscope(Detector):
         # convert data to 2-d, discard padding
         cropped = raw.reshape(-1, self._n_cols)[:self._data_shape[0], self._mask]
 
-        # downsample along fast axis if needed
+        # down sample along fast axis if needed
         if self._oversampling > 1:
             # remove samples if not divisible by oversampling factor
             cropped = cropped[:, :(cropped.shape[1] // self._oversampling) * self._oversampling]
@@ -472,23 +475,23 @@ class ScanningMicroscope(Detector):
             self._read_task.stop()
             self._write_task.stop()
         elif self._test_pattern == TestPatternType.HORIZONTAL:
-            raw = np.round(self._x_axis._to_pos(self._scan_pattern[1, :] * u.V) * 10000).astype('int16')
+            raw = np.round(self._x_axis.to_pos(self._scan_pattern[1, :] * u.V) * 10000).astype('int16')
         elif self._test_pattern == TestPatternType.VERTICAL:
-            raw = np.round(self._y_axis._to_pos(self._scan_pattern[0, :] * u.V) * 10000).astype('int16')
+            raw = np.round(self._y_axis.to_pos(self._scan_pattern[0, :] * u.V) * 10000).astype('int16')
         elif self._test_pattern == TestPatternType.IMAGE:
             if self._test_image is None:
                 raise ValueError('No test image was provided for the image simulation.')
             # todo: cache the test image
             row = np.floor(
-                self._y_axis._to_pos(self._scan_pattern[0, :] * u.V) * (self._test_image.shape[0] - 1)).astype(
+                self._y_axis.to_pos(self._scan_pattern[0, :] * u.V) * (self._test_image.shape[0] - 1)).astype(
                 'int32')
             column = np.floor(
-                self._x_axis._to_pos(self._scan_pattern[1, :] * u.V) * (self._test_image.shape[1] - 1)).astype(
+                self._x_axis.to_pos(self._scan_pattern[1, :] * u.V) * (self._test_image.shape[1] - 1)).astype(
                 'int32')
             raw = self._test_image[row, column]
         else:
-            raise ValueError(
-                f"Invalid simulation option {self._test_pattern}. Should be 'horizontal', 'vertical', 'image', or 'None'")
+            raise ValueError(f"Invalid simulation option {self._test_pattern}. "
+                             "Should be 'horizontal', 'vertical', 'image', or 'None'")
 
         # Preprocess raw data if a preprocess function is set
         if self._preprocessor is None:
@@ -752,7 +755,8 @@ class ScanningMicroscope(Detector):
 
         Args:
             optical_deflection (Quantity[u.deg/u.V]): 
-                The optical deflection (i. e. twice the mechanical angle) of the galvo mirrors as a function of applied voltage.
+                The optical deflection (i. e. twice the mechanical angle) of the mirror
+                 as a function of applied voltage.
             galvo_to_pupil_magnification (float):
                 The magnification of the relay system between the galvo mirrors and the pupil.
             objective_magnification (Quantity[u.mm]): 
@@ -777,13 +781,16 @@ class ScanningMicroscope(Detector):
                              maximum_current: Quantity[u.A]) -> Quantity[u.V / u.s ** 2]:
         """Computes the angular acceleration of the focus of the galvo mirror.
 
-         The result is returned in the unit V / second², where the voltage can be converted to displacement using the scale factor.
+         The result is returned in the unit V / second²,
+         where the voltage can be converted to displacement using the scale factor.
 
         Args:
             optical_deflection (Quantity[u.deg/u.V]):
-                The optical deflection (i. e. twice the mechanical angle) of the galvo mirrors as a function of applied voltage.
+                The optical deflection (i. e. twice the mechanical angle) of the mirror
+                 as a function of applied voltage.
             torque_constant (Quantity[u.N*u.m/u.A]):
-                The torque constant of the galvo mirror driving coil. May also be given in the equivalent unit of dyne·cm/A.
+                The torque constant of the galvo mirror driving coil.
+                May also be given in the equivalent unit of dyne·cm/A.
             rotor_inertia (Quantity[u.kg*u.m**2]):
                 The moment of inertia of the rotor. May also be given in the equivalent unit of g·cm².
             maximum_current (Quantity[u.A]):
