@@ -215,6 +215,7 @@ class ScanningMicroscope(Detector):
                  sample_rate: Quantity[u.MHz],
                  resolution: int,
                  reference_zoom: float, *,
+                 input_terminal_conf=TerminalConfiguration.DEFAULT,
                  delay: Quantity[u.us] = 0.0 * u.us,
                  bidirectional: bool = True,
                  multi_threaded: bool = True,
@@ -238,6 +239,7 @@ class ScanningMicroscope(Detector):
                 This may be an array of (height, width) conversion factors if the factors differ for the different axes.
             sample_rate (u.Hz):
                 Sample rate of the NI-DAQ input channel.
+            input_terminal_conf: Input terminal configuration.
             delay (u.us): Delay between mirror control and data acquisition, measured in microseconds
             reference_zoom (float): Zoom factor that corresponds to fitting the full field of view exactly.
                 The zoom factor in the `zoom` property is multiplied by the `reference_zoom` to compute the scan range.
@@ -249,7 +251,7 @@ class ScanningMicroscope(Detector):
         self._y_axis = y_axis
         self._x_axis = x_axis
         (self._input_channel, self._input_v_min, self._input_v_max) = input
-        self._input_terminal_configuration = input[3] if len(input) == 4 else TerminalConfiguration.DEFAULT
+        self._input_terminal_configuration = input_terminal_conf
         self._scale = scale.repeat(2) if scale.size == 1 else scale
         self._sample_rate = sample_rate.to(u.MHz)
         self._binning = 1  # binning factor
