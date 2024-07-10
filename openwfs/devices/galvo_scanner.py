@@ -541,7 +541,6 @@ class ScanningMicroscope(Detector):
     @property
     def duration(self) -> Quantity[u.ms]:
         """Total duration of scanning for one frame."""
-        self._ensure_valid()
         return (self._scan_pattern.shape[1] / self._sample_rate).to(u.ms)
 
     @property
