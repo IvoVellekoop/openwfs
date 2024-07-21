@@ -26,12 +26,16 @@ class CustomBlindDualReference:
     """
     A generic blind focusing dual reference WFS algorithm.
 
-    This generic WFS algorithm uses two sets of modes (set A and set B), similar to the Fourier Dual Reference method as
-    described in [1]. First, set A is used for phase stepping and set with a flat reference. We construct a correction
-    pattern from the A measurements. Then, we phase step B and use the A correction pattern as reference. This is
-    repeated to converge to a correction even with a non-local, non-linear feedback signal. This is known as blind
-    focusing [2]. This algorithm assumes a phase-only SLM. The input modes are defined by passing the corresponding
-    phase patterns to the algorithm.
+    Similar to the Fourier Dual Reference algorithm [1], the SLM is divided in two large segments (e.g. both halves,
+    split in the middle). The blind focusing dual reference algorithm switches back and forth multiple times between two
+    large segments of the SLM (A and B). The segment shape is defined with a binary mask. Each segment has a
+    corresponding set of phase patterns to measure. With these measurements, a correction pattern for one segment can
+    be computed. To achieve 'blind focusing' [2], in each iteration we use the previously constructed correction pattern
+    as reference. This makes this algorithm suitable for non-linear feedback, such as multi-photon excitation
+    fluorescence, and unsuitable for multi-target optimization.
+
+    This algorithm assumes a phase-only SLM. Hence, the input modes are defined by passing the corresponding phase
+    patterns as input argument.
 
     [1]: Bahareh Mastiani, Gerwin Osnabrugge, and Ivo M. Vellekoop,
     "Wavefront shaping for forward scattering", Optics Express 30, 37436-37445 (2022)
@@ -95,7 +99,7 @@ class CustomBlindDualReference:
 
     def execute(self) -> WFSResult:
         """
-        Executes the FourierDualRef algorithm, computing the SLM transmission matrix.
+        Executes the blind focusing dual reference algorithm and compute the SLM transmission matrix.
 
         Returns:
             WFSResult: An object containing the computed SLM transmission matrix and related data. The amplitude profile
@@ -121,22 +125,23 @@ class CustomBlindDualReference:
         else:
             progress_bar = None
 
+        # Switch the phase sets back and forth multiple times
         for it in range(self.iterations):
-            set = it % 2  # Pick set A or B for phase stepping
-            step_mask = self.set_masks[set]
+            s = it % 2  # Set id: 0 or 1. Used to pick set A or B for phase stepping
+            mod_mask = self.set_masks[s]
             t_prev = t_set
-            ref_phases = -np.angle(t_prev)  # Shaped reference pattern from transmission matrix
+            ref_phases = -np.angle(t_prev)  # Shaped reference phase pattern from transmission matrix
 
             # Measure and compute
-            result = self._single_side_experiment(step_phases=self.phases[set], ref_phases=ref_phases,
-                                                  step_mask=step_mask, progress_bar=progress_bar)
-            t_set = self.compute_t_set(result, self.modes[set])  # Compute transmission matrix from measurements
+            result = self._single_side_experiment(mod_phases=self.phases[s], ref_phases=ref_phases,
+                                                  mod_mask=mod_mask, progress_bar=progress_bar)
+            t_set = self.compute_t_set(result, self.modes[s])  # Compute transmission matrix from measurements
 
             # Store results
             t_full = t_prev + t_set
             t_set_all[it] = t_set  # Store transmission matrix
             results_all[it] = result  # Store result
-            results_latest[set] = result  # Store latest result for this set
+            results_latest[s] = result  # Store latest result for this set
 
             # Try full pattern
             if self.do_try_full_patterns:
@@ -168,54 +173,38 @@ class CustomBlindDualReference:
         result.full_pattern_feedback = full_pattern_feedback
         return result
 
-    def _single_side_experiment(self, step_phases: nd, ref_phases: nd, step_mask: nd,
+    def _single_side_experiment(self, mod_phases: nd, ref_phases: nd, mod_mask: nd,
                                 progress_bar: Optional[tqdm] = None) -> WFSResult:
         """
         Conducts experiments on one part of the SLM.
 
         Args:
-            step_phases: 3D array containing the phase patterns of each mode. Axis 0 and 1 are used as spatial axis.
-                Axis 2 is used for the mode index.
+            mod_phases: 3D array containing the phase patterns of each mode. Axis 0 and 1 are used as spatial axis.
+                Axis 2 is used for the 'phase pattern index' or 'mode index'.
             ref_phases: 2D array containing the reference phase pattern.
-            step_mask: 2D array containing a mask of 1s and 0s for the phase stepped modes.
+            mod_mask: 2D array containing a mask of 1s and 0s, where 1s indicate the modulated part of the SLM.
             progress_bar: An optional tqdm progress bar.
 
         Returns:
             WFSResult: An object containing the computed SLM transmission matrix and related data.
 
-        Note: In order to speed up calculations, I used np.float32 datatypes for the phases, with a mask, instead of
-        adding the complex128 fields and taking the np.angle. I did a quick test for this (on AMD Ryzen 7 3700X) for a
-        1000x1000 array, this brings down the phase pattern computation time from ~26ms (with complex128:
-        np.angle(field_B + field_A * np.exp(step))) to ~2ms (with float32: phases_B + (phases_A + step) * mask).
+        Note: In order to speed up calculations, I used np.float32 phases with a mask, instead of adding complex128
+        fields and taking the np.angle. I did a quick test for this (on AMD Ryzen 7 3700X) for a 1000x1000 array. This
+        brings down the phase pattern computation time from ~26ms to ~2ms.
+        Code comparison:
+        With complex128:    phase_pattern = np.angle(field_B + field_A * np.exp(step))      ~26ms per phase pattern
+        With float32:       phase_pattern = phases_B + (phases_A + step) * mask             ~2ms per phase pattern
         """
-        num_of_modes = step_phases.shape[2]
+        num_of_modes = mod_phases.shape[2]
         measurements = np.zeros((num_of_modes, self.phase_steps, *self.feedback.data_shape))
-        ref_phases_masked = (1.0 - step_mask) * ref_phases
+        ref_phases_masked = (1.0 - mod_mask) * ref_phases  # Pre-compute masked reference phase pattern
 
         for m in range(num_of_modes):
             for p in range(self.phase_steps):
                 phase_step = p * 2 * np.pi / self.phase_steps
-                phase_pattern = ref_phases_masked + step_mask * (step_phases[:, :, m] + phase_step)
+                phase_pattern = ref_phases_masked + mod_mask * (mod_phases[:, :, m] + phase_step)
                 self.slm.set_phases(phase_pattern)
                 self.feedback.trigger(out=measurements[m, p, ...])
-
-                # ###############
-                # plt.clf()
-                # plt.subplot(1, 4, 1)
-                # plt.imshow(ref_phases_masked, vmin=-np.pi, vmax=np.pi)
-                #
-                # plt.subplot(1,4,2)
-                # plt.imshow(step_phases[:, :, m], vmin=-np.pi, vmax=np.pi)
-                #
-                # plt.subplot(1,4,3)
-                # plt.imshow(step_mask)
-                #
-                # plt.subplot(1,4,4)
-                # plt.imshow(self.slm.pixels.read(), vmin=0, vmax=255)
-                # # plt.imshow(phase_pattern, vmin=-np.pi, vmax=np.pi)
-                # plt.title(f'm={m}, p={p}')
-                # plt.pause(0.02)
-                # ###############
 
             if progress_bar is not None:
                 progress_bar.update()
