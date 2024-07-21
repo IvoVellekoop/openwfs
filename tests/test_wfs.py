@@ -375,7 +375,7 @@ def test_ssa_fidelity(gaussian_noise_std):
 def test_custom_blind_dual_reference():
     do_debug = False
 
-    # Create set of modes
+    # Create set of plane wave modes
     N1 = 12
     N2 = 6
     M = N1 * N2
@@ -384,6 +384,7 @@ def test_custom_blind_dual_reference():
     mask = np.concatenate((np.zeros((N1, N2)), np.ones((N1, N2))), axis=1)
 
     if do_debug:
+        # Plot the modes
         import matplotlib.pyplot as plt
         plt.figure(figsize=(12, 7))
         for m in range(M):
@@ -394,22 +395,19 @@ def test_custom_blind_dual_reference():
             plt.yticks([])
         plt.pause(0.1)
 
+    # Create aberrations
     x = np.linspace(-1, 1, 1*N1).reshape((1, -1))
     y = np.linspace(-1, 1, 1*N1).reshape((-1, 1))
     aberrations = (np.sin(0.8*np.pi * x) * np.cos(1.3*np.pi*y) * (1.0*np.pi + 0.6*x + 0.6*y)) % (2*np.pi)
     aberrations[0:3, :] = 0
     aberrations[:, 0:3] = 0
+
     sim = SimulatedWFS(aberrations=aberrations.reshape((*aberrations.shape, 1)))
 
     alg = CustomBlindDualReference(feedback=sim, slm=sim.slm, slm_shape=aberrations.shape,
         modes=(mode_set, np.flip(mode_set, axis=1)), set1_mask=mask, phase_steps=4, iterations=4)
 
     result = alg.execute()
-
-    sim.slm.set_phases(0)
-    signal_flat = sim.read()
-    sim.slm.set_phases(-np.angle(result.t))
-    signal_shaped = sim.read()
 
     if do_debug:
         plt.figure()
