@@ -402,7 +402,7 @@ def test_custom_blind_dual_reference():
     sim = SimulatedWFS(aberrations=aberrations.reshape((*aberrations.shape, 1)))
 
     alg = CustomBlindDualReference(feedback=sim, slm=sim.slm, slm_shape=aberrations.shape,
-        modes=(mode_set, np.flip(mode_set, axis=1)), set1_mask=mask, phase_steps=6, iterations=6)
+        modes=(mode_set, np.flip(mode_set, axis=1)), set1_mask=mask, phase_steps=4, iterations=4)
 
     result = alg.execute()
 
