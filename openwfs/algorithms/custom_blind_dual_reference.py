@@ -30,7 +30,8 @@ class CustomBlindDualReference:
     described in [1]. First, set A is used for phase stepping and set with a flat reference. We construct a correction
     pattern from the A measurements. Then, we phase step B and use the A correction pattern as reference. This is
     repeated to converge to a correction even with a non-local, non-linear feedback signal. This is known as blind
-    focusing [2].
+    focusing [2]. This algorithm assumes a phase-only SLM. The input modes are defined by passing the corresponding
+    phase patterns to the algorithm.
 
     [1]: Bahareh Mastiani, Gerwin Osnabrugge, and Ivo M. Vellekoop,
     "Wavefront shaping for forward scattering", Optics Express 30, 37436-37445 (2022)
@@ -39,7 +40,7 @@ class CustomBlindDualReference:
     https://opg.optica.org/oe/ abstract.cfm?uri=oe-27-8-1167
     """
 
-    def __init__(self, feedback: Detector, slm: PhaseSLM, slm_shape: tuple[int, int], modes: tuple[nd, nd], set1_mask:
+    def __init__(self, feedback: Detector, slm: PhaseSLM, slm_shape: tuple[int, int], phases: tuple[nd, nd], set1_mask:
                  nd, phase_steps: int = 4, iterations: int = 4, analyzer: Optional[callable] = analyze_phase_stepping,
                  do_try_full_patterns=False, do_progress_bar=True, progress_bar_kwargs={}):
         #### TODO: Actually, we don't want to cut off the pattern at the pupil edge, just in case of misalignment.
@@ -55,10 +56,10 @@ class CustomBlindDualReference:
                 SLM,it may be overfilled, such that the `phases` image is mapped to an extent of e. g. (2.2, 2.2),
                 i. e. 10% larger than the back pupil.
             slm_shape (tuple[int, int]): The shape of the SLM patterns and transmission matrices.
-            modes (tuple): A tuple of two 3D complex arrays. We will refer to these as set A and B (modes[0] and
-                modes[1] respectively). The 3D arrays contain the set of modes (complex fields) to measure set A and B.
-                With both of these 3D arrays, axis 0 and 1 are used as spatial axes. Axis 2 is used as mode index. E.g.
-                modes[1][:, :, 4] is the 4th mode of set B.
+            phases (tuple): A tuple of two 3D arrays. We will refer to these as set A and B (phases[0] and
+                phases[1] respectively). The 3D arrays contain the set of phases to measure set A and B. With both of
+                these 3D arrays, axis 0 and 1 are used as spatial axes. Axis 2 is used as phase pattern index.
+                E.g. phases[1][:, :, 4] is the 4th phase pattern of set B.
             set1_mask: A 2D array of that defines the elements used by set A (= modes[0]) with 0s and elements used by
                 set B (= modes[1]) with 1s.
             phase_steps (int): The number of phase steps for each mode (default is 4). Depending on the type of
@@ -79,19 +80,27 @@ class CustomBlindDualReference:
         self.do_progress_bar = do_progress_bar
         self.progress_bar_kwargs = progress_bar_kwargs
 
-        assert (modes[0].shape[0] == modes[1].shape[0]) and (modes[0].shape[1] == modes[1].shape[1])
+        assert (phases[0].shape[0] == phases[1].shape[0]) and (phases[0].shape[1] == phases[1].shape[1])
+        self.phases = (phases[0].astype(np.float32), phases[1].astype(np.float32))
 
-        self.modes = modes
-        # Pre-compute the phases and mask for both mode sets
-        self.phases = (np.angle(modes[0]).astype(np.float32), np.angle(modes[1]).astype(np.float32))
-        self.set_masks = (1.0 - set1_mask.astype(dtype=np.float32), set1_mask.astype(dtype=np.float32))
+        # Pre-compute set0 mask
+        mask1 = set1_mask.astype(dtype=np.float32)
+        mask0 = 1.0 - mask1
+        self.set_masks = (mask0, mask1)
+
+        # Pre-compute the conjugate modes for reconstruction
+        modes0 = np.exp(-1j * self.phases[0]) * np.expand_dims(mask0, axis=2)
+        modes1 = np.exp(-1j * self.phases[1]) * np.expand_dims(mask1, axis=2)
+        self.modes = (modes0, modes1)
 
     def execute(self) -> WFSResult:
         """
         Executes the FourierDualRef algorithm, computing the SLM transmission matrix.
 
         Returns:
-            WFSResult: An object containing the computed SLM transmission matrix and related data.
+            WFSResult: An object containing the computed SLM transmission matrix and related data. The amplitude profile
+                of each mode is assumed to be 1. If a different amplitude profile is desired, this can be obtained by
+                multiplying that amplitude profile with this transmission matrix.
         """
 
         # Initial transmission matrix for reference is constant phase
@@ -232,5 +241,5 @@ class CustomBlindDualReference:
         """
         t = wfs_result.t.squeeze().reshape((1, 1, mode_set.shape[2]))
         norm_factor = np.prod(mode_set.shape[0:2])
-        t_set = (t * mode_set.conj()).sum(axis=2) / norm_factor
+        t_set = (t * mode_set).sum(axis=2) / norm_factor
         return t_set

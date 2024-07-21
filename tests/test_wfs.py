@@ -381,6 +381,7 @@ def test_custom_blind_dual_reference():
     M = N1 * N2
     mode_set_half = np.flip(np.fft.fft2(np.eye(M).reshape((N1, N2, M)), axes=(0, 1)), axis=1)
     mode_set = np.concatenate((mode_set_half, np.zeros(shape=(N1, N2, M))), axis=1)
+    phases_set = np.angle(mode_set)
     mask = np.concatenate((np.zeros((N1, N2)), np.ones((N1, N2))), axis=1)
 
     if do_debug:
@@ -398,14 +399,14 @@ def test_custom_blind_dual_reference():
     # Create aberrations
     x = np.linspace(-1, 1, 1*N1).reshape((1, -1))
     y = np.linspace(-1, 1, 1*N1).reshape((-1, 1))
-    aberrations = (np.sin(0.8*np.pi * x) * np.cos(1.3*np.pi*y) * (1.0*np.pi + 0.6*x + 0.6*y)) % (2*np.pi)
+    aberrations = (np.sin(0.8*np.pi * x) * np.cos(1.3*np.pi*y) * (0.8*np.pi + 0.4*x + 0.4*y)) % (2*np.pi)
     aberrations[0:3, :] = 0
     aberrations[:, 0:3] = 0
 
     sim = SimulatedWFS(aberrations=aberrations.reshape((*aberrations.shape, 1)))
 
     alg = CustomBlindDualReference(feedback=sim, slm=sim.slm, slm_shape=aberrations.shape,
-        modes=(mode_set, np.flip(mode_set, axis=1)), set1_mask=mask, phase_steps=4, iterations=4)
+        phases=(phases_set, np.flip(phases_set, axis=1)), set1_mask=mask, phase_steps=4, iterations=4)
 
     result = alg.execute()
 
@@ -420,4 +421,4 @@ def test_custom_blind_dual_reference():
         plt.colorbar()
         plt.show()
 
-    assert field_correlation(np.exp(1j*aberrations), result.t) > 0.999
+    assert np.abs(field_correlation(np.exp(1j*aberrations), result.t)) > 0.999
