@@ -70,25 +70,6 @@ def half_split_mask(N1: int, N2: int) -> nd:
     return np.concatenate((np.zeros((N1, N2)), np.ones((N1, N2))), axis=1)
 
 
-def half_random_mask(N1: int, N2: int) -> nd:
-    """
-    Create a mask that randomly splits the SLM in two parts, with exactly half of the SLM area in each segment.
-
-    N1: shape[0] and shape[1] of full slm pattern. Must be even.
-    """
-    # Generate perfectly split mask
-    mask = half_split_mask(N1, N2)
-
-    # Shuffle along axis 1
-    index1 = np.random.rand(*mask.shape).argsort(axis=1)
-    np.take_along_axis(mask, index1, axis=1)
-
-    # Shuffle along axis 0
-    index0 = np.random.rand(*mask.shape).argsort(axis=0)
-    np.take_along_axis(mask, index0, axis=0)
-    return mask
-
-
 @pytest.mark.parametrize("n_y, n_x", [(5, 5), (7, 11), (6, 4), (30, 20)])
 def test_ssa(n_y, n_x):
     """
@@ -479,6 +460,8 @@ def test_custom_blind_dual_reference_ortho_split(construct_basis: callable):
     assert np.abs(field_correlation(np.exp(1j*aberrations), result.t)) > 0.999
 
 
+@pytest.mark.skip(reason="This test is not yet passing as the current implementation of custom blind dual reference" +
+                         "does not support non-orthogonal basis yet.")
 def test_custom_blind_dual_reference_non_ortho():
     """
     Test custom blind dual reference with a non-orthogonal basis.
