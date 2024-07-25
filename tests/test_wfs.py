@@ -1,8 +1,10 @@
 import astropy.units as u
 import numpy as np
+from numpy import ndarray as nd
 import pytest
 import skimage
 from scipy.ndimage import zoom
+from scipy.linalg import hadamard
 from skimage.transform import resize
 
 from ..openwfs.algorithms import StepwiseSequential, FourierDualReference, FourierDualReferenceCircle, \
@@ -34,6 +36,57 @@ def assert_enhancement(slm, feedback, wfs_results, t_correct=None):
         t = wfs_results.t[:]
         corr = np.abs(np.vdot(t_correct, t) / np.sqrt(np.vdot(t_correct, t_correct) * np.vdot(t, t)))
         assert corr > 1.0 - 2.0 / np.sqrt(wfs_results.n)
+
+
+def half_plane_wave_basis(N1: int, N2: int) -> nd:
+    """
+    Create a plane wave basis for one half of the SLM.
+
+    N1: shape[0] of SLM pattern half
+    N2: shape[1] of SLM pattern half
+    """
+    M = N1 * N2
+    return np.fft.fft2(np.eye(M).reshape((N1, N2, M)), axes=(0, 1))
+
+
+def half_hadamard_basis(N1: int, N2: int) -> nd:
+    """
+    Create a Hadamard basis for one half of the SLM. N1 and N2 must be powers of 2.
+
+    N1: shape[0] of SLM pattern half
+    N2: shape[1] of SLM pattern half
+    """
+    M = N1 * N2
+    return hadamard(M, dtype=np.complex128).reshape((N1, N2, M))
+
+
+def half_split_mask(N1: int, N2: int) -> nd:
+    """
+    Create a mask that splits the slm in the center in a left and right half.
+
+    N1: shape[0] of slm pattern half
+    N2: shape[1] of slm pattern half
+    """
+    return np.concatenate((np.zeros((N1, N2)), np.ones((N1, N2))), axis=1)
+
+
+def half_random_mask(N1: int, N2: int) -> nd:
+    """
+    Create a mask that randomly splits the SLM in two parts, with exactly half of the SLM area in each segment.
+
+    N1: shape[0] and shape[1] of full slm pattern. Must be even.
+    """
+    # Generate perfectly split mask
+    mask = half_split_mask(N1, N2)
+
+    # Shuffle along axis 1
+    index1 = np.random.rand(*mask.shape).argsort(axis=1)
+    np.take_along_axis(mask, index1, axis=1)
+
+    # Shuffle along axis 0
+    index0 = np.random.rand(*mask.shape).argsort(axis=0)
+    np.take_along_axis(mask, index0, axis=0)
+    return mask
 
 
 @pytest.mark.parametrize("n_y, n_x", [(5, 5), (7, 11), (6, 4), (30, 20)])
@@ -372,14 +425,71 @@ def test_ssa_fidelity(gaussian_noise_std):
     assert np.isclose(trouble.measured_enhancement, trouble.expected_enhancement, rtol=0.2)
 
 
-def test_custom_blind_dual_reference():
+@pytest.mark.parametrize("construct_basis", (half_plane_wave_basis, half_hadamard_basis))
+def test_custom_blind_dual_reference_ortho_split(construct_basis: callable):
+    """Test custom blind dual reference with an orthonormal phase-only basis."""
     do_debug = False
 
-    # Create set of plane wave modes
-    N1 = 12
-    N2 = 6
+    # Create set of phase-only orthonormal modes
+    N1 = 8
+    N2 = 4
     M = N1 * N2
-    mode_set_half = np.flip(np.fft.fft2(np.eye(M).reshape((N1, N2, M)), axes=(0, 1)), axis=1)
+    mode_set_half = construct_basis(N1, N2)
+    mode_set = np.concatenate((mode_set_half, np.zeros(shape=(N1, N2, M))), axis=1)
+    phases_set = np.angle(mode_set)
+    mask = half_split_mask(N1, N2)
+
+    if do_debug:
+        # Plot the modes
+        import matplotlib.pyplot as plt
+        plt.figure(figsize=(12, 7))
+        for m in range(M):
+            plt.subplot(N2, N1, m + 1)
+            plt.imshow(np.angle(mode_set[:, :, m]), vmin=-np.pi, vmax=np.pi)
+            plt.title(f'm={m}')
+            plt.xticks([])
+            plt.yticks([])
+        plt.pause(0.1)
+
+    # Create aberrations
+    x = np.linspace(-1, 1, 1*N1).reshape((1, -1))
+    y = np.linspace(-1, 1, 1*N1).reshape((-1, 1))
+    aberrations = (np.sin(0.8*np.pi * x) * np.cos(1.3*np.pi*y) * (0.8*np.pi + 0.4*x + 0.4*y)) % (2*np.pi)
+    aberrations[0:2, :] = 0
+    aberrations[:, 0:2] = 0
+
+    sim = SimulatedWFS(aberrations=aberrations.reshape((*aberrations.shape, 1)))
+
+    alg = CustomBlindDualReference(feedback=sim, slm=sim.slm, slm_shape=aberrations.shape,
+        phases=(phases_set, np.flip(phases_set, axis=1)), set1_mask=mask, phase_steps=4, iterations=4)
+
+    result = alg.execute()
+
+    if do_debug:
+        plt.figure()
+        plt.imshow(np.angle(np.exp(1j*aberrations)), vmin=-np.pi, vmax=np.pi, cmap='hsv')
+        plt.title('Aberrations')
+
+        plt.figure()
+        plt.imshow(np.angle(result.t), vmin=-np.pi, vmax=np.pi, cmap='hsv')
+        plt.title('t')
+        plt.colorbar()
+        plt.show()
+
+    assert np.abs(field_correlation(np.exp(1j*aberrations), result.t)) > 0.999
+
+
+def test_custom_blind_dual_reference_non_ortho():
+    """
+    Test custom blind dual reference with a non-orthogonal basis.
+    """
+    do_debug = True
+
+    # Create set of modes that are barely linearly independent
+    N1 = 8
+    N2 = 4
+    M = N1 * N2
+    mode_set_half = (1/M) * (1j*np.eye(M).reshape((N1, N2, M)) * -np.ones(shape=(N1, N2, M)))
     mode_set = np.concatenate((mode_set_half, np.zeros(shape=(N1, N2, M))), axis=1)
     phases_set = np.angle(mode_set)
     mask = np.concatenate((np.zeros((N1, N2)), np.ones((N1, N2))), axis=1)
@@ -400,13 +510,13 @@ def test_custom_blind_dual_reference():
     x = np.linspace(-1, 1, 1*N1).reshape((1, -1))
     y = np.linspace(-1, 1, 1*N1).reshape((-1, 1))
     aberrations = (np.sin(0.8*np.pi * x) * np.cos(1.3*np.pi*y) * (0.8*np.pi + 0.4*x + 0.4*y)) % (2*np.pi)
-    aberrations[0:3, :] = 0
+    aberrations[0:2, :] = 0
     aberrations[:, 0:3] = 0
 
     sim = SimulatedWFS(aberrations=aberrations.reshape((*aberrations.shape, 1)))
 
     alg = CustomBlindDualReference(feedback=sim, slm=sim.slm, slm_shape=aberrations.shape,
-        phases=(phases_set, np.flip(phases_set, axis=1)), set1_mask=mask, phase_steps=4, iterations=4)
+                                   phases=(phases_set, np.flip(phases_set, axis=1)), set1_mask=mask, phase_steps=4, iterations=4)
 
     result = alg.execute()
 
