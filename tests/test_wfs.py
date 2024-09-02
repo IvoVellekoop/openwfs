@@ -406,6 +406,42 @@ def test_ssa_fidelity(gaussian_noise_std):
     assert np.isclose(trouble.measured_enhancement, trouble.expected_enhancement, rtol=0.2)
 
 
+def test_ssa_aberration_reconstruction():
+    """Test if SSA can closely reconstruct the ground truth aberrations."""
+    do_debug = False
+
+    n_x = 6
+    n_y = 5
+
+    # Create aberrations
+    x = np.linspace(-1, 1, n_x).reshape((1, -1))
+    y = np.linspace(-1, 1, n_y).reshape((-1, 1))
+    aberrations = (np.sin(0.8*np.pi * x) * np.cos(1.3*np.pi*y) * (0.8*np.pi + 0.4*x + 0.4*y)) % (2*np.pi)
+    aberrations[0:1, :] = 0
+    aberrations[:, 0:1] = 0
+
+    # Initialize simulation and algorithm
+    sim = SimulatedWFS(aberrations=aberrations.reshape((*aberrations.shape, 1)))
+
+    alg = StepwiseSequential(feedback=sim, slm=sim.slm, n_x=n_x, n_y=n_y, phase_steps=4)
+
+    result = alg.execute()
+
+    if do_debug:
+        import matplotlib.pyplot as plt
+        plt.figure()
+        plt.imshow(np.angle(np.exp(1j*aberrations)), vmin=-np.pi, vmax=np.pi, cmap='hsv')
+        plt.title('Aberrations')
+
+        plt.figure()
+        plt.imshow(np.angle(result.t), vmin=-np.pi, vmax=np.pi, cmap='hsv')
+        plt.title('t')
+        plt.colorbar()
+        plt.show()
+
+    assert np.abs(field_correlation(np.exp(1j*aberrations), result.t)) > 0.99
+
+
 @pytest.mark.parametrize("construct_basis", (half_plane_wave_basis, half_hadamard_basis))
 def test_custom_blind_dual_reference_ortho_split(construct_basis: callable):
     """Test custom blind dual reference with an orthonormal phase-only basis."""
