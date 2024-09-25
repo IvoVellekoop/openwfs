@@ -8,7 +8,7 @@ from scipy.linalg import hadamard
 from skimage.transform import resize
 
 from ..openwfs.algorithms import StepwiseSequential, FourierDualReference, FourierDualReferenceCircle, \
-    CustomBlindDualReference, troubleshoot
+    CustomIterativeDualReference, troubleshoot
 from ..openwfs.algorithms.utilities import WFSController
 from ..openwfs.algorithms.troubleshoot import field_correlation
 from ..openwfs.processors import SingleRoi
@@ -477,8 +477,8 @@ def test_custom_blind_dual_reference_ortho_split(construct_basis: callable):
 
     sim = SimulatedWFS(aberrations=aberrations.reshape((*aberrations.shape, 1)))
 
-    alg = CustomBlindDualReference(feedback=sim, slm=sim.slm, slm_shape=aberrations.shape,
-        phases=(phases_set, np.flip(phases_set, axis=1)), set1_mask=mask, phase_steps=4, iterations=4)
+    alg = CustomIterativeDualReference(feedback=sim, slm=sim.slm, slm_shape=aberrations.shape,
+                                       phases=(phases_set, np.flip(phases_set, axis=1)), set1_mask=mask, phase_steps=4, iterations=4)
 
     result = alg.execute()
 
@@ -505,8 +505,8 @@ def test_custom_blind_dual_reference_non_ortho():
     do_debug = True
 
     # Create set of modes that are barely linearly independent
-    N1 = 8
-    N2 = 4
+    N1 = 6
+    N2 = 3
     M = N1 * N2
     mode_set_half = (1/M) * (1j*np.eye(M).reshape((N1, N2, M)) * -np.ones(shape=(N1, N2, M)))
     mode_set = np.concatenate((mode_set_half, np.zeros(shape=(N1, N2, M))), axis=1)
@@ -523,19 +523,20 @@ def test_custom_blind_dual_reference_non_ortho():
             plt.title(f'm={m}')
             plt.xticks([])
             plt.yticks([])
-        plt.pause(0.1)
+        plt.pause(0.01)
+        plt.suptitle('Phase of basis functions for one half')
 
     # Create aberrations
     x = np.linspace(-1, 1, 1*N1).reshape((1, -1))
     y = np.linspace(-1, 1, 1*N1).reshape((-1, 1))
     aberrations = (np.sin(0.8*np.pi * x) * np.cos(1.3*np.pi*y) * (0.8*np.pi + 0.4*x + 0.4*y)) % (2*np.pi)
-    aberrations[0:2, :] = 0
-    aberrations[:, 0:3] = 0
+    aberrations[0:1, :] = 0
+    aberrations[:, 0:2] = 0
 
     sim = SimulatedWFS(aberrations=aberrations.reshape((*aberrations.shape, 1)))
 
-    alg = CustomBlindDualReference(feedback=sim, slm=sim.slm, slm_shape=aberrations.shape,
-                                   phases=(phases_set, np.flip(phases_set, axis=1)), set1_mask=mask, phase_steps=4, iterations=4)
+    alg = CustomIterativeDualReference(feedback=sim, slm=sim.slm, slm_shape=aberrations.shape,
+                                       phases=(phases_set, np.flip(phases_set, axis=1)), set1_mask=mask, phase_steps=4, iterations=4)
 
     result = alg.execute()
 
@@ -543,6 +544,7 @@ def test_custom_blind_dual_reference_non_ortho():
         plt.figure()
         plt.imshow(np.angle(np.exp(1j*aberrations)), vmin=-np.pi, vmax=np.pi, cmap='hsv')
         plt.title('Aberrations')
+        plt.colorbar()
 
         plt.figure()
         plt.imshow(np.angle(result.t), vmin=-np.pi, vmax=np.pi, cmap='hsv')

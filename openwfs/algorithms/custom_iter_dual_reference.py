@@ -22,17 +22,17 @@ def weighted_average(a, b, wa, wb):
     return (a * wa + b * wb) / (wa + wb)
 
 
-class CustomBlindDualReference:
+class CustomIterativeDualReference:
     """
-    A generic blind focusing dual reference WFS algorithm.
+    A generic iterative dual reference WFS algorithm, which can use a custom set of basis functions.
 
     Similar to the Fourier Dual Reference algorithm [1], the SLM is divided in two large segments (e.g. both halves,
     split in the middle). The blind focusing dual reference algorithm switches back and forth multiple times between two
     large segments of the SLM (A and B). The segment shape is defined with a binary mask. Each segment has a
     corresponding set of phase patterns to measure. With these measurements, a correction pattern for one segment can
-    be computed. To achieve 'blind focusing' [2], in each iteration we use the previously constructed correction pattern
-    as reference. This makes this algorithm suitable for non-linear feedback, such as multi-photon excitation
-    fluorescence, and unsuitable for multi-target optimization.
+    be computed. To achieve convergence or 'blind focusing' [2], in each iteration we use the previously constructed
+    correction pattern as reference. This makes this algorithm suitable for non-linear feedback, such as multi-photon
+    excitation fluorescence, and unsuitable for multi-target optimization.
 
     This algorithm assumes a phase-only SLM. Hence, the input modes are defined by passing the corresponding phase
     patterns as input argument.
@@ -47,9 +47,6 @@ class CustomBlindDualReference:
     def __init__(self, feedback: Detector, slm: PhaseSLM, slm_shape: tuple[int, int], phases: tuple[nd, nd], set1_mask:
                  nd, phase_steps: int = 4, iterations: int = 4, analyzer: Optional[callable] = analyze_phase_stepping,
                  do_try_full_patterns=False, do_progress_bar=True, progress_bar_kwargs={}):
-        #### TODO: Actually, we don't want to cut off the pattern at the pupil edge, just in case of misalignment.
-        #### TODO: Moreover, the amplitude profile doesn't really add anything. You can compute the same pattern without
-        #### TODO: it, and multiply with it later if you want to.
         """
         Args:
             feedback (Detector): The feedback source, usually a detector that provides measurement data.
@@ -67,12 +64,14 @@ class CustomBlindDualReference:
             set1_mask: A 2D array of that defines the elements used by set A (= modes[0]) with 0s and elements used by
                 set B (= modes[1]) with 1s.
             phase_steps (int): The number of phase steps for each mode (default is 4). Depending on the type of
-                non-linear feedback. More might be required.
+                non-linear feedback and the SNR, more might be required.
             iterations (int): Number of times to measure a mode set, e.g. when iterations = 5, the measurements are
                 A, B, A, B, A.
             analyzer (callable): The function used to analyze the phase stepping data. Must return a WFSResult object.
             do_try_full_patterns (bool): Whether to measure feedback from the full patterns each iteration. This can
                 be useful to determine how many iterations are needed to converge to an optimal pattern.
+            do_progress_bar (bool): Whether to print a tqdm progress bar during algorithm execution.
+            progress_bar_kwargs (dict): Dictionary containing keyword arguments for the tqdm progress bar.
         """
         self.slm = slm
         self.feedback = feedback

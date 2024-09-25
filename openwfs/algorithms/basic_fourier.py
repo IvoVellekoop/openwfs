@@ -14,6 +14,11 @@ def build_square_k_space(k_min, k_max, k_step=1.0):
     Fills the k_left and k_right matrices with the same k-space. (k_x, k_y) denote the k-space coordinates of the whole
     pupil. Only half SLM (and thus pupil) is modulated at a time, hence k_y (axis=1) must make steps of 2.
 
+    Args:
+        k_min: Minimum value for k_x and k_y, without k_step scaling applied.
+        k_max: Maximum value for k_x and k_y, without k_step scaling applied.
+        k_step: Scaling factor for the steps in k-space.
+
     Returns:
         k_space (np.ndarray): A 2xN array of k-space coordinates.
     """
@@ -163,7 +168,7 @@ class FourierDualReferenceCircle(FourierBase):
         self._build_k_space()
 
     def plot_k_space(self):
-        """Plots the k-space coordinates."""
+        """Plots the k-space coordinates. Useful for debugging."""
         phi = np.linspace(0, 2 * np.pi, 200)
         x = self.k_radius * np.cos(phi)
         y = self.k_radius * np.sin(phi)

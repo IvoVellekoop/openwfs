@@ -244,9 +244,9 @@ class ScanningMicroscope(Detector):
             reference_zoom (float): Zoom factor that corresponds to fitting the full field of view exactly.
                 The zoom factor in the `zoom` property is multiplied by the `reference_zoom` to compute the scan range.
             bidirectional (bool): If true, enables bidirectional scanning along the fast axis.
-            preprocessor (callable): Process the raw data with this function before cropping. When None, the preprocessing
-                will be skipped. The function must take input arguments data and sample_rate, and must return the
-                preprocessed data.
+            preprocessor (callable): Process the raw data with this function before cropping. When None, the
+                preprocessing will be skipped. The function must take input arguments data and sample_rate, and must
+                return the preprocessed data.
         """
         self._y_axis = y_axis
         self._x_axis = x_axis
