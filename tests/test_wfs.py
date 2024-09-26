@@ -1,16 +1,16 @@
 import astropy.units as u
 import numpy as np
-from numpy import ndarray as nd
 import pytest
 import skimage
-from scipy.ndimage import zoom
+from numpy import ndarray as nd
 from scipy.linalg import hadamard
+from scipy.ndimage import zoom
 from skimage.transform import resize
 
 from ..openwfs.algorithms import StepwiseSequential, FourierDualReference, FourierDualReferenceCircle, \
     CustomIterativeDualReference, troubleshoot
-from ..openwfs.algorithms.utilities import WFSController
 from ..openwfs.algorithms.troubleshoot import field_correlation
+from ..openwfs.algorithms.utilities import WFSController
 from ..openwfs.processors import SingleRoi
 from ..openwfs.simulation import SimulatedWFS, StaticSource, SLM, Microscope, ADCProcessor, Shutter
 from ..openwfs.utilities import set_pixel_size, tilt
@@ -190,7 +190,7 @@ def test_fourier3():
     assert_enhancement(sim.slm, sim, controller._result, np.exp(1j * scaled_aberration))
 
 
-@pytest.mark.parametrize("k_radius, g", [[2.5, (1.0, 0.0)], [2.5, (0.0, 2.0)]],)
+@pytest.mark.parametrize("k_radius, g", [[2.5, (1.0, 0.0)], [2.5, (0.0, 2.0)]], )
 def test_fourier_circle(k_radius, g):
     """
     Test Fourier dual reference algorithm with a circular k-space, with a tilt 'aberration'.
@@ -290,7 +290,6 @@ def test_flat_wf_response_fourier():
     aberrations = np.zeros(shape=(512, 512))
     sim = SimulatedWFS(aberrations=aberrations.reshape((*aberrations.shape, 1)))
 
-    from ..openwfs.algorithms.basic_fourier import FourierDualReferenceCircle
     alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-1,
                                k_angles_max=1, phase_steps=3)
 
@@ -416,7 +415,7 @@ def test_ssa_aberration_reconstruction():
     # Create aberrations
     x = np.linspace(-1, 1, n_x).reshape((1, -1))
     y = np.linspace(-1, 1, n_y).reshape((-1, 1))
-    aberrations = (np.sin(0.8*np.pi * x) * np.cos(1.3*np.pi*y) * (0.8*np.pi + 0.4*x + 0.4*y)) % (2*np.pi)
+    aberrations = (np.sin(0.8 * np.pi * x) * np.cos(1.3 * np.pi * y) * (0.8 * np.pi + 0.4 * x + 0.4 * y)) % (2 * np.pi)
     aberrations[0:1, :] = 0
     aberrations[:, 0:1] = 0
 
@@ -430,7 +429,7 @@ def test_ssa_aberration_reconstruction():
     if do_debug:
         import matplotlib.pyplot as plt
         plt.figure()
-        plt.imshow(np.angle(np.exp(1j*aberrations)), vmin=-np.pi, vmax=np.pi, cmap='hsv')
+        plt.imshow(np.angle(np.exp(1j * aberrations)), vmin=-np.pi, vmax=np.pi, cmap='hsv')
         plt.title('Aberrations')
 
         plt.figure()
@@ -439,7 +438,7 @@ def test_ssa_aberration_reconstruction():
         plt.colorbar()
         plt.show()
 
-    assert np.abs(field_correlation(np.exp(1j*aberrations), result.t)) > 0.99
+    assert np.abs(field_correlation(np.exp(1j * aberrations), result.t)) > 0.99
 
 
 @pytest.mark.parametrize("construct_basis", (half_plane_wave_basis, half_hadamard_basis))
@@ -469,22 +468,23 @@ def test_custom_blind_dual_reference_ortho_split(construct_basis: callable):
         plt.pause(0.1)
 
     # Create aberrations
-    x = np.linspace(-1, 1, 1*N1).reshape((1, -1))
-    y = np.linspace(-1, 1, 1*N1).reshape((-1, 1))
-    aberrations = (np.sin(0.8*np.pi * x) * np.cos(1.3*np.pi*y) * (0.8*np.pi + 0.4*x + 0.4*y)) % (2*np.pi)
+    x = np.linspace(-1, 1, 1 * N1).reshape((1, -1))
+    y = np.linspace(-1, 1, 1 * N1).reshape((-1, 1))
+    aberrations = (np.sin(0.8 * np.pi * x) * np.cos(1.3 * np.pi * y) * (0.8 * np.pi + 0.4 * x + 0.4 * y)) % (2 * np.pi)
     aberrations[0:2, :] = 0
     aberrations[:, 0:2] = 0
 
     sim = SimulatedWFS(aberrations=aberrations.reshape((*aberrations.shape, 1)))
 
     alg = CustomIterativeDualReference(feedback=sim, slm=sim.slm, slm_shape=aberrations.shape,
-                                       phases=(phases_set, np.flip(phases_set, axis=1)), set1_mask=mask, phase_steps=4, iterations=4)
+                                       phases=(phases_set, np.flip(phases_set, axis=1)), set1_mask=mask, phase_steps=4,
+                                       iterations=4)
 
     result = alg.execute()
 
     if do_debug:
         plt.figure()
-        plt.imshow(np.angle(np.exp(1j*aberrations)), vmin=-np.pi, vmax=np.pi, cmap='hsv')
+        plt.imshow(np.angle(np.exp(1j * aberrations)), vmin=-np.pi, vmax=np.pi, cmap='hsv')
         plt.title('Aberrations')
 
         plt.figure()
@@ -493,11 +493,9 @@ def test_custom_blind_dual_reference_ortho_split(construct_basis: callable):
         plt.colorbar()
         plt.show()
 
-    assert np.abs(field_correlation(np.exp(1j*aberrations), result.t)) > 0.999
+    assert np.abs(field_correlation(np.exp(1j * aberrations), result.t)) > 0.999
 
 
-@pytest.mark.skip(reason="This test is not yet passing as the current implementation of custom blind dual reference" +
-                         "does not support non-orthogonal basis yet.")
 def test_custom_blind_dual_reference_non_ortho():
     """
     Test custom blind dual reference with a non-orthogonal basis.
@@ -508,7 +506,7 @@ def test_custom_blind_dual_reference_non_ortho():
     N1 = 6
     N2 = 3
     M = N1 * N2
-    mode_set_half = (1/M) * (1j*np.eye(M).reshape((N1, N2, M)) * -np.ones(shape=(N1, N2, M)))
+    mode_set_half = (1 / M) * (1j * np.eye(M).reshape((N1, N2, M)) * -np.ones(shape=(N1, N2, M)))
     mode_set = np.concatenate((mode_set_half, np.zeros(shape=(N1, N2, M))), axis=1)
     phases_set = np.angle(mode_set)
     mask = np.concatenate((np.zeros((N1, N2)), np.ones((N1, N2))), axis=1)
@@ -527,22 +525,23 @@ def test_custom_blind_dual_reference_non_ortho():
         plt.suptitle('Phase of basis functions for one half')
 
     # Create aberrations
-    x = np.linspace(-1, 1, 1*N1).reshape((1, -1))
-    y = np.linspace(-1, 1, 1*N1).reshape((-1, 1))
-    aberrations = (np.sin(0.8*np.pi * x) * np.cos(1.3*np.pi*y) * (0.8*np.pi + 0.4*x + 0.4*y)) % (2*np.pi)
+    x = np.linspace(-1, 1, 1 * N1).reshape((1, -1))
+    y = np.linspace(-1, 1, 1 * N1).reshape((-1, 1))
+    aberrations = (np.sin(0.8 * np.pi * x) * np.cos(1.3 * np.pi * y) * (0.8 * np.pi + 0.4 * x + 0.4 * y)) % (2 * np.pi)
     aberrations[0:1, :] = 0
     aberrations[:, 0:2] = 0
 
     sim = SimulatedWFS(aberrations=aberrations.reshape((*aberrations.shape, 1)))
 
     alg = CustomIterativeDualReference(feedback=sim, slm=sim.slm, slm_shape=aberrations.shape,
-                                       phases=(phases_set, np.flip(phases_set, axis=1)), set1_mask=mask, phase_steps=4, iterations=4)
+                                       phases=(phases_set, np.flip(phases_set, axis=1)), set1_mask=mask, phase_steps=4,
+                                       iterations=4)
 
     result = alg.execute()
 
     if do_debug:
         plt.figure()
-        plt.imshow(np.angle(np.exp(1j*aberrations)), vmin=-np.pi, vmax=np.pi, cmap='hsv')
+        plt.imshow(np.angle(np.exp(1j * aberrations)), vmin=-np.pi, vmax=np.pi, cmap='hsv')
         plt.title('Aberrations')
         plt.colorbar()
 
@@ -552,4 +551,4 @@ def test_custom_blind_dual_reference_non_ortho():
         plt.colorbar()
         plt.show()
 
-    assert np.abs(field_correlation(np.exp(1j*aberrations), result.t)) > 0.999
+    assert np.abs(field_correlation(np.exp(1j * aberrations), result.t)) > 0.999

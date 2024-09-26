@@ -7,3 +7,7 @@
 # General
 
 - PyCharm autoformatting should be enabled to ensure correct formatting.
+
+# Tests
+
+- Tests must *not* plot figures.
