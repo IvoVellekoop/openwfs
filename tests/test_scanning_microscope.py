@@ -2,6 +2,9 @@ import astropy.units as u
 import numpy as np
 import pytest
 
+pytest.importorskip('nidaqmx',
+                    reason='nidaqmx is required for the ScanningMicroscope module, install with pip install nidaqmx')
+
 from ..openwfs.devices import ScanningMicroscope, Axis
 from ..openwfs.devices.galvo_scanner import InputChannel
 from ..openwfs.utilities import coordinate_range

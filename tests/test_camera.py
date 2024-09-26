@@ -1,5 +1,9 @@
-from ..openwfs.devices import Camera
 import pytest
+
+pytest.importorskip('harvesters',
+                    reason='harvesters is required for the Camera module, install with pip install harvesters')
+
+from ..openwfs.devices import Camera
 
 cti_path = R"C:\Program Files\Basler\pylon 7\Runtime\x64\ProducerU3V.cti"
 

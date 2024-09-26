@@ -3,7 +3,17 @@ from typing import Optional
 import astropy.units as u
 import numpy as np
 from astropy.units import Quantity
-from harvesters.core import Harvester
+
+try:
+    from harvesters.core import Harvester
+except ImportError:
+    raise ImportError(
+        """The harvesters package is required for the Camera class. 
+        To install: 
+         ```pip install harvesters```
+         Alternatively, specify the genicam dependency when installing openwfs:
+         ```pip install openwfs[genicam]```
+        """)
 
 from ..core import Detector
 

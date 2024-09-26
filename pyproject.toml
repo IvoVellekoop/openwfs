@@ -19,32 +19,45 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.dependencies]
-python = ">=3.9, <3.12"    # The genicam dependency is currently not available for Python 3.12
+# required dependencies
+python = ">=3.9"
 numpy = ">=1.25.2"
 astropy = ">=5.3.4"
 glfw = ">=2.5.9"
 opencv-python = ">=4.9.0.80"
 matplotlib = ">=3.7.3"
 scipy = ">=1.11.3"
-nidaqmx = ">=0.8.0"
-harvesters = "~1.4.2"
 annotated-types = "~0.7.0"
-tqdm = "^4.66.2"
+tqdm = "^4.66.2" # TODO: remove dependency
 
 [tool.poetry.group.opengl.dependencies]
+# also required, but can be omitted explicitly using the without option
+# this is used for read the docs, which has trouble with the OpenGL dependency
 PyOpenGL = ">=3.1.7"
+
+[tool.poetry.optional-dependencies]
+# optional dependencies for hardware components
+# these are not required for the core functionality of the library
+# to install, use pip install openwfs[nidaq, genicam]
+nidaq = ["nidaqmx >=0.8.0"]
+genicam = ["harvesters=~1.4.2"]
 
 [tool.poetry.group.dev]
 optional = true
 
 [tool.poetry.group.dev.dependencies]
+# development dependencies, used for testing only, not needed for normal use
+# to install, use pip install openwfs[dev]
 scikit-image = ">=0.21.0"
 pytest = "~7.0.0"
+nidaq = "nidaqmx >=0.8.0" # we can test without the hardware, but still need the package
 
 [tool.poetry.group.docs]
 optional = true
 
 [tool.poetry.group.docs.dependencies]
+# documentation dependencies, used for building the sphinx documentation only
+# to install, use pip install openwfs[sphinx]
 sphinx = ">=4.1.2"
 sphinx_mdinclude = ">= 0.5.0"
 sphinx-rtd-theme = ">= 2.0.0"

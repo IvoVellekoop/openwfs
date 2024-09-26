@@ -3,13 +3,23 @@ from enum import Enum
 from typing import Optional, Annotated, Union
 
 import astropy.units as u
-import nidaqmx as ni
-import nidaqmx.system
 import numpy as np
 from annotated_types import Ge, Le
 from astropy.units import Quantity
-from nidaqmx.constants import TaskMode, TerminalConfiguration
-from nidaqmx.stream_writers import AnalogMultiChannelWriter
+
+try:
+    import nidaqmx as ni
+    import nidaqmx.system
+    from nidaqmx.constants import TerminalConfiguration, DigitalWidthUnits
+    from nidaqmx.stream_writers import AnalogMultiChannelWriter
+except ImportError:
+    raise ImportError(
+        """The nidaqmx package is required for the ScanningMicroscope class, even when only using test data. 
+        To install: 
+         ```pip install nidaqmx```
+         Alternatively, specify the genicam dependency when installing openwfs:
+         ```pip install openwfs[nidaq]```
+        """)
 
 from ..core import Detector
 from ..utilities import unitless
@@ -497,7 +507,7 @@ class ScanningMicroscope(Detector):
         delay = self._delay.to_value(u.s)
         if delay > 0.0:
             self._read_task.triggers.start_trigger.delay = delay
-            self._read_task.triggers.start_trigger.delay_units = nidaqmx.constants.DigitalWidthUnits.SECONDS
+            self._read_task.triggers.start_trigger.delay_units = DigitalWidthUnits.SECONDS
 
         self._writer = AnalogMultiChannelWriter(self._write_task.out_stream)
         self._valid = True
