@@ -210,7 +210,7 @@ class ScanningMicroscope(Detector):
     """
 
     def __init__(self,
-                 input: tuple[str, Quantity[u.V], Quantity[u.V]],  # noqa
+                 input: tuple[str, Quantity[u.V], Quantity[u.V], Optional[]],  # noqa
                  y_axis: Axis,
                  x_axis: Axis,
                  scale: Quantity[u.um / u.V],
@@ -244,10 +244,9 @@ class ScanningMicroscope(Detector):
             reference_zoom (float): Zoom factor that corresponds to fitting the full field of view exactly.
                 The zoom factor in the `zoom` property is multiplied by the `reference_zoom` to compute the scan range.
             bidirectional (bool): If true, enables bidirectional scanning along the fast axis.
-            preprocessor (callable): Process the raw data with this function before cropping.
-                When None, the preprocessing will be skipped.
-                The preprocessor function must take input arguments data and sample_rate, and must return the
-                preprocessed data.
+            preprocessor (callable): Process the raw data with this function before cropping. When None, the
+                preprocessing will be skipped. The function must take input arguments data and sample_rate, and must
+                return the preprocessed data.
         """
         self._y_axis = y_axis
         self._x_axis = x_axis
@@ -542,7 +541,7 @@ class ScanningMicroscope(Detector):
     @property
     def duration(self) -> Quantity[u.ms]:
         """Total duration of scanning for one frame."""
-        self._ensure_valid()
+        self._ensure_valid()  # make sure _scan_pattern is up to data
         return (self._scan_pattern.shape[1] / self._sample_rate).to(u.ms)
 
     @property
@@ -596,6 +595,13 @@ class ScanningMicroscope(Detector):
             raise ValueError(f"Width must be between 1 and {self._resolution}")
         self._data_shape = (self.data_shape[0], int(value))
         self._valid = False
+
+    def reset_roi(self):
+        """Reset the ROI to span the original left, top, width and height."""
+        self.left = 0
+        self.top = 0
+        self.width = self._resolution
+        self.height = self._resolution
 
     @property
     def dwell_time(self) -> Quantity[u.us]:

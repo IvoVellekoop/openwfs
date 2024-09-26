@@ -29,6 +29,7 @@ scipy = ">=1.11.3"
 nidaqmx = ">=0.8.0"
 harvesters = "~1.4.2"
 annotated-types = "~0.7.0"
+tqdm = "^4.66.2"
 
 [tool.poetry.group.opengl.dependencies]
 PyOpenGL = ">=3.1.7"
