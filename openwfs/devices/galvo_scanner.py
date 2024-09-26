@@ -8,8 +8,7 @@ import nidaqmx.system
 import numpy as np
 from annotated_types import Ge, Le
 from astropy.units import Quantity
-from nidaqmx.constants import TaskMode
-from nidaqmx.constants import TerminalConfiguration
+from nidaqmx.constants import TaskMode, TerminalConfiguration
 from nidaqmx.stream_writers import AnalogMultiChannelWriter
 
 from ..core import Detector
@@ -17,10 +16,49 @@ from ..utilities import unitless
 
 
 @dataclass
-class Axis:
+class InputChannel:
+    """Specification of a NIDAQ input channel for the scanning microscope.
+
+    Attributes:
+        channel: The name of the channel, e.g. 'Dev4/ai0'
+        v_min: The minimum voltage that can be measured by the channel
+        v_max: The maximum voltage that can be measured by the channel
+        terminal_configuration: The terminal configuration of the channel,
+            defaults to `TerminalConfiguration.DEFAULT`
+    """
     channel: str
     v_min: Quantity[u.V]
     v_max: Quantity[u.V]
+    terminal_configuration: TerminalConfiguration = TerminalConfiguration.DEFAULT
+
+
+@dataclass
+class Axis:
+    """Specification of a NIDAQ output channel for controlling a scan axis.
+
+    Output voltages are clipped to the safety limit indicated by `[v_min, v_max]`
+    Note that the actual field of view only covers part of this range (see
+    `reference_zoom` in `ScanningMicroscope.`).
+
+    Attributes:
+        channel: The name of the channel, e.g. 'Dev4/ao0'
+        v_min: The minimum voltage that can safely be sent to the output.
+        v_max: The maximum voltage that can safely be sent to the output.
+        scale: Conversion factor between voltage at the NI-DAQ card and displacement of the focus in the object plane.
+                This may be different for different axes.
+
+        maximum_acceleration: The maximum acceleration of this axis in V per s².
+            The output signal will be constructed to ensure that the mirror does not exceed this acceleration,
+            except in special cases such as when turning on the system. This acceleration is also used to compute
+            how far to overshoot the scan mirror to ensure that it reaches a linear speed over the scan range.
+            See `scan` for details.
+        terminal_configuration: The terminal configuration of the channel,
+            defaults to `TerminalConfiguration.DEFAULT`
+    """
+    channel: str
+    v_min: Quantity[u.V]
+    v_max: Quantity[u.V]
+    scale: Quantity[u.um / u.V]
     maximum_acceleration: Quantity[u.V / u.s ** 2]
     terminal_configuration: TerminalConfiguration = TerminalConfiguration.DEFAULT
 
@@ -151,6 +189,57 @@ class Axis:
         land = self.to_pos(v_land)
         return v, launch, land, slice(len(v_accel), len(v_accel) + sample_count)
 
+    @staticmethod
+    def compute_scale(*, optical_deflection: Quantity[u.deg / u.V], galvo_to_pupil_magnification: float,
+                      objective_magnification: float, reference_tube_lens: Quantity[u.mm]) -> Quantity[u.um / u.V]:
+        """Computes the conversion factor between voltage and displacement in the object plane.
+
+        Args:
+            optical_deflection (Quantity[u.deg/u.V]):
+                The optical deflection (i. e. twice the mechanical angle) of the mirror
+                 as a function of applied voltage.
+            galvo_to_pupil_magnification (float):
+                The magnification of the relay system between the galvo mirrors and the pupil.
+            objective_magnification (Quantity[u.mm]):
+                The magnification of the microscope objective.
+            reference_tube_lens (Quantity[u.mm]):
+                The tube lens focal length on which the objective magnification is based.
+                This value is manufacturer-specific. Typical values are:
+                - 200 mm for Thorlabs, Nikon, Leica, and Mitutoyo
+                - 180 mm for Olympus/Evident
+                - 165 mm for Zeiss
+
+        Returns:
+            Quantity[u.um/u.V]: The conversion factor between voltage and displacement in the object plane.
+        """
+        f_objective = reference_tube_lens / objective_magnification
+        angle_to_displacement = f_objective / u.rad
+        return ((optical_deflection / galvo_to_pupil_magnification) * angle_to_displacement).to(u.um / u.V)
+
+    @staticmethod
+    def compute_acceleration(*, optical_deflection: Quantity[u.deg / u.V], torque_constant: Quantity[u.N * u.m / u.A],
+                             rotor_inertia: Quantity[u.kg * u.m ** 2],
+                             maximum_current: Quantity[u.A]) -> Quantity[u.V / u.s ** 2]:
+        """Computes the angular acceleration of the focus of the galvo mirror.
+
+         The result is returned in the unit V / second²,
+         where the voltage can be converted to displacement using the scale factor.
+
+        Args:
+            optical_deflection (Quantity[u.deg/u.V]):
+                The optical deflection (i. e. twice the mechanical angle) of the mirror
+                 as a function of applied voltage.
+            torque_constant (Quantity[u.N*u.m/u.A]):
+                The torque constant of the galvo mirror driving coil.
+                May also be given in the equivalent unit of dyne·cm/A.
+            rotor_inertia (Quantity[u.kg*u.m**2]):
+                The moment of inertia of the rotor. May also be given in the equivalent unit of g·cm².
+            maximum_current (Quantity[u.A]):
+                The maximum current that can be applied to the galvo mirror.
+        """
+        angular_acceleration = (torque_constant * maximum_current / rotor_inertia).to(u.s ** -2) * u.rad
+        return (angular_acceleration / optical_deflection).to(u.V / u.s ** 2)
+
 
 class TestPatternType(Enum):
     """Type of test pattern to use for simulation."""
@@ -210,10 +299,9 @@ class ScanningMicroscope(Detector):
     """
 
     def __init__(self,
-                 input: tuple[str, Quantity[u.V], Quantity[u.V], Optional[]],  # noqa
+                 input: InputChannel,
                  y_axis: Axis,
                  x_axis: Axis,
-                 scale: Quantity[u.um / u.V],
                  sample_rate: Quantity[u.MHz],
                  resolution: int,
                  reference_zoom: float, *,
@@ -225,34 +313,31 @@ class ScanningMicroscope(Detector):
                  test_image=None):
         """
         Args:
-            resolution (int): number of pixels (height and width) in the full field of view.
+            resolution: number of pixels (height and width) in the full field of view.
                 A coarser sampling can be achieved by setting the binning
                 Note that the ROI can also be reduced by setting width, height, top and left.
-            input: tuple[str, Quantity[u.V], Quantity[u.V]],
-                 Description of the NI-DAQ channel to use for the input.
-                 Tuple of: (name of the channel (e. g., 'ai/1'), minimum voltage, maximum voltage).
-            y_axis: Axis
-                 Description of the NI-DAQ channel to use for controlling the slow axis.
-            x_axis: Axis
-                 Description of the NI-DAQ channel to use for controlling the fast axis.
-            scale (u.um / u.V):
-                Conversion factor between voltage at the NI-DAQ card and displacement of the focus in the object plane.
-                This may be an array of (height, width) conversion factors if the factors differ for the different axes.
-            sample_rate (u.Hz):
+            input: The NI-DAQ channel to use for the input.
+            y_axis: The scan axis object for controlling the slow axis.
+            x_axis: The scan axis object for controlling the fast axis.
+            sample_rate:
                 Sample rate of the NI-DAQ input channel.
-            delay (u.us): Delay between mirror control and data acquisition, measured in microseconds
-            reference_zoom (float): Zoom factor that corresponds to fitting the full field of view exactly.
+            delay: Delay between mirror control and data acquisition, measured in microseconds
+            reference_zoom: Zoom factor that corresponds to fitting the full field of view exactly.
                 The zoom factor in the `zoom` property is multiplied by the `reference_zoom` to compute the scan range.
-            bidirectional (bool): If true, enables bidirectional scanning along the fast axis.
-            preprocessor (callable): Process the raw data with this function before cropping. When None, the
+            bidirectional: If true, enables bidirectional scanning along the fast axis.
+            preprocessor: Process the raw data with this function before cropping. When None, the
                 preprocessing will be skipped. The function must take input arguments data and sample_rate, and must
                 return the preprocessed data.
+            test_pattern: Type of test pattern to use for simulation. When set to a value other than 'none', the nidaq hardware is bypassed
+                completely, and a test pattern displayed, depending on the value of this parameter:
+                - 'horizontal': The voltage that would be sent to the fast axis output channel is used as input value.
+                - 'vertical': The voltage that would be sent to the slow axis output channel is used as input value.
+                - 'image': The voltages that would be sent are converted to coordinates in an image, resulting in the test image to be returned.
+            test_image: The test image to use when `test_pattern` is set to 'image'. This image is expected to be a 2D numpy array
         """
         self._y_axis = y_axis
         self._x_axis = x_axis
-        (self._input_channel, self._input_v_min, self._input_v_max) = input
-        self._input_terminal_configuration = input[3] if len(input) == 4 else TerminalConfiguration.DEFAULT
-        self._scale = scale.repeat(2) if scale.size == 1 else scale
+        self._input_channel = input
         self._sample_rate = sample_rate.to(u.MHz)
         self._binning = 1  # binning factor
         self._resolution = int(resolution)
@@ -403,10 +488,10 @@ class ScanningMicroscope(Detector):
         self._write_task.timing.cfg_samp_clk_timing(sample_rate, samps_per_chan=sample_count)
 
         # Configure the analog input task (one channel)
-        self._read_task.ai_channels.add_ai_voltage_chan(self._input_channel,
-                                                        min_val=self._input_v_min.to_value(u.V),
-                                                        max_val=self._input_v_max.to_value(u.V),
-                                                        terminal_config=self._input_terminal_configuration)
+        self._read_task.ai_channels.add_ai_voltage_chan(self._input_channel.channel,
+                                                        min_val=self._input_channel.v_min.to_value(u.V),
+                                                        max_val=self._input_channel.v_max.to_value(u.V),
+                                                        terminal_config=self._input_channel.terminal_configuration)
         self._read_task.timing.cfg_samp_clk_timing(sample_rate, samps_per_chan=sample_count)
         self._read_task.triggers.start_trigger.cfg_dig_edge_start_trig(self._write_task.triggers.start_trigger.term)
         delay = self._delay.to_value(u.s)
@@ -533,8 +618,9 @@ class ScanningMicroscope(Detector):
     @property
     def pixel_size(self) -> Quantity:
         """The size of a pixel in the object plane."""
-        extent_y = (self._y_axis.v_max - self._y_axis.v_min) * self._scale[0]
-        extent_x = (self._x_axis.v_max - self._x_axis.v_min) * self._scale[1]
+        # TODO: make extent a read-only attribute of Axis
+        extent_y = (self._y_axis.v_max - self._y_axis.v_min) * self._y_axis.scale
+        extent_x = (self._x_axis.v_max - self._x_axis.v_min) * self._x_axis.scale
         return (Quantity(extent_y, extent_x) / (
                 self._reference_zoom * self._zoom * self._resolution)).to(u.um)
 
@@ -753,54 +839,3 @@ class ScanningMicroscope(Detector):
     def list_devices():
         """Returns a list of all nidaq devices available on the system."""
         return [d.name for d in nidaqmx.system.System().devices]
-
-    @staticmethod
-    def compute_scale(*, optical_deflection: Quantity[u.deg / u.V], galvo_to_pupil_magnification: float,
-                      objective_magnification: float, reference_tube_lens: Quantity[u.mm]) -> Quantity[u.um / u.V]:
-        """Computes the conversion factor between voltage and displacement in the object plane.
-
-        Args:
-            optical_deflection (Quantity[u.deg/u.V]): 
-                The optical deflection (i. e. twice the mechanical angle) of the mirror
-                 as a function of applied voltage.
-            galvo_to_pupil_magnification (float):
-                The magnification of the relay system between the galvo mirrors and the pupil.
-            objective_magnification (Quantity[u.mm]): 
-                The magnification of the microscope objective.
-            reference_tube_lens (Quantity[u.mm]):
-                The tube lens focal length on which the objective magnification is based.
-                This value is manufacturer-specific. Typical values are:
-                - 200 mm for Thorlabs, Nikon, Leica, and Mitutoyo
-                - 180 mm for Olympus/Evident
-                - 165 mm for Zeiss
-
-        Returns:
-            Quantity[u.um/u.V]: The conversion factor between voltage and displacement in the object plane.
-        """
-        f_objective = reference_tube_lens / objective_magnification
-        angle_to_displacement = f_objective / u.rad
-        return ((optical_deflection / galvo_to_pupil_magnification) * angle_to_displacement).to(u.um / u.V)
-
-    @staticmethod
-    def compute_acceleration(*, optical_deflection: Quantity[u.deg / u.V], torque_constant: Quantity[u.N * u.m / u.A],
-                             rotor_inertia: Quantity[u.kg * u.m ** 2],
-                             maximum_current: Quantity[u.A]) -> Quantity[u.V / u.s ** 2]:
-        """Computes the angular acceleration of the focus of the galvo mirror.
-
-         The result is returned in the unit V / second²,
-         where the voltage can be converted to displacement using the scale factor.
-
-        Args:
-            optical_deflection (Quantity[u.deg/u.V]):
-                The optical deflection (i. e. twice the mechanical angle) of the mirror
-                 as a function of applied voltage.
-            torque_constant (Quantity[u.N*u.m/u.A]):
-                The torque constant of the galvo mirror driving coil.
-                May also be given in the equivalent unit of dyne·cm/A.
-            rotor_inertia (Quantity[u.kg*u.m**2]):
-                The moment of inertia of the rotor. May also be given in the equivalent unit of g·cm².
-            maximum_current (Quantity[u.A]):
-                The maximum current that can be applied to the galvo mirror.
-        """
-        angular_acceleration = (torque_constant * maximum_current / rotor_inertia).to(u.s ** -2) * u.rad
-        return (angular_acceleration / optical_deflection).to(u.V / u.s ** 2)

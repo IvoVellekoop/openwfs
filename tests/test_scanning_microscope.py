@@ -3,6 +3,7 @@ import numpy as np
 import pytest
 
 from ..openwfs.devices import ScanningMicroscope, Axis
+from ..openwfs.devices.galvo_scanner import InputChannel
 from ..openwfs.utilities import coordinate_range
 
 
@@ -10,9 +11,10 @@ from ..openwfs.utilities import coordinate_range
 def test_scan_axis(start, stop):
     """Tests if the Axis class generates the correct voltage sequences for stepping and scanning."""
     maximum_acceleration = 1 * u.V / u.ms ** 2
+    scale = 440 * u.um / u.V
     v_min = -1.0 * u.V
     v_max = 2.0 * u.V
-    a = Axis(channel='Dev4/ao0', v_min=v_min, v_max=v_max, maximum_acceleration=maximum_acceleration)
+    a = Axis(channel='Dev4/ao0', v_min=v_min, v_max=v_max, maximum_acceleration=maximum_acceleration, scale=scale)
     assert a.channel == 'Dev4/ao0'
     assert a.v_min == v_min
     assert a.v_max == v_max
@@ -63,11 +65,14 @@ def test_scan_axis(start, stop):
 def make_scanner(bidirectional, direction, reference_zoom):
     scale = 440 * u.um / u.V
     sample_rate = 0.5 * u.MHz
-    y_axis = Axis(channel='Dev4/ao0', v_min=-2.0 * u.V, v_max=2.0 * u.V, maximum_acceleration=10 * u.V / u.ms ** 2)
-    x_axis = Axis(channel='Dev4/ao1', v_min=-2.0 * u.V, v_max=2.0 * u.V, maximum_acceleration=10 * u.V / u.ms ** 2)
+    input_channel = InputChannel(channel='Dev4/ai0', v_min=-1.0 * u.V, v_max=1.0 * u.V)
+    y_axis = Axis(channel='Dev4/ao0', v_min=-2.0 * u.V, v_max=2.0 * u.V, maximum_acceleration=10 * u.V / u.ms ** 2,
+                  scale=scale)
+    x_axis = Axis(channel='Dev4/ao1', v_min=-2.0 * u.V, v_max=2.0 * u.V, maximum_acceleration=10 * u.V / u.ms ** 2,
+                  scale=scale)
     return ScanningMicroscope(bidirectional=bidirectional, sample_rate=sample_rate, resolution=1024,
-                              input=('Dev4/ai0', -1.0 * u.V, 1.0 * u.V), y_axis=y_axis, x_axis=x_axis,
-                              scale=scale, test_pattern=direction, reference_zoom=reference_zoom)
+                              input=input_channel, y_axis=y_axis, x_axis=x_axis,
+                              test_pattern=direction, reference_zoom=reference_zoom)
 
 
 @pytest.mark.parametrize("direction", ['horizontal', 'vertical'])
@@ -76,7 +81,7 @@ def test_scan_pattern(direction, bidirectional):
     """A unit test for scanning patterns."""
     reference_zoom = 1.2
     scanner = make_scanner(bidirectional, direction, reference_zoom)
-    assert np.allclose(scanner.extent, scanner._scale * 4.0 * u.V / reference_zoom)
+    assert np.allclose(scanner.extent, scanner._x_axis.scale * 4.0 * u.V / reference_zoom)
     # plt.imshow(scanner.read())
     # plt.show()
 

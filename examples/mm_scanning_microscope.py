@@ -13,15 +13,16 @@ import skimage
 # otherwise it is just installed as a package
 import set_path  # noqa
 from openwfs.devices import ScanningMicroscope, Axis
+from openwfs.devices.galvo_scanner import InputChannel
 
 # parameters for Thorlabs SS30X-AG
-scale = ScanningMicroscope.compute_scale(
+scale = Axis.compute_scale(
     optical_deflection=1.0 / (0.22 * u.V / u.deg),
     galvo_to_pupil_magnification=2,
     objective_magnification=16,
     reference_tube_lens=200 * u.mm)
 
-acceleration = ScanningMicroscope.compute_acceleration(
+acceleration = Axis.compute_acceleration(
     optical_deflection=1.0 / (0.22 * u.V / u.deg),
     torque_constant=2.8E5 * u.dyne * u.cm / u.A,
     rotor_inertia=8.25 * u.g * u.cm ** 2,
@@ -30,13 +31,14 @@ acceleration = ScanningMicroscope.compute_acceleration(
 # scale = 440 * u.um / u.V (calibrated)
 sample_rate = 0.5 * u.MHz
 reference_zoom = 1.2
-y_axis = Axis(channel='Dev4/ao0', v_min=-2.0 * u.V, v_max=2.0 * u.V, maximum_acceleration=acceleration)
-x_axis = Axis(channel='Dev4/ao1', v_min=-2.0 * u.V, v_max=2.0 * u.V, maximum_acceleration=acceleration)
+y_axis = Axis(channel='Dev4/ao0', v_min=-2.0 * u.V, v_max=2.0 * u.V, maximum_acceleration=acceleration, scale=scale)
+x_axis = Axis(channel='Dev4/ao1', v_min=-2.0 * u.V, v_max=2.0 * u.V, maximum_acceleration=acceleration, scale=scale)
+input_channel = InputChannel('Dev4/ai0', -1.0 * u.V, 1.0 * u.V)
 test_image = skimage.data.hubble_deep_field() * 256
 
 scanner = ScanningMicroscope(sample_rate=sample_rate,
-                             input=('Dev4/ai0', -1.0 * u.V, 1.0 * u.V), y_axis=y_axis, x_axis=x_axis,
-                             scale=scale, test_pattern='image', reference_zoom=reference_zoom,
+                             input=input_channel, y_axis=y_axis, x_axis=x_axis,
+                             test_pattern='image', reference_zoom=reference_zoom,
                              resolution=1024, test_image=test_image)
 
 if __name__ == '__main__':
