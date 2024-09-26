@@ -348,6 +348,13 @@ class ScanningMicroscope(Detector):
         self._roi_end = self._roi_start + self.pixel_size * self._data_shape / self._scale
         self._valid = False
 
+    def reset_roi(self):
+        """Reset the ROI to span the original left, top, width and height."""
+        self.left = 0
+        self.top = 0
+        self.width = self._original_data_shape[1]
+        self.height = self._original_data_shape[0]
+
     @property
     def dwell_time(self) -> Quantity[u.us]:
         """The time spent on each pixel during scanning."""

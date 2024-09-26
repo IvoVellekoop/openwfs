@@ -10,6 +10,8 @@ import nidaqmx
 DaqNotFoundError = nidaqmx.errors.DaqNotFoundError if (
         hasattr(nidaqmx, 'errors') and hasattr(nidaqmx.errors, 'DaqNotFoundError')) else FileNotFoundError
 
+# TODO: DAQ-setting errors are currently indistinguishable from DAQ-not-found errors. Test with separate statements.
+
 
 def test_scan_pattern_delay():
     try:
