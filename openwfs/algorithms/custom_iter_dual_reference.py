@@ -97,11 +97,11 @@ class IterativeDualReference:
                 multiplying that amplitude profile with this transmission matrix.
         """
 
-        # Initial transmission matrix for reference is constant phase
+        # Current estimate of the transmission matrix (start with all 0)
         t_full = np.zeros(shape=self.modes[0].shape[0:2])
+        t_other_side = t_full
 
         # Initialize storage lists
-        t_set = t_full
         t_set_all = [None] * self.iterations
         results_all = [None] * self.iterations  # List to store all results
         results_latest = [None, None]  # The two latest results. Used for computing fidelity factors.
@@ -116,17 +116,20 @@ class IterativeDualReference:
         # Switch the phase sets back and forth multiple times
         for it in range(self.iterations):
             side = it % 2  # pick set A or B for phase stepping
-            t_prev = t_set
-            ref_phases = -np.angle(t_prev)  # Shaped reference phase pattern from transmission matrix
-
-            # Measure and compute
+            ref_phases = -np.angle(t_full)  # use the best estimate so far to construct an optimized reference
+            side_mask = self.masks[side]
+            # Perform WFS experiment on one side, keeping the other side sized at the ref_phases
             result = self._single_side_experiment(mod_phases=self.phase_patterns[side], ref_phases=ref_phases,
-                                                  mod_mask=self.masks[side], progress_bar=progress_bar)
-            t_set = self.compute_t_set(result, self.modes[side])  # Compute transmission matrix from measurements
+                                                  mod_mask=side_mask, progress_bar=progress_bar)
+
+            # Compute transmission matrix for the current side and update
+            # estimated transmission matrix
+            t_this_side = self.compute_t_set(result, self.modes[side])
+            t_full = t_this_side + t_other_side
+            t_other_side = t_this_side
 
             # Store results
-            t_full = t_prev + t_set
-            t_set_all[it] = t_set  # Store transmission matrix
+            t_set_all[it] = t_this_side  # Store transmission matrix
             results_all[it] = result  # Store result
             results_latest[side] = result  # Store latest result for this set
 

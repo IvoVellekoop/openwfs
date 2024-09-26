@@ -474,7 +474,7 @@ def test_custom_blind_dual_reference_ortho_split(construct_basis: callable):
     aberrations[0:2, :] = 0
     aberrations[:, 0:2] = 0
 
-    sim = SimulatedWFS(aberrations=aberrations.reshape((*aberrations.shape, 1)))
+    sim = SimulatedWFS(aberrations=aberrations)
 
     alg = IterativeDualReference(feedback=sim, slm=sim.slm,
                                  phase_patterns=(phases_set, np.flip(phases_set, axis=1)), group_mask=mask,
@@ -532,7 +532,7 @@ def test_custom_blind_dual_reference_non_ortho():
     aberrations[0:1, :] = 0
     aberrations[:, 0:2] = 0
 
-    sim = SimulatedWFS(aberrations=aberrations.reshape((*aberrations.shape, 1)))
+    sim = SimulatedWFS(aberrations=aberrations)
 
     alg = IterativeDualReference(feedback=sim, slm=sim.slm,
                                  phase_patterns=(phases_set, np.flip(phases_set, axis=1)), group_mask=mask,
