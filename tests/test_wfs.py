@@ -8,7 +8,7 @@ from scipy.ndimage import zoom
 from skimage.transform import resize
 
 from ..openwfs.algorithms import StepwiseSequential, FourierDualReference, FourierDualReferenceCircle, \
-    CustomIterativeDualReference, troubleshoot
+    IterativeDualReference, troubleshoot
 from ..openwfs.algorithms.troubleshoot import field_correlation
 from ..openwfs.algorithms.utilities import WFSController
 from ..openwfs.processors import SingleRoi
@@ -476,9 +476,10 @@ def test_custom_blind_dual_reference_ortho_split(construct_basis: callable):
 
     sim = SimulatedWFS(aberrations=aberrations.reshape((*aberrations.shape, 1)))
 
-    alg = CustomIterativeDualReference(feedback=sim, slm=sim.slm, slm_shape=aberrations.shape,
-                                       phases=(phases_set, np.flip(phases_set, axis=1)), set1_mask=mask, phase_steps=4,
-                                       iterations=4)
+    alg = IterativeDualReference(feedback=sim, slm=sim.slm,
+                                 phase_patterns=(phases_set, np.flip(phases_set, axis=1)), group_mask=mask,
+                                 phase_steps=4,
+                                 iterations=4)
 
     result = alg.execute()
 
@@ -500,7 +501,7 @@ def test_custom_blind_dual_reference_non_ortho():
     """
     Test custom blind dual reference with a non-orthogonal basis.
     """
-    do_debug = True
+    do_debug = False
 
     # Create set of modes that are barely linearly independent
     N1 = 6
@@ -533,9 +534,10 @@ def test_custom_blind_dual_reference_non_ortho():
 
     sim = SimulatedWFS(aberrations=aberrations.reshape((*aberrations.shape, 1)))
 
-    alg = CustomIterativeDualReference(feedback=sim, slm=sim.slm, slm_shape=aberrations.shape,
-                                       phases=(phases_set, np.flip(phases_set, axis=1)), set1_mask=mask, phase_steps=4,
-                                       iterations=4)
+    alg = IterativeDualReference(feedback=sim, slm=sim.slm,
+                                 phase_patterns=(phases_set, np.flip(phases_set, axis=1)), group_mask=mask,
+                                 phase_steps=4,
+                                 iterations=4)
 
     result = alg.execute()
 
