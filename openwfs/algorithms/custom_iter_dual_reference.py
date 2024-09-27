@@ -7,19 +7,6 @@ from .utilities import analyze_phase_stepping, WFSResult
 from ..core import Detector, PhaseSLM
 
 
-def weighted_average(a, b, wa, wb):
-    """
-    Compute the weighted average of two values.
-
-    Args:
-        a: The first value.
-        b: The second value.
-        wa: The weight of the first value.
-        wb: The weight of the second value.
-    """
-    return (a * wa + b * wb) / (wa + wb)
-
-
 class IterativeDualReference:
     """
     A generic iterative dual reference WFS algorithm, which can use a custom set of basis functions.
@@ -139,23 +126,8 @@ class IterativeDualReference:
                 intermediate_results[it] = self.feedback.read()
 
         # Compute average fidelity factors
-        fidelity_noise = weighted_average(results_latest[0].fidelity_noise,
-                                          results_latest[1].fidelity_noise, results_latest[0].n,
-                                          results_latest[1].n)
-        fidelity_amplitude = weighted_average(results_latest[0].fidelity_amplitude,
-                                              results_latest[1].fidelity_amplitude, results_latest[0].n,
-                                              results_latest[1].n)
-        fidelity_calibration = weighted_average(results_latest[0].fidelity_calibration,
-                                                results_latest[1].fidelity_calibration, results_latest[0].n,
-                                                results_latest[1].n)
-
-        result = WFSResult(t=t_full,
-                           t_f=None,
-                           n=self.modes[0].shape[2] + self.modes[1].shape[2],
-                           axis=2,
-                           fidelity_noise=fidelity_noise,
-                           fidelity_amplitude=fidelity_amplitude,
-                           fidelity_calibration=fidelity_calibration)
+        result = WFSResult.combine(results_latest)
+        result.t = t_full
 
         # TODO: document the t_set_all and results_all attributes
         result.t_set_all = t_set_all

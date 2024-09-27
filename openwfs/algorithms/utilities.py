@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Optional
+from typing import Optional, Sequence
 
 import numpy as np
 from numpy.typing import ArrayLike
@@ -107,6 +107,35 @@ class WFSResult:
                          fidelity_calibration=self.fidelity_calibration[:][b],
                          n=self.n,
                          )
+
+    @staticmethod
+    def combine(results: Sequence['WFSResult']):
+        """Merges the results for several sub-experiments.
+
+        Currently, this just computes the average of the fidelities, weighted
+        by the number of segments used in each sub-experiment.
+
+        Note: the matrix t is also averaged, but this is not always meaningful.
+        The caller can replace the `.t` attribute of the result with a more meaningful value.
+        """
+        n = sum(r.n for r in results)
+        axis = results[0].axis
+        if any(r.axis != axis for r in results):
+            raise ValueError("All results must have the same axis")
+
+        def weighted_average(attribute):
+            data = getattr(results[0], attribute) * results[0].n
+            for r in results[1:]:
+                data += getattr(r, attribute) * r.n / n
+            return data
+
+        return WFSResult(t=weighted_average('t'),
+                         t_f=None,
+                         n=n,
+                         axis=axis,
+                         fidelity_noise=weighted_average('fidelity_noise'),
+                         fidelity_amplitude=weighted_average('fidelity_amplitude'),
+                         fidelity_calibration=weighted_average('fidelity_calibration'))
 
 
 def analyze_phase_stepping(measurements: np.ndarray, axis: int, A: Optional[float] = None):
