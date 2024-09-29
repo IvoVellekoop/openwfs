@@ -15,7 +15,14 @@ class StepwiseSequential:
     [2]: Ivo M. Vellekoop, "Feedback-based wavefront shaping," Opt. Express 23, 12189-12206 (2015)
     """
 
-    def __init__(self, feedback: Detector, slm: PhaseSLM, phase_steps: int = 4, n_x: int = 4, n_y: int = None):
+    def __init__(
+        self,
+        feedback: Detector,
+        slm: PhaseSLM,
+        phase_steps: int = 4,
+        n_x: int = 4,
+        n_y: int = None,
+    ):
         """
         This algorithm systematically modifies the phase pattern of each SLM element and measures the resulting
         feedback.
@@ -39,8 +46,10 @@ class StepwiseSequential:
         Returns:
             WFSResult: An object containing the computed transmission matrix and statistics.
         """
-        phase_pattern = np.zeros((self.n_y, self.n_x), 'float32')
-        measurements = np.zeros((self.n_y, self.n_x, self.phase_steps, *self.feedback.data_shape))
+        phase_pattern = np.zeros((self.n_y, self.n_x), "float32")
+        measurements = np.zeros(
+            (self.n_y, self.n_x, self.phase_steps, *self.feedback.data_shape)
+        )
 
         for y in range(self.n_y):
             for x in range(self.n_x):

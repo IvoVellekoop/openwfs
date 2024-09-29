@@ -11,7 +11,14 @@ from ..core import Processor, Detector
 from ..plot_utilities import imshow  # noqa - for debugging
 from ..processors import TransformProcessor
 from ..simulation.mockdevices import XYStage, Camera, StaticSource
-from ..utilities import project, place, Transform, get_pixel_size, patterns, CoordinateType
+from ..utilities import (
+    project,
+    place,
+    Transform,
+    get_pixel_size,
+    patterns,
+    CoordinateType,
+)
 
 
 class Microscope(Processor):
@@ -31,15 +38,22 @@ class Microscope(Processor):
     that has the same total intensity as the source image.
     """
 
-    def __init__(self, source: Union[Detector, np.ndarray], *, data_shape=None,
-                 numerical_aperture: float = 1.0,
-                 wavelength: Quantity[u.nm],
-                 magnification: float = 1.0, xy_stage=None, z_stage=None,
-                 incident_field: Union[Detector, ArrayLike, None] = None,
-                 incident_transform: Optional[Transform] = None,
-                 aberrations: Union[Detector, np.ndarray, None] = None,
-                 aberration_transform: Optional[Transform] = None,
-                 multi_threaded: bool = True):
+    def __init__(
+        self,
+        source: Union[Detector, np.ndarray],
+        *,
+        data_shape=None,
+        numerical_aperture: float = 1.0,
+        wavelength: Quantity[u.nm],
+        magnification: float = 1.0,
+        xy_stage=None,
+        z_stage=None,
+        incident_field: Union[Detector, ArrayLike, None] = None,
+        incident_transform: Optional[Transform] = None,
+        aberrations: Union[Detector, np.ndarray, None] = None,
+        aberration_transform: Optional[Transform] = None,
+        multi_threaded: bool = True
+    ):
         """
         Args:
             source: 2-D image (must have `pixel_size` metadata), or
@@ -93,7 +107,9 @@ class Microscope(Processor):
             if get_pixel_size(aberrations) is None:
                 aberrations = StaticSource(aberrations)
 
-        super().__init__(source, aberrations, incident_field, multi_threaded=multi_threaded)
+        super().__init__(
+            source, aberrations, incident_field, multi_threaded=multi_threaded
+        )
         self._magnification = magnification
         self._data_shape = data_shape if data_shape is not None else source.data_shape
         self.numerical_aperture = numerical_aperture
@@ -105,8 +121,12 @@ class Microscope(Processor):
         self.z_stage = z_stage  # or MockStage()
         self._psf = None
 
-    def _fetch(self, source: np.ndarray, aberrations: np.ndarray,  # noqa
-               incident_field: np.ndarray) -> np.ndarray:
+    def _fetch(
+        self,
+        source: np.ndarray,
+        aberrations: np.ndarray,  # noqa
+        incident_field: np.ndarray,
+    ) -> np.ndarray:
         """
         Updates the image on the camera sensor
 
@@ -133,7 +153,9 @@ class Microscope(Processor):
         source_pixel_size = get_pixel_size(source)
         target_pixel_size = self.pixel_size / self.magnification
         if np.any(source_pixel_size > target_pixel_size):
-            warnings.warn("The resolution of the specimen image is worse than that of the output.")
+            warnings.warn(
+                "The resolution of the specimen image is worse than that of the output."
+            )
 
         # Note: there seems to be a bug (feature?) in `fftconvolve` that shifts the image by one pixel
         # when the 'same' option is used. To compensate for this feature,
@@ -166,23 +188,40 @@ class Microscope(Processor):
 
         # Compute the field in the pupil plane
         # The aberrations and the SLM phase pattern are both mapped to the pupil plane coordinates
-        pupil_field = patterns.disk(pupil_shape, radius=self.numerical_aperture, extent=pupil_extent)
-        pupil_area = np.sum(pupil_field)  # TODO (efficiency): compute area directly from radius
+        pupil_field = patterns.disk(
+            pupil_shape, radius=self.numerical_aperture, extent=pupil_extent
+        )
+        pupil_area = np.sum(
+            pupil_field
+        )  # TODO (efficiency): compute area directly from radius
 
         # Project aberrations
         if aberrations is not None:
             # use default of 2.0 * NA for the extent of the aberration map if no pixel size is provided
-            aberration_extent = (2.0 * self.numerical_aperture,) * 2 if get_pixel_size(aberrations) is None else None
-            pupil_field = pupil_field * np.exp(1.0j * project(aberrations,
-                                                              source_extent=aberration_extent,
-                                                              out_extent=pupil_extent,
-                                                              out_shape=pupil_shape,
-                                                              transform=self.aberration_transform))
+            aberration_extent = (
+                (2.0 * self.numerical_aperture,) * 2
+                if get_pixel_size(aberrations) is None
+                else None
+            )
+            pupil_field = pupil_field * np.exp(
+                1.0j
+                * project(
+                    aberrations,
+                    source_extent=aberration_extent,
+                    out_extent=pupil_extent,
+                    out_shape=pupil_shape,
+                    transform=self.aberration_transform,
+                )
+            )
 
         # Project SLM fields
         if incident_field is not None:
-            pupil_field = pupil_field * project(incident_field, out_extent=pupil_extent, out_shape=pupil_shape,
-                                                transform=self.slm_transform)
+            pupil_field = pupil_field * project(
+                incident_field,
+                out_extent=pupil_extent,
+                out_shape=pupil_shape,
+                transform=self.slm_transform,
+            )
 
         # Compute the point spread function
         # This is done by Fourier transforming the pupil field and taking the absolute value squared
@@ -193,7 +232,7 @@ class Microscope(Processor):
         psf = np.fft.ifftshift(psf) * (psf.size / pupil_area)
         self._psf = psf  # store psf for later inspection
 
-        return fftconvolve(source, psf, 'same')
+        return fftconvolve(source, psf, "same")
 
     @property
     def magnification(self) -> float:
@@ -225,10 +264,14 @@ class Microscope(Processor):
         """Returns the shape of the image in the image plane"""
         return self._data_shape
 
-    def get_camera(self, *, transform: Optional[Transform] = None,
-                   data_shape: Optional[tuple[int, int]] = None,
-                   pixel_size: Optional[CoordinateType] = None,
-                   **kwargs) -> Detector:
+    def get_camera(
+        self,
+        *,
+        transform: Optional[Transform] = None,
+        data_shape: Optional[tuple[int, int]] = None,
+        pixel_size: Optional[CoordinateType] = None,
+        **kwargs
+    ) -> Detector:
         """
         Returns a simulated camera that observes the microscope image.
 
@@ -247,6 +290,8 @@ class Microscope(Processor):
         if transform is None and data_shape is None and pixel_size is None:
             src = self
         else:
-            src = TransformProcessor(self, data_shape=data_shape, pixel_size=pixel_size, transform=transform)
+            src = TransformProcessor(
+                self, data_shape=data_shape, pixel_size=pixel_size, transform=transform
+            )
 
         return Camera(src, **kwargs)

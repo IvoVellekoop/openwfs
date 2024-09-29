@@ -19,7 +19,7 @@ VAL2 = 2 * np.pi / 256 * GVAL2
 
 @pytest.fixture
 def slm() -> SLM:
-    slm = SLM(monitor_id=0, shape=(100, 200), pos=(20, 10), coordinate_system='full')
+    slm = SLM(monitor_id=0, shape=(100, 200), pos=(20, 10), coordinate_system="full")
     return slm
 
 
@@ -30,7 +30,7 @@ def test_create_windowed(slm):
     assert slm.shape == (100, 200)
     assert slm.position == (20, 10)
     assert slm.transform == Transform.identity()
-    assert slm.coordinate_system == 'full'
+    assert slm.coordinate_system == "full"
 
     # check if frame buffer has correct size
     fb_texture = slm._frame_buffer._textures[Patch._PHASES_TEXTURE]
@@ -110,7 +110,7 @@ def test_transform(slm):
     # now change the transform to 'short' to fit the pattern to a centered square, with the height of the
     # SLM.
     # Then check if the pattern is displayed correctly
-    slm.coordinate_system = 'short'  # does not trigger an update
+    slm.coordinate_system = "short"  # does not trigger an update
     assert np.all(slm.pixels.read() / 64 == pixels)
     slm.update()
 
@@ -126,7 +126,7 @@ def test_transform(slm):
 
     # now change the transform to 'long' to fit the pattern to a centered square, with the width of the
     # SLM, causing part of the texture to be mapped outside the window.
-    slm.coordinate_system = 'long'  # does not trigger an update
+    slm.coordinate_system = "long"  # does not trigger an update
     assert np.all(slm.pixels.read() / 64 == pixels)
     slm.update()
 
@@ -137,7 +137,7 @@ def test_transform(slm):
     assert np.allclose(pixels[:, 100:], 3)
 
     # test zooming the pattern
-    slm.coordinate_system = 'short'
+    slm.coordinate_system = "short"
     slm.transform = Transform.zoom(0.8)
     slm.update()
 
@@ -153,8 +153,10 @@ def test_transform(slm):
     assert np.allclose(sub[20:, 40:], 3)
 
 
-@pytest.mark.skip(reason="This test is skipped by default because it causes the screen to flicker, which may "
-                         "affect people with epilepsy.")
+@pytest.mark.skip(
+    reason="This test is skipped by default because it causes the screen to flicker, which may "
+    "affect people with epilepsy."
+)
 def test_refresh_rate():
     slm = SLM(1, latency=0, duration=0)
     refresh_rate = slm.refresh_rate
@@ -171,14 +173,16 @@ def test_refresh_rate():
     stop = time.time_ns() * u.ns
     del slm
     actual_refresh_rate = frame_count / (stop - start)
-    assert np.allclose(refresh_rate.to_value(u.Hz), actual_refresh_rate.to_value(u.Hz), rtol=1e-2)
+    assert np.allclose(
+        refresh_rate.to_value(u.Hz), actual_refresh_rate.to_value(u.Hz), rtol=1e-2
+    )
 
 
 def test_get_pixels():
     width = 73
     height = 99
     slm = SLM(SLM.WINDOWED, shape=(height, width))
-    slm.coordinate_system = 'full'  # fill full screen exactly (anisotropic coordinates
+    slm.coordinate_system = "full"  # fill full screen exactly (anisotropic coordinates
     pattern = np.random.uniform(size=(height, width)) * 2 * np.pi
     slm.set_phases(pattern)
     read_back = slm.pixels.read()
@@ -257,8 +261,22 @@ def test_circular_geometry(slm):
 
     # read back the pixels and verify conversion to gray values
     pixels = np.rint(slm.pixels.read() / 256 * 70)
-    polar_pixels = cv2.warpPolar(pixels, (100, 40), (99.5, 99.5), 100, cv2.WARP_POLAR_LINEAR)
+    polar_pixels = cv2.warpPolar(
+        pixels, (100, 40), (99.5, 99.5), 100, cv2.WARP_POLAR_LINEAR
+    )
 
-    assert np.allclose(polar_pixels[:, 3:24], np.repeat(np.flip(np.arange(0, 10)), 4).reshape((-1, 1)), atol=1)
-    assert np.allclose(polar_pixels[:, 27:47], np.repeat(np.flip(np.arange(10, 30)), 2).reshape((-1, 1)), atol=1)
-    assert np.allclose(polar_pixels[:, 53:97], np.repeat(np.flip(np.arange(30, 70)), 1).reshape((-1, 1)), atol=1)
+    assert np.allclose(
+        polar_pixels[:, 3:24],
+        np.repeat(np.flip(np.arange(0, 10)), 4).reshape((-1, 1)),
+        atol=1,
+    )
+    assert np.allclose(
+        polar_pixels[:, 27:47],
+        np.repeat(np.flip(np.arange(10, 30)), 2).reshape((-1, 1)),
+        atol=1,
+    )
+    assert np.allclose(
+        polar_pixels[:, 53:97],
+        np.repeat(np.flip(np.arange(30, 70)), 1).reshape((-1, 1)),
+        atol=1,
+    )

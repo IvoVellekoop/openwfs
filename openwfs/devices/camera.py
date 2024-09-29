@@ -13,7 +13,8 @@ except ImportError:
          ```pip install harvesters```
          Alternatively, specify the genicam dependency when installing openwfs:
          ```pip install openwfs[genicam]```
-        """)
+        """
+    )
 
 from ..core import Detector
 
@@ -42,29 +43,37 @@ class Camera(Detector):
         >>> camera = Camera(cti_file=R"C:\\Program Files\\Basler\\pylon 7\\Runtime\\x64\\ProducerU3V.cti")
         >>> camera.exposure_time = 10 * u.ms
         >>> frame = camera.read()
+    """
+
+    def __init__(
+        self,
+        cti_file: str,
+        serial_number: Optional[str] = None,
+        multi_threaded=True,
+        **kwargs,
+    ):
         """
+        Initialize the Camera object.
 
-    def __init__(self, cti_file: str, serial_number: Optional[str] = None, multi_threaded=True, **kwargs):
-        """
-            Initialize the Camera object.
+        Args:
+            cti_file: The path to the GenTL producer file.
+                This path depends on where the driver for the camera is installed.
+                For Basler cameras, this is typically located in
+                R"C:\\Program Files\\Basler\\pylon 7\\Runtime\\x64\\ProducerU3V.cti".
 
-            Args:
-                cti_file: The path to the GenTL producer file.
-                    This path depends on where the driver for the camera is installed.
-                    For Basler cameras, this is typically located in
-                    R"C:\\Program Files\\Basler\\pylon 7\\Runtime\\x64\\ProducerU3V.cti".
-
-                serial_number: The serial number of the camera.
-                    When omitted, the first camera found is selected.
-                **kwargs: Additional keyword arguments.
-                    These arguments are transferred to the node map of the camera.
+            serial_number: The serial number of the camera.
+                When omitted, the first camera found is selected.
+            **kwargs: Additional keyword arguments.
+                These arguments are transferred to the node map of the camera.
         """
         self._harvester = Harvester()
         self._harvester.add_file(cti_file, check_validity=True)
         self._harvester.update()
 
         # open the camera, use the serial_number to select the camera if it is specified.
-        search_key = {'serial_number': serial_number} if serial_number is not None else None
+        search_key = (
+            {"serial_number": serial_number} if serial_number is not None else None
+        )
         self._camera = self._harvester.create(search_key=search_key)
         nodes = self._camera.remote_device.node_map
 
@@ -72,10 +81,10 @@ class Camera(Detector):
 
         # set triggering to 'Software', so that we can trigger the camera by calling `trigger`.
         # turn off auto exposure so that `duration` accurately reflects the required measurement time.
-        nodes.TriggerMode.value = 'On'
-        nodes.TriggerSource.value = 'Software'
-        nodes.ExposureMode.value = 'Timed'
-        nodes.ExposureAuto.value = 'Off'
+        nodes.TriggerMode.value = "On"
+        nodes.TriggerSource.value = "Software"
+        nodes.ExposureMode.value = "Timed"
+        nodes.ExposureAuto.value = "Off"
         nodes.BinningHorizontal.value = 1
         nodes.BinningVertical.value = 1
         nodes.OffsetX.value = 0
@@ -104,22 +113,30 @@ class Camera(Detector):
             try:
                 setattr(nodes, key, value)
             except AttributeError:
-                print(f'Warning: could not set camera property {key} to {value}')
+                print(f"Warning: could not set camera property {key} to {value}")
 
         try:
-            pixel_size = [nodes.SensorPixelHeight.value, nodes.SensorPixelWidth.value] * u.um
+            pixel_size = [
+                nodes.SensorPixelHeight.value,
+                nodes.SensorPixelWidth.value,
+            ] * u.um
         except AttributeError:  # the SensorPixelWidth feature is optional
             pixel_size = None
 
-        super().__init__(multi_threaded=multi_threaded, data_shape=None, pixel_size=pixel_size, duration=None,
-                         latency=0.0 * u.ms)
+        super().__init__(
+            multi_threaded=multi_threaded,
+            data_shape=None,
+            pixel_size=pixel_size,
+            duration=None,
+            latency=0.0 * u.ms,
+        )
         self._camera.start()
 
     def __del__(self):
-        if hasattr(self, '_camera'):
+        if hasattr(self, "_camera"):
             self._camera.stop()
             self._camera.destroy()
-        if hasattr(self, '_harvester'):
+        if hasattr(self, "_harvester"):
             self._harvester.reset()
 
     def _do_trigger(self):
@@ -138,7 +155,7 @@ class Camera(Detector):
         buffer = self._camera.fetch()
         frame = buffer.payload.components[0].data.reshape(self.data_shape)
         if frame.size == 0:
-            raise Exception('Camera returned an empty frame')
+            raise Exception("Camera returned an empty frame")
         data = frame.copy()
         buffer.queue()  # give back buffer to the camera driver
         return data

@@ -8,18 +8,44 @@ from .context import Context
 
 try:
     import OpenGL.GL as GL
-    from OpenGL.GL import glGenBuffers, glBindBuffer, glBufferData, glDeleteBuffers, glEnable, glBlendFunc, \
-        glBlendEquation, glDisable, glUseProgram, glBindVertexBuffer, glDrawElements, glGenFramebuffers, \
-        glBindFramebuffer, glFramebufferTexture2D, glCheckFramebufferStatus, glDeleteFramebuffers, \
-        glEnableVertexAttribArray, glVertexAttribFormat, glVertexAttribBinding, glEnableVertexAttribArray, \
-        glPrimitiveRestartIndex, glActiveTexture, glBindTexture, glGenVertexArrays, glBindVertexArray
+    from OpenGL.GL import (
+        glGenBuffers,
+        glBindBuffer,
+        glBufferData,
+        glDeleteBuffers,
+        glEnable,
+        glBlendFunc,
+        glBlendEquation,
+        glDisable,
+        glUseProgram,
+        glBindVertexBuffer,
+        glDrawElements,
+        glGenFramebuffers,
+        glBindFramebuffer,
+        glFramebufferTexture2D,
+        glCheckFramebufferStatus,
+        glDeleteFramebuffers,
+        glEnableVertexAttribArray,
+        glVertexAttribFormat,
+        glVertexAttribBinding,
+        glEnableVertexAttribArray,
+        glPrimitiveRestartIndex,
+        glActiveTexture,
+        glBindTexture,
+        glGenVertexArrays,
+        glBindVertexArray,
+    )
 
     from OpenGL.GL import shaders
 except AttributeError:
     warnings.warn("OpenGL not found, SLM will not work")
 from .geometry import rectangle, Geometry
-from .shaders import default_vertex_shader, default_fragment_shader, \
-    post_process_fragment_shader, post_process_vertex_shader
+from .shaders import (
+    default_vertex_shader,
+    default_fragment_shader,
+    post_process_fragment_shader,
+    post_process_vertex_shader,
+)
 from .texture import Texture
 from ...core import PhaseSLM
 
@@ -27,8 +53,13 @@ from ...core import PhaseSLM
 class Patch(PhaseSLM):
     _PHASES_TEXTURE = 0  # indices of the phases texture in the _texture array
 
-    def __init__(self, slm, geometry=None, vertex_shader=default_vertex_shader,
-                 fragment_shader=default_fragment_shader):
+    def __init__(
+        self,
+        slm,
+        geometry=None,
+        vertex_shader=default_vertex_shader,
+        fragment_shader=default_fragment_shader,
+    ):
         """
         Constructs a new patch (a shape) that can be drawn on the screen.
         By default, the patch is a square with 'radius' 1.0 (width and height 2.0) centered at 0.0, 0.0
@@ -81,7 +112,9 @@ class Patch(PhaseSLM):
         # perform the actual drawing
         glBindBuffer(GL.GL_ELEMENT_ARRAY_BUFFER, self._indices)
         glBindVertexBuffer(0, self._vertices, 0, 16)
-        glDrawElements(GL.GL_TRIANGLE_STRIP, self._index_count, GL.GL_UNSIGNED_SHORT, None)
+        glDrawElements(
+            GL.GL_TRIANGLE_STRIP, self._index_count, GL.GL_UNSIGNED_SHORT, None
+        )
 
     def set_phases(self, values: ArrayLike, update=True):
         """
@@ -123,9 +156,19 @@ class Patch(PhaseSLM):
             (self._vertices, self._indices) = glGenBuffers(2)
             self._index_count = value.indices.size
             glBindBuffer(GL.GL_ARRAY_BUFFER, self._vertices)
-            glBufferData(GL.GL_ARRAY_BUFFER, value.vertices.size * 4, value.vertices, GL.GL_DYNAMIC_DRAW)
+            glBufferData(
+                GL.GL_ARRAY_BUFFER,
+                value.vertices.size * 4,
+                value.vertices,
+                GL.GL_DYNAMIC_DRAW,
+            )
             glBindBuffer(GL.GL_ELEMENT_ARRAY_BUFFER, self._indices)
-            glBufferData(GL.GL_ELEMENT_ARRAY_BUFFER, value.indices.size * 2, value.indices, GL.GL_DYNAMIC_DRAW)
+            glBufferData(
+                GL.GL_ELEMENT_ARRAY_BUFFER,
+                value.indices.size * 2,
+                value.indices,
+                GL.GL_DYNAMIC_DRAW,
+            )
 
 
 class FrameBufferPatch(Patch):
@@ -137,22 +180,34 @@ class FrameBufferPatch(Patch):
     _textures: list[Texture]
 
     def __init__(self, slm, lookup_table: Sequence[int]):
-        super().__init__(slm, fragment_shader=post_process_fragment_shader,
-                         vertex_shader=post_process_vertex_shader)
+        super().__init__(
+            slm,
+            fragment_shader=post_process_fragment_shader,
+            vertex_shader=post_process_vertex_shader,
+        )
         # Create a frame buffer object to render to. The frame buffer holds a texture that is the same size as the
         # window. All patches are first rendered to this texture. The texture
         # is then processed as a whole (applying the software lookup table) and displayed on the screen.
         self._frame_buffer = glGenFramebuffers(1)
 
-        self.set_phases(np.zeros(self.context.slm.shape, dtype=np.float32), update=False)
+        self.set_phases(
+            np.zeros(self.context.slm.shape, dtype=np.float32), update=False
+        )
         glBindFramebuffer(GL.GL_FRAMEBUFFER, self._frame_buffer)
-        glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_COLOR_ATTACHMENT0, GL.GL_TEXTURE_2D,
-                               self._textures[Patch._PHASES_TEXTURE].handle, 0)
+        glFramebufferTexture2D(
+            GL.GL_FRAMEBUFFER,
+            GL.GL_COLOR_ATTACHMENT0,
+            GL.GL_TEXTURE_2D,
+            self._textures[Patch._PHASES_TEXTURE].handle,
+            0,
+        )
         if glCheckFramebufferStatus(GL.GL_FRAMEBUFFER) != GL.GL_FRAMEBUFFER_COMPLETE:
             raise Exception("Could not construct frame buffer")
         glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
 
-        self._textures.append(Texture(self.context, GL.GL_TEXTURE_1D))  # create texture for lookup table
+        self._textures.append(
+            Texture(self.context, GL.GL_TEXTURE_1D)
+        )  # create texture for lookup table
         self._lookup_table = None
         self.lookup_table = lookup_table
         self.additive_blend = False
@@ -164,7 +219,7 @@ class FrameBufferPatch(Patch):
 
     @property
     def lookup_table(self):
-        """1-D array """
+        """1-D array"""
         return self._lookup_table
 
     @lookup_table.setter
@@ -195,15 +250,25 @@ class VertexArray:
     # Since we have a fixed vertex format, we only need to bind the VertexArray once, and not bother with
     # updating, binding, or even deleting it
     def __init__(self):
-        self._vertex_array = glGenVertexArrays(1)  # no need to destroy explicitly, destroyed when window is destroyed
+        self._vertex_array = glGenVertexArrays(
+            1
+        )  # no need to destroy explicitly, destroyed when window is destroyed
         glBindVertexArray(self._vertex_array)
         glEnableVertexAttribArray(0)
         glEnableVertexAttribArray(1)
-        glVertexAttribFormat(0, 2, GL.GL_FLOAT, GL.GL_FALSE, 0)  # first two float32 are screen coordinates
-        glVertexAttribFormat(1, 2, GL.GL_FLOAT, GL.GL_FALSE, 8)  # second two are texture coordinates
+        glVertexAttribFormat(
+            0, 2, GL.GL_FLOAT, GL.GL_FALSE, 0
+        )  # first two float32 are screen coordinates
+        glVertexAttribFormat(
+            1, 2, GL.GL_FLOAT, GL.GL_FALSE, 8
+        )  # second two are texture coordinates
         glVertexAttribBinding(0, 0)  # use binding index 0 for both attributes
-        glVertexAttribBinding(1, 0)  # the attribute format can now be used with glBindVertexBuffer
+        glVertexAttribBinding(
+            1, 0
+        )  # the attribute format can now be used with glBindVertexBuffer
 
         # enable primitive restart, so that we can draw multiple triangle strips with a single draw call
         glEnable(GL.GL_PRIMITIVE_RESTART)
-        glPrimitiveRestartIndex(0xFFFF)  # this is the index we use to separate individual triangle strips
+        glPrimitiveRestartIndex(
+            0xFFFF
+        )  # this is the index we use to separate individual triangle strips

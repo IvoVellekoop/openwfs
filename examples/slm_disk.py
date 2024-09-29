@@ -29,4 +29,4 @@ slm.patches[1].set_phases(gradient)
 
 # read back the pixels and store in a file
 pixels = slm.pixels.read()
-cv2.imwrite('slm_disk.png', pixels)
+cv2.imwrite("slm_disk.png", pixels)

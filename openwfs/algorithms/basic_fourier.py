@@ -24,12 +24,16 @@ def build_square_k_space(k_min, k_max, k_step=1.0):
     """
     # Generate kx and ky coordinates
     kx_angles = np.arange(k_min, k_max + 1, 1)
-    k_angles_min_even = (k_min if k_min % 2 == 0 else k_min + 1)        # Must be even
-    ky_angles = np.arange(k_angles_min_even, k_max + 1, 2)              # Steps of 2
+    k_angles_min_even = k_min if k_min % 2 == 0 else k_min + 1  # Must be even
+    ky_angles = np.arange(k_angles_min_even, k_max + 1, 2)  # Steps of 2
 
     # Combine kx and ky coordinates into pairs
-    k_x = np.repeat(np.array(kx_angles)[np.newaxis, :], len(ky_angles), axis=0).flatten()
-    k_y = np.repeat(np.array(ky_angles)[:, np.newaxis], len(kx_angles), axis=1).flatten()
+    k_x = np.repeat(
+        np.array(kx_angles)[np.newaxis, :], len(ky_angles), axis=0
+    ).flatten()
+    k_y = np.repeat(
+        np.array(ky_angles)[:, np.newaxis], len(kx_angles), axis=1
+    ).flatten()
     k_space = np.vstack((k_x, k_y)) * k_step
     return k_space
 
@@ -46,8 +50,16 @@ class FourierDualReference(FourierBase):
     "Wavefront shaping for forward scattering," Opt. Express 30, 37436-37445 (2022)
     """
 
-    def __init__(self, feedback: Detector, slm: PhaseSLM, slm_shape=(500, 500), phase_steps=4, k_angles_min: int = -3,
-                 k_angles_max: int = 3, analyzer: Optional[callable] = analyze_phase_stepping):
+    def __init__(
+        self,
+        feedback: Detector,
+        slm: PhaseSLM,
+        slm_shape=(500, 500),
+        phase_steps=4,
+        k_angles_min: int = -3,
+        k_angles_max: int = 3,
+        analyzer: Optional[callable] = analyze_phase_stepping,
+    ):
         """
         Args:
             feedback (Detector): Source of feedback
@@ -58,8 +70,15 @@ class FourierDualReference(FourierBase):
             k_angles_min (int): The minimum k-angle.
             k_angles_max (int): The maximum k-angle.
         """
-        super().__init__(feedback, slm, slm_shape, np.array((0, 0)), np.array((0, 0)), phase_steps=phase_steps,
-                         analyzer=analyzer)
+        super().__init__(
+            feedback,
+            slm,
+            slm_shape,
+            np.array((0, 0)),
+            np.array((0, 0)),
+            phase_steps=phase_steps,
+            analyzer=analyzer,
+        )
         self._k_angles_min = k_angles_min
         self._k_angles_max = k_angles_max
 
@@ -86,7 +105,7 @@ class FourierDualReference(FourierBase):
     @k_angles_min.setter
     def k_angles_min(self, value):
         """Sets the lower bound of the range of angles in x and y direction, triggers the building of the internal
-            k-space properties.
+        k-space properties.
         """
         self._k_angles_min = value
         self._build_k_space()
@@ -99,7 +118,7 @@ class FourierDualReference(FourierBase):
     @k_angles_max.setter
     def k_angles_max(self, value):
         """Sets the higher bound of the range of angles in x and y direction, triggers the building of the internal
-            k-space properties."""
+        k-space properties."""
         self._k_angles_max = value
         self._build_k_space()
 
@@ -112,8 +131,17 @@ class FourierDualReferenceCircle(FourierBase):
     [1]: Bahareh Mastiani, Gerwin Osnabrugge, and Ivo M. Vellekoop,
     "Wavefront shaping for forward scattering," Opt. Express 30, 37436-37445 (2022)
     """
-    def __init__(self, feedback: Detector, slm: PhaseSLM, slm_shape=(500, 500), phase_steps=4, k_radius: float = 3.2,
-                 k_step: float = 1.0, analyzer: Optional[callable] = analyze_phase_stepping):
+
+    def __init__(
+        self,
+        feedback: Detector,
+        slm: PhaseSLM,
+        slm_shape=(500, 500),
+        phase_steps=4,
+        k_radius: float = 3.2,
+        k_step: float = 1.0,
+        analyzer: Optional[callable] = analyze_phase_stepping,
+    ):
         """
         Args:
             feedback (Detector): Source of feedback
@@ -128,8 +156,15 @@ class FourierDualReferenceCircle(FourierBase):
         # first build the k_space, then call super().__init__ with k_left=k_space, k_right=k_space.
         # TODO: Add custom grid spacing
 
-        super().__init__(feedback=feedback, slm=slm, slm_shape=slm_shape, k_left=np.array((0, 0)),
-                         k_right=np.array((0, 0)), phase_steps=phase_steps, analyzer=analyzer)
+        super().__init__(
+            feedback=feedback,
+            slm=slm,
+            slm_shape=slm_shape,
+            k_left=np.array((0, 0)),
+            k_right=np.array((0, 0)),
+            phase_steps=phase_steps,
+            analyzer=analyzer,
+        )
 
         self._k_radius = k_radius
         self.k_step = k_step
@@ -150,7 +185,7 @@ class FourierDualReferenceCircle(FourierBase):
         k_space_square = build_square_k_space(-k_max, k_max, k_step=k_step)
 
         # Filter out k-space coordinates that are outside the circle of radius k_radius
-        k_mask = (np.linalg.norm(k_space_square, axis=0) <= k_radius)
+        k_mask = np.linalg.norm(k_space_square, axis=0) <= k_radius
         k_space = k_space_square[:, k_mask]
 
         self.k_left = k_space
@@ -172,9 +207,9 @@ class FourierDualReferenceCircle(FourierBase):
         phi = np.linspace(0, 2 * np.pi, 200)
         x = self.k_radius * np.cos(phi)
         y = self.k_radius * np.sin(phi)
-        plt.plot(x, y, 'k')
-        plt.plot(self.k_left[0, :], self.k_left[1, :], 'ob', label='k_left')
-        plt.plot(self.k_right[0, :], self.k_right[1, :], '.r', label='k_right')
-        plt.xlabel('k_x')
-        plt.ylabel('k_y')
-        plt.gca().set_aspect('equal')
+        plt.plot(x, y, "k")
+        plt.plot(self.k_left[0, :], self.k_left[1, :], "ob", label="k_left")
+        plt.plot(self.k_right[0, :], self.k_right[1, :], ".r", label="k_right")
+        plt.xlabel("k_x")
+        plt.ylabel("k_y")
+        plt.gca().set_aspect("equal")

@@ -7,12 +7,24 @@ from scipy.linalg import hadamard
 from scipy.ndimage import zoom
 from skimage.transform import resize
 
-from ..openwfs.algorithms import StepwiseSequential, FourierDualReference, FourierDualReferenceCircle, \
-    CustomIterativeDualReference, troubleshoot
+from ..openwfs.algorithms import (
+    StepwiseSequential,
+    FourierDualReference,
+    FourierDualReferenceCircle,
+    CustomIterativeDualReference,
+    troubleshoot,
+)
 from ..openwfs.algorithms.troubleshoot import field_correlation
 from ..openwfs.algorithms.utilities import WFSController
 from ..openwfs.processors import SingleRoi
-from ..openwfs.simulation import SimulatedWFS, StaticSource, SLM, Microscope, ADCProcessor, Shutter
+from ..openwfs.simulation import (
+    SimulatedWFS,
+    StaticSource,
+    SLM,
+    Microscope,
+    ADCProcessor,
+    Shutter,
+)
 from ..openwfs.utilities import set_pixel_size, tilt
 
 
@@ -26,7 +38,9 @@ def assert_enhancement(slm, feedback, wfs_results, t_correct=None):
     ratio = after / before
     estimated_ratio = wfs_results.estimated_optimized_intensity / before
     print(f"expected: {estimated_ratio}, actual: {ratio}")
-    assert estimated_ratio * 0.5 <= ratio <= estimated_ratio * 2.0, f"""
+    assert (
+        estimated_ratio * 0.5 <= ratio <= estimated_ratio * 2.0
+    ), f"""
         The SSA algorithm did not enhance the focus as much as expected.
         Expected at least 0.5 * {estimated_ratio}, got {ratio}"""
 
@@ -34,7 +48,10 @@ def assert_enhancement(slm, feedback, wfs_results, t_correct=None):
         # Check if we correctly measured the transmission matrix.
         # The correlation will be less for fewer segments, hence an (ad hoc) factor of 2/sqrt(n)
         t = wfs_results.t[:]
-        corr = np.abs(np.vdot(t_correct, t) / np.sqrt(np.vdot(t_correct, t_correct) * np.vdot(t, t)))
+        corr = np.abs(
+            np.vdot(t_correct, t)
+            / np.sqrt(np.vdot(t_correct, t_correct) * np.vdot(t, t))
+        )
         assert corr > 1.0 - 2.0 / np.sqrt(wfs_results.n)
 
 
@@ -98,7 +115,13 @@ def test_ssa_noise(n_y, n_x):
     sim_no_noise = SimulatedWFS(aberrations=aberrations)
     slm = sim_no_noise.slm
     scale = np.max(sim_no_noise.read())
-    sim = ADCProcessor(sim_no_noise, analog_max=scale * 200.0, digital_max=10000, shot_noise=True, generator=generator)
+    sim = ADCProcessor(
+        sim_no_noise,
+        analog_max=scale * 200.0,
+        digital_max=10000,
+        shot_noise=True,
+        generator=generator,
+    )
     alg = StepwiseSequential(feedback=sim, slm=slm, n_x=n_x, n_y=n_y, phase_steps=10)
     result = alg.execute()
     print(result.fidelity_noise)
@@ -129,8 +152,10 @@ def test_ssa_enhancement():
         sim = SimulatedWFS(aberrations=get_random_aberrations(), slm=slm)
 
         # SSA
-        print(f'SSA run {r + 1}/{num_runs}')
-        alg_ssa = StepwiseSequential(feedback=sim, slm=sim.slm, n_x=13, n_y=13, phase_steps=6)
+        print(f"SSA run {r + 1}/{num_runs}")
+        alg_ssa = StepwiseSequential(
+            feedback=sim, slm=sim.slm, n_x=13, n_y=13, phase_steps=6
+        )
         wfs_result_ssa = alg_ssa.execute()
         sim.slm.set_phases(-np.angle(wfs_result_ssa.t))
         shaped_intensities_ssa[r] = sim.read()
@@ -140,7 +165,8 @@ def test_ssa_enhancement():
     enhancement_ssa_std = shaped_intensities_ssa.std() / unshaped_intensities.mean()
 
     print(
-        f'SSA enhancement (squared signal): {enhancement_ssa:.2f}, std={enhancement_ssa_std:.2f}, with {wfs_result_ssa.n} modes')
+        f"SSA enhancement (squared signal): {enhancement_ssa:.2f}, std={enhancement_ssa_std:.2f}, with {wfs_result_ssa.n} modes"
+    )
 
     assert enhancement_ssa > 100.0
 
@@ -153,9 +179,14 @@ def test_fourier(n_x):
     """
     aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
     sim = SimulatedWFS(aberrations=aberrations)
-    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-n_x,
-                               k_angles_max=n_x,
-                               phase_steps=4)
+    alg = FourierDualReference(
+        feedback=sim,
+        slm=sim.slm,
+        slm_shape=np.shape(aberrations),
+        k_angles_min=-n_x,
+        k_angles_max=n_x,
+        phase_steps=4,
+    )
     results = alg.execute()
     assert_enhancement(sim.slm, sim, results, np.exp(1j * aberrations))
 
@@ -165,47 +196,69 @@ def test_fourier2():
     slm_shape = (1000, 1000)
     aberrations = skimage.data.camera() * ((2 * np.pi) / 255.0)
     sim = SimulatedWFS(aberrations=aberrations)
-    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=slm_shape, k_angles_min=-5,
-                               k_angles_max=5,
-                               phase_steps=3)
+    alg = FourierDualReference(
+        feedback=sim,
+        slm=sim.slm,
+        slm_shape=slm_shape,
+        k_angles_min=-5,
+        k_angles_max=5,
+        phase_steps=3,
+    )
     controller = WFSController(alg)
     controller.wavefront = WFSController.State.SHAPED_WAVEFRONT
     scaled_aberration = zoom(aberrations, np.array(slm_shape) / aberrations.shape)
     assert_enhancement(sim.slm, sim, controller._result, np.exp(1j * scaled_aberration))
 
 
-@pytest.mark.skip(reason="This test is is not passing yet and needs further inspection to see if the test itself is "
-                         "correct.")
+@pytest.mark.skip(
+    reason="This test is is not passing yet and needs further inspection to see if the test itself is "
+    "correct."
+)
 def test_fourier3():
     """Test the Fourier dual reference algorithm using WFSController."""
     slm_shape = (32, 32)
     aberrations = np.random.uniform(0.0, 2 * np.pi, slm_shape)
     sim = SimulatedWFS(aberrations=aberrations)
-    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=slm_shape, k_angles_min=-32,
-                               k_angles_max=32,
-                               phase_steps=3)
+    alg = FourierDualReference(
+        feedback=sim,
+        slm=sim.slm,
+        slm_shape=slm_shape,
+        k_angles_min=-32,
+        k_angles_max=32,
+        phase_steps=3,
+    )
     controller = WFSController(alg)
     controller.wavefront = WFSController.State.SHAPED_WAVEFRONT
     scaled_aberration = zoom(aberrations, np.array(slm_shape) / aberrations.shape)
     assert_enhancement(sim.slm, sim, controller._result, np.exp(1j * scaled_aberration))
 
 
-@pytest.mark.parametrize("k_radius, g", [[2.5, (1.0, 0.0)], [2.5, (0.0, 2.0)]], )
+@pytest.mark.parametrize(
+    "k_radius, g",
+    [[2.5, (1.0, 0.0)], [2.5, (0.0, 2.0)]],
+)
 def test_fourier_circle(k_radius, g):
     """
     Test Fourier dual reference algorithm with a circular k-space, with a tilt 'aberration'.
     """
     aberrations = tilt(shape=(100, 100), extent=(2, 2), g=g, phase_offset=0.5)
     sim = SimulatedWFS(aberrations=aberrations)
-    alg = FourierDualReferenceCircle(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_radius=k_radius,
-                                     phase_steps=4)
+    alg = FourierDualReferenceCircle(
+        feedback=sim,
+        slm=sim.slm,
+        slm_shape=np.shape(aberrations),
+        k_radius=k_radius,
+        phase_steps=4,
+    )
     results = alg.execute()
     assert_enhancement(sim.slm, sim, results, np.exp(1j * aberrations))
 
 
 def test_fourier_microscope():
     aberration_phase = skimage.data.camera() * ((2 * np.pi) / 255.0) + np.pi
-    aberration = StaticSource(aberration_phase, pixel_size=2.0 / np.array(aberration_phase.shape))
+    aberration = StaticSource(
+        aberration_phase, pixel_size=2.0 / np.array(aberration_phase.shape)
+    )
     img = np.zeros((1000, 1000), dtype=np.int16)
     signal_location = (250, 250)
     img[signal_location] = 100
@@ -213,13 +266,24 @@ def test_fourier_microscope():
 
     src = StaticSource(img, 400 * u.nm)
     slm = SLM(shape=(1000, 1000))
-    sim = Microscope(source=src, incident_field=slm.field, magnification=1, numerical_aperture=1,
-                     aberrations=aberration,
-                     wavelength=800 * u.nm)
+    sim = Microscope(
+        source=src,
+        incident_field=slm.field,
+        magnification=1,
+        numerical_aperture=1,
+        aberrations=aberration,
+        wavelength=800 * u.nm,
+    )
     cam = sim.get_camera(analog_max=100)
     roi_detector = SingleRoi(cam, pos=(250, 250))  # Only measure that specific point
-    alg = FourierDualReference(feedback=roi_detector, slm=slm, slm_shape=slm_shape, k_angles_min=-1, k_angles_max=1,
-                               phase_steps=3)
+    alg = FourierDualReference(
+        feedback=roi_detector,
+        slm=slm,
+        slm_shape=slm_shape,
+        k_angles_min=-1,
+        k_angles_max=1,
+        phase_steps=3,
+    )
     controller = WFSController(alg)
     controller.wavefront = WFSController.State.FLAT_WAVEFRONT
     before = roi_detector.read()
@@ -227,8 +291,12 @@ def test_fourier_microscope():
     after = roi_detector.read()
     # imshow(controller._optimized_wavefront)
     print(after / before)
-    scaled_aberration = zoom(aberration_phase, np.array(slm_shape) / aberration_phase.shape)
-    assert_enhancement(slm, roi_detector, controller._result, np.exp(1j * scaled_aberration))
+    scaled_aberration = zoom(
+        aberration_phase, np.array(slm_shape) / aberration_phase.shape
+    )
+    assert_enhancement(
+        slm, roi_detector, controller._result, np.exp(1j * scaled_aberration)
+    )
 
 
 def test_fourier_correction_field():
@@ -237,13 +305,20 @@ def test_fourier_correction_field():
     """
     aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
     sim = SimulatedWFS(aberrations=aberrations)
-    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-2,
-                               k_angles_max=2,
-                               phase_steps=3)
+    alg = FourierDualReference(
+        feedback=sim,
+        slm=sim.slm,
+        slm_shape=np.shape(aberrations),
+        k_angles_min=-2,
+        k_angles_max=2,
+        phase_steps=3,
+    )
     t = alg.execute().t
 
     t_correct = np.exp(1j * aberrations)
-    correlation = np.vdot(t, t_correct) / np.sqrt(np.vdot(t, t) * np.vdot(t_correct, t_correct))
+    correlation = np.vdot(t, t_correct) / np.sqrt(
+        np.vdot(t, t) * np.vdot(t_correct, t_correct)
+    )
 
     # TODO: integrate with other test cases, duplication
     assert abs(correlation) > 0.75
@@ -256,9 +331,14 @@ def test_phase_shift_correction():
     """
     aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
     sim = SimulatedWFS(aberrations=aberrations)
-    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-1,
-                               k_angles_max=1,
-                               phase_steps=3)
+    alg = FourierDualReference(
+        feedback=sim,
+        slm=sim.slm,
+        slm_shape=np.shape(aberrations),
+        k_angles_min=-1,
+        k_angles_max=1,
+        phase_steps=3,
+    )
     t = alg.execute().t
 
     # compute the phase pattern to optimize the intensity in target 0
@@ -275,7 +355,9 @@ def test_phase_shift_correction():
         signal = sim.read()
         signals.append(signal)
 
-    assert np.std(signals) < 0.0001 * before, f"""The simulated response of the Fourier algorithm is sensitive to a 
+    assert (
+        np.std(signals) < 0.0001 * before
+    ), f"""The simulated response of the Fourier algorithm is sensitive to a 
     flat 
         phase-shift. This is incorrect behaviour"""
 
@@ -290,8 +372,14 @@ def test_flat_wf_response_fourier():
     aberrations = np.zeros(shape=(512, 512))
     sim = SimulatedWFS(aberrations=aberrations.reshape((*aberrations.shape, 1)))
 
-    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-1,
-                               k_angles_max=1, phase_steps=3)
+    alg = FourierDualReference(
+        feedback=sim,
+        slm=sim.slm,
+        slm_shape=np.shape(aberrations),
+        k_angles_min=-1,
+        k_angles_max=1,
+        phase_steps=3,
+    )
 
     t = alg.execute().t
 
@@ -314,7 +402,9 @@ def test_flat_wf_response_ssa():
 
     # Assert that the standard deviation of the optimized wavefront is below the threshold,
     # indicating that it is effectively flat
-    assert np.std(optimised_wf) < 0.001, f"Response flat wavefront not flat, std: {np.std(optimised_wf)}"
+    assert (
+        np.std(optimised_wf) < 0.001
+    ), f"Response flat wavefront not flat, std: {np.std(optimised_wf)}"
 
 
 def test_multidimensional_feedback_ssa():
@@ -336,7 +426,9 @@ def test_multidimensional_feedback_ssa():
     after = sim.read()
     enhancement = after / before
 
-    assert enhancement[target] >= 3.0, f"""The SSA algorithm did not enhance focus as much as expected.
+    assert (
+        enhancement[target] >= 3.0
+    ), f"""The SSA algorithm did not enhance focus as much as expected.
             Expected at least 3.0, got {enhancement}"""
 
 
@@ -345,7 +437,9 @@ def test_multidimensional_feedback_fourier():
     sim = SimulatedWFS(aberrations=aberrations)
 
     # input the camera as a feedback object, such that it is multidimensional
-    alg = FourierDualReference(feedback=sim, slm=sim.slm, k_angles_min=-1, k_angles_max=1, phase_steps=3)
+    alg = FourierDualReference(
+        feedback=sim, slm=sim.slm, k_angles_min=-1, k_angles_max=1, phase_steps=3
+    )
     t = alg.execute().t
 
     # compute the phase pattern to optimize the intensity in target 0
@@ -359,7 +453,9 @@ def test_multidimensional_feedback_fourier():
     after = sim.read()
     enhancement = after / before
 
-    assert enhancement[2, 1] >= 3.0, f"""The algorithm did not enhance the focus as much as expected.
+    assert (
+        enhancement[2, 1] >= 3.0
+    ), f"""The algorithm did not enhance the focus as much as expected.
             Expected at least 3.0, got {enhancement}"""
 
 
@@ -381,10 +477,17 @@ def test_ssa_fidelity(gaussian_noise_std):
     shutter = Shutter(slm.field)
 
     # Simulate a WFS microscope looking at the specimen
-    sim = Microscope(source=specimen, incident_field=shutter, aberrations=aberrations, wavelength=800 * u.nm)
+    sim = Microscope(
+        source=specimen,
+        incident_field=shutter,
+        aberrations=aberrations,
+        wavelength=800 * u.nm,
+    )
 
     # Simulate a camera device with gaussian noise and shot noise
-    cam = sim.get_camera(analog_max=1e4, shot_noise=False, gaussian_noise_std=gaussian_noise_std)
+    cam = sim.get_camera(
+        analog_max=1e4, shot_noise=False, gaussian_noise_std=gaussian_noise_std
+    )
 
     # Define feedback as circular region of interest in the center of the frame
     roi_detector = SingleRoi(cam, radius=1)
@@ -393,16 +496,24 @@ def test_ssa_fidelity(gaussian_noise_std):
     # Use the stepwise sequential (SSA) WFS algorithm
     n_x = 10
     n_y = 10
-    alg = StepwiseSequential(feedback=roi_detector, slm=slm, n_x=n_x, n_y=n_y, phase_steps=8)
+    alg = StepwiseSequential(
+        feedback=roi_detector, slm=slm, n_x=n_x, n_y=n_y, phase_steps=8
+    )
 
     # Define a region of interest to determine average speckle intensity
     roi_background = SingleRoi(cam, radius=50)
 
     # Run WFS troubleshooter and output a report to the console
-    trouble = troubleshoot(algorithm=alg, background_feedback=roi_background,
-                           frame_source=cam, shutter=shutter)
+    trouble = troubleshoot(
+        algorithm=alg,
+        background_feedback=roi_background,
+        frame_source=cam,
+        shutter=shutter,
+    )
 
-    assert np.isclose(trouble.measured_enhancement, trouble.expected_enhancement, rtol=0.2)
+    assert np.isclose(
+        trouble.measured_enhancement, trouble.expected_enhancement, rtol=0.2
+    )
 
 
 def test_ssa_aberration_reconstruction():
@@ -415,7 +526,11 @@ def test_ssa_aberration_reconstruction():
     # Create aberrations
     x = np.linspace(-1, 1, n_x).reshape((1, -1))
     y = np.linspace(-1, 1, n_y).reshape((-1, 1))
-    aberrations = (np.sin(0.8 * np.pi * x) * np.cos(1.3 * np.pi * y) * (0.8 * np.pi + 0.4 * x + 0.4 * y)) % (2 * np.pi)
+    aberrations = (
+        np.sin(0.8 * np.pi * x)
+        * np.cos(1.3 * np.pi * y)
+        * (0.8 * np.pi + 0.4 * x + 0.4 * y)
+    ) % (2 * np.pi)
     aberrations[0:1, :] = 0
     aberrations[:, 0:1] = 0
 
@@ -428,20 +543,25 @@ def test_ssa_aberration_reconstruction():
 
     if do_debug:
         import matplotlib.pyplot as plt
-        plt.figure()
-        plt.imshow(np.angle(np.exp(1j * aberrations)), vmin=-np.pi, vmax=np.pi, cmap='hsv')
-        plt.title('Aberrations')
 
         plt.figure()
-        plt.imshow(np.angle(result.t), vmin=-np.pi, vmax=np.pi, cmap='hsv')
-        plt.title('t')
+        plt.imshow(
+            np.angle(np.exp(1j * aberrations)), vmin=-np.pi, vmax=np.pi, cmap="hsv"
+        )
+        plt.title("Aberrations")
+
+        plt.figure()
+        plt.imshow(np.angle(result.t), vmin=-np.pi, vmax=np.pi, cmap="hsv")
+        plt.title("t")
         plt.colorbar()
         plt.show()
 
     assert np.abs(field_correlation(np.exp(1j * aberrations), result.t)) > 0.99
 
 
-@pytest.mark.parametrize("construct_basis", (half_plane_wave_basis, half_hadamard_basis))
+@pytest.mark.parametrize(
+    "construct_basis", (half_plane_wave_basis, half_hadamard_basis)
+)
 def test_custom_blind_dual_reference_ortho_split(construct_basis: callable):
     """Test custom blind dual reference with an orthonormal phase-only basis."""
     do_debug = False
@@ -458,11 +578,12 @@ def test_custom_blind_dual_reference_ortho_split(construct_basis: callable):
     if do_debug:
         # Plot the modes
         import matplotlib.pyplot as plt
+
         plt.figure(figsize=(12, 7))
         for m in range(M):
             plt.subplot(N2, N1, m + 1)
             plt.imshow(np.angle(mode_set[:, :, m]), vmin=-np.pi, vmax=np.pi)
-            plt.title(f'm={m}')
+            plt.title(f"m={m}")
             plt.xticks([])
             plt.yticks([])
         plt.pause(0.1)
@@ -470,26 +591,38 @@ def test_custom_blind_dual_reference_ortho_split(construct_basis: callable):
     # Create aberrations
     x = np.linspace(-1, 1, 1 * N1).reshape((1, -1))
     y = np.linspace(-1, 1, 1 * N1).reshape((-1, 1))
-    aberrations = (np.sin(0.8 * np.pi * x) * np.cos(1.3 * np.pi * y) * (0.8 * np.pi + 0.4 * x + 0.4 * y)) % (2 * np.pi)
+    aberrations = (
+        np.sin(0.8 * np.pi * x)
+        * np.cos(1.3 * np.pi * y)
+        * (0.8 * np.pi + 0.4 * x + 0.4 * y)
+    ) % (2 * np.pi)
     aberrations[0:2, :] = 0
     aberrations[:, 0:2] = 0
 
     sim = SimulatedWFS(aberrations=aberrations.reshape((*aberrations.shape, 1)))
 
-    alg = CustomIterativeDualReference(feedback=sim, slm=sim.slm, slm_shape=aberrations.shape,
-                                       phases=(phases_set, np.flip(phases_set, axis=1)), set1_mask=mask, phase_steps=4,
-                                       iterations=4)
+    alg = CustomIterativeDualReference(
+        feedback=sim,
+        slm=sim.slm,
+        slm_shape=aberrations.shape,
+        phases=(phases_set, np.flip(phases_set, axis=1)),
+        set1_mask=mask,
+        phase_steps=4,
+        iterations=4,
+    )
 
     result = alg.execute()
 
     if do_debug:
         plt.figure()
-        plt.imshow(np.angle(np.exp(1j * aberrations)), vmin=-np.pi, vmax=np.pi, cmap='hsv')
-        plt.title('Aberrations')
+        plt.imshow(
+            np.angle(np.exp(1j * aberrations)), vmin=-np.pi, vmax=np.pi, cmap="hsv"
+        )
+        plt.title("Aberrations")
 
         plt.figure()
-        plt.imshow(np.angle(result.t), vmin=-np.pi, vmax=np.pi, cmap='hsv')
-        plt.title('t')
+        plt.imshow(np.angle(result.t), vmin=-np.pi, vmax=np.pi, cmap="hsv")
+        plt.title("t")
         plt.colorbar()
         plt.show()
 
@@ -506,7 +639,9 @@ def test_custom_blind_dual_reference_non_ortho():
     N1 = 6
     N2 = 3
     M = N1 * N2
-    mode_set_half = (1 / M) * (1j * np.eye(M).reshape((N1, N2, M)) * -np.ones(shape=(N1, N2, M)))
+    mode_set_half = (1 / M) * (
+        1j * np.eye(M).reshape((N1, N2, M)) * -np.ones(shape=(N1, N2, M))
+    )
     mode_set = np.concatenate((mode_set_half, np.zeros(shape=(N1, N2, M))), axis=1)
     phases_set = np.angle(mode_set)
     mask = np.concatenate((np.zeros((N1, N2)), np.ones((N1, N2))), axis=1)
@@ -514,40 +649,53 @@ def test_custom_blind_dual_reference_non_ortho():
     if do_debug:
         # Plot the modes
         import matplotlib.pyplot as plt
+
         plt.figure(figsize=(12, 7))
         for m in range(M):
             plt.subplot(N2, N1, m + 1)
             plt.imshow(np.angle(mode_set[:, :, m]), vmin=-np.pi, vmax=np.pi)
-            plt.title(f'm={m}')
+            plt.title(f"m={m}")
             plt.xticks([])
             plt.yticks([])
         plt.pause(0.01)
-        plt.suptitle('Phase of basis functions for one half')
+        plt.suptitle("Phase of basis functions for one half")
 
     # Create aberrations
     x = np.linspace(-1, 1, 1 * N1).reshape((1, -1))
     y = np.linspace(-1, 1, 1 * N1).reshape((-1, 1))
-    aberrations = (np.sin(0.8 * np.pi * x) * np.cos(1.3 * np.pi * y) * (0.8 * np.pi + 0.4 * x + 0.4 * y)) % (2 * np.pi)
+    aberrations = (
+        np.sin(0.8 * np.pi * x)
+        * np.cos(1.3 * np.pi * y)
+        * (0.8 * np.pi + 0.4 * x + 0.4 * y)
+    ) % (2 * np.pi)
     aberrations[0:1, :] = 0
     aberrations[:, 0:2] = 0
 
     sim = SimulatedWFS(aberrations=aberrations.reshape((*aberrations.shape, 1)))
 
-    alg = CustomIterativeDualReference(feedback=sim, slm=sim.slm, slm_shape=aberrations.shape,
-                                       phases=(phases_set, np.flip(phases_set, axis=1)), set1_mask=mask, phase_steps=4,
-                                       iterations=4)
+    alg = CustomIterativeDualReference(
+        feedback=sim,
+        slm=sim.slm,
+        slm_shape=aberrations.shape,
+        phases=(phases_set, np.flip(phases_set, axis=1)),
+        set1_mask=mask,
+        phase_steps=4,
+        iterations=4,
+    )
 
     result = alg.execute()
 
     if do_debug:
         plt.figure()
-        plt.imshow(np.angle(np.exp(1j * aberrations)), vmin=-np.pi, vmax=np.pi, cmap='hsv')
-        plt.title('Aberrations')
+        plt.imshow(
+            np.angle(np.exp(1j * aberrations)), vmin=-np.pi, vmax=np.pi, cmap="hsv"
+        )
+        plt.title("Aberrations")
         plt.colorbar()
 
         plt.figure()
-        plt.imshow(np.angle(result.t), vmin=-np.pi, vmax=np.pi, cmap='hsv')
-        plt.title('t')
+        plt.imshow(np.angle(result.t), vmin=-np.pi, vmax=np.pi, cmap="hsv")
+        plt.title("t")
         plt.colorbar()
         plt.show()
 

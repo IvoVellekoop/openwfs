@@ -3,7 +3,7 @@ import weakref
 
 import glfw
 
-SLM = 'slm.SLM'
+SLM = "slm.SLM"
 
 
 class Context:
@@ -15,6 +15,7 @@ class Context:
      one thread can use OpenGL at the same time.
     This class holds a weak ref to the SLM object, so that the SLM object can be garbage collected.
     """
+
     _lock = threading.RLock()
 
     def __init__(self, slm):

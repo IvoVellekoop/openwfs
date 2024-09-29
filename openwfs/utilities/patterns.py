@@ -42,8 +42,9 @@ The returned array has a pixel_size property attached.
 """
 
 
-def coordinate_range(shape: ShapeType, extent: ExtentType, offset: Optional[CoordinateType] = None) -> (Quantity,
-                                                                                                        Quantity):
+def coordinate_range(
+    shape: ShapeType, extent: ExtentType, offset: Optional[CoordinateType] = None
+) -> (Quantity, Quantity):
     """
     Returns coordinate vectors for the two coordinates (y and x).
 
@@ -72,8 +73,10 @@ def coordinate_range(shape: ShapeType, extent: ExtentType, offset: Optional[Coor
         dx = ex / res
         return np.arange(res) * dx + (0.5 * dx - 0.5 * ex + cx)
 
-    return (c_range(shape[0], extent[0], offset[0]).reshape((-1, 1)),
-            c_range(shape[1], extent[1], offset[1]).reshape((1, -1)))
+    return (
+        c_range(shape[0], extent[0], offset[0]).reshape((-1, 1)),
+        c_range(shape[1], extent[1], offset[1]).reshape((1, -1)),
+    )
 
 
 def r2_range(shape: ShapeType, extent: ExtentType):
@@ -81,10 +84,15 @@ def r2_range(shape: ShapeType, extent: ExtentType):
     Equivalent to computing cx^2 + cy^2
     """
     c0, c1 = coordinate_range(shape, extent)
-    return c0 ** 2 + c1 ** 2
+    return c0**2 + c1**2
 
 
-def tilt(shape: ShapeType, g: ExtentType, extent: ExtentType = (2.0, 2.0), phase_offset: float = 0.0):
+def tilt(
+    shape: ShapeType,
+    g: ExtentType,
+    extent: ExtentType = (2.0, 2.0),
+    phase_offset: float = 0.0,
+):
     """Constructs a linear gradient pattern φ=2 g·r
 
     Args:
@@ -115,11 +123,17 @@ def lens(shape: ShapeType, f: ScalarType, wavelength: ScalarType, extent: Extent
         extent(ExtentType): physical extent of the SLM, same units as `f` and `wavelength`
     """
     r_sqr = r2_range(shape, extent)
-    return unitless((f - np.sqrt(f ** 2 + r_sqr)) * (2 * np.pi / wavelength))
+    return unitless((f - np.sqrt(f**2 + r_sqr)) * (2 * np.pi / wavelength))
 
 
-def propagation(shape: ShapeType, distance: ScalarType, numerical_aperture: ScalarType,
-                refractive_index: ScalarType, wavelength: ScalarType, extent: ExtentType = (2.0, 2.0)):
+def propagation(
+    shape: ShapeType,
+    distance: ScalarType,
+    numerical_aperture: ScalarType,
+    refractive_index: ScalarType,
+    wavelength: ScalarType,
+    extent: ExtentType = (2.0, 2.0),
+):
     """Computes a wavefront that corresponds to digitally propagating the field in the object plane.
 
     k_z = sqrt(n² k_0²-k_x²-k_y²)
@@ -139,7 +153,9 @@ def propagation(shape: ShapeType, distance: ScalarType, numerical_aperture: Scal
     # convert pupil coordinates to absolute k_x, k_y coordinates
     k_0 = 2.0 * np.pi / wavelength
     extent_k = Quantity(extent) * numerical_aperture * k_0
-    k_z = np.sqrt(np.maximum((refractive_index * k_0) ** 2 - r2_range(shape, extent_k), 0.0))
+    k_z = np.sqrt(
+        np.maximum((refractive_index * k_0) ** 2 - r2_range(shape, extent_k), 0.0)
+    )
     return unitless(k_z * distance)
 
 
@@ -153,11 +169,15 @@ def disk(shape: ShapeType, radius: ScalarType = 1.0, extent: ExtentType = (2.0, 
           radius (ScalarType): radius of the disk, should have the same unit as `extent`.
           extent: see module documentation
     """
-    return 1.0 * (r2_range(shape, extent) < radius ** 2)
+    return 1.0 * (r2_range(shape, extent) < radius**2)
 
 
-def gaussian(shape: ShapeType, waist: ScalarType,
-             truncation_radius: ScalarType = None, extent: ExtentType = (2.0, 2.0)):
+def gaussian(
+    shape: ShapeType,
+    waist: ScalarType,
+    truncation_radius: ScalarType = None,
+    extent: ExtentType = (2.0, 2.0),
+):
     """Constructs an image of a centered Gaussian
 
     `waist`, `extent` and the optional `truncation_radius` should all have the same unit.
@@ -172,7 +192,7 @@ def gaussian(shape: ShapeType, waist: ScalarType,
 
     """
     r_sqr = r2_range(shape, extent)
-    w2inv = -1.0 / waist ** 2
+    w2inv = -1.0 / waist**2
     gauss = np.exp(unitless(r_sqr * w2inv))
     if truncation_radius is not None:
         gauss = gauss * disk(shape, truncation_radius, extent=extent)

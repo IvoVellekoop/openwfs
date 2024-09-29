@@ -10,21 +10,29 @@ from ..utilities.patterns import tilt
 class FourierBase:
     """Base class definition for the Fourier algorithms as described in [1].
 
-      This algorithm optimises the wavefront in a Fourier-basis. The modes that are tested are provided into a 'k-space'
-      of which each 'k-vector' represents a certain angled wavefront that will be tested. (more detailed explanation is
-      found in _get_phase_pattern).
+    This algorithm optimises the wavefront in a Fourier-basis. The modes that are tested are provided into a 'k-space'
+    of which each 'k-vector' represents a certain angled wavefront that will be tested. (more detailed explanation is
+    found in _get_phase_pattern).
 
-      As described in [1], these modes are measured by interfering a certain mode on one half of the SLM with a
-      'reference beam'. This is done by not modulating the other half of the SLM. In order to find a full corrective
-      wavefront therefore, the experiment has to be repeated twice for each side of the SLM. Finally, the two wavefronts
-      are combined.
+    As described in [1], these modes are measured by interfering a certain mode on one half of the SLM with a
+    'reference beam'. This is done by not modulating the other half of the SLM. In order to find a full corrective
+    wavefront therefore, the experiment has to be repeated twice for each side of the SLM. Finally, the two wavefronts
+    are combined.
 
-      [1]: Bahareh Mastiani, Gerwin Osnabrugge, and Ivo M. Vellekoop,
-      "Wavefront shaping for forward scattering," Opt. Express 30, 37436-37445 (2022)
-      """
+    [1]: Bahareh Mastiani, Gerwin Osnabrugge, and Ivo M. Vellekoop,
+    "Wavefront shaping for forward scattering," Opt. Express 30, 37436-37445 (2022)
+    """
 
-    def __init__(self, feedback: Detector, slm: PhaseSLM, slm_shape: tuple[int, int], k_left: np.ndarray,
-                 k_right: np.ndarray, phase_steps: int = 4, analyzer: Optional[callable] = analyze_phase_stepping):
+    def __init__(
+        self,
+        feedback: Detector,
+        slm: PhaseSLM,
+        slm_shape: tuple[int, int],
+        k_left: np.ndarray,
+        k_right: np.ndarray,
+        phase_steps: int = 4,
+        analyzer: Optional[callable] = analyze_phase_stepping,
+    ):
         """
 
         Args:
@@ -88,7 +96,9 @@ class FourierBase:
         Returns:
             WFSResult: An object containing the computed SLM transmission matrix and related data.
         """
-        measurements = np.zeros((k_set.shape[1], self.phase_steps, *self.feedback.data_shape))
+        measurements = np.zeros(
+            (k_set.shape[1], self.phase_steps, *self.feedback.data_shape)
+        )
 
         for i in range(k_set.shape[1]):
             for p in range(self.phase_steps):
@@ -100,10 +110,9 @@ class FourierBase:
         self.feedback.wait()
         return self.analyzer(measurements, axis=1)
 
-    def _get_phase_pattern(self,
-                           k: np.ndarray,
-                           phase_offset: float,
-                           side: int) -> np.ndarray:
+    def _get_phase_pattern(
+        self, k: np.ndarray, phase_offset: float, side: int
+    ) -> np.ndarray:
         """
         Generates a phase pattern for the SLM based on the given spatial frequency, phase offset, and side.
 
@@ -119,8 +128,12 @@ class FourierBase:
         # The natural step to take is the Abbe diffraction limit of the modulated part, which corresponds to a gradient
         # from -π to π over the modulated part.
         num_columns = self.slm_shape[1] // 2
-        tilted_front = tilt([self.slm_shape[0], num_columns], k * (0.5 * np.pi), extent=(2.0, 1.0),
-                            phase_offset=phase_offset)
+        tilted_front = tilt(
+            [self.slm_shape[0], num_columns],
+            k * (0.5 * np.pi),
+            extent=(2.0, 1.0),
+            phase_offset=phase_offset,
+        )
 
         # Handle side-dependent pattern
 
@@ -136,7 +149,9 @@ class FourierBase:
 
         return result
 
-    def compute_t(self, left: WFSResult, right: WFSResult, k_left, k_right) -> WFSResult:
+    def compute_t(
+        self, left: WFSResult, right: WFSResult, k_left, k_right
+    ) -> WFSResult:
         """
         Computes the SLM transmission matrix by combining the Fourier transmission matrices from both sides of the SLM.
 
@@ -152,8 +167,8 @@ class FourierBase:
 
         # TODO: determine noise
         # Initialize transmission matrices
-        t1 = np.zeros((*self.slm_shape, *self.feedback.data_shape), dtype='complex128')
-        t2 = np.zeros((*self.slm_shape, *self.feedback.data_shape), dtype='complex128')
+        t1 = np.zeros((*self.slm_shape, *self.feedback.data_shape), dtype="complex128")
+        t2 = np.zeros((*self.slm_shape, *self.feedback.data_shape), dtype="complex128")
 
         # Calculate phase difference between the two halves
         # We have two phase stepping measurements where both halves are flat (k=0)
@@ -163,12 +178,18 @@ class FourierBase:
         # Find the index of the (0,0) mode in k_left and k_right
         index_0_left = np.argmin(k_left[0] ** 2 + k_left[1] ** 2)
         index_0_right = np.argmin(k_right[0] ** 2 + k_left[1] ** 2)
-        if not np.all(k_left[:, index_0_left] == 0.0) or not np.all(k_right[:, index_0_right] == 0.0):
-            raise Exception("k=(0,0) component missing from the measurement set, cannot determine relative phase.")
+        if not np.all(k_left[:, index_0_left] == 0.0) or not np.all(
+            k_right[:, index_0_right] == 0.0
+        ):
+            raise Exception(
+                "k=(0,0) component missing from the measurement set, cannot determine relative phase."
+            )
 
         # average the measurements for better accuracy
         # TODO: absolute values are not the same in simulation, 'A' scaling is off?
-        relative = 0.5 * (left.t[index_0_left, ...] + np.conjugate(right.t[index_0_right, ...]))
+        relative = 0.5 * (
+            left.t[index_0_left, ...] + np.conjugate(right.t[index_0_right, ...])
+        )
 
         # Apply phase correction to the right side
         phase_correction = relative / np.abs(relative)
@@ -181,12 +202,21 @@ class FourierBase:
 
         for n, t in enumerate(right.t):
             phi = self._get_phase_pattern(k_right[:, n], 0, 1)
-            t2 += np.tensordot(np.exp(-1j * phi), t * (normalisation * phase_correction), 0)
+            t2 += np.tensordot(
+                np.exp(-1j * phi), t * (normalisation * phase_correction), 0
+            )
 
         # Combine the left and right sides
-        t_full = np.concatenate([t1[:, :self.slm_shape[0] // 2, ...], t2[:, self.slm_shape[0] // 2:, ...]], axis=1)
-        t_f_full = np.concatenate([left.t_f, right.t_f],
-                                  axis=1)  # also store raw data (not normalized or corrected yet!)
+        t_full = np.concatenate(
+            [
+                t1[:, : self.slm_shape[0] // 2, ...],
+                t2[:, self.slm_shape[0] // 2 :, ...],
+            ],
+            axis=1,
+        )
+        t_f_full = np.concatenate(
+            [left.t_f, right.t_f], axis=1
+        )  # also store raw data (not normalized or corrected yet!)
 
         # return combined result, along with a course estimate of the snr and expected enhancement
         # TODO: not accurate yet
@@ -194,10 +224,16 @@ class FourierBase:
         def weighted_average(x_left, x_right):
             return (left.n * x_left + right.n * x_right) / (left.n + right.n)
 
-        return WFSResult(t=t_full,
-                         t_f=t_f_full,
-                         n=left.n + right.n,
-                         axis=2,
-                         fidelity_noise=weighted_average(left.fidelity_noise, right.fidelity_noise),
-                         fidelity_amplitude=weighted_average(left.fidelity_amplitude, right.fidelity_amplitude),
-                         fidelity_calibration=weighted_average(left.fidelity_calibration, right.fidelity_calibration))
+        return WFSResult(
+            t=t_full,
+            t_f=t_f_full,
+            n=left.n + right.n,
+            axis=2,
+            fidelity_noise=weighted_average(left.fidelity_noise, right.fidelity_noise),
+            fidelity_amplitude=weighted_average(
+                left.fidelity_amplitude, right.fidelity_amplitude
+            ),
+            fidelity_calibration=weighted_average(
+                left.fidelity_calibration, right.fidelity_calibration
+            ),
+        )

@@ -2,6 +2,7 @@
 ===============================================
 Simulates a wavefront shaping experiment using a SimulatedWFS object,
 which acts both as a spatial light modulator (SLM) and a detector."""
+
 import numpy as np
 
 from openwfs.algorithms import StepwiseSequential

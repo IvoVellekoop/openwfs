@@ -44,9 +44,20 @@ class CustomIterativeDualReference:
     https://opg.optica.org/oe/ abstract.cfm?uri=oe-27-8-1167
     """
 
-    def __init__(self, feedback: Detector, slm: PhaseSLM, slm_shape: tuple[int, int], phases: tuple[nd, nd], set1_mask:
-                 nd, phase_steps: int = 4, iterations: int = 4, analyzer: Optional[callable] = analyze_phase_stepping,
-                 do_try_full_patterns=False, do_progress_bar=True, progress_bar_kwargs={}):
+    def __init__(
+        self,
+        feedback: Detector,
+        slm: PhaseSLM,
+        slm_shape: tuple[int, int],
+        phases: tuple[nd, nd],
+        set1_mask: nd,
+        phase_steps: int = 4,
+        iterations: int = 4,
+        analyzer: Optional[callable] = analyze_phase_stepping,
+        do_try_full_patterns=False,
+        do_progress_bar=True,
+        progress_bar_kwargs={},
+    ):
         """
         Args:
             feedback (Detector): The feedback source, usually a detector that provides measurement data.
@@ -83,7 +94,9 @@ class CustomIterativeDualReference:
         self.do_progress_bar = do_progress_bar
         self.progress_bar_kwargs = progress_bar_kwargs
 
-        assert (phases[0].shape[0] == phases[1].shape[0]) and (phases[0].shape[1] == phases[1].shape[1])
+        assert (phases[0].shape[0] == phases[1].shape[0]) and (
+            phases[0].shape[1] == phases[1].shape[1]
+        )
         self.phases = (phases[0].astype(np.float32), phases[1].astype(np.float32))
 
         # Pre-compute set0 mask
@@ -113,13 +126,20 @@ class CustomIterativeDualReference:
         t_set = t_full
         t_set_all = [None] * self.iterations
         results_all = [None] * self.iterations  # List to store all results
-        results_latest = [None, None]  # The two latest results. Used for computing fidelity factors.
-        full_pattern_feedback = np.zeros(self.iterations)  # List to store feedback from full patterns
+        results_latest = [
+            None,
+            None,
+        ]  # The two latest results. Used for computing fidelity factors.
+        full_pattern_feedback = np.zeros(
+            self.iterations
+        )  # List to store feedback from full patterns
 
         # Prepare progress bar
         if self.do_progress_bar:
-            num_measurements = np.ceil(self.iterations / 2) * self.modes[0].shape[2] \
-                            + np.floor(self.iterations / 2) * self.modes[1].shape[2]
+            num_measurements = (
+                np.ceil(self.iterations / 2) * self.modes[0].shape[2]
+                + np.floor(self.iterations / 2) * self.modes[1].shape[2]
+            )
             progress_bar = tqdm(total=num_measurements, **self.progress_bar_kwargs)
         else:
             progress_bar = None
@@ -129,12 +149,20 @@ class CustomIterativeDualReference:
             s = it % 2  # Set id: 0 or 1. Used to pick set A or B for phase stepping
             mod_mask = self.set_masks[s]
             t_prev = t_set
-            ref_phases = -np.angle(t_prev)  # Shaped reference phase pattern from transmission matrix
+            ref_phases = -np.angle(
+                t_prev
+            )  # Shaped reference phase pattern from transmission matrix
 
             # Measure and compute
-            result = self._single_side_experiment(mod_phases=self.phases[s], ref_phases=ref_phases,
-                                                  mod_mask=mod_mask, progress_bar=progress_bar)
-            t_set = self.compute_t_set(result, self.modes[s])  # Compute transmission matrix from measurements
+            result = self._single_side_experiment(
+                mod_phases=self.phases[s],
+                ref_phases=ref_phases,
+                mod_mask=mod_mask,
+                progress_bar=progress_bar,
+            )
+            t_set = self.compute_t_set(
+                result, self.modes[s]
+            )  # Compute transmission matrix from measurements
 
             # Store results
             t_full = t_prev + t_set
@@ -148,23 +176,34 @@ class CustomIterativeDualReference:
                 full_pattern_feedback[it] = self.feedback.read()
 
         # Compute average fidelity factors
-        fidelity_noise = weighted_average(results_latest[0].fidelity_noise,
-                                          results_latest[1].fidelity_noise, results_latest[0].n,
-                                          results_latest[1].n)
-        fidelity_amplitude = weighted_average(results_latest[0].fidelity_amplitude,
-                                              results_latest[1].fidelity_amplitude, results_latest[0].n,
-                                              results_latest[1].n)
-        fidelity_calibration = weighted_average(results_latest[0].fidelity_calibration,
-                                                results_latest[1].fidelity_calibration, results_latest[0].n,
-                                                results_latest[1].n)
+        fidelity_noise = weighted_average(
+            results_latest[0].fidelity_noise,
+            results_latest[1].fidelity_noise,
+            results_latest[0].n,
+            results_latest[1].n,
+        )
+        fidelity_amplitude = weighted_average(
+            results_latest[0].fidelity_amplitude,
+            results_latest[1].fidelity_amplitude,
+            results_latest[0].n,
+            results_latest[1].n,
+        )
+        fidelity_calibration = weighted_average(
+            results_latest[0].fidelity_calibration,
+            results_latest[1].fidelity_calibration,
+            results_latest[0].n,
+            results_latest[1].n,
+        )
 
-        result = WFSResult(t=t_full,
-                           t_f=None,
-                           n=self.modes[0].shape[2]+self.modes[1].shape[2],
-                           axis=2,
-                           fidelity_noise=fidelity_noise,
-                           fidelity_amplitude=fidelity_amplitude,
-                           fidelity_calibration=fidelity_calibration)
+        result = WFSResult(
+            t=t_full,
+            t_f=None,
+            n=self.modes[0].shape[2] + self.modes[1].shape[2],
+            axis=2,
+            fidelity_noise=fidelity_noise,
+            fidelity_amplitude=fidelity_amplitude,
+            fidelity_calibration=fidelity_calibration,
+        )
 
         # TODO: This is a dirty way to add attributes. Find better way.
         result.t_set_all = t_set_all
@@ -172,8 +211,13 @@ class CustomIterativeDualReference:
         result.full_pattern_feedback = full_pattern_feedback
         return result
 
-    def _single_side_experiment(self, mod_phases: nd, ref_phases: nd, mod_mask: nd,
-                                progress_bar: Optional[tqdm] = None) -> WFSResult:
+    def _single_side_experiment(
+        self,
+        mod_phases: nd,
+        ref_phases: nd,
+        mod_mask: nd,
+        progress_bar: Optional[tqdm] = None,
+    ) -> WFSResult:
         """
         Conducts experiments on one part of the SLM.
 
@@ -195,13 +239,19 @@ class CustomIterativeDualReference:
         With float32:       phase_pattern = phases_B + (phases_A + step) * mask             ~2ms per phase pattern
         """
         num_of_modes = mod_phases.shape[2]
-        measurements = np.zeros((num_of_modes, self.phase_steps, *self.feedback.data_shape))
-        ref_phases_masked = (1.0 - mod_mask) * ref_phases  # Pre-compute masked reference phase pattern
+        measurements = np.zeros(
+            (num_of_modes, self.phase_steps, *self.feedback.data_shape)
+        )
+        ref_phases_masked = (
+            1.0 - mod_mask
+        ) * ref_phases  # Pre-compute masked reference phase pattern
 
         for m in range(num_of_modes):
             for p in range(self.phase_steps):
                 phase_step = p * 2 * np.pi / self.phase_steps
-                phase_pattern = ref_phases_masked + mod_mask * (mod_phases[:, :, m] + phase_step)
+                phase_pattern = ref_phases_masked + mod_mask * (
+                    mod_phases[:, :, m] + phase_step
+                )
                 self.slm.set_phases(phase_pattern)
                 self.feedback.trigger(out=measurements[m, p, ...])
 

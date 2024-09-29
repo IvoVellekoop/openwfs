@@ -27,15 +27,17 @@ class WFSResult:
             This is the offset that is caused by a bias in the detector signal, stray light, etc. Default value: 0.0.
     """
 
-    def __init__(self,
-                 t: np.ndarray,
-                 t_f: np.ndarray,
-                 axis: int,
-                 fidelity_noise: ArrayLike,
-                 fidelity_amplitude: ArrayLike,
-                 fidelity_calibration: ArrayLike,
-                 n: Optional[int] = None,
-                 intensity_offset: Optional[ArrayLike] = 0.0):
+    def __init__(
+        self,
+        t: np.ndarray,
+        t_f: np.ndarray,
+        axis: int,
+        fidelity_noise: ArrayLike,
+        fidelity_amplitude: ArrayLike,
+        fidelity_calibration: ArrayLike,
+        n: Optional[int] = None,
+        intensity_offset: Optional[ArrayLike] = 0.0,
+    ):
         """
         Args:
             t(ndarray): measured transmission matrix.
@@ -65,20 +67,39 @@ class WFSResult:
         self.fidelity_amplitude = np.atleast_1d(fidelity_amplitude)
         self.fidelity_calibration = np.atleast_1d(fidelity_calibration)
         self.estimated_enhancement = np.atleast_1d(
-            1.0 + (self.n - 1) * self.fidelity_amplitude * self.fidelity_noise * self.fidelity_calibration)
-        self.intensity_offset = intensity_offset * np.ones(self.fidelity_calibration.shape) if np.isscalar(
-            intensity_offset) \
+            1.0
+            + (self.n - 1)
+            * self.fidelity_amplitude
+            * self.fidelity_noise
+            * self.fidelity_calibration
+        )
+        self.intensity_offset = (
+            intensity_offset * np.ones(self.fidelity_calibration.shape)
+            if np.isscalar(intensity_offset)
             else intensity_offset
-        after = np.sum(np.abs(t), tuple(
-            range(self.axis))) ** 2 * self.fidelity_noise * self.fidelity_calibration + intensity_offset
+        )
+        after = (
+            np.sum(np.abs(t), tuple(range(self.axis))) ** 2
+            * self.fidelity_noise
+            * self.fidelity_calibration
+            + intensity_offset
+        )
         self.estimated_optimized_intensity = np.atleast_1d(after)
 
     def __str__(self) -> str:
-        noise_warning = "OK" if self.fidelity_noise > 0.5 else "WARNING low signal quality."
-        amplitude_warning = "OK" if self.fidelity_amplitude > 0.5 else "WARNING uneven contribution of optical modes."
-        calibration_fidelity_warning = "OK" if self.fidelity_calibration > 0.5 else (
-            "WARNING non-linear phase response, check "
-            "lookup table.")
+        noise_warning = (
+            "OK" if self.fidelity_noise > 0.5 else "WARNING low signal quality."
+        )
+        amplitude_warning = (
+            "OK"
+            if self.fidelity_amplitude > 0.5
+            else "WARNING uneven contribution of optical modes."
+        )
+        calibration_fidelity_warning = (
+            "OK"
+            if self.fidelity_calibration > 0.5
+            else ("WARNING non-linear phase response, check " "lookup table.")
+        )
         return f"""
         Wavefront shaping results:
             fidelity_noise: {self.fidelity_noise} {noise_warning}
@@ -88,7 +109,7 @@ class WFSResult:
             estimated_optimized_intensity: {self.estimated_optimized_intensity}
             """
 
-    def select_target(self, b) -> 'WFSResult':
+    def select_target(self, b) -> "WFSResult":
         """
         Returns the wavefront shaping results for a single target
 
@@ -98,18 +119,21 @@ class WFSResult:
 
         Returns: WFSResults data for the specified target
         """
-        return WFSResult(t=self.t.reshape((*self.t.shape[0:2], -1))[:, :, b],
-                         t_f=self.t_f.reshape((*self.t_f.shape[0:2], -1))[:, :, b],
-                         axis=self.axis,
-                         intensity_offset=self.intensity_offset[:][b],
-                         fidelity_noise=self.fidelity_noise[:][b],
-                         fidelity_amplitude=self.fidelity_amplitude[:][b],
-                         fidelity_calibration=self.fidelity_calibration[:][b],
-                         n=self.n,
-                         )
+        return WFSResult(
+            t=self.t.reshape((*self.t.shape[0:2], -1))[:, :, b],
+            t_f=self.t_f.reshape((*self.t_f.shape[0:2], -1))[:, :, b],
+            axis=self.axis,
+            intensity_offset=self.intensity_offset[:][b],
+            fidelity_noise=self.fidelity_noise[:][b],
+            fidelity_amplitude=self.fidelity_amplitude[:][b],
+            fidelity_calibration=self.fidelity_calibration[:][b],
+            n=self.n,
+        )
 
 
-def analyze_phase_stepping(measurements: np.ndarray, axis: int, A: Optional[float] = None):
+def analyze_phase_stepping(
+    measurements: np.ndarray, axis: int, A: Optional[float] = None
+):
     """Analyzes the result of phase stepping measurements, returning matrix `t` and noise statistics
 
     This function assumes that all measurements were made using the same reference field `A`
@@ -166,7 +190,9 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int, A: Optional[floa
 
     # compute the effect of amplitude variations.
     # for perfectly developed speckle, and homogeneous illumination, this factor will be pi/4
-    amplitude_factor = np.mean(np.abs(t), segments) ** 2 / np.mean(np.abs(t) ** 2, segments)
+    amplitude_factor = np.mean(np.abs(t), segments) ** 2 / np.mean(
+        np.abs(t) ** 2, segments
+    )
 
     # estimate the calibration error
     # we first construct a matrix that can be used to fit
@@ -190,15 +216,26 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int, A: Optional[floa
     total_energy = np.sum(np.abs(t_f) ** 2)
 
     if phase_steps > 3:
-        noise_energy = (total_energy - signal_energy - offset_energy) / (phase_steps - 3)
-        noise_factor = np.abs(np.maximum(signal_energy - noise_energy, 0.0) / signal_energy)
+        noise_energy = (total_energy - signal_energy - offset_energy) / (
+            phase_steps - 3
+        )
+        noise_factor = np.abs(
+            np.maximum(signal_energy - noise_energy, 0.0) / signal_energy
+        )
     else:
         noise_factor = 1.0  # cannot estimate reliably
 
     calibration_fidelity = np.abs(c[1]) ** 2 / np.sum(np.abs(c[1:]) ** 2)
 
-    return WFSResult(t, t_f=t_f, axis=axis, fidelity_amplitude=amplitude_factor, fidelity_noise=noise_factor,
-                     fidelity_calibration=calibration_fidelity, n=n)
+    return WFSResult(
+        t,
+        t_f=t_f,
+        axis=axis,
+        fidelity_amplitude=amplitude_factor,
+        fidelity_noise=noise_factor,
+        fidelity_calibration=calibration_fidelity,
+        n=n,
+    )
 
 
 class WFSController:
@@ -264,7 +301,9 @@ class WFSController:
                 self._amplitude_factor = result.fidelity_amplitude
                 self._estimated_enhancement = result.estimated_enhancement
                 self._calibration_fidelity = result.fidelity_calibration
-                self._estimated_optimized_intensity = result.estimated_optimized_intensity
+                self._estimated_optimized_intensity = (
+                    result.estimated_optimized_intensity
+                )
                 self._snr = 1.0 / (1.0 / result.fidelity_noise - 1.0)
                 self._result = result
             self.algorithm.slm.set_phases(self._optimized_wavefront)
@@ -323,12 +362,12 @@ class WFSController:
 
     @property
     def recompute_wavefront(self) -> bool:
-        """Returns: bool that indicates whether the wavefront needs to be recomputed. """
+        """Returns: bool that indicates whether the wavefront needs to be recomputed."""
         return self._recompute_wavefront
 
     @recompute_wavefront.setter
     def recompute_wavefront(self, value):
-        """Sets the bool that indicates whether the wavefront needs to be recomputed. """
+        """Sets the bool that indicates whether the wavefront needs to be recomputed."""
         self._recompute_wavefront = value
 
     @property
@@ -355,6 +394,8 @@ class WFSController:
             feedback_flat = self.algorithm.feedback.read().copy()
             self.wavefront = WFSController.State.SHAPED_WAVEFRONT
             feedback_shaped = self.algorithm.feedback.read().copy()
-            self._feedback_enhancement = float(feedback_shaped.sum() / feedback_flat.sum())
+            self._feedback_enhancement = float(
+                feedback_shaped.sum() / feedback_flat.sum()
+            )
 
         self._test_wavefront = value

@@ -17,8 +17,12 @@ class PhaseToField(Processor):
     Computes `amplitude * (exp(1j * phase) + non_modulated_field_fraction)`
     """
 
-    def __init__(self, slm_phases: Detector, field_amplitude: ArrayLike = 1.0,
-                 non_modulated_field_fraction: float = 0.0):
+    def __init__(
+        self,
+        slm_phases: Detector,
+        field_amplitude: ArrayLike = 1.0,
+        non_modulated_field_fraction: float = 0.0,
+    ):
         """
         Args:
             slm_phases: The `Detector` that returns the phases of the slm pixels.
@@ -34,7 +38,9 @@ class PhaseToField(Processor):
         Updates the complex field output of the SLM. The output field is the sum of the modulated field and the
         non-modulated field.
         """
-        return self.modulated_field_amplitude * (np.exp(1j * slm_phases) + self.non_modulated_field)
+        return self.modulated_field_amplitude * (
+            np.exp(1j * slm_phases) + self.non_modulated_field
+        )
 
 
 class _SLMTiming(Detector):
@@ -45,15 +51,22 @@ class _SLMTiming(Detector):
     the refresh rate, or the conversion of gray values to phases.
     """
 
-    def __init__(self,
-                 shape: tuple[int, ...],
-                 update_latency: Quantity[u.ms] = 0.0 * u.ms,
-                 update_duration: Quantity[u.ms] = 0.0 * u.ms):
+    def __init__(
+        self,
+        shape: tuple[int, ...],
+        update_latency: Quantity[u.ms] = 0.0 * u.ms,
+        update_duration: Quantity[u.ms] = 0.0 * u.ms,
+    ):
 
         if len(shape) != 2:
             raise ValueError("Shape of the SLM should be 2-dimensional.")
-        super().__init__(data_shape=shape, pixel_size=Quantity(2.0 / np.min(shape)), latency=0 * u.ms,
-                         duration=0 * u.ms, multi_threaded=False)
+        super().__init__(
+            data_shape=shape,
+            pixel_size=Quantity(2.0 / np.min(shape)),
+            latency=0 * u.ms,
+            duration=0 * u.ms,
+            multi_threaded=False,
+        )
         self.update_latency = update_latency
         self.update_duration = update_duration
 
@@ -139,20 +152,29 @@ class SLM(PhaseSLM, Actuator):
     A mock version of a phase-only spatial light modulator. Some properties are available to simulate physical
     phenomena such as imperfect phase response, and front reflections (which cause non-modulated light).
     """
-    __slots__ = ('_hardware_fields', '_hardware_phases', '_hardware_timing', '_back_buffer',
-                 'refresh_rate', '_first_update_ns', '_lookup_table')
 
-    def __init__(self,
-                 shape: tuple[int, ...],
-                 latency: Quantity[u.ms] = 0.0 * u.ms,
-                 duration: Quantity[u.ms] = 0.0 * u.ms,
-                 update_latency: Quantity[u.ms] = 0.0 * u.ms,
-                 update_duration: Quantity[u.ms] = 0.0 * u.ms,
-                 refresh_rate: Quantity[u.Hz] = 0 * u.Hz,
-                 field_amplitude: Union[np.ndarray, float, None] = 1.0,
-                 non_modulated_field_fraction: float = 0.0,
-                 phase_response: Optional[np.ndarray] = None,
-                 ):
+    __slots__ = (
+        "_hardware_fields",
+        "_hardware_phases",
+        "_hardware_timing",
+        "_back_buffer",
+        "refresh_rate",
+        "_first_update_ns",
+        "_lookup_table",
+    )
+
+    def __init__(
+        self,
+        shape: tuple[int, ...],
+        latency: Quantity[u.ms] = 0.0 * u.ms,
+        duration: Quantity[u.ms] = 0.0 * u.ms,
+        update_latency: Quantity[u.ms] = 0.0 * u.ms,
+        update_duration: Quantity[u.ms] = 0.0 * u.ms,
+        refresh_rate: Quantity[u.Hz] = 0 * u.Hz,
+        field_amplitude: Union[np.ndarray, float, None] = 1.0,
+        non_modulated_field_fraction: float = 0.0,
+        phase_response: Optional[np.ndarray] = None,
+    ):
         """
 
         Args:
@@ -169,16 +191,20 @@ class SLM(PhaseSLM, Actuator):
                 Choose a value different from `duration` to simulate incorrect timing.
             refresh_rate: Simulated refresh rate. Affects the timing of the `update` method,
                 since this will wait until the next vertical retrace. Keep at 0 to disable this feature.
-            """
+        """
         super().__init__(latency=latency, duration=duration)
         self.refresh_rate = refresh_rate
         # Simulates transferring frames to the SLM
         self._hardware_timing = _SLMTiming(shape, update_latency, update_duration)
-        self._hardware_phases = _SLMPhaseResponse(self._hardware_timing,
-                                                  phase_response)  # Simulates reading the phase from the SLM
-        self._hardware_fields = PhaseToField(self._hardware_phases, field_amplitude,
-                                             non_modulated_field_fraction)  # Simulates reading the field from the SLM
-        self._lookup_table = None  # index = input phase (scaled to -> [0, 255]), value = grey value
+        self._hardware_phases = _SLMPhaseResponse(
+            self._hardware_timing, phase_response
+        )  # Simulates reading the phase from the SLM
+        self._hardware_fields = PhaseToField(
+            self._hardware_phases, field_amplitude, non_modulated_field_fraction
+        )  # Simulates reading the field from the SLM
+        self._lookup_table = (
+            None  # index = input phase (scaled to -> [0, 255]), value = grey value
+        )
         self._first_update_ns = time.time_ns()
         self._back_buffer = np.zeros(shape, dtype=np.float32)
 
@@ -188,8 +214,12 @@ class SLM(PhaseSLM, Actuator):
         self._start()  # wait for detectors to finish
         if self.refresh_rate > 0:
             # wait for the vertical retrace
-            time_in_frames = unitless((time.time_ns() - self._first_update_ns) * u.ns * self.refresh_rate)
-            time_to_next_frame = (np.ceil(time_in_frames) - time_in_frames) / self.refresh_rate
+            time_in_frames = unitless(
+                (time.time_ns() - self._first_update_ns) * u.ns * self.refresh_rate
+            )
+            time_to_next_frame = (
+                np.ceil(time_in_frames) - time_in_frames
+            ) / self.refresh_rate
             time.sleep(time_to_next_frame.tovalue(u.s))
             # update the start time (this is also done in the actual SLM)
             self._start()
@@ -205,7 +235,9 @@ class SLM(PhaseSLM, Actuator):
         if self._lookup_table is None:
             grey_values = (256 * tx).astype(np.uint8)
         else:
-            lookup_index = (self._lookup_table.shape[0] * tx).astype(np.uint8)  # index into lookup table
+            lookup_index = (self._lookup_table.shape[0] * tx).astype(
+                np.uint8
+            )  # index into lookup table
             grey_values = self._lookup_table[lookup_index]
 
         self._hardware_timing.send(grey_values)
@@ -242,8 +274,12 @@ class SLM(PhaseSLM, Actuator):
         # no docstring, use documentation from base class
 
         # Copy the phase image to the back buffer, scaling it as necessary
-        project(np.atleast_2d(values).astype('float32'), out=self._back_buffer, source_extent=(2.0, 2.0),
-                out_extent=(2.0, 2.0))
+        project(
+            np.atleast_2d(values).astype("float32"),
+            out=self._back_buffer,
+            source_extent=(2.0, 2.0),
+            out_extent=(2.0, 2.0),
+        )
         if update:
             self.update()
 

@@ -17,8 +17,9 @@ class Roi:
     radius, mask type, and parameters specific to the mask type.
     """
 
-    def __init__(self, pos, radius=0.1, mask_type: str = 'disk', waist=None,
-                 source_shape=None):
+    def __init__(
+        self, pos, radius=0.1, mask_type: str = "disk", waist=None, source_shape=None
+    ):
         """
         Initialize the Roi object.
 
@@ -36,10 +37,16 @@ class Roi:
         """
         if pos is None:
             pos = (source_shape[0] // 2, source_shape[1] // 2)
-        if round(pos[0] - radius) < 0 or round(pos[1] - radius) < 0 or source_shape is not None and (
-                round(pos[0] + radius) >= source_shape[0] or
-                round(pos[1] + radius) >= source_shape[1]):
-            raise ValueError('ROI does not fit inside source image')
+        if (
+            round(pos[0] - radius) < 0
+            or round(pos[1] - radius) < 0
+            or source_shape is not None
+            and (
+                round(pos[0] + radius) >= source_shape[0]
+                or round(pos[1] + radius) >= source_shape[1]
+            )
+        ):
+            raise ValueError("ROI does not fit inside source image")
 
         self._pos = pos
         self._radius = radius
@@ -99,7 +106,7 @@ class Roi:
 
     @waist.setter
     def waist(self, value: str):
-        if value not in ['disk', 'gaussian', 'square']:
+        if value not in ["disk", "gaussian", "square"]:
             raise ValueError("mask_type must be 'disk', 'gaussian', or 'square'")
         self._mask_type = value
         self._mask = None  # need to re-compute mask
@@ -124,10 +131,10 @@ class Roi:
             # for circular masks, always use an odd number of pixels so that we have a clearly
             # defined center.
             # for square masks, instead use the actual size
-            if self.mask_type == 'disk':
+            if self.mask_type == "disk":
                 d = round(self._radius) * 2 + 1
                 self._mask = disk(d, r)
-            elif self.mask_type == 'gaussian':
+            elif self.mask_type == "gaussian":
                 d = round(self._radius) * 2 + 1
                 self._mask = gaussian(d, self._waist)
             else:  # square
@@ -138,13 +145,15 @@ class Roi:
 
         image_start = np.array(self.pos) - int(0.5 * self._mask.shape[0] - 0.5)
         image_cropped = image[
-                        image_start[0]:image_start[0] + self._mask.shape[0],
-                        image_start[1]:image_start[1] + self._mask.shape[1]]
+            image_start[0] : image_start[0] + self._mask.shape[0],
+            image_start[1] : image_start[1] + self._mask.shape[1],
+        ]
 
         if image_cropped.shape != self._mask.shape:
             raise ValueError(
                 f"ROI is larger than the possible area. ROI shape: {self._mask.shape}, "
-                + f"Cropped image shape: {image_cropped.shape}")
+                + f"Cropped image shape: {image_cropped.shape}"
+            )
 
         if order != 1.0:
             image_cropped = np.power(image_cropped, order)
@@ -200,8 +209,15 @@ class MultipleRoi(Processor):
 
 
 class SingleRoi(MultipleRoi):
-    def __init__(self, source, pos=None, radius=0.1, mask_type: str = 'disk', waist=0.5,
-                 multi_threaded: bool = True):
+    def __init__(
+        self,
+        source,
+        pos=None,
+        radius=0.1,
+        mask_type: str = "disk",
+        waist=0.5,
+        multi_threaded: bool = True,
+    ):
         """
         Processor that averages a signal over a single region of interest (ROI).
 
@@ -228,8 +244,14 @@ class CropProcessor(Processor):
     the data is padded with 'padding_value'
     """
 
-    def __init__(self, source: Detector, shape: Optional[Sequence[int]] = None,
-                 pos: Optional[Sequence[int]] = None, padding_value=0.0, multi_threaded: bool = False):
+    def __init__(
+        self,
+        source: Detector,
+        shape: Optional[Sequence[int]] = None,
+        pos: Optional[Sequence[int]] = None,
+        padding_value=0.0,
+        multi_threaded: bool = False,
+    ):
         """
 
         Args:
@@ -244,7 +266,11 @@ class CropProcessor(Processor):
         """
         super().__init__(source, multi_threaded=multi_threaded)
         self._data_shape = tuple(shape) if shape is not None else source.data_shape
-        self._pos = np.array(pos) if pos is not None else np.zeros((len(self.data_shape),), dtype=int)
+        self._pos = (
+            np.array(pos)
+            if pos is not None
+            else np.zeros((len(self.data_shape),), dtype=int)
+        )
         self._padding_value = padding_value
 
     @property
@@ -272,16 +298,19 @@ class CropProcessor(Processor):
         Returns: the out array containing the cropped image.
 
         """
-        src_start = np.maximum(self._pos, 0).astype('int32')
-        src_end = np.minimum(self._pos + self._data_shape, image.shape).astype('int32')
-        dst_start = np.maximum(-self._pos, 0).astype('int32')
+        src_start = np.maximum(self._pos, 0).astype("int32")
+        src_end = np.minimum(self._pos + self._data_shape, image.shape).astype("int32")
+        dst_start = np.maximum(-self._pos, 0).astype("int32")
         dst_end = dst_start + src_end - src_start
         src_select = tuple(
-            slice(start, end) for (start, end) in zip(src_start, src_end))
+            slice(start, end) for (start, end) in zip(src_start, src_end)
+        )
         src = image.__getitem__(src_select)
         if any(dst_start != 0) or any(dst_end != self._data_shape):
             dst = np.zeros(self._data_shape) + self._padding_value
-            dst_select = tuple(slice(start, end) for (start, end) in zip(dst_start, dst_end))
+            dst_select = tuple(
+                slice(start, end) for (start, end) in zip(dst_start, dst_end)
+            )
             dst.__setitem__(dst_select, src)
         else:
             dst = src
@@ -293,10 +322,17 @@ def select_roi(source: Detector, mask_type: str):
     """
     Opens a window that allows the user to select a region of interest.
     """
-    if mask_type not in ['disk', 'gaussian', 'square']:
+    if mask_type not in ["disk", "gaussian", "square"]:
         raise ValueError("mask_type must be 'disk', 'gaussian', or 'square'")
 
-    image = cv2.normalize(source.read(), None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+    image = cv2.normalize(
+        source.read(),
+        None,
+        alpha=0,
+        beta=255,
+        norm_type=cv2.NORM_MINMAX,
+        dtype=cv2.CV_8U,
+    )
     title = "Select ROI and press c to continue or ESC to cancel"
     cv2.namedWindow(title)
     cv2.imshow(title, image)
@@ -312,10 +348,18 @@ def select_roi(source: Detector, mask_type: str):
         elif event == cv2.EVENT_MOUSEMOVE and cv2.EVENT_FLAG_LBUTTON & flags:
             roi_size = np.minimum(x - roi_start[0], y - roi_start[1])
             rect_image = image.copy()
-            if mask_type == 'square':
-                cv2.rectangle(rect_image, roi_start, roi_start + roi_size, (0.0, 0.0, 255.0), 2)
+            if mask_type == "square":
+                cv2.rectangle(
+                    rect_image, roi_start, roi_start + roi_size, (0.0, 0.0, 255.0), 2
+                )
             else:
-                cv2.circle(rect_image, roi_start + roi_size // 2, abs(roi_size) // 2, (0.0, 0.0, 255.0), 2)
+                cv2.circle(
+                    rect_image,
+                    roi_start + roi_size // 2,
+                    abs(roi_size) // 2,
+                    (0.0, 0.0, 255.0),
+                    2,
+                )
             cv2.imshow(title, rect_image)
 
     cv2.setMouseCallback(title, mouse_callback)
@@ -344,19 +388,24 @@ class TransformProcessor(Processor):
     should match the unit of the input data after applying the transform.
     """
 
-    def __init__(self, source: Detector,
-                 transform: Transform = None,
-                 data_shape: Optional[Sequence[int]] = None,
-                 pixel_size: Optional[Quantity] = None,
-                 multi_threaded: bool = True):
+    def __init__(
+        self,
+        source: Detector,
+        transform: Transform = None,
+        data_shape: Optional[Sequence[int]] = None,
+        pixel_size: Optional[Quantity] = None,
+        multi_threaded: bool = True,
+    ):
         """
 
         Args:
             transform: Transform object that describes the transformation from the source to the target image
             data_shape: Shape of the output. If omitted, the shape of the input data is used.
             multi_threaded: Whether to perform processing in a worker thread.
-            """
-        if (data_shape is not None and len(data_shape) != 2) or len(source.data_shape) != 2:
+        """
+        if (data_shape is not None and len(data_shape) != 2) or len(
+            source.data_shape
+        ) != 2:
             raise ValueError("TransformProcessor only supports 2-D data")
         if transform is None:
             transform = Transform()
@@ -364,10 +413,14 @@ class TransformProcessor(Processor):
         # check if input and output pixel sizes are compatible
         dst_unit = transform.destination_unit(source.pixel_size.unit)
         if pixel_size is not None and not pixel_size.unit.is_equivalent(dst_unit):
-            raise ValueError("Pixel size unit does not match the unit of the transformed data")
+            raise ValueError(
+                "Pixel size unit does not match the unit of the transformed data"
+            )
         if pixel_size is None and not source.pixel_size.unit.is_equivalent(dst_unit):
-            raise ValueError("The transform changes the unit of the coordinates."
-                             " An output pixel_size must be provided.")
+            raise ValueError(
+                "The transform changes the unit of the coordinates."
+                " An output pixel_size must be provided."
+            )
 
         self.transform = transform
         super().__init__(source, multi_threaded=multi_threaded)
@@ -390,5 +443,9 @@ class TransformProcessor(Processor):
         Returns: ndarray that has been transformed
         TODO: Fix and add test, or remove
         """
-        return project(source, transform=self.transform, out_shape=self.data_shape,
-                       out_extent=self.extent)
+        return project(
+            source,
+            transform=self.transform,
+            out_shape=self.data_shape,
+            out_extent=self.extent,
+        )
