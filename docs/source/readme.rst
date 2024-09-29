@@ -12,6 +12,12 @@ OpenWFS
        :target: https://openwfs.readthedocs.io/en/latest/?badge=latest
        :alt: Documentation Status
 
+.. only:: markdown
+
+   [![PyTest](https://github.com/IvoVellekoop/openwfs/actions/workflows/pytest.yml/badge.svg)](https://github.com/IvoVellekoop/openwfs/actions/workflows/pytest.yml)
+   [![Black](https://github.com/IvoVellekoop/openwfs/actions/workflows/black.yml/badge.svg)](https://github.com/IvoVellekoop/openwfs/actions/workflows/black.yml)
+
+What is wavefront shaping?
 
 What is wavefront shaping?
 --------------------------------
