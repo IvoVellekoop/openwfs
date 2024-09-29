@@ -6,7 +6,7 @@
 
 # General
 
-- PyCharm autoformatting should be enabled to ensure correct formatting.
+- the package `black` is used to ensure correct formatting. Install with `pip install black` and run in the terminal using `black .` when located at the root of the repository. 
 
 # Tests
 
