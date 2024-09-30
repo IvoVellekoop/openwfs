@@ -178,8 +178,7 @@ def test_fourier3():
     slm_shape = (32, 32)
     aberrations = np.random.uniform(0.0, 2 * np.pi, slm_shape)
     sim = SimulatedWFS(aberrations=aberrations)
-    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=slm_shape, k_angles_min=-32,
-                               k_angles_max=32,
+    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=slm_shape, k_radius=45,
                                phase_steps=3)
     controller = WFSController(alg)
     controller.wavefront = WFSController.State.SHAPED_WAVEFRONT
