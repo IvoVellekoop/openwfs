@@ -7,7 +7,7 @@ from .utilities import analyze_phase_stepping, WFSResult
 from ..core import Detector, PhaseSLM
 
 
-class IterativeDualReference:
+class DualReference:
     """
     A generic iterative dual reference WFS algorithm, which can use a custom set of basis functions.
 
@@ -32,8 +32,9 @@ class IterativeDualReference:
     https://opg.optica.org/oe/ abstract.cfm?uri=oe-27-8-1167
     """
 
-    def __init__(self, feedback: Detector, slm: PhaseSLM, phase_patterns: tuple[nd, nd], group_mask: nd,
-                 phase_steps: int = 4, iterations: int = 4, analyzer: Optional[callable] = analyze_phase_stepping):
+    def __init__(self, *, feedback: Detector, slm: PhaseSLM, phase_patterns: Optional[tuple[nd, nd]], group_mask: nd,
+                 phase_steps: int = 4, iterations: int = 2,
+                 analyzer: Optional[callable] = analyze_phase_stepping, optimized_reference: Optional[bool] = None):
         """
         Args:
             feedback: The feedback source, usually a detector that provides measurement data.
@@ -41,33 +42,76 @@ class IterativeDualReference:
             phase_patterns: A tuple of two 3D arrays, containing the phase patterns for group A and group B, respectively.
                 The first two dimensions are the spatial dimensions, and should match the size of group_mask.
                 The 3rd dimension in the array is index of the phase pattern. The number of phase patterns in A and B may be different.
+                When None, the phase_patterns attribute must be set before executing the algorithm.
             group_mask: A 2D bool array of that defines the pixels used by group A with False and elements used by
                 group B with True.
             phase_steps: The number of phase steps for each mode (default is 4). Depending on the type of
                 non-linear feedback and the SNR, more might be required.
-            iterations: Number of times to measure a mode set, e.g. when iterations = 5, the measurements are
-                A, B, A, B, A. Should be at least 2
-            analyzer: The function used to analyze the phase stepping data. Must return a WFSResult object. Defaults to `analyze_phase_stepping`
+            iterations: Number of times to optimize a mode set, e.g. when iterations = 5, the measurements are
+                A, B, A, B, A.
+            optimized_reference: When `True`, during each iteration the other half of the SLM displays the optimized pattern so far (as in [1]).
+                When `False`, the algorithm optimizes A with a flat wavefront on B, and then optimizes B with a flat wavefront on A.
+                This mode also allows for multi-target optimization, where the algorithm optimizes multiple targets in parallel.
+                The two halves are then combined (stitched) to form the full transmission matrix.
+                In this mode, it is essential that both A and B include a flat wavefront as mode 0. The measurement for
+                mode A0 and for B0 both give contain relative phase between group A and B, so there is a slight redundancy.
+                These two measurements are combined to find the final phase for stitching.
+                When set to `None` (default), the algorithm uses True if there is a single target, and False if there are multiple targets.
+
+            analyzer: The function used to analyze the phase stepping data. 
+                Must return a WFSResult object. Defaults to `analyze_phase_stepping`   
+        
+        [1]: X. Tao, T. Lam, B. Zhu, et al., “Three-dimensional focusing through scattering media using conjugate adaptive
+        optics with remote focusing (CAORF),” Opt. Express 25, 10368–10383 (2017).
+
         """
-        if (phase_patterns[0].shape[0:2] != group_mask.shape) or (phase_patterns[1].shape[0:2] != group_mask.shape):
-            raise ValueError("The phase patterns and group mask must all have the same shape.")
+        if optimized_reference is None:  # 'auto' mode
+            optimized_reference = np.prod(feedback.data_shape) == 1
+        elif optimized_reference and np.prod(feedback.data_shape) != 1:
+            raise ValueError(
+                "When using an optimized reference, the feedback detector should return a single scalar value.")
+
         if iterations < 2:
             raise ValueError("The number of iterations must be at least 2.")
-        if np.prod(feedback.data_shape) != 1:
-            raise ValueError("The feedback detector should return a single scalar value.")
+        if not optimized_reference and iterations != 2:
+            raise ValueError("When not using an optimized reference, the number of iterations must be 2.")
 
         self.slm = slm
         self.feedback = feedback
         self.phase_steps = phase_steps
+        self.optimized_reference = optimized_reference
         self.iterations = iterations
-        self.analyzer = analyzer
-        self.phase_patterns = (phase_patterns[0].astype(np.float32), phase_patterns[1].astype(np.float32))
+        self._analyzer = analyzer
+        self._phase_patterns = None
+        self._shape = group_mask.shape
         mask = group_mask.astype(bool)
         self.masks = (~mask, mask)  # mask[0] is True for group A, mask[1] is True for group B
+        self.phase_patterns = phase_patterns
 
-        # Pre-compute the conjugate modes for reconstruction
-        self.modes = [np.exp(-1j * self.phase_patterns[side]) * np.expand_dims(self.masks[side], axis=2) for side in
-                      range(2)]
+    @property
+    def phase_patterns(self) -> tuple[nd, nd]:
+        return self._phase_patterns
+
+    @phase_patterns.setter
+    def phase_patterns(self, value):
+        """Sets the phase patterns for group A and group B. This also updates the conjugate modes."""
+        if value is None:
+            self._phase_patterns = None
+            return
+
+        if not self.optimized_reference:
+            # find the modes in A and B that correspond to flat wavefronts with phase 0
+            try:
+                a0_index = next(i for i in range(value[0].shape[2]) if np.allclose(value[0][:, :, i], 0))
+                b0_index = next(i for i in range(value[1].shape[2]) if np.allclose(value[1][:, :, i], 0))
+                self.zero_indices = (a0_index, b0_index)
+            except StopIteration:
+                raise ("For multi-target optimization, the both sets must contain a flat wavefront with phase 0.")
+
+        if (value[0].shape[0:2] != self._shape) or (value[1].shape[0:2] != self._shape):
+            raise ValueError("The phase patterns and group mask must all have the same shape.")
+
+        self._phase_patterns = (value[0].astype(np.float32), value[1].astype(np.float32))
 
     def execute(self, capture_intermediate_results: bool = False, progress_bar=None) -> WFSResult:
         """
@@ -85,52 +129,65 @@ class IterativeDualReference:
         """
 
         # Current estimate of the transmission matrix (start with all 0)
-        t_full = np.zeros(shape=self.modes[0].shape[0:2])
-        t_other_side = t_full
+        cobasis = [np.exp(-1j * self.phase_patterns[side]) * np.expand_dims(self.masks[side], axis=2) for side in
+                   range(2)]
+
+        ref_phases = np.zeros(self._shape)
 
         # Initialize storage lists
-        t_set_all = [None] * self.iterations
         results_all = [None] * self.iterations  # List to store all results
-        results_latest = [None, None]  # The two latest results. Used for computing fidelity factors.
         intermediate_results = np.zeros(self.iterations)  # List to store feedback from full patterns
 
         # Prepare progress bar
         if progress_bar:
-            num_measurements = np.ceil(self.iterations / 2) * self.modes[0].shape[2] \
-                               + np.floor(self.iterations / 2) * self.modes[1].shape[2]
+            num_measurements = np.ceil(self.iterations / 2) * self.phase_patterns[0].shape[2] \
+                               + np.floor(self.iterations / 2) * self.phase_patterns[1].shape[2]
             progress_bar.total = num_measurements
 
         # Switch the phase sets back and forth multiple times
         for it in range(self.iterations):
             side = it % 2  # pick set A or B for phase stepping
-            ref_phases = -np.angle(t_full)  # use the best estimate so far to construct an optimized reference
             side_mask = self.masks[side]
             # Perform WFS experiment on one side, keeping the other side sized at the ref_phases
-            result = self._single_side_experiment(mod_phases=self.phase_patterns[side], ref_phases=ref_phases,
-                                                  mod_mask=side_mask, progress_bar=progress_bar)
+            results_all[it] = self._single_side_experiment(mod_phases=self.phase_patterns[side], ref_phases=ref_phases,
+                                                           mod_mask=side_mask, progress_bar=progress_bar)
 
             # Compute transmission matrix for the current side and update
             # estimated transmission matrix
-            t_this_side = self.compute_t_set(result, self.modes[side])
-            t_full = t_this_side + t_other_side
-            t_other_side = t_this_side
 
-            # Store results
-            t_set_all[it] = t_this_side  # Store transmission matrix
-            results_all[it] = result  # Store result
-            results_latest[side] = result  # Store latest result for this set
+            if self.optimized_reference:
+                # use the best estimate so far to construct an optimized reference
+                t_this_side = self.compute_t_set(results_all[it].t, cobasis[side]).squeeze()
+                ref_phases[self.masks[side]] = -np.angle(t_this_side[self.masks[side]])
 
             # Try full pattern
             if capture_intermediate_results:
-                self.slm.set_phases(-np.angle(t_full))
+                self.slm.set_phases(ref_phases)
                 intermediate_results[it] = self.feedback.read()
 
+        if self.optimized_reference:
+            factor = 1.0
+        else:
+            # when not using optimized reference, we need to stitch the
+            # two halves of the wavefront together. For that, we need the
+            # relative phase between the two sides, which we extract from
+            # the measurements of the flat wavefronts.
+            relative = results_all[0].t[self.zero_indices[0], ...] + np.conjugate(
+                results_all[1].t[self.zero_indices[1], ...])
+            factor = (relative / np.abs(relative)).reshape((1, *self.feedback.data_shape))
+            print(np.angle(factor))
+
+        t_full = (self.compute_t_set(results_all[0].t, cobasis[0]) +
+                  self.compute_t_set(factor * results_all[1].t, cobasis[1]))
+
         # Compute average fidelity factors
-        result = WFSResult.combine(results_latest)
+        # subtract 1 from n, because both sets (usually) contain a flat wavefront,
+        # so there is one redundant measurement
+        result = WFSResult.combine(results_all[-2:])
+        result.n = result.n - 1
         result.t = t_full
 
-        # TODO: document the t_set_all and results_all attributes
-        result.t_set_all = t_set_all
+        # TODO: document the results_all attribute
         result.results_all = results_all
         result.intermediate_results = intermediate_results
         return result
@@ -152,7 +209,7 @@ class IterativeDualReference:
             WFSResult: An object containing the computed SLM transmission matrix and related data.
         """
         num_modes = mod_phases.shape[2]
-        measurements = np.zeros((num_modes, self.phase_steps))
+        measurements = np.zeros((num_modes, self.phase_steps, *self.feedback.data_shape))
 
         for m in range(num_modes):
             phases = ref_phases.copy()
@@ -168,10 +225,10 @@ class IterativeDualReference:
                 progress_bar.update()
 
         self.feedback.wait()
-        return self.analyzer(measurements, axis=1)
+        return self._analyzer(measurements, axis=1)
 
     @staticmethod
-    def compute_t_set(wfs_result: WFSResult, mode_set: nd) -> nd:
+    def compute_t_set(t, cobasis: nd) -> nd:
         """
         Compute the transmission matrix in SLM space from transmission matrix in input mode space.
 
@@ -182,11 +239,10 @@ class IterativeDualReference:
         Note 2: As this is a blind focusing WFS algorithm, there may be only one target or 'output mode'.
 
         Args:
-            wfs_result (WFSResult): The result of the WFS algorithm. This contains the transmission matrix in the space
-                of input modes.
-            mode_set: 3D array with set of modes.
+            t: transmission matrix in mode-index space. The first axis corresponds to the input modes.
+            cobasis: 3D array with set of modes (conjugated)
+        Returns:
+            nd: The transmission matrix in SLM space. The last two axes correspond to SLM coordinates
         """
-        t = wfs_result.t.squeeze().reshape((1, 1, mode_set.shape[2]))
-        norm_factor = np.prod(mode_set.shape[0:2])
-        t_set = (t * mode_set).sum(axis=2) / norm_factor
-        return t_set
+        norm_factor = np.prod(cobasis.shape[0:2])
+        return np.tensordot(cobasis, t, 1) / norm_factor

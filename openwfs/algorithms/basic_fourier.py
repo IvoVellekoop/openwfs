@@ -1,119 +1,33 @@
 from typing import Optional
 
 import numpy as np
-import matplotlib.pyplot as plt
 
+from .dual_reference import DualReference
 from .utilities import analyze_phase_stepping
-from .fourier import FourierBase
 from ..core import Detector, PhaseSLM
+from ..utilities import tilt
 
 
-def build_square_k_space(k_min, k_max, k_step=1.0):
+class FourierDualReference(DualReference):
     """
-    Constructs the k-space by creating a set of (k_x, k_y) coordinates.
-    Fills the k_left and k_right matrices with the same k-space. (k_x, k_y) denote the k-space coordinates of the whole
-    pupil. Only half SLM (and thus pupil) is modulated at a time, hence k_y (axis=1) must make steps of 2.
+    Fourier double reference algorithm, based on Mastiani et al. [1].
 
-    Args:
-        k_min: Minimum value for k_x and k_y, without k_step scaling applied.
-        k_max: Maximum value for k_x and k_y, without k_step scaling applied.
-        k_step: Scaling factor for the steps in k-space.
-
-    Returns:
-        k_space (np.ndarray): A 2xN array of k-space coordinates.
-    """
-    # Generate kx and ky coordinates
-    kx_angles = np.arange(k_min, k_max + 1, 1)
-    k_angles_min_even = (k_min if k_min % 2 == 0 else k_min + 1)        # Must be even
-    ky_angles = np.arange(k_angles_min_even, k_max + 1, 2)              # Steps of 2
-
-    # Combine kx and ky coordinates into pairs
-    k_x = np.repeat(np.array(kx_angles)[np.newaxis, :], len(ky_angles), axis=0).flatten()
-    k_y = np.repeat(np.array(ky_angles)[:, np.newaxis], len(kx_angles), axis=1).flatten()
-    k_space = np.vstack((k_x, k_y)) * k_step
-    return k_space
-
-
-class FourierDualReference(FourierBase):
-    """Fourier double reference algorithm, based on Mastiani et al. [1].
-
-    It constructs a square k-space coordinate grid for the algorithm. For custom k-spaces, you should use the
-    FourierBase class. The k-space coordinates denote the entire pupil, not just one half. The k-space is normalized
-    such that (1, 0) yields a -π to π gradient over the entire pupil.
-    diffraction limit.
+    Improvements over [1]:
+    * The set of plane waves is taken from a disk in k-space instead of a square.
+    * No overlap between the two halves is needed, instead the final stitching step is done using measurements already in the data set.
+    * When only a single target is optimized, the algorithm can be used in an iterative version to increase SNR during the measurument,
+       similar to [2].
 
     [1]: Bahareh Mastiani, Gerwin Osnabrugge, and Ivo M. Vellekoop,
     "Wavefront shaping for forward scattering," Opt. Express 30, 37436-37445 (2022)
+
+    [2]: X. Tao, T. Lam, B. Zhu, et al., “Three-dimensional focusing through scattering media using conjugate adaptive
+    optics with remote focusing (CAORF),” Opt. Express 25, 10368–10383 (2017).
     """
 
-    def __init__(self, feedback: Detector, slm: PhaseSLM, slm_shape=(500, 500), phase_steps=4, k_angles_min: int = -3,
-                 k_angles_max: int = 3, analyzer: Optional[callable] = analyze_phase_stepping):
-        """
-        Args:
-            feedback (Detector): Source of feedback
-            slm (PhaseSLM): The spatial light modulator
-            slm_shape (tuple of two ints): The shape that the SLM patterns & transmission matrices are calculated for,
-                does not necessarily have to be the actual pixel dimensions as the SLM.
-            phase_steps (int): The number of phase steps.
-            k_angles_min (int): The minimum k-angle.
-            k_angles_max (int): The maximum k-angle.
-        """
-        super().__init__(feedback, slm, slm_shape, np.array((0, 0)), np.array((0, 0)), phase_steps=phase_steps,
-                         analyzer=analyzer)
-        self._k_angles_min = k_angles_min
-        self._k_angles_max = k_angles_max
-
-        self._build_k_space()
-
-    def _build_k_space(self):
-        """
-        Constructs the k-space by creating Cartesian products of k_x and k_y angles.
-        Fills the k_left and k_right matrices with the same k-space. (k_x, k_y) denote the k-space coords of the whole
-        SLM. Only half the SLM is modulated at a time, hence ky must make steps of 2.
-
-        Returns:
-            None: The function updates the instance attributes.
-        """
-        k_space = build_square_k_space(self.k_angles_min, self.k_angles_max)
-        self.k_left = k_space
-        self.k_right = k_space
-
-    @property
-    def k_angles_min(self) -> int:
-        """The lower bound of the range of angles in x and y direction"""
-        return self._k_angles_min
-
-    @k_angles_min.setter
-    def k_angles_min(self, value):
-        """Sets the lower bound of the range of angles in x and y direction, triggers the building of the internal
-            k-space properties.
-        """
-        self._k_angles_min = value
-        self._build_k_space()
-
-    @property
-    def k_angles_max(self) -> int:
-        """The higher bound of the range of angles in x and y direction"""
-        return self._k_angles_max
-
-    @k_angles_max.setter
-    def k_angles_max(self, value):
-        """Sets the higher bound of the range of angles in x and y direction, triggers the building of the internal
-            k-space properties."""
-        self._k_angles_max = value
-        self._build_k_space()
-
-
-class FourierDualReferenceCircle(FourierBase):
-    """
-    Slightly altered version of Fourier double reference algorithm, based on Mastiani et al. [1].
-    In this version, the k-space coordinates are restricted to lie within a circle of chosen radius.
-
-    [1]: Bahareh Mastiani, Gerwin Osnabrugge, and Ivo M. Vellekoop,
-    "Wavefront shaping for forward scattering," Opt. Express 30, 37436-37445 (2022)
-    """
-    def __init__(self, feedback: Detector, slm: PhaseSLM, slm_shape=(500, 500), phase_steps=4, k_radius: float = 3.2,
-                 k_step: float = 1.0, analyzer: Optional[callable] = analyze_phase_stepping):
+    def __init__(self, *, feedback: Detector, slm: PhaseSLM, slm_shape=(500, 500), phase_steps=4, k_radius: float = 3.2,
+                 k_step: float = 1.0, iterations: int = 2, analyzer: Optional[callable] = analyze_phase_stepping,
+                 optimized_reference: Optional[bool] = None):
         """
         Args:
             feedback (Detector): Source of feedback
@@ -124,37 +38,46 @@ class FourierDualReferenceCircle(FourierBase):
             k_step (float): Make steps in k-space of this value. 1 corresponds to diffraction limited tilt.
             phase_steps (int): The number of phase steps.
         """
-        # TODO: Could be rewritten more compactly if we ditch the settable properties:
-        # first build the k_space, then call super().__init__ with k_left=k_space, k_right=k_space.
-        # TODO: Add custom grid spacing
-
-        super().__init__(feedback=feedback, slm=slm, slm_shape=slm_shape, k_left=np.array((0, 0)),
-                         k_right=np.array((0, 0)), phase_steps=phase_steps, analyzer=analyzer)
-
         self._k_radius = k_radius
         self.k_step = k_step
-        self._build_k_space()
+        self._slm_shape = slm_shape
+        group_mask = np.zeros(slm_shape, dtype=bool)
+        group_mask[:, slm_shape[1] // 2:] = True
+        super().__init__(feedback=feedback, slm=slm,
+                         phase_patterns=None, group_mask=group_mask,
+                         phase_steps=phase_steps,
+                         iterations=iterations,
+                         optimized_reference=optimized_reference,
+                         analyzer=analyzer)
+        self._update_modes()
 
-    def _build_k_space(self):
-        """
-        Constructs the k-space by creating Cartesian products of k_x and k_y angles.
-        Fills the k_left and k_right matrices with the same k-space. (k_x, k_y) denote the k-space coordinates of the
-        whole SLM. Only half the SLM is modulated at a time, hence k_y must make steps of 2.
+    def _update_modes(self):
+        """Constructs the set of plane wave modes."""
 
-        Returns:
-            None: The function updates the instance attributes k_left and k_right.
-        """
-        k_radius = self.k_radius
-        k_step = self.k_step
-        k_max = int(np.floor(k_radius))
-        k_space_square = build_square_k_space(-k_max, k_max, k_step=k_step)
+        # start with a grid of k-values
+        # then filter out the ones that are outside the circle
+        # in the grid, the spacing in the kx direction is twice the spacing in the ky direction
+        # because we subdivide the SLM into two halves along the x direction,
+        # which effectively doubles the number of kx values
+        int_radius_x = np.ceil(self.k_radius / (self.k_step * 2))
+        int_radius_y = np.ceil(self.k_radius / self.k_step)
+        kx, ky = np.meshgrid(
+            np.arange(-int_radius_x, int_radius_x + 1) * (self.k_step * 2),
+            np.arange(-int_radius_y, int_radius_y + 1) * self.k_step)
 
-        # Filter out k-space coordinates that are outside the circle of radius k_radius
-        k_mask = (np.linalg.norm(k_space_square, axis=0) <= k_radius)
-        k_space = k_space_square[:, k_mask]
+        # only keep the points within the circle
+        mask = kx ** 2 + ky ** 2 <= self.k_radius ** 2
+        k = np.stack((ky[mask], kx[mask])).T
 
-        self.k_left = k_space
-        self.k_right = k_space
+        # construct the modes for these kx ky values
+        modes = np.zeros((*self._slm_shape, len(k)), dtype=np.float32)
+        for i, k_i in enumerate(k):
+            # tilt generates a pattern from -2.0 to 2.0 (The convention for Zernike modes normalized to an RMS of 1).
+            # The natural step to take is the Abbe diffraction limit of the modulated part, which corresponds to a gradient
+            # from -π to π over the modulated part.
+            modes[..., i] = tilt(self._slm_shape, g=k_i * 0.5 * np.pi)
+
+        self.phase_patterns = (modes, modes)
 
     @property
     def k_radius(self) -> float:
@@ -165,16 +88,4 @@ class FourierDualReferenceCircle(FourierBase):
     def k_radius(self, value):
         """Sets the maximum radius of the k-space circle, triggers the building of the internal k-space properties."""
         self._k_radius = value
-        self._build_k_space()
-
-    def plot_k_space(self):
-        """Plots the k-space coordinates. Useful for debugging."""
-        phi = np.linspace(0, 2 * np.pi, 200)
-        x = self.k_radius * np.cos(phi)
-        y = self.k_radius * np.sin(phi)
-        plt.plot(x, y, 'k')
-        plt.plot(self.k_left[0, :], self.k_left[1, :], 'ob', label='k_left')
-        plt.plot(self.k_right[0, :], self.k_right[1, :], '.r', label='k_right')
-        plt.xlabel('k_x')
-        plt.ylabel('k_y')
-        plt.gca().set_aspect('equal')
+        self._update_modes()

@@ -124,13 +124,13 @@ class WFSResult:
             raise ValueError("All results must have the same axis")
 
         def weighted_average(attribute):
-            data = getattr(results[0], attribute) * results[0].n
+            data = getattr(results[0], attribute) * results[0].n / n
             for r in results[1:]:
                 data += getattr(r, attribute) * r.n / n
             return data
 
         return WFSResult(t=weighted_average('t'),
-                         t_f=None,
+                         t_f=weighted_average('t_f'),
                          n=n,
                          axis=axis,
                          fidelity_noise=weighted_average('fidelity_noise'),

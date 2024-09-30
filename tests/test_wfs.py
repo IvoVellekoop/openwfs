@@ -7,8 +7,8 @@ from scipy.linalg import hadamard
 from scipy.ndimage import zoom
 from skimage.transform import resize
 
-from ..openwfs.algorithms import StepwiseSequential, FourierDualReference, FourierDualReferenceCircle, \
-    IterativeDualReference, troubleshoot
+from ..openwfs.algorithms import StepwiseSequential, FourierDualReference, \
+    DualReference, troubleshoot
 from ..openwfs.algorithms.troubleshoot import field_correlation
 from ..openwfs.algorithms.utilities import WFSController
 from ..openwfs.processors import SingleRoi
@@ -24,7 +24,7 @@ def assert_enhancement(slm, feedback, wfs_results, t_correct=None):
     slm.set_phases(optimised_wf)
     after = feedback.read()
     ratio = after / before
-    estimated_ratio = wfs_results.estimated_optimized_intensity / before
+    estimated_ratio = wfs_results.estimated_enhancement  # wfs_results.estimated_optimized_intensity / before
     print(f"expected: {estimated_ratio}, actual: {ratio}")
     assert estimated_ratio * 0.5 <= ratio <= estimated_ratio * 2.0, f"""
         The SSA algorithm did not enhance the focus as much as expected.
@@ -153,8 +153,7 @@ def test_fourier(n_x):
     """
     aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
     sim = SimulatedWFS(aberrations=aberrations)
-    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-n_x,
-                               k_angles_max=n_x,
+    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_radius=n_x,
                                phase_steps=4)
     results = alg.execute()
     assert_enhancement(sim.slm, sim, results, np.exp(1j * aberrations))
@@ -165,9 +164,7 @@ def test_fourier2():
     slm_shape = (1000, 1000)
     aberrations = skimage.data.camera() * ((2 * np.pi) / 255.0)
     sim = SimulatedWFS(aberrations=aberrations)
-    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=slm_shape, k_angles_min=-5,
-                               k_angles_max=5,
-                               phase_steps=3)
+    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=slm_shape, k_radius=7.5, phase_steps=3)
     controller = WFSController(alg)
     controller.wavefront = WFSController.State.SHAPED_WAVEFRONT
     scaled_aberration = zoom(aberrations, np.array(slm_shape) / aberrations.shape)
@@ -197,8 +194,27 @@ def test_fourier_circle(k_radius, g):
     """
     aberrations = tilt(shape=(100, 100), extent=(2, 2), g=g, phase_offset=0.5)
     sim = SimulatedWFS(aberrations=aberrations)
-    alg = FourierDualReferenceCircle(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_radius=k_radius,
-                                     phase_steps=4)
+    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_radius=k_radius,
+                               phase_steps=4)
+
+    do_debug = False
+    if do_debug:
+        # Plot the modes
+        import matplotlib.pyplot as plt
+        plt.figure(figsize=(12, 7))
+        patterns = alg.phase_patterns[0] * np.expand_dims(alg.masks[0], axis=-1)
+        N = patterns.shape[2]
+        Nsqrt = int(np.ceil(np.sqrt(N)))
+        for m in range(N):
+            plt.subplot(Nsqrt, Nsqrt, m + 1)
+            plt.imshow(np.cos(patterns[:, :, m]), vmin=-1.0, vmax=1.0)
+            plt.title(f'm={m}')
+            plt.xticks([])
+            plt.yticks([])
+        plt.colorbar()
+        plt.pause(0.01)
+        plt.suptitle('Phase of basis functions for one half')
+
     results = alg.execute()
     assert_enhancement(sim.slm, sim, results, np.exp(1j * aberrations))
 
@@ -218,7 +234,7 @@ def test_fourier_microscope():
                      wavelength=800 * u.nm)
     cam = sim.get_camera(analog_max=100)
     roi_detector = SingleRoi(cam, pos=(250, 250))  # Only measure that specific point
-    alg = FourierDualReference(feedback=roi_detector, slm=slm, slm_shape=slm_shape, k_angles_min=-1, k_angles_max=1,
+    alg = FourierDualReference(feedback=roi_detector, slm=slm, slm_shape=slm_shape, k_radius=1.5,
                                phase_steps=3)
     controller = WFSController(alg)
     controller.wavefront = WFSController.State.FLAT_WAVEFRONT
@@ -237,8 +253,7 @@ def test_fourier_correction_field():
     """
     aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
     sim = SimulatedWFS(aberrations=aberrations)
-    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-2,
-                               k_angles_max=2,
+    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_radius=3.0,
                                phase_steps=3)
     t = alg.execute().t
 
@@ -253,11 +268,11 @@ def test_phase_shift_correction():
     """
     Test the effect of shifting the found correction of the Fourier-based algorithm.
     Without the bug, a phase shift of the entire correction should not influence the measurement.
+    TODO: move to test of SimulatedWFS, since it is not testing the WFS algorithm itself
     """
     aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
     sim = SimulatedWFS(aberrations=aberrations)
-    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-1,
-                               k_angles_max=1,
+    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_radius=1.5,
                                phase_steps=3)
     t = alg.execute().t
 
@@ -275,28 +290,34 @@ def test_phase_shift_correction():
         signal = sim.read()
         signals.append(signal)
 
-    assert np.std(signals) < 0.0001 * before, f"""The simulated response of the Fourier algorithm is sensitive to a 
-    flat 
-        phase-shift. This is incorrect behaviour"""
+    assert np.std(signals) / np.mean(signals) < 0.001, f"""The response of SimulatedWFS is sensitive to a flat 
+        phase shift. This is incorrect behaviour"""
 
 
-def test_flat_wf_response_fourier():
+@pytest.mark.parametrize("optimized_reference", [True, False])
+@pytest.mark.parametrize("step", [True, False])
+def test_flat_wf_response_fourier(optimized_reference, step):
     """
     Test the response of the Fourier-based WFS method when the solution is flat
     A flat solution means that the optimal correction is no correction.
+    Also tests if stitching is done correctly by having an aberration pattern which is flat (but different) on the two halves.
 
     test the optimized wavefront by checking if it has irregularities.
     """
-    aberrations = np.zeros(shape=(512, 512))
+    aberrations = np.ones(shape=(4, 4))
+    if step:
+        aberrations[:, 2:] = 2.0
     sim = SimulatedWFS(aberrations=aberrations.reshape((*aberrations.shape, 1)))
 
-    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_angles_min=-1,
-                               k_angles_max=1, phase_steps=3)
+    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_radius=1.5, phase_steps=3,
+                               optimized_reference=optimized_reference)
 
     t = alg.execute().t
 
     # test the optimized wavefront by checking if it has irregularities.
-    assert np.std(t) < 0.001  # The measured wavefront is not flat.
+    measured_aberrations = np.squeeze(np.angle(t))
+    measured_aberrations += aberrations[0, 0] - measured_aberrations[0, 0]
+    assert np.allclose(measured_aberrations, aberrations, atol=0.02)  # The measured wavefront is not flat.
 
 
 def test_flat_wf_response_ssa():
@@ -345,7 +366,7 @@ def test_multidimensional_feedback_fourier():
     sim = SimulatedWFS(aberrations=aberrations)
 
     # input the camera as a feedback object, such that it is multidimensional
-    alg = FourierDualReference(feedback=sim, slm=sim.slm, k_angles_min=-1, k_angles_max=1, phase_steps=3)
+    alg = FourierDualReference(feedback=sim, slm=sim.slm, k_radius=3.5, phase_steps=3)
     t = alg.execute().t
 
     # compute the phase pattern to optimize the intensity in target 0
@@ -476,10 +497,10 @@ def test_custom_blind_dual_reference_ortho_split(construct_basis: callable):
 
     sim = SimulatedWFS(aberrations=aberrations)
 
-    alg = IterativeDualReference(feedback=sim, slm=sim.slm,
-                                 phase_patterns=(phases_set, np.flip(phases_set, axis=1)), group_mask=mask,
-                                 phase_steps=4,
-                                 iterations=4)
+    alg = DualReference(feedback=sim, slm=sim.slm,
+                        phase_patterns=(phases_set, np.flip(phases_set, axis=1)), group_mask=mask,
+                        phase_steps=4,
+                        iterations=4)
 
     result = alg.execute()
 
@@ -518,7 +539,7 @@ def test_custom_blind_dual_reference_non_ortho():
         plt.figure(figsize=(12, 7))
         for m in range(M):
             plt.subplot(N2, N1, m + 1)
-            plt.imshow(np.angle(mode_set[:, :, m]), vmin=-np.pi, vmax=np.pi)
+            plt.imshow(phases_set[:, :, m], vmin=-np.pi, vmax=np.pi)
             plt.title(f'm={m}')
             plt.xticks([])
             plt.yticks([])
@@ -534,10 +555,10 @@ def test_custom_blind_dual_reference_non_ortho():
 
     sim = SimulatedWFS(aberrations=aberrations)
 
-    alg = IterativeDualReference(feedback=sim, slm=sim.slm,
-                                 phase_patterns=(phases_set, np.flip(phases_set, axis=1)), group_mask=mask,
-                                 phase_steps=4,
-                                 iterations=4)
+    alg = DualReference(feedback=sim, slm=sim.slm,
+                        phase_patterns=(phases_set, np.flip(phases_set, axis=1)), group_mask=mask,
+                        phase_steps=4,
+                        iterations=4)
 
     result = alg.execute()
 
