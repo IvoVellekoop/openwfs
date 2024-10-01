@@ -38,6 +38,7 @@ class DualReference:
         feedback: Detector,
         slm: PhaseSLM,
         phase_patterns: Optional[tuple[nd, nd]],
+        amplitude: Optional[nd | str],
         group_mask: nd,
         phase_steps: int = 4,
         iterations: int = 2,
@@ -52,6 +53,10 @@ class DualReference:
                 The first two dimensions are the spatial dimensions, and should match the size of group_mask.
                 The 3rd dimension in the array is index of the phase pattern. The number of phase patterns in A and B may be different.
                 When None, the phase_patterns attribute must be set before executing the algorithm.
+            amplitude: A 2D array, with shape equal to the shape of group_mask.
+                When None, the amplitude attribute must be set before executing the algorithm.
+                When 'ones', a 2D array where each element is 1.0 will be used. This corresponds to a uniform
+                illumination of the SLM.
             group_mask: A 2D bool array of that defines the pixels used by group A with False and elements used by
                 group B with True.
             phase_steps: The number of phase steps for each mode (default is 4). Depending on the type of
@@ -100,8 +105,32 @@ class DualReference:
         self.masks = (
             ~mask,
             mask,
-        )  # mask[0] is True for group A, mask[1] is True for group B
+        )  # self.masks[0] is True for group A, self.masks[1] is True for group B
         self.phase_patterns = phase_patterns
+        self._amplitude = None
+        self.amplitude = amplitude      # Note: when 'ones' is passed, the shape of self.masks[0] is used.
+
+    @property
+    def amplitude(self) -> Optional[nd]:
+        return self._amplitude
+
+    @amplitude.setter
+    def amplitude(self, value):
+        if value is None:
+            self._amplitude = None
+            return
+
+        if value == 'ones':
+            self._amplitude = np.ones(shape=self._shape, dtype=np.float32)
+            return
+
+        if value.shape != self._shape:
+            raise ValueError(
+                "The amplitude and group mask must all have the same shape."
+            )
+
+        self._amplitude = value.astype(np.float32)
+
 
     @property
     def phase_patterns(self) -> tuple[nd, nd]:
@@ -143,6 +172,40 @@ class DualReference:
             value[1].astype(np.float32),
         )
 
+        self._compute_cobasis()
+
+    @property
+    def cobasis(self) -> tuple[nd, nd]:
+        return self._cobasis
+
+    def _compute_cobasis(self):
+        """
+        Computes the cobasis from the phase patterns.
+
+        As a basis matrix is full rank, this is equivalent to the Moore-Penrose pseudo-inverse.
+        B⁺ = B* (B B*)^(-1)
+        Where B is the basis matrix (a row corresponds to a basis vector), * denotes the conjugate transpose, ^(-1)
+        denotes the matrix inverse, and ⁺ denotes the Moore-Penrose pseudo-inverse.
+        """
+        if self.phase_patterns is None:
+            raise('The phase_patterns must be set before computing the cobasis.')
+
+        self._cobasis = tuple(
+            np.exp(-1j * self.phase_patterns[side]) * np.expand_dims(self.amplitude * self.masks[side], axis=2)
+            for side in range(2)
+        )
+
+        cobasis = [None, None]
+        for side in range(2):
+            p = np.prod(self._shape)  # Number of SLM pixels
+            m = self.phase_patterns[side].shape[2]  # Number of modes
+            B = np.exp(1j * self.phase_patterns[side]) \
+                * np.expand_dims(self.amplitude * self.masks[side], axis=2).reshape((p, m))  # Basis matrix
+            B_pinv = np.linalg.inv(B.conj() @ B) @ B.conj()  # Moore-Penrose pseudo-inverse
+            cobasis[side] = B_pinv.reshape(self.phase_patterns[side].shape)
+
+        self._cobasis = cobasis
+
     def execute(
         self, capture_intermediate_results: bool = False, progress_bar=None
     ) -> WFSResult:
@@ -161,12 +224,6 @@ class DualReference:
         """
 
         # Current estimate of the transmission matrix (start with all 0)
-        cobasis = [
-            np.exp(-1j * self.phase_patterns[side])
-            * np.expand_dims(self.masks[side], axis=2)
-            for side in range(2)
-        ]
-
         ref_phases = np.zeros(self._shape)
 
         # Initialize storage lists
