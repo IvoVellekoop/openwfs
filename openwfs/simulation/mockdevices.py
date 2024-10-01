@@ -18,6 +18,7 @@ class StaticSource(Detector):
     def __init__(
         self,
         data: np.ndarray,
+        *,
         pixel_size: Optional[ExtentType] = None,
         extent: Optional[ExtentType] = None,
         latency: Quantity[u.ms] = 0 * u.ms,
@@ -217,8 +218,10 @@ class ADCProcessor(Processor):
 
     @property
     def conversion_factor(self) -> float:
-        """Conversion factor between analog and digital values."""
-        return self.digital_max / self.analog_max
+        """Conversion factor between analog and digital values.
+        If analog_max is set to 0.0, each frame is auto-scaled, and this function returns 0.
+        """
+        return self.digital_max / self.analog_max if self.analog_max > 0.0 else 0.0
 
     @digital_max.setter
     def digital_max(self, value):
@@ -327,6 +330,14 @@ class Camera(ADCProcessor):
     def data_shape(self, value):
         self._crop.data_shape = value
 
+    @property
+    def exposure(self) -> Quantity[u.ms]:
+        return self.duration
+
+    @exposure.setter
+    def exposure(self, value: Quantity[u.ms]):
+        self.duration = value.to(u.ms)
+
 
 class XYStage(Actuator):
     """
@@ -341,10 +352,18 @@ class XYStage(Actuator):
             step_size_y (Quantity[u.um]): The step size in the y-direction.
         """
         super().__init__(duration=0 * u.ms, latency=0 * u.ms)
-        self.step_size_x = step_size_x.to(u.um)
-        self.step_size_y = step_size_y.to(u.um)
+        self._step_size_x = step_size_x.to(u.um)
+        self._step_size_y = step_size_y.to(u.um)
         self._y = 0.0 * u.um
         self._x = 0.0 * u.um
+
+    @property
+    def step_size_x(self) -> Quantity[u.um]:
+        return self._step_size_x
+
+    @property
+    def step_size_y(self) -> Quantity[u.um]:
+        return self._step_size_y
 
     @property
     def x(self) -> Quantity[u.um]:
@@ -352,7 +371,7 @@ class XYStage(Actuator):
 
     @x.setter
     def x(self, value: Quantity[u.um]):
-        self._x = value.to(u.um)
+        self._x = self.step_size_x * np.round(value.to(u.um) / self.step_size_x)
 
     @property
     def y(self) -> Quantity[u.um]:
@@ -360,7 +379,7 @@ class XYStage(Actuator):
 
     @y.setter
     def y(self, value: Quantity[u.um]):
-        self._y = value.to(u.um)
+        self._y = self.step_size_y * np.round(value.to(u.um) / self.step_size_y)
 
     def home(self):
         self._x = 0.0 * u.um
