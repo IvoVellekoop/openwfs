@@ -9,8 +9,9 @@ from ..openwfs.algorithms import StepwiseSequential, FourierDualReference, DualR
 from ..openwfs.algorithms.troubleshoot import field_correlation
 from ..openwfs.algorithms.utilities import WFSController
 from ..openwfs.processors import SingleRoi
-from ..openwfs.simulation import SimulatedWFS, StaticSource, SLM, Microscope
 from ..openwfs.simulation.mockdevices import GaussianNoise
+from ..openwfs.simulation import SimulatedWFS, StaticSource, SLM, Microscope
+from ..openwfs.plot_utilities import plot_field
 
 
 @pytest.mark.parametrize("shape", [(4, 7), (10, 7), (20, 31)])
@@ -436,15 +437,13 @@ def test_custom_blind_dual_reference_non_ortho():
     """
     Test custom blind dual reference with a non-orthogonal basis.
     """
-    do_debug = False
+    do_debug = True
 
     # Create set of modes that are barely linearly independent
     N1 = 6
     N2 = 3
     M = N1 * N2
-    mode_set_half = (1 / M) * (
-        1j * np.eye(M).reshape((N1, N2, M)) * -np.ones(shape=(N1, N2, M))
-    )
+    mode_set_half = (1 / M) * (1j * np.eye(M).reshape((N1, N2, M)) * -np.ones(shape=(N1, N2, M))) + (1/M)
     mode_set = np.concatenate((mode_set_half, np.zeros(shape=(N1, N2, M))), axis=1)
     phases_set = np.angle(mode_set)
     mask = np.concatenate((np.zeros((N1, N2)), np.ones((N1, N2))), axis=1)
@@ -456,8 +455,8 @@ def test_custom_blind_dual_reference_non_ortho():
         plt.figure(figsize=(12, 7))
         for m in range(M):
             plt.subplot(N2, N1, m + 1)
-            plt.imshow(phases_set[:, :, m], vmin=-np.pi, vmax=np.pi)
-            plt.title(f"m={m}")
+            plot_field(mode_set[:, :, m])
+            plt.title(f'm={m}')
             plt.xticks([])
             plt.yticks([])
         plt.pause(0.01)
@@ -489,16 +488,13 @@ def test_custom_blind_dual_reference_non_ortho():
 
     if do_debug:
         plt.figure()
-        plt.imshow(
-            np.angle(np.exp(1j * aberrations)), vmin=-np.pi, vmax=np.pi, cmap="hsv"
-        )
-        plt.title("Aberrations")
-        plt.colorbar()
+        plt.subplot(1, 2, 1)
+        plot_field(np.exp(1j * aberrations))
+        plt.title('Aberrations')
 
-        plt.figure()
-        plt.imshow(np.angle(result.t), vmin=-np.pi, vmax=np.pi, cmap="hsv")
-        plt.title("t")
-        plt.colorbar()
+        plt.subplot(1, 2, 2)
+        plot_field(result.t)
+        plt.title('t')
         plt.show()
 
     assert np.abs(field_correlation(np.exp(1j * aberrations), result.t)) > 0.999
