@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Optional
+from typing import Optional, Sequence
 
 import numpy as np
 from numpy.typing import ArrayLike
@@ -108,6 +108,35 @@ class WFSResult:
                          n=self.n,
                          )
 
+    @staticmethod
+    def combine(results: Sequence['WFSResult']):
+        """Merges the results for several sub-experiments.
+
+        Currently, this just computes the average of the fidelities, weighted
+        by the number of segments used in each sub-experiment.
+
+        Note: the matrix t is also averaged, but this is not always meaningful.
+        The caller can replace the `.t` attribute of the result with a more meaningful value.
+        """
+        n = sum(r.n for r in results)
+        axis = results[0].axis
+        if any(r.axis != axis for r in results):
+            raise ValueError("All results must have the same axis")
+
+        def weighted_average(attribute):
+            data = getattr(results[0], attribute) * results[0].n / n
+            for r in results[1:]:
+                data += getattr(r, attribute) * r.n / n
+            return data
+
+        return WFSResult(t=weighted_average('t'),
+                         t_f=weighted_average('t_f'),
+                         n=n,
+                         axis=axis,
+                         fidelity_noise=weighted_average('fidelity_noise'),
+                         fidelity_amplitude=weighted_average('fidelity_amplitude'),
+                         fidelity_calibration=weighted_average('fidelity_calibration'))
+
 
 def analyze_phase_stepping(measurements: np.ndarray, axis: int, A: Optional[float] = None):
     """Analyzes the result of phase stepping measurements, returning matrix `t` and noise statistics
@@ -186,12 +215,17 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int, A: Optional[floa
     # (which occurs twice, ideally in the +1 and -1 components of the Fourier transform),
     # but this factor of two is already included in the 'signal_energy' calculation.
     # an offset, and the rest is noise.
-    offset_energy = np.sum(np.take(t_f, 0, axis=axis) ** 2)
-    total_energy = np.sum(np.abs(t_f) ** 2)
-
+    # average over all targets to get the most accurate result (assuming all targets are similar)
+    axes = tuple([i for i in range(t_f.ndim) if i != axis])
+    energies = np.sum(np.abs(t_f) ** 2, axis=axes)
+    offset_energy = energies[0]
+    total_energy = np.sum(energies)
+    signal_energy = energies[1] + energies[-1]
     if phase_steps > 3:
+        # estimate the noise energy as the energy that is not explained
+        # by the signal or the offset.
         noise_energy = (total_energy - signal_energy - offset_energy) / (phase_steps - 3)
-        noise_factor = np.abs(np.maximum(signal_energy - noise_energy, 0.0) / signal_energy)
+        noise_factor = np.abs(np.maximum(signal_energy - 2 * noise_energy, 0.0) / signal_energy)
     else:
         noise_factor = 1.0  # cannot estimate reliably
 

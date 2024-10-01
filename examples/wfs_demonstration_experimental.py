@@ -24,7 +24,7 @@ monitor = slm.clone(monitor_id=0, pos=(0, 0), shape=(slm.shape[0] // 4, slm.shap
 # we are using a setup with an SLM that produces 2pi phase shift
 # at a gray value of 142
 slm.lookup_table = range(142)
-alg = FourierDualReference(feedback=roi_detector, slm=slm, slm_shape=[800, 800], k_angles_min=-5, k_angles_max=5)
+alg = FourierDualReference(feedback=roi_detector, slm=slm, slm_shape=[800, 800], k_radius=7)
 
 result = alg.execute()
 print(result)

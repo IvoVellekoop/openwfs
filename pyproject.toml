@@ -33,7 +33,7 @@ numpy = ">=1.25.2"
 astropy = ">=5.3.4"
 glfw = ">=2.5.9"
 opencv-python = ">=4.9.0.80"
-matplotlib = ">=3.7.3"
+matplotlib = ">=3.7.3" # TODO: remove dependency?
 scipy = ">=1.11.3"
 annotated-types = "~0.7.0"
 tqdm = "^4.66.2" # TODO: remove dependency
