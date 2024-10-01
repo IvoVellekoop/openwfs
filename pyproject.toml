@@ -13,6 +13,14 @@ classifiers = [
     'License :: OSI Approved :: BSD License',
     'Operating System :: OS Independent',
 ]
+packages = [
+    { include = "openwfs" },
+    { include = "openwfs.algorithms" },
+    { include = "openwfs.devices" },
+    { include = "openwfs.processors" },
+    { include = "openwfs.simulation" },
+    { include = "openwfs.utilities" }
+]
 
 [build-system]
 requires = ["poetry-core"]
