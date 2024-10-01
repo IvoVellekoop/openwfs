@@ -168,14 +168,14 @@ class Camera(Detector):
         return self.exposure_time.to(u.ms)
 
     @property
-    def exposure_time(self) -> u.Quantity:
-        """Exposure time in microseconds."""
+    def exposure(self) -> u.Quantity[u.ms]:
+        """Exposure time of the camera"""
         return self._nodes.ExposureTime.value * u.us
 
-    @exposure_time.setter
-    def exposure_time(self, value):
+    @exposure.setter
+    def exposure(self, value: Quantity[u.ms]):
         with self.paused():
-            self._nodes.ExposureTime.value = int(value.to(u.us).value)
+            self._nodes.ExposureTime.value = int(value.to_value(u.us))
 
     @property
     def binning(self) -> int:

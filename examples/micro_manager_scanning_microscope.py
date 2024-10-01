@@ -6,7 +6,6 @@ device adapter.
 """
 
 import astropy.units as u
-import matplotlib.pyplot as plt
 import skimage
 
 # add 'openwfs' to the search path. This is only needed when developing openwfs
@@ -62,6 +61,8 @@ scanner = ScanningMicroscope(
 )
 
 if __name__ == "__main__":
+    import matplotlib.pyplot as plt
+
     scanner.binning = 4
     plt.imshow(scanner.read(), cmap="gray")
     plt.colorbar()

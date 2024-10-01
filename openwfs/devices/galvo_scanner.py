@@ -816,7 +816,7 @@ class ScanningMicroscope(Detector):
 
     @property
     def exposure(self) -> Quantity[u.ms]:
-        """The time the detector is exposed to the sample."""
+        """The required time to scan a frame."""
         return self.duration
 
     @property

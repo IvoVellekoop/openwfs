@@ -59,3 +59,17 @@ stage = mic.xy_stage
 
 # construct dictionary of objects to expose to Micro-Manager
 devices = {"camera": cam, "stage": stage}
+
+if __name__ == "__main__":
+    # When running this script directly (not from μManager)
+    # the code below shows how to operate the stage and change the numerical aperture of the microscope
+    import matplotlib.pyplot as plt
+
+    for i in range(20):
+        stage.x = stage.x + 2 * u.um
+        mic.numerical_aperture -= 0.025
+        plt.imshow(mic.read(), cmap="gray")
+        if i == 0:
+            plt.colorbar()
+        plt.show(block=False)
+        plt.pause(0.5)
