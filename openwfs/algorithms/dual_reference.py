@@ -183,8 +183,8 @@ class DualReference:
         Computes the cobasis from the phase patterns.
 
         As a basis matrix is full rank, this is equivalent to the Moore-Penrose pseudo-inverse.
-        B⁺ = B* (B B*)^(-1)
-        Where B is the basis matrix (a row corresponds to a basis vector), * denotes the conjugate transpose, ^(-1)
+        B⁺ = (B^* B)^(-1) B^*
+        Where B is the basis matrix (a column corresponds to a basis vector), ^* denotes the conjugate transpose, ^(-1)
         denotes the matrix inverse, and ⁺ denotes the Moore-Penrose pseudo-inverse.
         """
         if self.phase_patterns is None:
