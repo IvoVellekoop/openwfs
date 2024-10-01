@@ -176,6 +176,11 @@ class ADCProcessor(Processor):
         """
         return self._digital_max
 
+    @property
+    def conversion_factor(self) -> float:
+        """Conversion factor between analog and digital values."""
+        return self.digital_max / self.analog_max
+
     @digital_max.setter
     def digital_max(self, value):
         if value < 0 or value > 0xFFFF:
