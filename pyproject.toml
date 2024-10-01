@@ -9,17 +9,9 @@ repository = "https://github.com/ivovellekoop/openwfs"
 documentation = "https://openwfs.readthedocs.io/en/latest/"
 classifiers = [
     'Programming Language :: Python :: 3',
-    'Development Status :: 3 - Alpha',
+    'Development Status :: 4 - Beta',
     'License :: OSI Approved :: BSD License',
     'Operating System :: OS Independent',
-]
-packages = [
-    { include = "openwfs" },
-    { include = "openwfs.algorithms" },
-    { include = "openwfs.devices" },
-    { include = "openwfs.processors" },
-    { include = "openwfs.simulation" },
-    { include = "openwfs.utilities" }
 ]
 
 [build-system]
