@@ -2,21 +2,20 @@ import astropy.units as u
 import numpy as np
 import pytest
 import skimage
-from numpy import ndarray as nd
 from scipy.linalg import hadamard
 from scipy.ndimage import zoom
-from skimage.transform import resize
 
+from openwfs.simulation.mockdevices import GaussianNoise
 from ..openwfs.algorithms import StepwiseSequential, FourierDualReference, \
     DualReference, troubleshoot
 from ..openwfs.algorithms.troubleshoot import field_correlation
 from ..openwfs.algorithms.utilities import WFSController
 from ..openwfs.processors import SingleRoi
-from ..openwfs.simulation import SimulatedWFS, StaticSource, SLM, Microscope, ADCProcessor, Shutter
+from ..openwfs.simulation import SimulatedWFS, StaticSource, SLM, Microscope, Shutter
 from ..openwfs.utilities import set_pixel_size, tilt
 
 
-def assert_enhancement(slm, feedback, wfs_results, t_correct=None):
+def assert_enhancement(slm, feedback, wfs_results):
     """Helper function to check if the intensity in the target focus increases as much as expected"""
     optimised_wf = -np.angle(wfs_results.t)
     slm.set_phases(0.0)
@@ -38,125 +37,115 @@ def assert_enhancement(slm, feedback, wfs_results, t_correct=None):
         assert corr > 1.0 - 2.0 / np.sqrt(wfs_results.n)
 
 
-def half_plane_wave_basis(N1: int, N2: int) -> nd:
+@pytest.mark.parametrize("shape", [(4, 7), (10, 7), (20, 31)])
+@pytest.mark.parametrize("noise", [0.0, 0.1])
+def test_ssa(shape, noise: float):
     """
-    Create a plane wave basis for one half of the SLM.
+    Test the SSA algorithm.
 
-    N1: shape[0] of SLM pattern half
-    N2: shape[1] of SLM pattern half
+    This tests checks if the algorithm achieves the theoretical enhancement,
+    and it also verifies that the enhancement and noise fidelity
+    are estimated correctly by the algorithm.
     """
-    M = N1 * N2
-    return np.fft.fft2(np.eye(M).reshape((N1, N2, M)), axes=(0, 1))
+    np.random.seed(42)  # for reproducibility
 
+    M = 100  # number of targets
+    phase_steps = 6
 
-def half_hadamard_basis(N1: int, N2: int) -> nd:
-    """
-    Create a Hadamard basis for one half of the SLM. N1 and N2 must be powers of 2.
+    N = np.prod(shape)  # number of input modes
+    sim = SimulatedWFS(t=random_transmission_matrix((*shape, M)))
+    I_0 = np.mean(sim.read())
 
-    N1: shape[0] of SLM pattern half
-    N2: shape[1] of SLM pattern half
-    """
-    M = N1 * N2
-    return hadamard(M, dtype=np.complex128).reshape((N1, N2, M))
+    # create feedback object, with noise if needed
+    if noise > 0.0:
+        sim.slm.set_phases(0.0)
+        feedback = GaussianNoise(sim, std=I_0 * noise)
+        signal = (N - 1) / N ** 2
+        theoretical_noise_fidelity = signal / (signal + noise ** 2 / phase_steps)
+    else:
+        feedback = sim
+        theoretical_noise_fidelity = 1.0
 
-
-def half_split_mask(N1: int, N2: int) -> nd:
-    """
-    Create a mask that splits the slm in the center in a left and right half.
-
-    N1: shape[0] of slm pattern half
-    N2: shape[1] of slm pattern half
-    """
-    return np.concatenate((np.zeros((N1, N2)), np.ones((N1, N2))), axis=1)
-
-
-@pytest.mark.parametrize("n_y, n_x", [(5, 5), (7, 11), (6, 4), (30, 20)])
-def test_ssa(n_y, n_x):
-    """
-    Test the enhancement performance of the SSA algorithm.
-    Note, for low N, the improvement estimate is not accurate,
-    and the test may sometimes fail due to statistical fluctuations.
-    """
-    aberrations = np.random.uniform(0.0, 2 * np.pi, (n_y, n_x))
-    sim = SimulatedWFS(aberrations=aberrations)
-    alg = StepwiseSequential(feedback=sim, slm=sim.slm, n_x=n_x, n_y=n_y, phase_steps=4)
+    # Execute the SSA algorithm to get the optimized wavefront
+    # for all targets simultaneously
+    alg = StepwiseSequential(feedback=feedback, slm=sim.slm, n_x=shape[1], n_y=shape[0], phase_steps=phase_steps)
+    alg_fidelity = (N - 1) / N  # SSA is inaccurate if N is low
     result = alg.execute()
-    print(np.mean(np.abs(result.t)))
-    assert_enhancement(sim.slm, sim, result, np.exp(1j * aberrations))
 
+    # Determine the optimized intensities in each of the targets individually
+    # Also estimate the fidelity of the transmission matrix reconstruction
+    # This fidelity is determined row by row, since we need to compensate
+    # the unknown phases. The normalization of the correlation function
+    # is performed on all rows together, not per row, to increase
+    # the accuracy of the estimate.
+    I_opt = np.zeros((M,))
+    t_correlation = 0.0
+    t_norm = 0.0
+    for b in range(M):
+        sim.slm.set_phases(-np.angle(result.t[:, :, b]))
+        I_opt[b] = feedback.read()[b]
+        t_correlation += abs(np.vdot(result.t[:, :, b], sim.t[:, :, b])) ** 2
+        t_norm += np.vdot(result.t[:, :, b], result.t[:, :, b]) * np.vdot(sim.t[:, :, b], sim.t[:, :, b])
+    t_correlation /= t_norm
 
-@pytest.mark.parametrize("n_y, n_x", [(5, 5), (7, 11), (6, 4)])
-def test_ssa_noise(n_y, n_x):
-    """
-    Test the enhancement prediction with noisy SSA.
-
-    Note: this test fails if a smooth image is shown, indicating that the estimators
-    only work well for strong scattering at the moment.
-    """
-    generator = np.random.default_rng(seed=12345)
-    aberrations = generator.uniform(0.0, 2 * np.pi, (n_y, n_x))
-    sim_no_noise = SimulatedWFS(aberrations=aberrations)
-    slm = sim_no_noise.slm
-    scale = np.max(sim_no_noise.read())
-    sim = ADCProcessor(sim_no_noise, analog_max=scale * 200.0, digital_max=10000, shot_noise=True, generator=generator)
-    alg = StepwiseSequential(feedback=sim, slm=slm, n_x=n_x, n_y=n_y, phase_steps=10)
-    result = alg.execute()
-    print(result.fidelity_noise)
-
-    assert_enhancement(slm, sim, result)
-
-
-def test_ssa_enhancement():
-    input_shape = (40, 40)
-    output_shape = (200, 200)  # todo: resize
-    rng = np.random.default_rng(seed=12345)
-
-    def get_random_aberrations():
-        return resize(rng.uniform(size=input_shape) * 2 * np.pi, output_shape, order=0)
-
-    # Define mock hardware and algorithm
-    slm = SLM(shape=output_shape)
-
-    # Find average background intensity
-    unshaped_intensities = np.zeros((30,))
-    for n in range(len(unshaped_intensities)):
-        signal = SimulatedWFS(aberrations=get_random_aberrations(), slm=slm)
-        unshaped_intensities[n] = signal.read()
-
-    num_runs = 10
-    shaped_intensities_ssa = np.zeros(num_runs)
-    for r in range(num_runs):
-        sim = SimulatedWFS(aberrations=get_random_aberrations(), slm=slm)
-
-        # SSA
-        print(f'SSA run {r + 1}/{num_runs}')
-        alg_ssa = StepwiseSequential(feedback=sim, slm=sim.slm, n_x=13, n_y=13, phase_steps=6)
-        wfs_result_ssa = alg_ssa.execute()
-        sim.slm.set_phases(-np.angle(wfs_result_ssa.t))
-        shaped_intensities_ssa[r] = sim.read()
-
-    # Compute enhancements and error margins
-    enhancement_ssa = shaped_intensities_ssa.mean() / unshaped_intensities.mean()
-    enhancement_ssa_std = shaped_intensities_ssa.std() / unshaped_intensities.mean()
-
+    # Check the enhancement, noise fidelity and
+    # the fidelity of the transmission matrix reconstruction
+    enhancement = I_opt.mean() / I_0
+    theoretical_enhancement = np.pi / 4 * theoretical_noise_fidelity * alg_fidelity * (N - 1) + 1
+    estimated_enhancement = result.estimated_enhancement.mean() * alg_fidelity
+    theoretical_t_correlation = theoretical_noise_fidelity * alg_fidelity
+    estimated_t_correlation = result.fidelity_noise * result.fidelity_calibration * alg_fidelity
+    tolerance = 2.0 / np.sqrt(M)
     print(
-        f'SSA enhancement (squared signal): {enhancement_ssa:.2f}, std={enhancement_ssa_std:.2f}, with {wfs_result_ssa.n} modes')
+        f"\nenhancement:      \ttheoretical= {theoretical_enhancement},\testimated={estimated_enhancement},\tactual: {enhancement}")
+    print(
+        f"t-matrix fidelity:\ttheoretical = {theoretical_t_correlation},\testimated = {estimated_t_correlation},\tactual = {t_correlation}")
+    print(f"noise fidelity:   \ttheoretical = {theoretical_noise_fidelity},\testimated = {result.fidelity_noise}")
+    print(f"comparing at relative tolerance: {tolerance}")
 
-    assert enhancement_ssa > 100.0
+    assert np.allclose(enhancement, theoretical_enhancement, rtol=tolerance), f"""
+        The SSA algorithm did not enhance the focus as much as expected.
+        Theoretical {theoretical_enhancement}, got {enhancement}"""
+
+    assert np.allclose(estimated_enhancement, enhancement, rtol=tolerance), f"""
+         The SSA algorithm did not estimate the enhancement correctly.
+         Estimated {estimated_enhancement}, got {enhancement}"""
+
+    assert np.allclose(t_correlation, theoretical_t_correlation, rtol=tolerance), f"""
+        The SSA algorithm did not measure the transmission matrix correctly.
+        Expected {theoretical_t_correlation}, got {t_correlation}"""
+
+    assert np.allclose(estimated_t_correlation, theoretical_t_correlation, rtol=tolerance), f"""
+        The SSA algorithm did not estimate the fidelity of the transmission matrix correctly.
+        Expected {theoretical_t_correlation}, got {estimated_t_correlation}"""
+
+    assert np.allclose(result.fidelity_noise, theoretical_noise_fidelity, rtol=tolerance), f"""
+        The SSA algorithm did not estimate the noise correctly.
+        Expected {theoretical_noise_fidelity}, got {result.fidelity_noise}"""
 
 
-@pytest.mark.parametrize("n_x", [2, 3])
-def test_fourier(n_x):
+def random_transmission_matrix(shape):
+    """
+    Create a random transmission matrix with the given shape.
+    """
+    return np.random.normal(size=shape) + 1j * np.random.normal(size=shape)
+
+
+@pytest.mark.parametrize("k_radius", [2, 3])
+def test_fourier(k_radius):
     """
     Test the enhancement performance of the Fourier-based algorithm.
-    Use the 'cameraman' test image since it is relatively smooth.
+    Check if the estimated enhancement is close to the actual enhancement.
+    Check if the measured transmission matrix is close to the actual transmission matrix.
+    For this check, compare two situations: one with a completely random aberration pattern,
+    and one with a smooth aberration pattern. In the latter case, the measured transmission matrix
+    should match the actual transmission matrix better than for the completely random one
     """
-    aberrations = skimage.data.camera() * (2.0 * np.pi / 255.0)
-    sim = SimulatedWFS(aberrations=aberrations)
-    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=np.shape(aberrations), k_radius=n_x,
-                               phase_steps=4)
+    shape = (16, 15)
+    sim = SimulatedWFS(t=random_transmission_matrix(shape))
+    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=shape, k_radius=k_radius)
     results = alg.execute()
-    assert_enhancement(sim.slm, sim, results, np.exp(1j * aberrations))
+    assert_enhancement(sim, results)
 
 
 def test_fourier2():
@@ -425,62 +414,30 @@ def test_ssa_fidelity(gaussian_noise_std):
     assert np.isclose(trouble.measured_enhancement, trouble.expected_enhancement, rtol=0.2)
 
 
-def test_ssa_aberration_reconstruction():
-    """Test if SSA can closely reconstruct the ground truth aberrations."""
+@pytest.mark.parametrize("type", ('plane_wave', 'hadamard'))
+@pytest.mark.parametrize("shape", ((8, 8), (6, 4)))
+def test_custom_blind_dual_reference_ortho_split(type: str, shape):
+    """Test custom blind dual reference with an orthonormal phase-only basis.
+    Two types of bases are tested: plane waves and Hadamard"""
     do_debug = False
+    N = shape[0] * (shape[1] // 2)
+    modes_shape = (shape[0], shape[1] // 2, N)
+    if type == 'plane_wave':
+        # Create a full plane wave basis for one half of the SLM.
+        modes = np.fft.fft2(np.eye(N).reshape(modes_shape), axes=(0, 1))
+    else:  # type == 'hadamard':
+        modes = hadamard(N).reshape(modes_shape)
 
-    n_x = 6
-    n_y = 5
-
-    # Create aberrations
-    x = np.linspace(-1, 1, n_x).reshape((1, -1))
-    y = np.linspace(-1, 1, n_y).reshape((-1, 1))
-    aberrations = (np.sin(0.8 * np.pi * x) * np.cos(1.3 * np.pi * y) * (0.8 * np.pi + 0.4 * x + 0.4 * y)) % (2 * np.pi)
-    aberrations[0:1, :] = 0
-    aberrations[:, 0:1] = 0
-
-    # Initialize simulation and algorithm
-    sim = SimulatedWFS(aberrations=aberrations.reshape((*aberrations.shape, 1)))
-
-    alg = StepwiseSequential(feedback=sim, slm=sim.slm, n_x=n_x, n_y=n_y, phase_steps=4)
-
-    result = alg.execute()
-
-    if do_debug:
-        import matplotlib.pyplot as plt
-        plt.figure()
-        plt.imshow(np.angle(np.exp(1j * aberrations)), vmin=-np.pi, vmax=np.pi, cmap='hsv')
-        plt.title('Aberrations')
-
-        plt.figure()
-        plt.imshow(np.angle(result.t), vmin=-np.pi, vmax=np.pi, cmap='hsv')
-        plt.title('t')
-        plt.colorbar()
-        plt.show()
-
-    assert np.abs(field_correlation(np.exp(1j * aberrations), result.t)) > 0.99
-
-
-@pytest.mark.parametrize("construct_basis", (half_plane_wave_basis, half_hadamard_basis))
-def test_custom_blind_dual_reference_ortho_split(construct_basis: callable):
-    """Test custom blind dual reference with an orthonormal phase-only basis."""
-    do_debug = False
-
-    # Create set of phase-only orthonormal modes
-    N1 = 8
-    N2 = 4
-    M = N1 * N2
-    mode_set_half = construct_basis(N1, N2)
-    mode_set = np.concatenate((mode_set_half, np.zeros(shape=(N1, N2, M))), axis=1)
+    mask = np.concatenate((np.zeros(modes_shape[0:1], dtype=bool), np.ones(modes_shape[0:1], dtype=bool)), axis=1)
+    mode_set = np.concatenate((modes, np.zeros(shape=modes_shape)), axis=1)
     phases_set = np.angle(mode_set)
-    mask = half_split_mask(N1, N2)
 
     if do_debug:
         # Plot the modes
         import matplotlib.pyplot as plt
         plt.figure(figsize=(12, 7))
-        for m in range(M):
-            plt.subplot(N2, N1, m + 1)
+        for m in range(N):
+            plt.subplot(*modes_shape[0:1], m + 1)
             plt.imshow(np.angle(mode_set[:, :, m]), vmin=-np.pi, vmax=np.pi)
             plt.title(f'm={m}')
             plt.xticks([])
@@ -488,24 +445,17 @@ def test_custom_blind_dual_reference_ortho_split(construct_basis: callable):
         plt.pause(0.1)
 
     # Create aberrations
-    x = np.linspace(-1, 1, 1 * N1).reshape((1, -1))
-    y = np.linspace(-1, 1, 1 * N1).reshape((-1, 1))
-    aberrations = (np.sin(0.8 * np.pi * x) * np.cos(1.3 * np.pi * y) * (0.8 * np.pi + 0.4 * x + 0.4 * y)) % (2 * np.pi)
-    aberrations[0:2, :] = 0
-    aberrations[:, 0:2] = 0
-
-    sim = SimulatedWFS(aberrations=aberrations)
+    sim = SimulatedWFS(t=random_transmission_matrix(shape))
 
     alg = DualReference(feedback=sim, slm=sim.slm,
                         phase_patterns=(phases_set, np.flip(phases_set, axis=1)), group_mask=mask,
-                        phase_steps=4,
                         iterations=4)
 
     result = alg.execute()
 
     if do_debug:
         plt.figure()
-        plt.imshow(np.angle(np.exp(1j * aberrations)), vmin=-np.pi, vmax=np.pi, cmap='hsv')
+        plt.imshow(np.angle(sim.t), vmin=-np.pi, vmax=np.pi, cmap='hsv')
         plt.title('Aberrations')
 
         plt.figure()
