@@ -6,7 +6,9 @@
 
 # General
 
-- PyCharm autoformatting should be enabled to ensure correct formatting.
+- all .py files MUST be formatted with the 'black' autoformatter. This can be done by installing the 'black' package,
+  and running `black .` in the root directory. black is automatically installed when the development dependencies are
+  included.
 
 # Tests
 
