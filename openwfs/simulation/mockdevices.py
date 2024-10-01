@@ -15,8 +15,15 @@ class StaticSource(Detector):
     Detector that returns pre-set data. Also simulates latency and measurement duration.
     """
 
-    def __init__(self, data: np.ndarray, pixel_size: Optional[ExtentType] = None, extent: Optional[ExtentType] = None,
-                 latency: Quantity[u.ms] = 0 * u.ms, duration: Quantity[u.ms] = 0 * u.ms, multi_threaded: bool = None):
+    def __init__(
+        self,
+        data: np.ndarray,
+        pixel_size: Optional[ExtentType] = None,
+        extent: Optional[ExtentType] = None,
+        latency: Quantity[u.ms] = 0 * u.ms,
+        duration: Quantity[u.ms] = 0 * u.ms,
+        multi_threaded: bool = None,
+    ):
         """
         Initializes the MockSource
         TODO: factor out the latency and duration into a separate class?
@@ -35,15 +42,24 @@ class StaticSource(Detector):
             else:
                 pixel_size = get_pixel_size(data)
 
-        if pixel_size is not None and (np.isscalar(pixel_size) or pixel_size.size == 1) and data.ndim > 1:
+        if (
+            pixel_size is not None
+            and (np.isscalar(pixel_size) or pixel_size.size == 1)
+            and data.ndim > 1
+        ):
             pixel_size = pixel_size.repeat(data.ndim)
 
         if multi_threaded is None:
             multi_threaded = latency > 0 * u.ms or duration > 0 * u.ms
 
         self._data = data
-        super().__init__(data_shape=data.shape, pixel_size=pixel_size, latency=latency, duration=duration,
-                         multi_threaded=multi_threaded)
+        super().__init__(
+            data_shape=data.shape,
+            pixel_size=pixel_size,
+            latency=latency,
+            duration=duration,
+            multi_threaded=multi_threaded,
+        )
 
     def _fetch(self) -> np.ndarray:  # noqa
         total_time_s = self.latency.to_value(u.s) + self.duration.to_value(u.s)
@@ -72,22 +88,34 @@ class StaticSource(Detector):
 
 
 class NoiseSource(Detector):
-    def __init__(self, noise_type: str, *, data_shape: tuple[int, ...], pixel_size: Quantity, multi_threaded=True,
-                 generator=None,
-                 **kwargs):
+    def __init__(
+        self,
+        noise_type: str,
+        *,
+        data_shape: tuple[int, ...],
+        pixel_size: Quantity,
+        multi_threaded=True,
+        generator=None,
+        **kwargs,
+    ):
         self._noise_type = noise_type
         self._noise_arguments = kwargs
         self._rng = generator if generator is not None else np.random.default_rng()
-        super().__init__(data_shape=data_shape, pixel_size=pixel_size, latency=0 * u.ms, duration=0 * u.ms,
-                         multi_threaded=multi_threaded)
+        super().__init__(
+            data_shape=data_shape,
+            pixel_size=pixel_size,
+            latency=0 * u.ms,
+            duration=0 * u.ms,
+            multi_threaded=multi_threaded,
+        )
 
     def _fetch(self) -> np.ndarray:  # noqa
-        if self._noise_type == 'uniform':
+        if self._noise_type == "uniform":
             return self._rng.uniform(**self._noise_arguments, size=self.data_shape)
-        elif self._noise_type == 'gaussian':
+        elif self._noise_type == "gaussian":
             return self._rng.normal(**self._noise_arguments, size=self.data_shape)
         else:
-            raise ValueError(f'Unknown noise type: {self._noise_type}')
+            raise ValueError(f"Unknown noise type: {self._noise_type}")
 
     @Detector.data_shape.setter
     def data_shape(self, value):
@@ -100,9 +128,16 @@ class ADCProcessor(Processor):
     At the moment, only positive input and output values are supported.
     """
 
-    def __init__(self, source: Detector, analog_max: float = 0.0, digital_max: int = 0xFFFF,
-                 shot_noise: bool = False, gaussian_noise_std: float = 0.0, multi_threaded: bool = True,
-                 generator=None):
+    def __init__(
+        self,
+        source: Detector,
+        analog_max: float = 0.0,
+        digital_max: int = 0xFFFF,
+        shot_noise: bool = False,
+        gaussian_noise_std: float = 0.0,
+        multi_threaded: bool = True,
+        generator=None,
+    ):
         """
         Initializes the ADCProcessor class, which mimics an analog-digital converter.
 
@@ -140,7 +175,9 @@ class ADCProcessor(Processor):
         if self.analog_max == 0.0:  # auto scaling
             max_value = np.max(data)
             if max_value > 0.0:
-                data = data * (self.digital_max / max_value)  # auto-scale to maximum value
+                data = data * (
+                    self.digital_max / max_value
+                )  # auto-scale to maximum value
         else:
             data = data * (self.digital_max / self.analog_max)
 
@@ -148,9 +185,11 @@ class ADCProcessor(Processor):
             data = self._rng.poisson(data)
 
         if self._gaussian_noise_std > 0.0:
-            data = data + self._rng.normal(scale=self._gaussian_noise_std, size=data.shape)
+            data = data + self._rng.normal(
+                scale=self._gaussian_noise_std, size=data.shape
+            )
 
-        return np.clip(np.rint(data), 0, self.digital_max).astype('uint16')
+        return np.clip(np.rint(data), 0, self.digital_max).astype("uint16")
 
     @property
     def analog_max(self) -> Optional[float]:
@@ -165,7 +204,7 @@ class ADCProcessor(Processor):
     @analog_max.setter
     def analog_max(self, value):
         if value < 0.0:
-            raise ValueError('analog_max cannot be negative')
+            raise ValueError("analog_max cannot be negative")
         self._analog_max = value
 
     @property
@@ -184,7 +223,7 @@ class ADCProcessor(Processor):
     @digital_max.setter
     def digital_max(self, value):
         if value < 0 or value > 0xFFFF:
-            raise ValueError('digital_max must be between 0 and 0xFFFF')
+            raise ValueError("digital_max must be between 0 and 0xFFFF")
         self._digital_max = int(value)
 
     @property
@@ -214,8 +253,13 @@ class Camera(ADCProcessor):
     Conversion to uint16 is implemented in the ADCProcessor base class.
     """
 
-    def __init__(self, source: Detector, shape: Optional[Sequence[int]] = None,
-                 pos: Optional[Sequence[int]] = None, **kwargs):
+    def __init__(
+        self,
+        source: Detector,
+        shape: Optional[Sequence[int]] = None,
+        pos: Optional[Sequence[int]] = None,
+        **kwargs,
+    ):
         """
         Args:
             source (Detector): The source detector to be wrapped.

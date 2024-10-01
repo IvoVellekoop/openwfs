@@ -1,9 +1,9 @@
-import nidaqmx as ni
-from nidaqmx.constants import LineGrouping
-from typing import Annotated
 import time
+
 import astropy.units as u
+import nidaqmx as ni
 from astropy.units import Quantity
+from nidaqmx.constants import LineGrouping
 
 
 class Gain:
@@ -55,7 +55,9 @@ class Gain:
     def on_reset(self, value):
         if value:
             with ni.Task() as task:
-                task.do_channels.add_do_chan(self.port_do, line_grouping=LineGrouping.CHAN_FOR_ALL_LINES)
+                task.do_channels.add_do_chan(
+                    self.port_do, line_grouping=LineGrouping.CHAN_FOR_ALL_LINES
+                )
                 task.write([True])
                 time.sleep(1)
                 task.write([False])
@@ -84,4 +86,3 @@ class Gain:
             channel.ao_min = 0
             channel.ao_max = 0.9
             write_task.write(self._gain.to_value(u.V))
-

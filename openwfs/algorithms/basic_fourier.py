@@ -25,9 +25,19 @@ class FourierDualReference(DualReference):
     optics with remote focusing (CAORF),” Opt. Express 25, 10368–10383 (2017).
     """
 
-    def __init__(self, *, feedback: Detector, slm: PhaseSLM, slm_shape=(500, 500), phase_steps=4, k_radius: float = 3.2,
-                 k_step: float = 1.0, iterations: int = 2, analyzer: Optional[callable] = analyze_phase_stepping,
-                 optimized_reference: Optional[bool] = None):
+    def __init__(
+        self,
+        *,
+        feedback: Detector,
+        slm: PhaseSLM,
+        slm_shape=(500, 500),
+        phase_steps=4,
+        k_radius: float = 3.2,
+        k_step: float = 1.0,
+        iterations: int = 2,
+        analyzer: Optional[callable] = analyze_phase_stepping,
+        optimized_reference: Optional[bool] = None
+    ):
         """
         Args:
             feedback (Detector): Source of feedback
@@ -42,13 +52,17 @@ class FourierDualReference(DualReference):
         self.k_step = k_step
         self._slm_shape = slm_shape
         group_mask = np.zeros(slm_shape, dtype=bool)
-        group_mask[:, slm_shape[1] // 2:] = True
-        super().__init__(feedback=feedback, slm=slm,
-                         phase_patterns=None, group_mask=group_mask,
-                         phase_steps=phase_steps,
-                         iterations=iterations,
-                         optimized_reference=optimized_reference,
-                         analyzer=analyzer)
+        group_mask[:, slm_shape[1] // 2 :] = True
+        super().__init__(
+            feedback=feedback,
+            slm=slm,
+            phase_patterns=None,
+            group_mask=group_mask,
+            phase_steps=phase_steps,
+            iterations=iterations,
+            optimized_reference=optimized_reference,
+            analyzer=analyzer,
+        )
         self._update_modes()
 
     def _update_modes(self):
@@ -63,10 +77,11 @@ class FourierDualReference(DualReference):
         int_radius_y = np.ceil(self.k_radius / self.k_step)
         kx, ky = np.meshgrid(
             np.arange(-int_radius_x, int_radius_x + 1) * (self.k_step * 2),
-            np.arange(-int_radius_y, int_radius_y + 1) * self.k_step)
+            np.arange(-int_radius_y, int_radius_y + 1) * self.k_step,
+        )
 
         # only keep the points within the circle
-        mask = kx ** 2 + ky ** 2 <= self.k_radius ** 2
+        mask = kx**2 + ky**2 <= self.k_radius**2
         k = np.stack((ky[mask], kx[mask])).T
 
         # construct the modes for these kx ky values

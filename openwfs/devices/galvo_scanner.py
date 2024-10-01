@@ -19,7 +19,8 @@ except ImportError:
          ```pip install nidaqmx```
          Alternatively, specify the genicam dependency when installing openwfs:
          ```pip install openwfs[nidaq]```
-        """)
+        """
+    )
 
 from ..core import Detector
 from ..utilities import unitless
@@ -36,6 +37,7 @@ class InputChannel:
         terminal_configuration: The terminal configuration of the channel,
             defaults to `TerminalConfiguration.DEFAULT`
     """
+
     channel: str
     v_min: Quantity[u.V]
     v_max: Quantity[u.V]
@@ -65,11 +67,12 @@ class Axis:
         terminal_configuration: The terminal configuration of the channel,
             defaults to `TerminalConfiguration.DEFAULT`
     """
+
     channel: str
     v_min: Quantity[u.V]
     v_max: Quantity[u.V]
     scale: Quantity[u.um / u.V]
-    maximum_acceleration: Quantity[u.V / u.s ** 2]
+    maximum_acceleration: Quantity[u.V / u.s**2]
     terminal_configuration: TerminalConfiguration = TerminalConfiguration.DEFAULT
 
     def to_volt(self, pos: Union[np.ndarray, float]) -> Quantity[u.V]:
@@ -103,16 +106,22 @@ class Axis:
             Quantity[u.V / u.s]: maximum scan speed
         """
         # x = 0.5 · a · t² = 0.5 (v_max - v_min) · (1 - linear_range)
-        t_accel = np.sqrt((self.v_max - self.v_min) * (1 - linear_range) / self.maximum_acceleration)
+        t_accel = np.sqrt(
+            (self.v_max - self.v_min) * (1 - linear_range) / self.maximum_acceleration
+        )
         hardware_limit = t_accel * self.maximum_acceleration
 
         # t_linear = linear_range · (v_max - v_min) / maximum_speed
         # t_accel = maximum_speed / maximum_acceleration
         # 0.5·t_linear == t_accel => 0.5·linear_range · (v_max-v_min) · maximum_acceleration = maximum_speed²
-        practical_limit = np.sqrt(0.5 * linear_range * (self.v_max - self.v_min) * self.maximum_acceleration)
+        practical_limit = np.sqrt(
+            0.5 * linear_range * (self.v_max - self.v_min) * self.maximum_acceleration
+        )
         return np.minimum(hardware_limit, practical_limit)
 
-    def step(self, start: float, stop: float, sample_rate: Quantity[u.Hz]) -> Quantity[u.V]:
+    def step(
+        self, start: float, stop: float, sample_rate: Quantity[u.Hz]
+    ) -> Quantity[u.V]:
         """
         Generate a voltage sequence to move from `start` to `stop` in
         the fastest way possible.
@@ -138,15 +147,23 @@ class Axis:
 
         # `t` is measured in samples
         # `a` is measured in volt/sample²
-        a = self.maximum_acceleration / sample_rate ** 2 * np.sign(v_end - v_start)
+        a = self.maximum_acceleration / sample_rate**2 * np.sign(v_end - v_start)
         t_total = unitless(2.0 * np.sqrt((v_end - v_start) / a))
-        t = np.arange(np.ceil(t_total + 1E-6))  # add a small number to deal with case t=0 (start=end)
-        v_accel = v_start + 0.5 * a * t[:len(t) // 2] ** 2  # acceleration part
-        v_decel = v_end - 0.5 * a * (t_total - t[len(t) // 2:]) ** 2  # deceleration part
+        t = np.arange(
+            np.ceil(t_total + 1e-6)
+        )  # add a small number to deal with case t=0 (start=end)
+        v_accel = v_start + 0.5 * a * t[: len(t) // 2] ** 2  # acceleration part
+        v_decel = (
+            v_end - 0.5 * a * (t_total - t[len(t) // 2 :]) ** 2
+        )  # deceleration part
         v_decel[-1] = v_end  # fix last point because t may be > t_total due to rounding
-        return np.clip(np.concatenate((v_accel, v_decel)), self.v_min, self.v_max)  # noqa ignore incorrect type warning
+        return np.clip(
+            np.concatenate((v_accel, v_decel)), self.v_min, self.v_max
+        )  # noqa ignore incorrect type warning
 
-    def scan(self, start: float, stop: float, sample_count: int, sample_rate: Quantity[u.Hz]):
+    def scan(
+        self, start: float, stop: float, sample_count: int, sample_rate: Quantity[u.Hz]
+    ):
         """
         Generate a voltage sequence to scan with a constant velocity from start to stop,
         including acceleration and deceleration.
@@ -172,7 +189,12 @@ class Axis:
         """
         v_start = self.to_volt(start)
         if start == stop:  # todo: tolerance?
-            return np.ones((sample_count,)) * v_start, start, start, slice(0, sample_count)
+            return (
+                np.ones((sample_count,)) * v_start,
+                start,
+                start,
+                slice(0, sample_count),
+            )
 
         v_end = self.to_volt(stop)
         scan_speed = (v_end - v_start) / sample_count  # V per sample
@@ -181,9 +203,13 @@ class Axis:
         # we start by constructing a sequence with a maximum acceleration.
         # This sequence may be up to 1  sample longer than needed to reach the scan speed.
         # This last sample is replaced by movement at a linear scan speed
-        a = self.maximum_acceleration / sample_rate ** 2 * np.sign(scan_speed)  # V per sample²
+        a = (
+            self.maximum_acceleration / sample_rate**2 * np.sign(scan_speed)
+        )  # V per sample²
         t_launch = np.arange(np.ceil(unitless(scan_speed / a)))  # in samples
-        v_accel = 0.5 * a * t_launch ** 2  # last sample may have faster scan speed than needed
+        v_accel = (
+            0.5 * a * t_launch**2
+        )  # last sample may have faster scan speed than needed
         if len(v_accel) > 1 and np.abs(v_accel[-1] - v_accel[-2]) > np.abs(scan_speed):
             v_accel[-1] = v_accel[-2] + scan_speed
         v_launch = v_start - v_accel[-1] - 0.5 * scan_speed  # launch point
@@ -200,8 +226,13 @@ class Axis:
         return v, launch, land, slice(len(v_accel), len(v_accel) + sample_count)
 
     @staticmethod
-    def compute_scale(*, optical_deflection: Quantity[u.deg / u.V], galvo_to_pupil_magnification: float,
-                      objective_magnification: float, reference_tube_lens: Quantity[u.mm]) -> Quantity[u.um / u.V]:
+    def compute_scale(
+        *,
+        optical_deflection: Quantity[u.deg / u.V],
+        galvo_to_pupil_magnification: float,
+        objective_magnification: float,
+        reference_tube_lens: Quantity[u.mm],
+    ) -> Quantity[u.um / u.V]:
         """Computes the conversion factor between voltage and displacement in the object plane.
 
         Args:
@@ -224,12 +255,18 @@ class Axis:
         """
         f_objective = reference_tube_lens / objective_magnification
         angle_to_displacement = f_objective / u.rad
-        return ((optical_deflection / galvo_to_pupil_magnification) * angle_to_displacement).to(u.um / u.V)
+        return (
+            (optical_deflection / galvo_to_pupil_magnification) * angle_to_displacement
+        ).to(u.um / u.V)
 
     @staticmethod
-    def compute_acceleration(*, optical_deflection: Quantity[u.deg / u.V], torque_constant: Quantity[u.N * u.m / u.A],
-                             rotor_inertia: Quantity[u.kg * u.m ** 2],
-                             maximum_current: Quantity[u.A]) -> Quantity[u.V / u.s ** 2]:
+    def compute_acceleration(
+        *,
+        optical_deflection: Quantity[u.deg / u.V],
+        torque_constant: Quantity[u.N * u.m / u.A],
+        rotor_inertia: Quantity[u.kg * u.m**2],
+        maximum_current: Quantity[u.A],
+    ) -> Quantity[u.V / u.s**2]:
         """Computes the angular acceleration of the focus of the galvo mirror.
 
          The result is returned in the unit V / second²,
@@ -247,16 +284,19 @@ class Axis:
             maximum_current (Quantity[u.A]):
                 The maximum current that can be applied to the galvo mirror.
         """
-        angular_acceleration = (torque_constant * maximum_current / rotor_inertia).to(u.s ** -2) * u.rad
-        return (angular_acceleration / optical_deflection).to(u.V / u.s ** 2)
+        angular_acceleration = (torque_constant * maximum_current / rotor_inertia).to(
+            u.s**-2
+        ) * u.rad
+        return (angular_acceleration / optical_deflection).to(u.V / u.s**2)
 
 
 class TestPatternType(Enum):
     """Type of test pattern to use for simulation."""
-    NONE = 'none'
-    HORIZONTAL = 'horizontal'
-    VERTICAL = 'vertical'
-    IMAGE = 'image'
+
+    NONE = "none"
+    HORIZONTAL = "horizontal"
+    VERTICAL = "vertical"
+    IMAGE = "image"
 
 
 class ScanningMicroscope(Detector):
@@ -308,19 +348,22 @@ class ScanningMicroscope(Detector):
         parameter can be used.
     """
 
-    def __init__(self,
-                 input: InputChannel,
-                 y_axis: Axis,
-                 x_axis: Axis,
-                 sample_rate: Quantity[u.MHz],
-                 resolution: int,
-                 reference_zoom: float, *,
-                 delay: Quantity[u.us] = 0.0 * u.us,
-                 bidirectional: bool = True,
-                 multi_threaded: bool = True,
-                 preprocessor: Optional[callable] = None,
-                 test_pattern: Union[TestPatternType, str] = TestPatternType.NONE,
-                 test_image=None):
+    def __init__(
+        self,
+        input: InputChannel,
+        y_axis: Axis,
+        x_axis: Axis,
+        sample_rate: Quantity[u.MHz],
+        resolution: int,
+        reference_zoom: float,
+        *,
+        delay: Quantity[u.us] = 0.0 * u.us,
+        bidirectional: bool = True,
+        multi_threaded: bool = True,
+        preprocessor: Optional[callable] = None,
+        test_pattern: Union[TestPatternType, str] = TestPatternType.NONE,
+        test_image=None,
+    ):
         """
         Args:
             resolution: number of pixels (height and width) in the full field of view.
@@ -353,8 +396,12 @@ class ScanningMicroscope(Detector):
         self._resolution = int(resolution)
         self._roi_top = 0  # in pixels
         self._roi_left = 0  # in pixels
-        self._center_x = 0.5  # in relative coordinates (relative to the full field of view)
-        self._center_y = 0.5  # in relative coordinates (relative to the full field of view)
+        self._center_x = (
+            0.5  # in relative coordinates (relative to the full field of view)
+        )
+        self._center_y = (
+            0.5  # in relative coordinates (relative to the full field of view)
+        )
         self._delay = delay.to(u.us)
         self._reference_zoom = float(reference_zoom)
         self._zoom = 1.0
@@ -365,9 +412,9 @@ class ScanningMicroscope(Detector):
         self._test_pattern = TestPatternType(test_pattern)
         self._test_image = None
         if test_image is not None:
-            self._test_image = np.array(test_image, dtype='uint16')
+            self._test_image = np.array(test_image, dtype="uint16")
             while self._test_image.ndim > 2:
-                self._test_image = np.mean(self._test_image, 2).astype('uint16')
+                self._test_image = np.mean(self._test_image, 2).astype("uint16")
 
         self._preprocessor = preprocessor
 
@@ -379,9 +426,13 @@ class ScanningMicroscope(Detector):
 
         # the pixel size and duration are computed dynamically
         # data_shape just returns self._data shape, and latency = 0.0 ms
-        super().__init__(data_shape=(resolution, resolution), pixel_size=None, duration=None,
-                         latency=0.0 * u.ms,
-                         multi_threaded=multi_threaded)
+        super().__init__(
+            data_shape=(resolution, resolution),
+            pixel_size=None,
+            duration=None,
+            latency=0.0 * u.ms,
+            multi_threaded=multi_threaded,
+        )
         self._update()
 
     def _update(self):
@@ -411,7 +462,9 @@ class ScanningMicroscope(Detector):
 
         # Compute the retrace pattern for the slow axis
         # The scan starts at half a pixel after roi_bottom and ends half a pixel before roi_top
-        v_yr = self._y_axis.step(roi_bottom - 0.5 * roi_scale, roi_top + 0.5 * roi_scale, self._sample_rate)
+        v_yr = self._y_axis.step(
+            roi_bottom - 0.5 * roi_scale, roi_top + 0.5 * roi_scale, self._sample_rate
+        )
 
         # Compute the scan pattern for the fast axis
         # The naive speed is the scan speed assuming one pixel per sample
@@ -419,22 +472,33 @@ class ScanningMicroscope(Detector):
         # (at least, without spending more time on accelerating and decelerating than the scan itself)
         # The user can set the scan speed relative to the maximum speed.
         # If this set speed is lower than naive scan speed, multiple samples are taken per pixel.
-        naive_speed = (self._x_axis.v_max - self._x_axis.v_min) * roi_scale * self._sample_rate
-        max_speed = self._x_axis.maximum_scan_speed(1.0 / actual_zoom) * self._scan_speed_factor
+        naive_speed = (
+            (self._x_axis.v_max - self._x_axis.v_min) * roi_scale * self._sample_rate
+        )
+        max_speed = (
+            self._x_axis.maximum_scan_speed(1.0 / actual_zoom) * self._scan_speed_factor
+        )
         if max_speed == 0.0:
             # this may happen if the ROI reaches to or beyond [0,1]. In this case, the mirror has no time to accelerate
             # TODO: implement an auto-adjust option instead of raising an error
-            raise ValueError("Maximum scan speed is zero. "
-                             "This may be because the region of interest exceeds the maximum voltage range")
+            raise ValueError(
+                "Maximum scan speed is zero. "
+                "This may be because the region of interest exceeds the maximum voltage range"
+            )
 
         self._oversampling = int(np.ceil(unitless(naive_speed / max_speed)))
         oversampled_width = width * self._oversampling
-        v_x_even, x_launch, x_land, self._mask = self._x_axis.scan(roi_left, roi_right, oversampled_width,
-                                                                   self._sample_rate)
+        v_x_even, x_launch, x_land, self._mask = self._x_axis.scan(
+            roi_left, roi_right, oversampled_width, self._sample_rate
+        )
         if self._bidirectional:
-            v_x_odd, _, _, _ = self._x_axis.scan(roi_right, roi_left, oversampled_width, self._sample_rate)
+            v_x_odd, _, _, _ = self._x_axis.scan(
+                roi_right, roi_left, oversampled_width, self._sample_rate
+            )
         else:
-            v_xr = self._x_axis.step(x_land, x_launch, self._sample_rate)  # horizontal retrace
+            v_xr = self._x_axis.step(
+                x_land, x_launch, self._sample_rate
+            )  # horizontal retrace
             v_x_even = np.concatenate((v_x_even, v_xr))
             v_x_odd = v_x_even
 
@@ -444,7 +508,7 @@ class ScanningMicroscope(Detector):
         # For bidirectional mode, the scan pattern is padded to always have an even number of scan lines
         # The horizontal pattern is repeated continuously, so even during the
         # vertical retrace. In bidirectional scan mode, th
-        n_rows = self._data_shape[0] + np.ceil(len(v_yr) / len(v_x_odd)).astype('int32')
+        n_rows = self._data_shape[0] + np.ceil(len(v_yr) / len(v_x_odd)).astype("int32")
         self._n_cols = len(v_x_odd)
         if self._bidirectional and n_rows % 2 == 1:
             n_rows += 1
@@ -464,8 +528,8 @@ class ScanningMicroscope(Detector):
         # which is essential for resonant scanning.
         if len(v_yr) > 0:
             retrace = scan_pattern[0, height:, :].reshape(-1)
-            retrace[0:len(v_yr)] = v_yr
-            retrace[len(v_yr):] = v_yr[-1]
+            retrace[0 : len(v_yr)] = v_yr
+            retrace[len(v_yr) :] = v_yr[-1]
 
         self._scan_pattern = scan_pattern.reshape(2, -1)
         if self._test_pattern != TestPatternType.NONE:
@@ -489,25 +553,39 @@ class ScanningMicroscope(Detector):
         sample_count = self._scan_pattern.shape[1]
 
         # Configure the analog output task (two channels)
-        self._write_task.ao_channels.add_ao_voltage_chan(self._x_axis.channel,
-                                                         min_val=self._x_axis.v_min.to_value(u.V),
-                                                         max_val=self._x_axis.v_max.to_value(u.V))
-        self._write_task.ao_channels.add_ao_voltage_chan(self._y_axis.channel,
-                                                         min_val=self._y_axis.v_min.to_value(u.V),
-                                                         max_val=self._y_axis.v_max.to_value(u.V))
-        self._write_task.timing.cfg_samp_clk_timing(sample_rate, samps_per_chan=sample_count)
+        self._write_task.ao_channels.add_ao_voltage_chan(
+            self._x_axis.channel,
+            min_val=self._x_axis.v_min.to_value(u.V),
+            max_val=self._x_axis.v_max.to_value(u.V),
+        )
+        self._write_task.ao_channels.add_ao_voltage_chan(
+            self._y_axis.channel,
+            min_val=self._y_axis.v_min.to_value(u.V),
+            max_val=self._y_axis.v_max.to_value(u.V),
+        )
+        self._write_task.timing.cfg_samp_clk_timing(
+            sample_rate, samps_per_chan=sample_count
+        )
 
         # Configure the analog input task (one channel)
-        self._read_task.ai_channels.add_ai_voltage_chan(self._input_channel.channel,
-                                                        min_val=self._input_channel.v_min.to_value(u.V),
-                                                        max_val=self._input_channel.v_max.to_value(u.V),
-                                                        terminal_config=self._input_channel.terminal_configuration)
-        self._read_task.timing.cfg_samp_clk_timing(sample_rate, samps_per_chan=sample_count)
-        self._read_task.triggers.start_trigger.cfg_dig_edge_start_trig(self._write_task.triggers.start_trigger.term)
+        self._read_task.ai_channels.add_ai_voltage_chan(
+            self._input_channel.channel,
+            min_val=self._input_channel.v_min.to_value(u.V),
+            max_val=self._input_channel.v_max.to_value(u.V),
+            terminal_config=self._input_channel.terminal_configuration,
+        )
+        self._read_task.timing.cfg_samp_clk_timing(
+            sample_rate, samps_per_chan=sample_count
+        )
+        self._read_task.triggers.start_trigger.cfg_dig_edge_start_trig(
+            self._write_task.triggers.start_trigger.term
+        )
         delay = self._delay.to_value(u.s)
         if delay > 0.0:
             self._read_task.triggers.start_trigger.delay = delay
-            self._read_task.triggers.start_trigger.delay_units = DigitalWidthUnits.SECONDS
+            self._read_task.triggers.start_trigger.delay_units = (
+                DigitalWidthUnits.SECONDS
+            )
 
         self._writer = AnalogMultiChannelWriter(self._write_task.out_stream)
         self._valid = True
@@ -541,21 +619,27 @@ class ScanningMicroscope(Detector):
         flips the even rows back if scanned in bidirectional mode.
         """
         # convert data to 2-d, discard padding
-        cropped = raw.reshape(-1, self._n_cols)[:self._data_shape[0], self._mask]
+        cropped = raw.reshape(-1, self._n_cols)[: self._data_shape[0], self._mask]
 
         # down sample along fast axis if needed
         if self._oversampling > 1:
             # remove samples if not divisible by oversampling factor
-            cropped = cropped[:, :(cropped.shape[1] // self._oversampling) * self._oversampling]
+            cropped = cropped[
+                :, : (cropped.shape[1] // self._oversampling) * self._oversampling
+            ]
             cropped = cropped.reshape(cropped.shape[0], -1, self._oversampling)
-            cropped = np.round(np.mean(cropped, 2)).astype(cropped.dtype)  # todo: faster alternative?
+            cropped = np.round(np.mean(cropped, 2)).astype(
+                cropped.dtype
+            )  # todo: faster alternative?
 
         # Change the data type into uint16 if necessary
         if cropped.dtype == np.int16:
             # add 32768 to go from -32768-32767 to 0-65535
-            cropped = cropped.view('uint16') + 0x8000
+            cropped = cropped.view("uint16") + 0x8000
         elif cropped.dtype != np.uint16:
-            raise ValueError(f'Only int16 and uint16 data types are supported at the moment, got type {cropped.dtype}.')
+            raise ValueError(
+                f"Only int16 and uint16 data types are supported at the moment, got type {cropped.dtype}."
+            )
 
         if self._bidirectional:  # note: requires the mask to be symmetrical
             cropped[1::2, :] = cropped[1::2, ::-1]
@@ -569,31 +653,43 @@ class ScanningMicroscope(Detector):
             self._read_task.stop()
             self._write_task.stop()
         elif self._test_pattern == TestPatternType.HORIZONTAL:
-            raw = np.round(self._x_axis.to_pos(self._scan_pattern[1, :] * u.V) * 10000).astype('int16')
+            raw = np.round(
+                self._x_axis.to_pos(self._scan_pattern[1, :] * u.V) * 10000
+            ).astype("int16")
         elif self._test_pattern == TestPatternType.VERTICAL:
-            raw = np.round(self._y_axis.to_pos(self._scan_pattern[0, :] * u.V) * 10000).astype('int16')
+            raw = np.round(
+                self._y_axis.to_pos(self._scan_pattern[0, :] * u.V) * 10000
+            ).astype("int16")
         elif self._test_pattern == TestPatternType.IMAGE:
             if self._test_image is None:
-                raise ValueError('No test image was provided for the image simulation.')
+                raise ValueError("No test image was provided for the image simulation.")
             # todo: cache the test image
             row = np.floor(
-                self._y_axis.to_pos(self._scan_pattern[0, :] * u.V) * (self._test_image.shape[0] - 1)).astype(
-                'int32')
+                self._y_axis.to_pos(self._scan_pattern[0, :] * u.V)
+                * (self._test_image.shape[0] - 1)
+            ).astype("int32")
             column = np.floor(
-                self._x_axis.to_pos(self._scan_pattern[1, :] * u.V) * (self._test_image.shape[1] - 1)).astype(
-                'int32')
+                self._x_axis.to_pos(self._scan_pattern[1, :] * u.V)
+                * (self._test_image.shape[1] - 1)
+            ).astype("int32")
             raw = self._test_image[row, column]
         else:
-            raise ValueError(f"Invalid simulation option {self._test_pattern}. "
-                             "Should be 'horizontal', 'vertical', 'image', or 'None'")
+            raise ValueError(
+                f"Invalid simulation option {self._test_pattern}. "
+                "Should be 'horizontal', 'vertical', 'image', or 'None'"
+            )
 
         # Preprocess raw data if a preprocess function is set
         if self._preprocessor is None:
             preprocessed_raw = raw
         elif callable(self._preprocessor):
-            preprocessed_raw = self._preprocessor(data=raw, sample_rate=self._sample_rate)
+            preprocessed_raw = self._preprocessor(
+                data=raw, sample_rate=self._sample_rate
+            )
         else:
-            raise TypeError(f"Invalid type for {self._preprocessor}. Should be callable or None.")
+            raise TypeError(
+                f"Invalid type for {self._preprocessor}. Should be callable or None."
+            )
         return self._raw_to_cropped(preprocessed_raw)
 
     def close(self):
@@ -622,7 +718,9 @@ class ScanningMicroscope(Detector):
     @preprocessor.setter
     def preprocessor(self, value: Optional[callable]):
         if not callable(value) and value is not None:
-            raise TypeError(f"Invalid type for {self._preprocessor}. Should be callable or None.")
+            raise TypeError(
+                f"Invalid type for {self._preprocessor}. Should be callable or None."
+            )
         self._preprocessor = value
 
     @property
@@ -631,8 +729,10 @@ class ScanningMicroscope(Detector):
         # TODO: make extent a read-only attribute of Axis
         extent_y = (self._y_axis.v_max - self._y_axis.v_min) * self._y_axis.scale
         extent_x = (self._x_axis.v_max - self._x_axis.v_min) * self._x_axis.scale
-        return (Quantity(extent_y, extent_x) / (
-                self._reference_zoom * self._zoom * self._resolution)).to(u.um)
+        return (
+            Quantity(extent_y, extent_x)
+            / (self._reference_zoom * self._zoom * self._resolution)
+        ).to(u.um)
 
     @property
     def duration(self) -> Quantity[u.ms]:
@@ -832,7 +932,7 @@ class ScanningMicroscope(Detector):
     @binning.setter
     def binning(self, value: int):
         if value < 1:
-            raise ValueError('Binning value should be a positive integer')
+            raise ValueError("Binning value should be a positive integer")
         self._scale_roi(self._binning / int(value))
         self._binning = int(value)
 

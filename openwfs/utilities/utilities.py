@@ -89,16 +89,25 @@ class Transform:
 
     """
 
-    def __init__(self, transform: Optional[TransformType] = None,
-                 source_origin: Optional[CoordinateType] = None,
-                 destination_origin: Optional[CoordinateType] = None):
+    def __init__(
+        self,
+        transform: Optional[TransformType] = None,
+        source_origin: Optional[CoordinateType] = None,
+        destination_origin: Optional[CoordinateType] = None,
+    ):
 
         self.transform = Quantity(transform if transform is not None else np.eye(2))
-        self.source_origin = Quantity(source_origin) if source_origin is not None else None
-        self.destination_origin = Quantity(destination_origin) if destination_origin is not None else None
+        self.source_origin = (
+            Quantity(source_origin) if source_origin is not None else None
+        )
+        self.destination_origin = (
+            Quantity(destination_origin) if destination_origin is not None else None
+        )
 
         if source_origin is not None:
-            self.destination_unit(self.source_origin.unit)  # check if the units are consistent
+            self.destination_unit(
+                self.source_origin.unit
+            )  # check if the units are consistent
 
     def destination_unit(self, src_unit: u.Unit) -> u.Unit:
         """Computes the unit of the output of the transformation, given the unit of the input.
@@ -107,20 +116,28 @@ class Transform:
             ValueError: If src_unit does not match the unit of the source_origin (if specified) or
                 if dst_unit does not match the unit of the destination_origin (if specified).
         """
-        if self.source_origin is not None and not self.source_origin.unit.is_equivalent(src_unit):
+        if (
+            self.source_origin is not None
+            and not self.source_origin.unit.is_equivalent(src_unit)
+        ):
             raise ValueError("src_unit must match the units of source_origin.")
 
         dst_unit = (self.transform[0, 0] * src_unit).unit
-        if self.destination_origin is not None and not self.destination_origin.unit.is_equivalent(dst_unit):
+        if (
+            self.destination_origin is not None
+            and not self.destination_origin.unit.is_equivalent(dst_unit)
+        ):
             raise ValueError("dst_unit must match the units of destination_origin.")
 
         return dst_unit
 
-    def cv2_matrix(self,
-                   source_shape: Sequence[int],
-                   source_pixel_size: CoordinateType,
-                   destination_shape: Sequence[int],
-                   destination_pixel_size: CoordinateType) -> np.ndarray:
+    def cv2_matrix(
+        self,
+        source_shape: Sequence[int],
+        source_pixel_size: CoordinateType,
+        destination_shape: Sequence[int],
+        destination_pixel_size: CoordinateType,
+    ) -> np.ndarray:
         """Returns the transformation matrix in the format used by cv2.warpAffine."""
 
         # correct the origin. OpenCV uses the _center_ of the top-left corner as the origin
@@ -133,30 +150,42 @@ class Transform:
         if self.source_origin is not None:
             source_origin += self.source_origin
 
-        destination_origin = 0.5 * (np.array(destination_shape) - 1.0) * destination_pixel_size
+        destination_origin = (
+            0.5 * (np.array(destination_shape) - 1.0) * destination_pixel_size
+        )
         if self.destination_origin is not None:
             destination_origin += self.destination_origin
 
-        centered_transform = Transform(transform=self.transform,
-                                       source_origin=source_origin,
-                                       destination_origin=destination_origin)
+        centered_transform = Transform(
+            transform=self.transform,
+            source_origin=source_origin,
+            destination_origin=destination_origin,
+        )
 
         # then convert the transform to a matrix, using the specified pixel sizes
-        transform_matrix = centered_transform.to_matrix(source_pixel_size=source_pixel_size,
-                                                        destination_pixel_size=destination_pixel_size)
+        transform_matrix = centered_transform.to_matrix(
+            source_pixel_size=source_pixel_size,
+            destination_pixel_size=destination_pixel_size,
+        )
 
         # finally, convert the matrix to the format used by cv2.warpAffine by swapping x and y columns and rows
         transform_matrix = transform_matrix[[1, 0], :]
         transform_matrix = transform_matrix[:, [1, 0, 2]]
         return transform_matrix
 
-    def to_matrix(self, source_pixel_size: CoordinateType, destination_pixel_size: CoordinateType) -> np.ndarray:
+    def to_matrix(
+        self, source_pixel_size: CoordinateType, destination_pixel_size: CoordinateType
+    ) -> np.ndarray:
         matrix = np.zeros((2, 3))
-        matrix[0:2, 0:2] = unitless(self.transform * source_pixel_size / destination_pixel_size)
+        matrix[0:2, 0:2] = unitless(
+            self.transform * source_pixel_size / destination_pixel_size
+        )
         if self.destination_origin is not None:
             matrix[0:2, 2] = unitless(self.destination_origin / destination_pixel_size)
         if self.source_origin is not None:
-            matrix[0:2, 2] -= unitless((self.transform @ self.source_origin) / destination_pixel_size)
+            matrix[0:2, 2] -= unitless(
+                (self.transform @ self.source_origin) / destination_pixel_size
+            )
         return matrix
 
     def opencl_matrix(self) -> np.ndarray:
@@ -167,9 +196,15 @@ class Transform:
         # to construct the homogeneous transformation matrix
         # convert to opencl format: swap x and y columns (note: the rows were
         # already swapped in the construction of t2), and flip the sign of the y-axis.
-        transform = np.eye(3, 4, dtype='float32', order='C')
-        transform[0, 0:3] = matrix[1, [1, 0, 2],]
-        transform[1, 0:3] = -matrix[0, [1, 0, 2],]
+        transform = np.eye(3, 4, dtype="float32", order="C")
+        transform[0, 0:3] = matrix[
+            1,
+            [1, 0, 2],
+        ]
+        transform[1, 0:3] = -matrix[
+            0,
+            [1, 0, 2],
+        ]
         return transform
 
     @staticmethod
@@ -188,7 +223,8 @@ class Transform:
     def apply(self, vector: CoordinateType) -> CoordinateType:
         """Applies the transformation to a column vector.
 
-         If `vector` is a 2-D array, applies the transformation to each column of `vector` individually."""
+        If `vector` is a 2-D array, applies the transformation to each column of `vector` individually.
+        """
         if self.source_origin is not None:
             vector = vector - self.source_origin
         vector = self.transform @ vector
@@ -198,7 +234,8 @@ class Transform:
 
     def inverse(self):
         """Compute the inverse transformation,
-        such that the composition of the transformation and its inverse is the identity."""
+        such that the composition of the transformation and its inverse is the identity.
+        """
 
         # invert the transform matrix
         if self.transform is not None:
@@ -207,9 +244,13 @@ class Transform:
             transform = None
 
         # swap source and destination origins
-        return Transform(transform, source_origin=self.destination_origin, destination_origin=self.source_origin)
+        return Transform(
+            transform,
+            source_origin=self.destination_origin,
+            destination_origin=self.source_origin,
+        )
 
-    def compose(self, other: 'Transform'):
+    def compose(self, other: "Transform"):
         """Compose two transformations.
 
         Args:
@@ -220,7 +261,11 @@ class Transform:
         """
         transform = self.transform @ other.transform
         source_origin = other.source_origin
-        destination_origin = self.apply(other.destination_origin) if other.destination_origin is not None else None
+        destination_origin = (
+            self.apply(other.destination_origin)
+            if other.destination_origin is not None
+            else None
+        )
         return Transform(transform, source_origin, destination_origin)
 
     def _standard_input(self) -> Quantity:
@@ -232,8 +277,13 @@ class Transform:
         return Transform()
 
 
-def place(out_shape: tuple[int, ...], out_pixel_size: Quantity, source: np.ndarray, offset: Optional[Quantity] = None,
-          out: Optional[np.ndarray] = None):
+def place(
+    out_shape: tuple[int, ...],
+    out_pixel_size: Quantity,
+    source: np.ndarray,
+    offset: Optional[Quantity] = None,
+    out: Optional[np.ndarray] = None,
+):
     """Takes a source array and places it in an otherwise empty array of specified shape and pixel size.
 
     The source array must have a pixel_size property (see set_pixel_size).
@@ -251,16 +301,20 @@ def place(out_shape: tuple[int, ...], out_pixel_size: Quantity, source: np.ndarr
     """
     out_extent = out_pixel_size * np.array(out_shape)
     transform = Transform(destination_origin=offset)
-    return project(source, out_extent=out_extent, out_shape=out_shape, transform=transform, out=out)
+    return project(
+        source, out_extent=out_extent, out_shape=out_shape, transform=transform, out=out
+    )
 
 
 def project(
-        source: np.ndarray, *,
-        source_extent: Optional[ExtentType] = None,
-        transform: Optional[Transform] = None,
-        out: Optional[np.ndarray] = None,
-        out_extent: Optional[ExtentType] = None,
-        out_shape: Optional[tuple[int, ...]] = None) -> np.ndarray:
+    source: np.ndarray,
+    *,
+    source_extent: Optional[ExtentType] = None,
+    transform: Optional[Transform] = None,
+    out: Optional[np.ndarray] = None,
+    out_extent: Optional[ExtentType] = None,
+    out_shape: Optional[tuple[int, ...]] = None
+) -> np.ndarray:
     """Projects the input image onto an array with specified shape and resolution.
 
     The input image is scaled so that the pixel sizes match those of the output,
@@ -281,7 +335,9 @@ def project(
     transform = transform if transform is not None else Transform()
     if out is not None:
         if out_shape is not None and out_shape != out.shape:
-            raise ValueError("out_shape and out.shape must match. Note that out_shape may be omitted")
+            raise ValueError(
+                "out_shape and out.shape must match. Note that out_shape may be omitted"
+            )
         if out.dtype != source.dtype:
             raise ValueError("out and source must have the same dtype")
         out_shape = out.shape
@@ -289,7 +345,9 @@ def project(
     if out_shape is None:
         raise ValueError("Either out_shape or out must be specified")
     if out_extent is None:
-        raise ValueError("Either out_extent or the pixel_size metadata of out must be specified")
+        raise ValueError(
+            "Either out_extent or the pixel_size metadata of out must be specified"
+        )
     source_extent = source_extent if source_extent is not None else get_extent(source)
     source_ps = source_extent / np.array(source.shape)
     out_ps = out_extent / np.array(out_shape)
@@ -301,17 +359,38 @@ def project(
         if out is None:
             out = np.zeros(out_shape, dtype=source.dtype)
         # real part
-        out.real = cv2.warpAffine(source.real, t, out_size, flags=cv2.INTER_NEAREST,
-                                  borderMode=cv2.BORDER_CONSTANT, borderValue=(0.0,))
+        out.real = cv2.warpAffine(
+            source.real,
+            t,
+            out_size,
+            flags=cv2.INTER_NEAREST,
+            borderMode=cv2.BORDER_CONSTANT,
+            borderValue=(0.0,),
+        )
         # imaginary part
-        out.imag = cv2.warpAffine(source.imag, t, out_size, flags=cv2.INTER_NEAREST,
-                                  borderMode=cv2.BORDER_CONSTANT, borderValue=(0.0,))
+        out.imag = cv2.warpAffine(
+            source.imag,
+            t,
+            out_size,
+            flags=cv2.INTER_NEAREST,
+            borderMode=cv2.BORDER_CONSTANT,
+            borderValue=(0.0,),
+        )
 
     else:
-        dst = cv2.warpAffine(source, t, out_size, dst=out, flags=cv2.INTER_NEAREST,
-                             borderMode=cv2.BORDER_CONSTANT, borderValue=(0.0,))
+        dst = cv2.warpAffine(
+            source,
+            t,
+            out_size,
+            dst=out,
+            flags=cv2.INTER_NEAREST,
+            borderMode=cv2.BORDER_CONSTANT,
+            borderValue=(0.0,),
+        )
         if out is not None and out is not dst:
-            raise ValueError("OpenCV did not use the specified output array. This should not happen.")
+            raise ValueError(
+                "OpenCV did not use the specified output array. This should not happen."
+            )
         out = dst
     return set_pixel_size(out, out_ps)
 
@@ -339,7 +418,7 @@ def set_pixel_size(data: ArrayLike, pixel_size: Optional[Quantity]) -> np.ndarra
     if pixel_size is not None and pixel_size.size == 1:
         pixel_size = pixel_size * np.ones(data.ndim)
 
-    data.dtype = np.dtype(data.dtype, metadata={'pixel_size': pixel_size})
+    data.dtype = np.dtype(data.dtype, metadata={"pixel_size": pixel_size})
     return data
 
 
@@ -364,7 +443,7 @@ def get_pixel_size(data: np.ndarray) -> Optional[Quantity]:
     metadata = data.dtype.metadata
     if metadata is None:
         return None
-    return data.dtype.metadata.get('pixel_size', None)
+    return data.dtype.metadata.get("pixel_size", None)
 
 
 def get_extent(data: np.ndarray) -> Quantity:

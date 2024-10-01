@@ -31,12 +31,16 @@ specimen = set_pixel_size(specimen, pixel_size=200 * u.nm)
 # Simulate an SLM with incorrect phase response
 # Also simulate a shutter that can turn off the light
 # The SLM is conjugated to the back pupil plane
-slm = SLM(shape=(100, 100),
-          phase_response=(np.arange(256) / 128 * np.pi) * 1.2)
+slm = SLM(shape=(100, 100), phase_response=(np.arange(256) / 128 * np.pi) * 1.2)
 shutter = Shutter(slm.field)
 
 # Simulate a WFS microscope looking at the specimen
-sim = Microscope(source=specimen, incident_field=shutter, aberrations=aberrations, wavelength=800 * u.nm)
+sim = Microscope(
+    source=specimen,
+    incident_field=shutter,
+    aberrations=aberrations,
+    wavelength=800 * u.nm,
+)
 
 # Simulate a camera device with gaussian noise and shot noise
 cam = sim.get_camera(analog_max=1e4, shot_noise=True, gaussian_noise_std=4.0)
@@ -52,6 +56,7 @@ alg = StepwiseSequential(feedback=roi_detector, slm=slm, n_x=10, n_y=10, phase_s
 roi_background = SingleRoi(cam, radius=10)
 
 # Run WFS troubleshooter and output a report to the console
-trouble = troubleshoot(algorithm=alg, background_feedback=roi_background,
-                       frame_source=cam, shutter=shutter)
+trouble = troubleshoot(
+    algorithm=alg, background_feedback=roi_background, frame_source=cam, shutter=shutter
+)
 trouble.report()

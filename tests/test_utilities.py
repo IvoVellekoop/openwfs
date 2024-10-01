@@ -1,13 +1,22 @@
-import numpy as np
-from ..openwfs.utilities import set_pixel_size, get_pixel_size, place, Transform, project
 import astropy.units as u
+import numpy as np
+
+from ..openwfs.utilities import (
+    set_pixel_size,
+    get_pixel_size,
+    place,
+    Transform,
+    project,
+)
 
 
 def test_to_matrix():
     # Create a transform object
-    transform = Transform(transform=((1, 2), (3, 4)),
-                          source_origin=(0.0, 0.0) * u.m,
-                          destination_origin=(0.001, 0.002) * u.mm)
+    transform = Transform(
+        transform=((1, 2), (3, 4)),
+        source_origin=(0.0, 0.0) * u.m,
+        destination_origin=(0.001, 0.002) * u.mm,
+    )
 
     # Define the expected output matrix for same input and output pixel sizes
     expected_matrix = ((1, 2, 1), (3, 4, 1))
@@ -26,23 +35,29 @@ def test_to_matrix():
     src_center = np.array((0.5 * (src[1] - 1), 0.5 * (src[0] - 1), 1.0))
     dst_center = np.array((0.5 * (dst[1] - 1), 0.5 * (dst[0] - 1)))
     transform = Transform()
-    result_matrix = transform.cv2_matrix(source_shape=src,
-                                         source_pixel_size=(1, 1), destination_shape=dst,
-                                         destination_pixel_size=(1, 1))
+    result_matrix = transform.cv2_matrix(
+        source_shape=src,
+        source_pixel_size=(1, 1),
+        destination_shape=dst,
+        destination_pixel_size=(1, 1),
+    )
     assert np.allclose(result_matrix @ src_center, dst_center)
 
     # Test center correction. The center of the source image should be mapped to the center of the destination image
     transform = Transform()  # transform=((1, 2), (3, 4)))
-    result_matrix = transform.cv2_matrix(source_shape=src,
-                                         source_pixel_size=(0.5, 4) * u.um, destination_shape=dst,
-                                         destination_pixel_size=(1, 2) * u.um)
+    result_matrix = transform.cv2_matrix(
+        source_shape=src,
+        source_pixel_size=(0.5, 4) * u.um,
+        destination_shape=dst,
+        destination_pixel_size=(1, 2) * u.um,
+    )
     assert np.allclose(result_matrix @ src_center, dst_center)
 
     # Also check openGL matrix (has y-axis flipped and extra row and column)
     expected_matrix = ((1, 2, 1), (3, 4, 2))
-    transform = Transform(transform=((1, 2), (3, 4)),
-                          source_origin=(0, 0),
-                          destination_origin=(1, 2))
+    transform = Transform(
+        transform=((1, 2), (3, 4)), source_origin=(0, 0), destination_origin=(1, 2)
+    )
     result_matrix = transform.to_matrix((1, 1), (1, 1))
     assert np.allclose(result_matrix, expected_matrix)
 
@@ -96,16 +111,28 @@ def test_transform():
     assert np.allclose(matrix, ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0)))
 
     # shift both origins by same distance
-    t0 = Transform(source_origin=-ps1 * (1.7, 2.2), destination_origin=-ps1 * (1.7, 2.2))
-    dst0 = project(src, source_extent=ps1 * np.array(src.shape), transform=t0, out_extent=ps1 * np.array(src.shape),
-                   out_shape=src.shape)
+    t0 = Transform(
+        source_origin=-ps1 * (1.7, 2.2), destination_origin=-ps1 * (1.7, 2.2)
+    )
+    dst0 = project(
+        src,
+        source_extent=ps1 * np.array(src.shape),
+        transform=t0,
+        out_extent=ps1 * np.array(src.shape),
+        out_shape=src.shape,
+    )
     assert np.allclose(dst0, src)
 
     # shift source by (1,2) pixel
     t1 = Transform(source_origin=-ps1 * (1, 2))
     dst1a = place(src.shape, ps1, src, offset=ps1 * (1, 2))
-    dst1b = project(src, source_extent=ps1 * np.array(src.shape), transform=t1, out_extent=ps1 * np.array(src.shape),
-                    out_shape=src.shape)
+    dst1b = project(
+        src,
+        source_extent=ps1 * np.array(src.shape),
+        transform=t1,
+        out_extent=ps1 * np.array(src.shape),
+        out_shape=src.shape,
+    )
     assert np.allclose(dst1a, dst1b)
 
 
@@ -121,7 +148,8 @@ def test_inverse():
     transform = Transform(
         transform=((0.1, 0.2), (-0.25, 0.33)),
         source_origin=(0.12, 0.15),
-        destination_origin=(0.23, 0.33))
+        destination_origin=(0.23, 0.33),
+    )
     vector = (0.3, 0.4)
     result = transform.apply(vector)
 

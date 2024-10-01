@@ -1,11 +1,13 @@
 import logging
 import time
+
+import astropy.units as u
+import numpy as np
 import pytest
+
+from ..openwfs.processors import CropProcessor
 from ..openwfs.simulation import StaticSource, NoiseSource, SLM
 from ..openwfs.utilities import set_pixel_size, get_pixel_size
-from ..openwfs.processors import CropProcessor
-import numpy as np
-import astropy.units as u
 
 
 def test_set_pixel_size():
@@ -75,15 +77,17 @@ def test_timing_detector(caplog, duration):
     assert np.allclose(f0.result(), image0)
     t5 = time.time_ns()
 
-    assert np.allclose(t1 - t0, 0.0, atol=0.1E9)
-    assert np.allclose(t2 - t1, duration.to_value(u.ns), atol=0.1E9)
-    assert np.allclose(t3 - t2, 0.0, atol=0.1E9)
-    assert np.allclose(t4 - t3, duration.to_value(u.ns), atol=0.1E9)
-    assert np.allclose(t5 - t4, 0.0, atol=0.1E9)
+    assert np.allclose(t1 - t0, 0.0, atol=0.1e9)
+    assert np.allclose(t2 - t1, duration.to_value(u.ns), atol=0.1e9)
+    assert np.allclose(t3 - t2, 0.0, atol=0.1e9)
+    assert np.allclose(t4 - t3, duration.to_value(u.ns), atol=0.1e9)
+    assert np.allclose(t5 - t4, 0.0, atol=0.1e9)
 
 
 def test_noise_detector():
-    source = NoiseSource('uniform', data_shape=(10, 11, 20), low=-1.0, high=1.0, pixel_size=4 * u.um)
+    source = NoiseSource(
+        "uniform", data_shape=(10, 11, 20), low=-1.0, high=1.0, pixel_size=4 * u.um
+    )
     data = source.read()
     assert data.shape == (10, 11, 20)
     assert np.min(data) >= -1.0
@@ -98,18 +102,31 @@ def test_noise_detector():
 def test_mock_slm():
     slm = SLM((4, 4))
     slm.set_phases(0.5)
-    assert np.allclose(slm.pixels.read(), round(0.5 * 256 / (2 * np.pi)), atol=0.5 / 256)
+    assert np.allclose(
+        slm.pixels.read(), round(0.5 * 256 / (2 * np.pi)), atol=0.5 / 256
+    )
     discretized_phase = slm.phases.read()
     assert np.allclose(discretized_phase, 0.5, atol=1.1 * np.pi / 256)
-    assert np.allclose(slm.field.read(), np.exp(1j * discretized_phase[0, 0]), rtol=2 / 256)
+    assert np.allclose(
+        slm.field.read(), np.exp(1j * discretized_phase[0, 0]), rtol=2 / 256
+    )
     slm.set_phases(np.array(((0.1, 0.2), (0.3, 0.4))), update=False)
-    assert np.allclose(slm.phases.read(), 0.5, atol=1.1 * np.pi / 256)  # slm.update() not yet called, so should be 0.5
+    assert np.allclose(
+        slm.phases.read(), 0.5, atol=1.1 * np.pi / 256
+    )  # slm.update() not yet called, so should be 0.5
     slm.update()
-    assert np.allclose(slm.phases.read(), np.array((
-        (0.1, 0.1, 0.2, 0.2),
-        (0.1, 0.1, 0.2, 0.2),
-        (0.3, 0.3, 0.4, 0.4),
-        (0.3, 0.3, 0.4, 0.4))), atol=1.1 * np.pi / 256)
+    assert np.allclose(
+        slm.phases.read(),
+        np.array(
+            (
+                (0.1, 0.1, 0.2, 0.2),
+                (0.1, 0.1, 0.2, 0.2),
+                (0.3, 0.3, 0.4, 0.4),
+                (0.3, 0.3, 0.4, 0.4),
+            )
+        ),
+        atol=1.1 * np.pi / 256,
+    )
 
 
 def test_crop():
@@ -159,6 +176,7 @@ def test_crop_1d():
     c3 = cropped.read()
     assert c3.shape == cropped.data_shape
     assert np.all(c3 == data[4:6])
+
 
 # TODO: translate the tests below.
 #  They should test the SingleROI processor, checking if the returned averaged value is correct.

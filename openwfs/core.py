@@ -17,12 +17,21 @@ from .utilities import set_pixel_size
 class Device(ABC):
     """Base class for detectors and actuators
 
-        See :ref:`key_concepts` for more information.
+    See :ref:`key_concepts` for more information.
 
     """
-    __slots__ = ('_end_time_ns', '_timeout_margin', '_locking_thread', '_error',
-                 '__weakref__', '_latency', '_duration', '_multi_threaded')
-    _workers = ThreadPoolExecutor(thread_name_prefix='Device._workers')
+
+    __slots__ = (
+        "_end_time_ns",
+        "_timeout_margin",
+        "_locking_thread",
+        "_error",
+        "__weakref__",
+        "_latency",
+        "_duration",
+        "_multi_threaded",
+    )
+    _workers = ThreadPoolExecutor(thread_name_prefix="Device._workers")
     _moving = False
     _state_lock = threading.Lock()
     _devices: "Set[Device]" = WeakSet()
@@ -62,15 +71,25 @@ class Device(ABC):
                 else:
                     logging.debug("switch to MOVING requested by %s.", self)
 
-                same_type = [device for device in Device._devices if device._is_actuator == self._is_actuator]
-                other_type = [device for device in Device._devices if device._is_actuator != self._is_actuator]
+                same_type = [
+                    device
+                    for device in Device._devices
+                    if device._is_actuator == self._is_actuator
+                ]
+                other_type = [
+                    device
+                    for device in Device._devices
+                    if device._is_actuator != self._is_actuator
+                ]
 
                 # compute the minimum latency of same_type
                 # for instance, when switching to 'measuring', this number tells us how long it takes before any of the
                 # detectors actually starts a measurement.
                 # If this is a positive number, we can make the switch to 'measuring' slightly _before_
                 # all actuators have stabilized.
-                latency = min([device.latency for device in same_type], default=0.0 * u.ns)  # noqa - incorrect warning
+                latency = min(
+                    [device.latency for device in same_type], default=0.0 * u.ns
+                )  # noqa - incorrect warning
 
                 # wait until all devices of the other type have (almost) finished
                 for device in other_type:
@@ -85,7 +104,11 @@ class Device(ABC):
 
             # also store the time we expect the operation to finish
             # note: it may finish slightly earlier since (latency + duration) is a maximum value
-            self._end_time_ns = time.time_ns() + self.latency.to_value(u.ns) + self.duration.to_value(u.ns)
+            self._end_time_ns = (
+                time.time_ns()
+                + self.latency.to_value(u.ns)
+                + self.duration.to_value(u.ns)
+            )
 
     @property
     def latency(self) -> Quantity[u.ms]:
@@ -173,13 +196,15 @@ class Device(ABC):
             while self.busy():
                 time.sleep(0.01)
                 if time.time_ns() - start > timeout:
-                    raise TimeoutError("Timeout in %s (tid %i)", self, threading.get_ident())
+                    raise TimeoutError(
+                        "Timeout in %s (tid %i)", self, threading.get_ident()
+                    )
         else:
             time_to_wait = self._end_time_ns - time.time_ns()
             if up_to is not None:
                 time_to_wait -= up_to.to_value(u.ns)
             if time_to_wait > 0:
-                time.sleep(time_to_wait / 1.0E9)
+                time.sleep(time_to_wait / 1.0e9)
 
     def busy(self) -> bool:
         """Returns true if the device is measuring or moving (see `wait()`).
@@ -210,8 +235,8 @@ class Device(ABC):
 
 
 class Actuator(Device, ABC):
-    """Base class for all actuators
-    """
+    """Base class for all actuators"""
+
     __slots__ = ()
 
     @final
@@ -224,10 +249,23 @@ class Detector(Device, ABC):
 
     See :numref:`Detectors` in the documentation for more information.
     """
-    __slots__ = ('_measurements_pending', '_lock_condition', '_pixel_size', '_data_shape')
 
-    def __init__(self, *, data_shape: Optional[tuple[int, ...]], pixel_size: Optional[Quantity],
-                 duration: Optional[Quantity[u.ms]], latency: Optional[Quantity[u.ms]], multi_threaded: bool = True):
+    __slots__ = (
+        "_measurements_pending",
+        "_lock_condition",
+        "_pixel_size",
+        "_data_shape",
+    )
+
+    def __init__(
+        self,
+        *,
+        data_shape: Optional[tuple[int, ...]],
+        pixel_size: Optional[Quantity],
+        duration: Optional[Quantity[u.ms]],
+        latency: Optional[Quantity[u.ms]],
+        multi_threaded: bool = True
+    ):
         """
         Constructor for the Detector class.
 
@@ -362,11 +400,19 @@ class Detector(Device, ABC):
         """Helper function that awaits all futures in the keyword argument list, and then calls _fetch"""
         try:
             if len(args_) > 0 or len(kwargs_) > 0:
-                logging.debug("awaiting inputs for %s (tid: %i).", self, threading.get_ident())
-            awaited_args = [(arg.result() if isinstance(arg, Future) else arg) for arg in args_]
-            awaited_kwargs = {key: (arg.result() if isinstance(arg, Future) else arg) for (key, arg) in
-                              kwargs_.items()}
-            logging.debug("fetching data of %s ((tid: %i)).", self, threading.get_ident())
+                logging.debug(
+                    "awaiting inputs for %s (tid: %i).", self, threading.get_ident()
+                )
+            awaited_args = [
+                (arg.result() if isinstance(arg, Future) else arg) for arg in args_
+            ]
+            awaited_kwargs = {
+                key: (arg.result() if isinstance(arg, Future) else arg)
+                for (key, arg) in kwargs_.items()
+            }
+            logging.debug(
+                "fetching data of %s ((tid: %i)).", self, threading.get_ident()
+            )
             data = self._fetch(*awaited_args, **awaited_kwargs)
             data = set_pixel_size(data, self.pixel_size)
             assert data.shape == self.data_shape
@@ -404,7 +450,7 @@ class Detector(Device, ABC):
         """
 
         # note: the check needs to be in this order, otherwise we cannot initialize set _multi_threaded
-        if not key.startswith('_') and self._multi_threaded:
+        if not key.startswith("_") and self._multi_threaded:
             with self._lock_condition:
                 while self._measurements_pending > 0:
                     self._lock_condition.wait()
@@ -477,10 +523,16 @@ class Detector(Device, ABC):
         Args:
             dimension: Dimension for which to return the coordinates.
         """
-        unit = u.dimensionless_unscaled if self.pixel_size is None else self.pixel_size[dimension]
+        unit = (
+            u.dimensionless_unscaled
+            if self.pixel_size is None
+            else self.pixel_size[dimension]
+        )
         shape = np.ones_like(self.data_shape)
         shape[dimension] = self.data_shape[dimension]
-        return np.arange(0.5, 0.5 + self.data_shape[dimension], 1.0).reshape(shape) * unit
+        return (
+            np.arange(0.5, 0.5 + self.data_shape[dimension], 1.0).reshape(shape) * unit
+        )
 
     @final
     @property
@@ -520,19 +572,30 @@ class Processor(Detector, ABC):
         # when the settings of one of the source detectors is changed.
         # Therefore, we pass 'None' for all parameters, and override
         # data_shape, pixel_size, duration and latency in the properties.
-        super().__init__(data_shape=None, pixel_size=None, duration=None, latency=None, multi_threaded=multi_threaded)
+        super().__init__(
+            data_shape=None,
+            pixel_size=None,
+            duration=None,
+            latency=None,
+            multi_threaded=multi_threaded,
+        )
 
     def trigger(self, *args, immediate=False, **kwargs):
         """Triggers all sources at the same time (regardless of latency), and schedules a call to `_fetch()`"""
-        future_data = [(source.trigger(immediate=immediate) if source is not None else None) for source in
-                       self._sources]
+        future_data = [
+            (source.trigger(immediate=immediate) if source is not None else None)
+            for source in self._sources
+        ]
         return super().trigger(*future_data, *args, **kwargs)
 
     @final
     @property
     def latency(self) -> Quantity[u.ms]:
         """Returns the shortest latency for all detectors."""
-        return min((source.latency for source in self._sources if source is not None), default=0.0 * u.ms)
+        return min(
+            (source.latency for source in self._sources if source is not None),
+            default=0.0 * u.ms,
+        )
 
     @final
     @property
@@ -543,11 +606,16 @@ class Processor(Detector, ABC):
         Note that `latency` is allowed to vary over time for devices that can only be triggered periodically,
         so this `duration` may also vary over time.
         """
-        times = [(source.duration, source.latency) for source in self._sources if source is not None]
+        times = [
+            (source.duration, source.latency)
+            for source in self._sources
+            if source is not None
+        ]
         if len(times) == 0:
             return 0.0 * u.ms
-        return (max([duration + latency for (duration, latency) in times])
-                - min([latency for (duration, latency) in times]))
+        return max([duration + latency for (duration, latency) in times]) - min(
+            [latency for (duration, latency) in times]
+        )
 
     @property
     def data_shape(self):
@@ -561,8 +629,8 @@ class Processor(Detector, ABC):
 
 
 class PhaseSLM(ABC):
-    """Base class for phase-only SLMs
-    """
+    """Base class for phase-only SLMs"""
+
     __slots__ = ()
 
     @abstractmethod

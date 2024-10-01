@@ -110,15 +110,26 @@ def rectangle(extent: ExtentType, center: CoordinateType = (0, 0)) -> Geometry:
     right = center[1] + 0.5 * extent[1]
     bottom = center[0] + 0.5 * extent[0]
 
-    vertices = np.array(([left, top, 0.0, 0.0], [right, top, 1.0, 0.0],
-                         [left, bottom, 0.0, 1.0], [right, bottom, 1.0, 1.0]), dtype=np.float32)
+    vertices = np.array(
+        (
+            [left, top, 0.0, 0.0],
+            [right, top, 1.0, 0.0],
+            [left, bottom, 0.0, 1.0],
+            [right, bottom, 1.0, 1.0],
+        ),
+        dtype=np.float32,
+    )
 
     indices = Geometry.compute_indices_for_grid((1, 1))
     return Geometry(vertices, indices)
 
 
-def circular(radii: Sequence[float], segments_per_ring: Sequence[int], edge_count: int = 256,
-             center: CoordinateType = (0, 0)) -> Geometry:
+def circular(
+    radii: Sequence[float],
+    segments_per_ring: Sequence[int],
+    edge_count: int = 256,
+    center: CoordinateType = (0, 0),
+) -> Geometry:
     """Creates a circular geometry with the specified extent.
 
     This geometry maps a texture to a disk or a ring.
@@ -153,7 +164,8 @@ def circular(radii: Sequence[float], segments_per_ring: Sequence[int], edge_coun
     if len(segments_per_ring) != ring_count:
         raise ValueError(
             "The length of `radii` and `segments_per_ring` should both equal the number of rings (counting "
-            "the inner disk as the first ring).")
+            "the inner disk as the first ring)."
+        )
 
     # construct coordinates of points on a circle of radius 1.0
     # the start and end point coincide
@@ -172,15 +184,19 @@ def circular(radii: Sequence[float], segments_per_ring: Sequence[int], edge_coun
     segments_inside = 0
     total_segments = np.sum(segments_per_ring)
     for r in range(ring_count):
-        x_outside = x * radii[r + 1]  # coordinates of the vertices at the outside of the ring
+        x_outside = (
+            x * radii[r + 1]
+        )  # coordinates of the vertices at the outside of the ring
         y_outside = y * radii[r + 1]
         segments = segments_inside + segments_per_ring[r]
         vertices[r, 0, :, 0] = x_inside + center[1]
         vertices[r, 0, :, 1] = y_inside + center[0]
         vertices[r, 1, :, 0] = x_outside + center[1]
         vertices[r, 1, :, 1] = y_outside + center[0]
-        vertices[r, :, :, 2] = np.linspace(segments_inside, segments, edge_count + 1).reshape(
-            (1, -1)) / total_segments  # tx
+        vertices[r, :, :, 2] = (
+            np.linspace(segments_inside, segments, edge_count + 1).reshape((1, -1))
+            / total_segments
+        )  # tx
         x_inside = x_outside
         y_inside = y_outside
         segments_inside = segments
@@ -190,6 +206,9 @@ def circular(radii: Sequence[float], segments_per_ring: Sequence[int], edge_coun
 
     # construct indices for a single ring, and repeat for all rings with the appropriate offset
     indices = Geometry.compute_indices_for_grid((1, edge_count)).reshape((1, -1))
-    indices = indices + np.arange(ring_count).reshape((-1, 1)) * vertices.shape[1] * vertices.shape[2]
+    indices = (
+        indices
+        + np.arange(ring_count).reshape((-1, 1)) * vertices.shape[1] * vertices.shape[2]
+    )
     indices[:, -1] = 0xFFFF
     return Geometry(vertices.reshape((-1, 4)), indices.reshape(-1))

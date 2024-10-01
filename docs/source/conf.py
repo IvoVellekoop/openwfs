@@ -19,24 +19,36 @@ sys.path.append(root_dir)
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
-extensions = ['sphinx.ext.napoleon', 'sphinx.ext.autodoc', 'sphinx.ext.mathjax',
-              'sphinx.ext.viewcode', 'sphinx_autodoc_typehints', 'sphinxcontrib.bibtex', 'sphinx.ext.autosectionlabel',
-              'sphinx_markdown_builder', 'sphinx_gallery.gen_gallery']
+extensions = [
+    "sphinx.ext.napoleon",
+    "sphinx.ext.autodoc",
+    "sphinx.ext.mathjax",
+    "sphinx.ext.viewcode",
+    "sphinx_autodoc_typehints",
+    "sphinxcontrib.bibtex",
+    "sphinx.ext.autosectionlabel",
+    "sphinx_markdown_builder",
+    "sphinx_gallery.gen_gallery",
+]
 
 # basic project information
-project = 'OpenWFS'
-copyright = '2023-, Ivo Vellekoop, Daniël W. S. Cox, and Jeroen H. Doornbos, University of Twente'
-author = 'Jeroen H. Doornbos, Daniël W. S. Cox, Tom Knop, Harish Sasikumar, Ivo M. Vellekoop'
-release = '0.1.0rc2'
-html_title = "OpenWFS - a library for conducting and simulating wavefront shaping experiments"
+project = "OpenWFS"
+copyright = "2023-, Ivo Vellekoop, Daniël W. S. Cox, and Jeroen H. Doornbos, University of Twente"
+author = (
+    "Jeroen H. Doornbos, Daniël W. S. Cox, Tom Knop, Harish Sasikumar, Ivo M. Vellekoop"
+)
+release = "0.1.0rc2"
+html_title = (
+    "OpenWFS - a library for conducting and simulating wavefront shaping experiments"
+)
 #   \renewenvironment{sphinxtheindex}{\setbox0\vbox\bgroup\begin{theindex}}{\end{theindex}}
 
 # latex configuration
 latex_elements = {
-    'preamble': r"""
+    "preamble": r"""
         \usepackage{authblk}
      """,
-    'maketitle': r"""
+    "maketitle": r"""
         \author[1]{Daniël~W.~S.~Cox}
         \author[1]{Tom~Knop}
         \author[1,2]{Harish~Sasikumar}
@@ -67,40 +79,52 @@ latex_elements = {
         }
         \maketitle
     """,
-    'tableofcontents': "",
-    'makeindex': "",
-    'printindex': "",
-    'figure_align': "",
-    'extraclassoptions': 'notitlepage',
+    "tableofcontents": "",
+    "makeindex": "",
+    "printindex": "",
+    "figure_align": "",
+    "extraclassoptions": "notitlepage",
 }
 latex_docclass = {
-    'manual': 'scrartcl',
-    'howto': 'scrartcl',
+    "manual": "scrartcl",
+    "howto": "scrartcl",
 }
-latex_documents = [('index_latex', 'OpenWFS.tex',
-                    'OpenWFS - a  library for conducting and simulating wavefront shaping experiments',
-                    'Jeroen H. Doornbos', 'howto')]
-latex_toplevel_sectioning = 'section'
-bibtex_default_style = 'unsrt'
-bibtex_bibfiles = ['references.bib']
+latex_documents = [
+    (
+        "index_latex",
+        "OpenWFS.tex",
+        "OpenWFS - a  library for conducting and simulating wavefront shaping experiments",
+        "Jeroen H. Doornbos",
+        "howto",
+    )
+]
+latex_toplevel_sectioning = "section"
+bibtex_default_style = "unsrt"
+bibtex_bibfiles = ["references.bib"]
 numfig = True
 
-templates_path = ['_templates']
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', 'acknowledgements.rst', 'sg_execution_times.rst']
-master_doc = ''
-include_patterns = ['**']
+templates_path = ["_templates"]
+exclude_patterns = [
+    "_build",
+    "Thumbs.db",
+    ".DS_Store",
+    "acknowledgements.rst",
+    "sg_execution_times.rst",
+]
+master_doc = ""
+include_patterns = ["**"]
 napoleon_use_rtype = False
 napoleon_use_param = True
 typehints_document_rtype = False
-latex_engine = 'xelatex'
-html_theme = 'sphinx_rtd_theme'
+latex_engine = "xelatex"
+html_theme = "sphinx_rtd_theme"
 add_module_names = False
 autodoc_preserve_defaults = True
 
 sphinx_gallery_conf = {
-    'examples_dirs': '../../examples',  # path to your example scripts
-    'ignore_pattern': 'set_path.py',
-    'gallery_dirs': 'auto_examples',  # path to where to save gallery generated output
+    "examples_dirs": "../../examples",  # path to your example scripts
+    "ignore_pattern": "set_path.py",
+    "gallery_dirs": "auto_examples",  # path to where to save gallery generated output
 }
 
 # importing this module without OpenGL installed will fail,
@@ -117,7 +141,7 @@ def skip(app, what, name, obj, skip, options):
 
 def visit_citation(self, node):
     """Patch-in function for markdown builder to support citations."""
-    id = node['ids'][0]
+    id = node["ids"][0]
     self.add(f'<a name="{id}"></a>')
 
 
@@ -141,29 +165,35 @@ def setup(app):
 
 
 def source_read(app, docname, source):
-    if docname == 'readme' or docname == 'conclusion':
-        if (app.builder.name == 'latex') == (docname == 'conclusion'):
-            source[0] = source[0].replace('%endmatter%', '.. include:: acknowledgements.rst')
+    if docname == "readme" or docname == "conclusion":
+        if (app.builder.name == "latex") == (docname == "conclusion"):
+            source[0] = source[0].replace(
+                "%endmatter%", ".. include:: acknowledgements.rst"
+            )
         else:
-            source[0] = source[0].replace('%endmatter%', '')
+            source[0] = source[0].replace("%endmatter%", "")
 
 
 def builder_inited(app):
-    if app.builder.name == 'html':
-        exclude_patterns.extend(['conclusion.rst', 'index_latex.rst', 'index_markdown.rst'])
-        app.config.master_doc = 'index'
-    elif app.builder.name == 'latex':
-        exclude_patterns.extend(['auto_examples/*', 'index_markdown.rst', 'index.rst', 'api*'])
-        app.config.master_doc = 'index_latex'
-    elif app.builder.name == 'markdown':
+    if app.builder.name == "html":
+        exclude_patterns.extend(
+            ["conclusion.rst", "index_latex.rst", "index_markdown.rst"]
+        )
+        app.config.master_doc = "index"
+    elif app.builder.name == "latex":
+        exclude_patterns.extend(
+            ["auto_examples/*", "index_markdown.rst", "index.rst", "api*"]
+        )
+        app.config.master_doc = "index_latex"
+    elif app.builder.name == "markdown":
         include_patterns.clear()
-        include_patterns.extend(['readme.rst', 'index_markdown.rst'])
-        app.config.master_doc = 'index_markdown'
+        include_patterns.extend(["readme.rst", "index_markdown.rst"])
+        app.config.master_doc = "index_markdown"
 
 
 def copy_readme(app, exception):
     """Copy the readme file to the root of the documentation directory."""
-    if exception is None and app.builder.name == 'markdown':
-        source_file = Path(app.outdir) / 'readme.md'
-        destination_dir = Path(app.confdir).parents[1] / 'README.md'
+    if exception is None and app.builder.name == "markdown":
+        source_file = Path(app.outdir) / "readme.md"
+        destination_dir = Path(app.confdir).parents[1] / "README.md"
         shutil.copy(source_file, destination_dir)

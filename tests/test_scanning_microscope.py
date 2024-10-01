@@ -2,8 +2,10 @@ import astropy.units as u
 import numpy as np
 import pytest
 
-pytest.importorskip('nidaqmx',
-                    reason='nidaqmx is required for the ScanningMicroscope module, install with pip install nidaqmx')
+pytest.importorskip(
+    "nidaqmx",
+    reason="nidaqmx is required for the ScanningMicroscope module, install with pip install nidaqmx",
+)
 
 from ..openwfs.devices import ScanningMicroscope, Axis
 from ..openwfs.devices.galvo_scanner import InputChannel
@@ -13,12 +15,18 @@ from ..openwfs.utilities import coordinate_range
 @pytest.mark.parametrize("start, stop", [(0.0, 1.0), (1.0, 0.0)])
 def test_scan_axis(start, stop):
     """Tests if the Axis class generates the correct voltage sequences for stepping and scanning."""
-    maximum_acceleration = 1 * u.V / u.ms ** 2
+    maximum_acceleration = 1 * u.V / u.ms**2
     scale = 440 * u.um / u.V
     v_min = -1.0 * u.V
     v_max = 2.0 * u.V
-    a = Axis(channel='Dev4/ao0', v_min=v_min, v_max=v_max, maximum_acceleration=maximum_acceleration, scale=scale)
-    assert a.channel == 'Dev4/ao0'
+    a = Axis(
+        channel="Dev4/ao0",
+        v_min=v_min,
+        v_max=v_max,
+        maximum_acceleration=maximum_acceleration,
+        scale=scale,
+    )
+    assert a.channel == "Dev4/ao0"
     assert a.v_min == v_min
     assert a.v_max == v_max
     assert a.maximum_acceleration == maximum_acceleration
@@ -36,19 +44,22 @@ def test_scan_axis(start, stop):
     assert np.isclose(step[-1], 2.0 * u.V if start == 0.0 else -1.0 * u.V)
     assert np.all(step >= v_min)
     assert np.all(step <= v_max)
-    acceleration = np.diff(np.diff(step)) * sample_rate ** 2
+    acceleration = np.diff(np.diff(step)) * sample_rate**2
     assert np.all(np.abs(acceleration) <= maximum_acceleration * 1.01)
     center = 0.5 * (start + stop)
     amplitude = 0.5 * (stop - start)
 
     # test clipping
-    assert np.allclose(step, a.step(center - 1.1 * amplitude, center + 1.1 * amplitude, sample_rate))
+    assert np.allclose(
+        step, a.step(center - 1.1 * amplitude, center + 1.1 * amplitude, sample_rate)
+    )
 
     # test scan. Note that we cannot use the full scan range because we need
     # some time to accelerate / decelerate
     sample_count = 10000
-    scan, launch, land, linear_region = a.scan(center - 0.8 * amplitude, center + 0.8 * amplitude, sample_count,
-                                               sample_rate)
+    scan, launch, land, linear_region = a.scan(
+        center - 0.8 * amplitude, center + 0.8 * amplitude, sample_count, sample_rate
+    )
     half_pixel = 0.8 * amplitude / sample_count
     # plt.plot(scan)
     # plt.show()
@@ -56,48 +67,76 @@ def test_scan_axis(start, stop):
     assert linear_region.start == len(scan) - linear_region.stop
     assert np.isclose(scan[0], a.to_volt(launch))
     assert np.isclose(scan[-1], a.to_volt(land))
-    assert np.isclose(scan[linear_region.start], a.to_volt(center - 0.8 * amplitude + half_pixel))
-    assert np.isclose(scan[linear_region.stop - 1], a.to_volt(center + 0.8 * amplitude - half_pixel))
+    assert np.isclose(
+        scan[linear_region.start], a.to_volt(center - 0.8 * amplitude + half_pixel)
+    )
+    assert np.isclose(
+        scan[linear_region.stop - 1], a.to_volt(center + 0.8 * amplitude - half_pixel)
+    )
     speed = np.diff(scan[linear_region])
     assert np.allclose(speed, speed[0])  # speed should be constant
 
-    acceleration = np.diff(np.diff(scan)) * sample_rate ** 2
+    acceleration = np.diff(np.diff(scan)) * sample_rate**2
     assert np.all(np.abs(acceleration) <= maximum_acceleration * 1.01)
 
 
 def make_scanner(bidirectional, direction, reference_zoom):
     scale = 440 * u.um / u.V
     sample_rate = 0.5 * u.MHz
-    input_channel = InputChannel(channel='Dev4/ai0', v_min=-1.0 * u.V, v_max=1.0 * u.V)
-    y_axis = Axis(channel='Dev4/ao0', v_min=-2.0 * u.V, v_max=2.0 * u.V, maximum_acceleration=10 * u.V / u.ms ** 2,
-                  scale=scale)
-    x_axis = Axis(channel='Dev4/ao1', v_min=-2.0 * u.V, v_max=2.0 * u.V, maximum_acceleration=10 * u.V / u.ms ** 2,
-                  scale=scale)
-    return ScanningMicroscope(bidirectional=bidirectional, sample_rate=sample_rate, resolution=1024,
-                              input=input_channel, y_axis=y_axis, x_axis=x_axis,
-                              test_pattern=direction, reference_zoom=reference_zoom)
+    input_channel = InputChannel(channel="Dev4/ai0", v_min=-1.0 * u.V, v_max=1.0 * u.V)
+    y_axis = Axis(
+        channel="Dev4/ao0",
+        v_min=-2.0 * u.V,
+        v_max=2.0 * u.V,
+        maximum_acceleration=10 * u.V / u.ms**2,
+        scale=scale,
+    )
+    x_axis = Axis(
+        channel="Dev4/ao1",
+        v_min=-2.0 * u.V,
+        v_max=2.0 * u.V,
+        maximum_acceleration=10 * u.V / u.ms**2,
+        scale=scale,
+    )
+    return ScanningMicroscope(
+        bidirectional=bidirectional,
+        sample_rate=sample_rate,
+        resolution=1024,
+        input=input_channel,
+        y_axis=y_axis,
+        x_axis=x_axis,
+        test_pattern=direction,
+        reference_zoom=reference_zoom,
+    )
 
 
-@pytest.mark.parametrize("direction", ['horizontal', 'vertical'])
+@pytest.mark.parametrize("direction", ["horizontal", "vertical"])
 @pytest.mark.parametrize("bidirectional", [False, True])
 def test_scan_pattern(direction, bidirectional):
     """A unit test for scanning patterns."""
     reference_zoom = 1.2
     scanner = make_scanner(bidirectional, direction, reference_zoom)
-    assert np.allclose(scanner.extent, scanner._x_axis.scale * 4.0 * u.V / reference_zoom)
+    assert np.allclose(
+        scanner.extent, scanner._x_axis.scale * 4.0 * u.V / reference_zoom
+    )
     # plt.imshow(scanner.read())
     # plt.show()
 
     # check if returned pattern is correct
-    (y, x) = coordinate_range((scanner._resolution, scanner._resolution),
-                              10000 / reference_zoom, offset=(5000, 5000))
-    full = scanner.read().astype('float32') - 0x8000
+    (y, x) = coordinate_range(
+        (scanner._resolution, scanner._resolution),
+        10000 / reference_zoom,
+        offset=(5000, 5000),
+    )
+    full = scanner.read().astype("float32") - 0x8000
 
     pixel_size = full[1, 1] - full[0, 0]
 
-    if direction == 'horizontal':
+    if direction == "horizontal":
         assert np.allclose(full, full[0, :])  # all rows should be the same
-        assert np.allclose(x, full, atol=0.2 * pixel_size)  # some rounding due to quantization
+        assert np.allclose(
+            x, full, atol=0.2 * pixel_size
+        )  # some rounding due to quantization
     else:
         # all columns should be the same (note we need to keep the last dimension for correct broadcasting)
         assert np.allclose(full, full[:, 0:1])
@@ -119,15 +158,17 @@ def test_scan_pattern(direction, bidirectional):
     assert scanner.height == height
     assert scanner.data_shape == (height, width)
 
-    roi = scanner.read().astype('float32') - 0x8000
-    assert np.allclose(full[top:(top + height), left:(left + width)], roi, atol=0.2 * pixel_size)
+    roi = scanner.read().astype("float32") - 0x8000
+    assert np.allclose(
+        full[top : (top + height), left : (left + width)], roi, atol=0.2 * pixel_size
+    )
 
 
 @pytest.mark.parametrize("bidirectional", [False, True])
 def test_park_beam(bidirectional):
     """A unit test for parking the beam of a DAQ scanner."""
     reference_zoom = 1.2
-    scanner = make_scanner(bidirectional, 'horizontal', reference_zoom)
+    scanner = make_scanner(bidirectional, "horizontal", reference_zoom)
 
     # Park beam horizontally
     scanner.top = 3
@@ -138,7 +179,9 @@ def test_park_beam(bidirectional):
     img = scanner.read()
     assert img.shape == (2, 1)
     voltages = scanner._scan_pattern
-    assert np.allclose(voltages[1, :], voltages[1, 0])  # all voltages should be the same
+    assert np.allclose(
+        voltages[1, :], voltages[1, 0]
+    )  # all voltages should be the same
 
     # Park beam vertically
     scanner.width = 2
@@ -154,8 +197,13 @@ def test_park_beam(bidirectional):
     img = scanner.read()
     assert img.shape == (1, 1)
     voltages = scanner._scan_pattern
-    assert np.allclose(voltages[1, :], voltages[1, 0])  # all voltages should be the same
-    assert np.allclose(voltages[0, :], voltages[0, 0])  # all voltages should be the same
+    assert np.allclose(
+        voltages[1, :], voltages[1, 0]
+    )  # all voltages should be the same
+    assert np.allclose(
+        voltages[0, :], voltages[0, 0]
+    )  # all voltages should be the same
+
 
 # test zooming
 # ps = scanner.pixel_size
