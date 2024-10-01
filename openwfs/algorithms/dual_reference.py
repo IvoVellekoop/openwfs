@@ -175,7 +175,6 @@ class DualReference:
             relative = results_all[0].t[self.zero_indices[0], ...] + np.conjugate(
                 results_all[1].t[self.zero_indices[1], ...])
             factor = (relative / np.abs(relative)).reshape((1, *self.feedback.data_shape))
-            print(np.angle(factor))
 
         t_full = (self.compute_t_set(results_all[0].t, cobasis[0]) +
                   self.compute_t_set(factor * results_all[1].t, cobasis[1]))
