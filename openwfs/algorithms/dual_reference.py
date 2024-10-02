@@ -131,7 +131,7 @@ class DualReference:
                 "The amplitude and group mask must all have the same shape."
             )
 
-        self._amplitude = value.astype(np.float32)
+        self._amplitude = value
 
 
     @property
