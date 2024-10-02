@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "openwfs"
-version = "0.1.0rc2"
+version = "0.1.0rc3"
 description = 'A libary for performing wavefront shaping experiments and simulations'
 authors = ["Ivo Vellekoop <i.m.vellekoop@utwente.nl>", "Daniël Cox", "Jeroen Doornbos"]
 license = "BSD-3-Clause"
@@ -9,17 +9,9 @@ repository = "https://github.com/ivovellekoop/openwfs"
 documentation = "https://openwfs.readthedocs.io/en/latest/"
 classifiers = [
     'Programming Language :: Python :: 3',
-    'Development Status :: 3 - Alpha',
+    'Development Status :: 4 - Beta',
     'License :: OSI Approved :: BSD License',
     'Operating System :: OS Independent',
-]
-packages = [
-    { include = "openwfs" },
-    { include = "openwfs.algorithms" },
-    { include = "openwfs.devices" },
-    { include = "openwfs.processors" },
-    { include = "openwfs.simulation" },
-    { include = "openwfs.utilities" }
 ]
 
 [build-system]
@@ -28,27 +20,31 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.dependencies]
 # required dependencies
-python = ">=3.9"
-numpy = ">=1.25.2"
-astropy = ">=5.3.4"
-glfw = ">=2.5.9"
-opencv-python = ">=4.9.0.80"
-matplotlib = ">=3.7.3" # TODO: remove dependency?
-scipy = ">=1.11.3"
-annotated-types = "~0.7.0"
-tqdm = "^4.66.2" # TODO: remove dependency
+python = ">=3.9,<4.0"
+numpy = ">=1.25.2"  # also allow numpy 2.x.y
+astropy = ">=5.1.0" # assuming the astropy.units is stable
+glfw = "^2.5.9"
+opencv-python = "^4.9.0.80"
+matplotlib = "^3.7.3"
+scipy = "^1.11.3"
+annotated-types = "^0.7.0"
+
+# optional dependencies for hardware components
+nidaqmx = { version = "^1.0.1", optional = true }
+harvesters = { version = "^1.4.2", optional = true }
 
 [tool.poetry.group.opengl.dependencies]
 # also required, but can be omitted explicitly using the without option
 # this is used for read the docs, which has trouble with the OpenGL dependency
-PyOpenGL = ">=3.1.7"
+PyOpenGL = "^3.1.7"
 
-[tool.poetry.optional-dependencies]
+[tool.poetry.extras]
 # optional dependencies for hardware components
 # these are not required for the core functionality of the library
 # to install, use pip install openwfs[nidaq, genicam]
-nidaq = ["nidaqmx >=0.8.0"]
-genicam = ["harvesters=~1.4.2"]
+# or poetry install --extras "nidaq" --extras "genicam"
+nidaq = ["nidaqmx"]
+genicam = ["harvesters"]
 
 [tool.poetry.group.dev]
 optional = true
@@ -57,9 +53,10 @@ optional = true
 # development dependencies, used for testing only, not needed for normal use
 # to install, use pip install openwfs[dev]
 scikit-image = ">=0.21.0"
-pytest = "~7.0.0"
-nidaq = "nidaqmx >=0.8.0" # we can test without the hardware, but still need the package
+pytest = ">=7.0.0"
+nidaqmx = "^1.0.1" # we can test without the hardware, but still need the package
 black = ">=24.0.0" # code formatter
+poetry = ">=1.2.0" # package manager
 
 [tool.poetry.group.docs]
 optional = true
@@ -68,10 +65,10 @@ optional = true
 # documentation dependencies, used for building the sphinx documentation only
 # to install, use pip install openwfs[sphinx]
 sphinx = ">=4.1.2"
-sphinx_mdinclude = ">= 0.5.0"
-sphinx-rtd-theme = ">= 2.0.0"
-sphinx-autodoc-typehints = ">= 1.11.0"
-sphinxcontrib-bibtex = ">= 2.6.0"
-sphinx-markdown-builder = ">= 0.6.6"
-sphinx-gallery = ">= 0.15.0"
+sphinx_mdinclude = ">=0.5.0"
+sphinx-rtd-theme = ">=2.0.0"
+sphinx-autodoc-typehints = ">=2.2.0"
+sphinxcontrib-bibtex = ">=2.6.0"
+sphinx-markdown-builder = ">=0.6.6"
+sphinx-gallery = ">=0.15.0"
 
