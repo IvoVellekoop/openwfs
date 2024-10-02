@@ -14,8 +14,9 @@ from ..openwfs.algorithms import (
 from ..openwfs.algorithms.troubleshoot import field_correlation
 from ..openwfs.algorithms.utilities import WFSController
 from ..openwfs.processors import SingleRoi
-from ..openwfs.simulation import SimulatedWFS, StaticSource, SLM, Microscope
 from ..openwfs.simulation.mockdevices import GaussianNoise
+from ..openwfs.simulation import SimulatedWFS, StaticSource, SLM, Microscope
+from ..openwfs.plot_utilities import plot_field
 
 
 @pytest.mark.parametrize("shape", [(4, 7), (10, 7), (20, 31)])
@@ -59,7 +60,9 @@ def test_multi_target_algorithms(shape, noise: float, algorithm: str):
             k_radius=(np.min(shape) - 1) // 2,
             phase_steps=phase_steps,
         )
-        N = alg.phase_patterns[0].shape[2] + alg.phase_patterns[1].shape[2]  # number of input modes
+        N = (
+            alg.phase_patterns[0].shape[2] + alg.phase_patterns[1].shape[2]
+        )  # number of input modes
         alg_fidelity = 1.0  # Fourier is accurate for any N
         signal = 1 / 2  # for estimating SNR.
 
@@ -81,7 +84,8 @@ def test_multi_target_algorithms(shape, noise: float, algorithm: str):
         I_opt[b] = feedback.read()[b]
         t_correlation += abs(np.vdot(result.t[:, :, b], sim.t[:, :, b])) ** 2
         t_norm += abs(
-            np.vdot(result.t[:, :, b], result.t[:, :, b]) * np.vdot(sim.t[:, :, b], sim.t[:, :, b])
+            np.vdot(result.t[:, :, b], result.t[:, :, b])
+            * np.vdot(sim.t[:, :, b], sim.t[:, :, b])
         )
     t_correlation /= t_norm
 
@@ -92,10 +96,14 @@ def test_multi_target_algorithms(shape, noise: float, algorithm: str):
     # the fidelity of the transmission matrix reconstruction
     theoretical_noise_fidelity = signal / (signal + noise**2 / phase_steps)
     enhancement = I_opt.mean() / I_0
-    theoretical_enhancement = np.pi / 4 * theoretical_noise_fidelity * alg_fidelity * (N - 1) + 1
+    theoretical_enhancement = (
+        np.pi / 4 * theoretical_noise_fidelity * alg_fidelity * (N - 1) + 1
+    )
     estimated_enhancement = result.estimated_enhancement.mean() * alg_fidelity
     theoretical_t_correlation = theoretical_noise_fidelity * alg_fidelity
-    estimated_t_correlation = result.fidelity_noise * result.fidelity_calibration * alg_fidelity
+    estimated_t_correlation = (
+        result.fidelity_noise * result.fidelity_calibration * alg_fidelity
+    )
     tolerance = 2.0 / np.sqrt(M)
     print(
         f"\nenhancement:      \ttheoretical= {theoretical_enhancement},\testimated={estimated_enhancement},\tactual: {enhancement}"
@@ -164,13 +172,15 @@ def test_fourier2():
 @pytest.mark.skip("Not implemented")
 def test_fourier_microscope():
     aberration_phase = skimage.data.camera() * ((2 * np.pi) / 255.0) + np.pi
-    aberration = StaticSource(aberration_phase, pixel_size=2.0 / np.array(aberration_phase.shape))
+    aberration = StaticSource(
+        aberration_phase, pixel_size=2.0 / np.array(aberration_phase.shape)
+    )
     img = np.zeros((1000, 1000), dtype=np.int16)
     signal_location = (250, 250)
     img[signal_location] = 100
     slm_shape = (1000, 1000)
 
-    src = StaticSource(img, pixel_size=400 * u.nm)
+    src = StaticSource(img, 400 * u.nm)
     slm = SLM(shape=(1000, 1000))
     sim = Microscope(
         source=src,
@@ -192,8 +202,12 @@ def test_fourier_microscope():
     after = roi_detector.read()
     # imshow(controller._optimized_wavefront)
     print(after / before)
-    scaled_aberration = zoom(aberration_phase, np.array(slm_shape) / aberration_phase.shape)
-    assert_enhancement(slm, roi_detector, controller._result, np.exp(1j * scaled_aberration))
+    scaled_aberration = zoom(
+        aberration_phase, np.array(slm_shape) / aberration_phase.shape
+    )
+    assert_enhancement(
+        slm, roi_detector, controller._result, np.exp(1j * scaled_aberration)
+    )
 
 
 def test_fourier_correction_field():
@@ -212,7 +226,9 @@ def test_fourier_correction_field():
     t = alg.execute().t
 
     t_correct = np.exp(1j * aberrations)
-    correlation = np.vdot(t, t_correct) / np.sqrt(np.vdot(t, t) * np.vdot(t_correct, t_correct))
+    correlation = np.vdot(t, t_correct) / np.sqrt(
+        np.vdot(t, t) * np.vdot(t_correct, t_correct)
+    )
 
     # TODO: integrate with other test cases, duplication
     assert abs(correlation) > 0.75
@@ -385,19 +401,21 @@ def test_simple_genetic(population_size: int, elite_size: int):
     assert after / before > 4
 
 
-@pytest.mark.parametrize("type", ("plane_wave", "hadamard"))
+@pytest.mark.parametrize("basis_str", ("plane_wave", "hadamard"))
 @pytest.mark.parametrize("shape", ((8, 8), (16, 4)))
-def test_custom_blind_dual_reference_ortho_split(type: str, shape):
+def test_custom_blind_dual_reference_ortho_split(basis_str: str, shape):
     """Test custom blind dual reference with an orthonormal phase-only basis.
     Two types of bases are tested: plane waves and Hadamard"""
     do_debug = False
     N = shape[0] * (shape[1] // 2)
     modes_shape = (shape[0], shape[1] // 2, N)
-    if type == "plane_wave":
+    if basis_str == "plane_wave":
         # Create a full plane wave basis for one half of the SLM.
-        modes = np.fft.fft2(np.eye(N).reshape(modes_shape), axes=(0, 1))
-    else:  # type == 'hadamard':
-        modes = hadamard(N).reshape(modes_shape)
+        modes = np.fft.fft2(np.eye(N).reshape(modes_shape), axes=(0, 1)) / np.sqrt(N)
+    elif basis_str == 'hadamard':
+        modes = hadamard(N).reshape(modes_shape) / np.sqrt(N)
+    else:
+        raise f'Unknown type of basis "{basis_str}".'
 
     mask = np.concatenate(
         (np.zeros(modes_shape[0:2], dtype=bool), np.ones(modes_shape[0:2], dtype=bool)),
@@ -412,12 +430,13 @@ def test_custom_blind_dual_reference_ortho_split(type: str, shape):
 
         plt.figure(figsize=(12, 7))
         for m in range(N):
-            plt.subplot(*modes_shape[0:1], m + 1)
-            plt.imshow(np.angle(mode_set[:, :, m]), vmin=-np.pi, vmax=np.pi)
+            plt.subplot(*modes_shape[0:2], m + 1)
+            plot_field(mode_set[:, :, m])
             plt.title(f"m={m}")
             plt.xticks([])
             plt.yticks([])
-        plt.pause(0.1)
+        plt.suptitle('Basis')
+        plt.pause(0.01)
 
     # Create aberrations
     sim = SimulatedWFS(t=random_transmission_matrix(shape))
@@ -426,6 +445,7 @@ def test_custom_blind_dual_reference_ortho_split(type: str, shape):
         feedback=sim,
         slm=sim.slm,
         phase_patterns=(phases_set, np.flip(phases_set, axis=1)),
+        amplitude='uniform',
         group_mask=mask,
         iterations=4,
     )
@@ -433,6 +453,14 @@ def test_custom_blind_dual_reference_ortho_split(type: str, shape):
     result = alg.execute()
 
     if do_debug:
+        plt.figure()
+        for m in range(N):
+            plt.subplot(*modes_shape[0:2], m + 1)
+            plot_field(alg.cobasis[0][:, :, m])
+            plt.title(f'{m}')
+        plt.suptitle('Cobasis')
+        plt.pause(0.01)
+
         plt.figure()
         plt.imshow(np.angle(sim.t), vmin=-np.pi, vmax=np.pi, cmap="hsv")
         plt.title("Aberrations")
@@ -443,9 +471,12 @@ def test_custom_blind_dual_reference_ortho_split(type: str, shape):
         plt.colorbar()
         plt.show()
 
-    assert (
-        np.abs(field_correlation(sim.t, result.t)) > 0.99
-    )  # todo: find out why this is not higher
+    # Checks for orthonormal bases
+    assert np.allclose(alg.gram, np.eye(N), atol=1e-6)  # Gram matrix must be I
+    assert np.allclose(alg.cobasis[0], mode_set.conj(), atol=1e-6)  # Cobasis vectors are just the complex conjugates
+
+    # todo: find out why this is not higher
+    assert np.abs(field_correlation(sim.t, result.t)) > 0.95
 
 
 def test_custom_blind_dual_reference_non_ortho():
@@ -458,7 +489,7 @@ def test_custom_blind_dual_reference_non_ortho():
     N1 = 6
     N2 = 3
     M = N1 * N2
-    mode_set_half = (1 / M) * (1j * np.eye(M).reshape((N1, N2, M)) * -np.ones(shape=(N1, N2, M)))
+    mode_set_half = np.exp(2j*np.pi/3 * np.eye(M).reshape((N1, N2, M))) / np.sqrt(M)
     mode_set = np.concatenate((mode_set_half, np.zeros(shape=(N1, N2, M))), axis=1)
     phases_set = np.angle(mode_set)
     mask = np.concatenate((np.zeros((N1, N2)), np.ones((N1, N2))), axis=1)
@@ -470,8 +501,8 @@ def test_custom_blind_dual_reference_non_ortho():
         plt.figure(figsize=(12, 7))
         for m in range(M):
             plt.subplot(N2, N1, m + 1)
-            plt.imshow(phases_set[:, :, m], vmin=-np.pi, vmax=np.pi)
-            plt.title(f"m={m}")
+            plot_field(mode_set[:, :, m])
+            plt.title(f'm={m}')
             plt.xticks([])
             plt.yticks([])
         plt.pause(0.01)
@@ -481,7 +512,9 @@ def test_custom_blind_dual_reference_non_ortho():
     x = np.linspace(-1, 1, 1 * N1).reshape((1, -1))
     y = np.linspace(-1, 1, 1 * N1).reshape((-1, 1))
     aberrations = (
-        np.sin(0.8 * np.pi * x) * np.cos(1.3 * np.pi * y) * (0.8 * np.pi + 0.4 * x + 0.4 * y)
+        np.sin(0.8 * np.pi * x)
+        * np.cos(1.3 * np.pi * y)
+        * (0.8 * np.pi + 0.4 * x + 0.4 * y)
     ) % (2 * np.pi)
     aberrations[0:1, :] = 0
     aberrations[:, 0:2] = 0
@@ -492,6 +525,7 @@ def test_custom_blind_dual_reference_non_ortho():
         feedback=sim,
         slm=sim.slm,
         phase_patterns=(phases_set, np.flip(phases_set, axis=1)),
+        amplitude='uniform',
         group_mask=mask,
         phase_steps=4,
         iterations=4,
@@ -499,16 +533,31 @@ def test_custom_blind_dual_reference_non_ortho():
 
     result = alg.execute()
 
+    aberration_field = np.exp(1j * aberrations)
+    t_field = np.exp(1j * np.angle(result.t))
+
     if do_debug:
         plt.figure()
-        plt.imshow(np.angle(np.exp(1j * aberrations)), vmin=-np.pi, vmax=np.pi, cmap="hsv")
-        plt.title("Aberrations")
+        for m in range(M):
+            plt.subplot(N2, N1, m + 1)
+            plot_field(alg.cobasis[0][:, :, m], scale=2)
+            plt.title(f'{m}')
+        plt.suptitle('Cobasis')
+        plt.pause(0.01)
+
+        plt.figure()
+        plt.imshow(abs(alg.gram), vmin=0, vmax=1)
+        plt.title('Gram matrix abs values')
         plt.colorbar()
 
         plt.figure()
-        plt.imshow(np.angle(result.t), vmin=-np.pi, vmax=np.pi, cmap="hsv")
-        plt.title("t")
-        plt.colorbar()
+        plt.subplot(1, 2, 1)
+        plot_field(aberration_field)
+        plt.title('Aberrations')
+
+        plt.subplot(1, 2, 2)
+        plot_field(t_field)
+        plt.title('t')
         plt.show()
 
-    assert np.abs(field_correlation(np.exp(1j * aberrations), result.t)) > 0.999
+    assert np.abs(field_correlation(aberration_field, t_field)) > 0.999

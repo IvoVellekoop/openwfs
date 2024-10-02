@@ -38,6 +38,7 @@ class DualReference:
         feedback: Detector,
         slm: PhaseSLM,
         phase_patterns: Optional[tuple[nd, nd]],
+        amplitude: Optional[tuple[nd, nd] | str],
         group_mask: nd,
         phase_steps: int = 4,
         iterations: int = 2,
@@ -52,6 +53,11 @@ class DualReference:
                 The first two dimensions are the spatial dimensions, and should match the size of group_mask.
                 The 3rd dimension in the array is index of the phase pattern. The number of phase patterns in A and B may be different.
                 When None, the phase_patterns attribute must be set before executing the algorithm.
+            amplitude: Tuple of 2D arrays, one array for each group. The arrays have shape equal to the shape of
+                group_mask. When None, the amplitude attribute must be set before executing the algorithm. When
+                'uniform', a 2D array of normalized uniform values is used, such that ⟨A,A⟩=1, where ⟨.,.⟩ denotes the
+                inner product and A is the amplitude profile per group. This corresponds to a uniform illumination of
+                the SLM. Note: if the groups have different sizes, their normalization factors will be different.
             group_mask: A 2D bool array of that defines the pixels used by group A with False and elements used by
                 group B with True.
             phase_steps: The number of phase steps for each mode (default is 4). Depending on the type of
@@ -72,7 +78,6 @@ class DualReference:
 
         [1]: X. Tao, T. Lam, B. Zhu, et al., “Three-dimensional focusing through scattering media using conjugate adaptive
         optics with remote focusing (CAORF),” Opt. Express 25, 10368–10383 (2017).
-
         """
         if optimized_reference is None:  # 'auto' mode
             optimized_reference = np.prod(feedback.data_shape) == 1
@@ -95,13 +100,39 @@ class DualReference:
         self.iterations = iterations
         self._analyzer = analyzer
         self._phase_patterns = None
+        self._amplitude = None
+        self._gram = None
         self._shape = group_mask.shape
         mask = group_mask.astype(bool)
         self.masks = (
             ~mask,
             mask,
-        )  # mask[0] is True for group A, mask[1] is True for group B
+        )  # self.masks[0] is True for group A, self.masks[1] is True for group B
+        self.amplitude = amplitude      # Note: when 'uniform' is passed, the shape of self.masks[0] is used.
         self.phase_patterns = phase_patterns
+
+    @property
+    def amplitude(self) -> Optional[nd]:
+        return self._amplitude
+
+    @amplitude.setter
+    def amplitude(self, value):
+        if value is None:
+            self._amplitude = None
+            return
+
+        if value == 'uniform':
+            self._amplitude = tuple(
+                (np.ones(shape=self._shape) / np.sqrt(self.masks[side].sum())).astype(np.float32) for side in range(2))
+            return
+
+        if value.shape != self._shape:
+            raise ValueError(
+                "The amplitude and group mask must all have the same shape."
+            )
+
+        self._amplitude = value.astype(np.float32)
+
 
     @property
     def phase_patterns(self) -> tuple[nd, nd]:
@@ -118,10 +149,14 @@ class DualReference:
             # find the modes in A and B that correspond to flat wavefronts with phase 0
             try:
                 a0_index = next(
-                    i for i in range(value[0].shape[2]) if np.allclose(value[0][:, :, i], 0)
+                    i
+                    for i in range(value[0].shape[2])
+                    if np.allclose(value[0][:, :, i], 0)
                 )
                 b0_index = next(
-                    i for i in range(value[1].shape[2]) if np.allclose(value[1][:, :, i], 0)
+                    i
+                    for i in range(value[1].shape[2])
+                    if np.allclose(value[1][:, :, i], 0)
                 )
                 self.zero_indices = (a0_index, b0_index)
             except StopIteration:
@@ -130,12 +165,55 @@ class DualReference:
                 )
 
         if (value[0].shape[0:2] != self._shape) or (value[1].shape[0:2] != self._shape):
-            raise ValueError("The phase patterns and group mask must all have the same shape.")
+            raise ValueError(
+                "The phase patterns and group mask must all have the same shape."
+            )
 
         self._phase_patterns = (
             value[0].astype(np.float32),
             value[1].astype(np.float32),
         )
+
+        self._compute_cobasis()
+
+    @property
+    def cobasis(self) -> tuple[nd, nd]:
+        """
+        The cobasis corresponding to the given basis.
+        """
+        return self._cobasis
+
+    @property
+    def gram(self) -> np.matrix:
+        """
+        The Gram matrix corresponding to the given basis (i.e. phase pattern and amplitude profile).
+        """
+        return self._gram
+
+    def _compute_cobasis(self):
+        """
+        Computes the cobasis from the phase patterns.
+
+        As a basis matrix is full rank, this is equivalent to the Moore-Penrose pseudo-inverse.
+        B⁺ = (B^* B)^(-1) B^*
+        Where B is the basis matrix (a column corresponds to a basis vector), ^* denotes the conjugate transpose, ^(-1)
+        denotes the matrix inverse, and ⁺ denotes the Moore-Penrose pseudo-inverse.
+        """
+        if self.phase_patterns is None:
+            raise('The phase_patterns must be set before computing the cobasis.')
+
+        cobasis = [None, None]
+        for side in range(2):
+            p = np.prod(self._shape)  # Number of SLM pixels
+            m = self.phase_patterns[side].shape[2]  # Number of modes
+            phase_factor = np.exp(1j * self.phase_patterns[side])
+            amplitude_factor = np.expand_dims(self.amplitude[side] * self.masks[side], axis=2)
+            B = np.asmatrix((phase_factor * amplitude_factor).reshape((p, m)))  # Basis matrix
+            self._gram = B.H @ B
+            B_pinv = np.linalg.inv(self.gram) @ B.H  # Moore-Penrose pseudo-inverse
+            cobasis[side] = np.asarray(B_pinv.T).reshape(self.phase_patterns[side].shape)
+
+        self._cobasis = cobasis
 
     def execute(
         self, *, capture_intermediate_results: bool = False, progress_bar=None
@@ -155,11 +233,6 @@ class DualReference:
         """
 
         # Current estimate of the transmission matrix (start with all 0)
-        cobasis = [
-            np.exp(-1j * self.phase_patterns[side]) * np.expand_dims(self.masks[side], axis=2)
-            for side in range(2)
-        ]
-
         ref_phases = np.zeros(self._shape)
 
         # Initialize storage lists
@@ -193,7 +266,7 @@ class DualReference:
 
             if self.optimized_reference:
                 # use the best estimate so far to construct an optimized reference
-                t_this_side = self.compute_t_set(results_all[it].t, cobasis[side]).squeeze()
+                t_this_side = self.compute_t_set(results_all[it].t, self.cobasis[side]).squeeze()
                 ref_phases[self.masks[side]] = -np.angle(t_this_side[self.masks[side]])
 
             # Try full pattern
@@ -211,10 +284,12 @@ class DualReference:
             relative = results_all[0].t[self.zero_indices[0], ...] + np.conjugate(
                 results_all[1].t[self.zero_indices[1], ...]
             )
-            factor = (relative / np.abs(relative)).reshape((1, *self.feedback.data_shape))
+            factor = (relative / np.abs(relative)).reshape(
+                (1, *self.feedback.data_shape)
+            )
 
-        t_full = self.compute_t_set(results_all[0].t, cobasis[0]) + self.compute_t_set(
-            factor * results_all[1].t, cobasis[1]
+        t_full = self.compute_t_set(results_all[0].t, self.cobasis[0]) + self.compute_t_set(
+            factor * results_all[1].t, self.cobasis[1]
         )
 
         # Compute average fidelity factors
@@ -247,7 +322,9 @@ class DualReference:
             WFSResult: An object containing the computed SLM transmission matrix and related data.
         """
         num_modes = mod_phases.shape[2]
-        measurements = np.zeros((num_modes, self.phase_steps, *self.feedback.data_shape))
+        measurements = np.zeros(
+            (num_modes, self.phase_steps, *self.feedback.data_shape)
+        )
 
         for m in range(num_modes):
             phases = ref_phases.copy()
