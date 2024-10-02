@@ -6,9 +6,7 @@
 
 # General
 
-- all .py files MUST be formatted with the 'black' autoformatter. This can be done by installing the 'black' package,
-  and running `black .` in the root directory. black is automatically installed when the development dependencies are
-  included.
+- The package `black` is used to ensure correct formatting. Install with `pip install black` and run in the terminal using `black .` when located at the root of the repository. 
 
 # Tests
 

@@ -14,7 +14,9 @@ To download the source code, including tests and examples, clone the repository 
     poetry install --with dev --with docs
     poetry run pytest
 
-The examples are located in the ``examples`` directory. Note that a lot of functionality is also demonstrated in the automatic tests located in the ``tests`` directory. As an alternative to downloading the source code, the samples can also be copied directly from the example gallery on the documentation website :cite:`readthedocsOpenWFS`.
+The examples are located in the ``examples`` directory. Note that a lot of functionality is also demonstrated in the automatic tests located in the ``tests`` directory. As an alternative to downloading the source code, the samples can also be copied directly from the example gallery on the documentation website :cite:`readthedocsOpenWFS`. 
+
+Important to note for adding hardware devices, is that many of the components rely on third-party, in some case proprietary drivers. For using NI DAQ components, the nidaqmx package needs to be installed, and for openCV and Genicam their respective drivers need to be installed. The specific requirements are always listed in the documentation of the functions and classes that require packages like these.
 
 Building the documentation
 --------------------------------------------------
