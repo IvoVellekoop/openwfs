@@ -38,7 +38,7 @@ class DualReference:
         feedback: Detector,
         slm: PhaseSLM,
         phase_patterns: Optional[tuple[nd, nd]],
-        amplitude: Optional[nd | str],
+        amplitude: Optional[tuple[nd, nd] | str],
         group_mask: nd,
         phase_steps: int = 4,
         iterations: int = 2,
@@ -53,10 +53,11 @@ class DualReference:
                 The first two dimensions are the spatial dimensions, and should match the size of group_mask.
                 The 3rd dimension in the array is index of the phase pattern. The number of phase patterns in A and B may be different.
                 When None, the phase_patterns attribute must be set before executing the algorithm.
-            amplitude: A 2D array, with shape equal to the shape of group_mask.
-                When None, the amplitude attribute must be set before executing the algorithm.
-                When 'ones', a 2D array where each element is 1.0 will be used. This corresponds to a uniform
-                illumination of the SLM.
+            amplitude: Tuple of 2D arrays, one array for each group. The arrays have shape equal to the shape of
+                group_mask. When None, the amplitude attribute must be set before executing the algorithm. When
+                'uniform', a 2D array of normalized uniform values is used, such that ⟨A,A⟩=1, where ⟨.,.⟩ denotes the
+                inner product and A is the amplitude profile per group. This corresponds to a uniform illumination of
+                the SLM. Note: if the groups have different sizes, their normalization factors will be different.
             group_mask: A 2D bool array of that defines the pixels used by group A with False and elements used by
                 group B with True.
             phase_steps: The number of phase steps for each mode (default is 4). Depending on the type of
@@ -77,7 +78,6 @@ class DualReference:
 
         [1]: X. Tao, T. Lam, B. Zhu, et al., “Three-dimensional focusing through scattering media using conjugate adaptive
         optics with remote focusing (CAORF),” Opt. Express 25, 10368–10383 (2017).
-
         """
         if optimized_reference is None:  # 'auto' mode
             optimized_reference = np.prod(feedback.data_shape) == 1
@@ -100,15 +100,16 @@ class DualReference:
         self.iterations = iterations
         self._analyzer = analyzer
         self._phase_patterns = None
+        self._amplitude = None
+        self._gram = None
         self._shape = group_mask.shape
         mask = group_mask.astype(bool)
         self.masks = (
             ~mask,
             mask,
         )  # self.masks[0] is True for group A, self.masks[1] is True for group B
+        self.amplitude = amplitude      # Note: when 'uniform' is passed, the shape of self.masks[0] is used.
         self.phase_patterns = phase_patterns
-        self._amplitude = None
-        self.amplitude = amplitude      # Note: when 'ones' is passed, the shape of self.masks[0] is used.
 
     @property
     def amplitude(self) -> Optional[nd]:
@@ -120,8 +121,9 @@ class DualReference:
             self._amplitude = None
             return
 
-        if value == 'ones':
-            self._amplitude = np.ones(shape=self._shape, dtype=np.float32)
+        if value == 'uniform':
+            self._amplitude = tuple(
+                (np.ones(shape=self._shape) / np.sqrt(self.masks[side].sum())).astype(np.float32) for side in range(2))
             return
 
         if value.shape != self._shape:
@@ -176,7 +178,17 @@ class DualReference:
 
     @property
     def cobasis(self) -> tuple[nd, nd]:
+        """
+        The cobasis corresponding to the given basis.
+        """
         return self._cobasis
+
+    @property
+    def gram(self) -> np.matrix:
+        """
+        The Gram matrix corresponding to the given basis (i.e. phase pattern and amplitude profile).
+        """
+        return self._gram
 
     def _compute_cobasis(self):
         """
@@ -190,19 +202,16 @@ class DualReference:
         if self.phase_patterns is None:
             raise('The phase_patterns must be set before computing the cobasis.')
 
-        self._cobasis = tuple(
-            np.exp(-1j * self.phase_patterns[side]) * np.expand_dims(self.amplitude * self.masks[side], axis=2)
-            for side in range(2)
-        )
-
         cobasis = [None, None]
         for side in range(2):
             p = np.prod(self._shape)  # Number of SLM pixels
             m = self.phase_patterns[side].shape[2]  # Number of modes
-            B = np.exp(1j * self.phase_patterns[side]) \
-                * np.expand_dims(self.amplitude * self.masks[side], axis=2).reshape((p, m))  # Basis matrix
-            B_pinv = np.linalg.inv(B.conj() @ B) @ B.conj()  # Moore-Penrose pseudo-inverse
-            cobasis[side] = B_pinv.reshape(self.phase_patterns[side].shape)
+            phase_factor = np.exp(1j * self.phase_patterns[side])
+            amplitude_factor = np.expand_dims(self.amplitude[side] * self.masks[side], axis=2)
+            B = np.asmatrix((phase_factor * amplitude_factor).reshape((p, m)))  # Basis matrix
+            self._gram = B.H @ B
+            B_pinv = np.linalg.inv(self.gram) @ B.H  # Moore-Penrose pseudo-inverse
+            cobasis[side] = np.asarray(B_pinv).reshape(self.phase_patterns[side].shape)
 
         self._cobasis = cobasis
 
@@ -257,9 +266,7 @@ class DualReference:
 
             if self.optimized_reference:
                 # use the best estimate so far to construct an optimized reference
-                t_this_side = self.compute_t_set(
-                    results_all[it].t, cobasis[side]
-                ).squeeze()
+                t_this_side = self.compute_t_set(results_all[it].t, self.cobasis[side]).squeeze()
                 ref_phases[self.masks[side]] = -np.angle(t_this_side[self.masks[side]])
 
             # Try full pattern
@@ -281,8 +288,8 @@ class DualReference:
                 (1, *self.feedback.data_shape)
             )
 
-        t_full = self.compute_t_set(results_all[0].t, cobasis[0]) + self.compute_t_set(
-            factor * results_all[1].t, cobasis[1]
+        t_full = self.compute_t_set(results_all[0].t, self.cobasis[0]) + self.compute_t_set(
+            factor * results_all[1].t, self.cobasis[1]
         )
 
         # Compute average fidelity factors

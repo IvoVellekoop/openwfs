@@ -370,19 +370,21 @@ def test_multidimensional_feedback_fourier():
             Expected at least 3.0, got {enhancement}"""
 
 
-@pytest.mark.parametrize("type", ("plane_wave", "hadamard"))
+@pytest.mark.parametrize("basis_str", ("plane_wave", "hadamard"))
 @pytest.mark.parametrize("shape", ((8, 8), (16, 4)))
-def test_custom_blind_dual_reference_ortho_split(type: str, shape):
+def test_custom_blind_dual_reference_ortho_split(basis_str: str, shape):
     """Test custom blind dual reference with an orthonormal phase-only basis.
     Two types of bases are tested: plane waves and Hadamard"""
-    do_debug = False
+    do_debug = True
     N = shape[0] * (shape[1] // 2)
     modes_shape = (shape[0], shape[1] // 2, N)
-    if type == "plane_wave":
+    if basis_str == "plane_wave":
         # Create a full plane wave basis for one half of the SLM.
         modes = np.fft.fft2(np.eye(N).reshape(modes_shape), axes=(0, 1))
-    else:  # type == 'hadamard':
+    elif basis_str == 'hadamard':
         modes = hadamard(N).reshape(modes_shape)
+    else:
+        raise f'Unknown type of basis "{basis_str}".'
 
     mask = np.concatenate(
         (np.zeros(modes_shape[0:2], dtype=bool), np.ones(modes_shape[0:2], dtype=bool)),
@@ -397,7 +399,7 @@ def test_custom_blind_dual_reference_ortho_split(type: str, shape):
 
         plt.figure(figsize=(12, 7))
         for m in range(N):
-            plt.subplot(*modes_shape[0:1], m + 1)
+            plt.subplot(*modes_shape[0:2], m + 1)
             plt.imshow(np.angle(mode_set[:, :, m]), vmin=-np.pi, vmax=np.pi)
             plt.title(f"m={m}")
             plt.xticks([])
@@ -411,9 +413,15 @@ def test_custom_blind_dual_reference_ortho_split(type: str, shape):
         feedback=sim,
         slm=sim.slm,
         phase_patterns=(phases_set, np.flip(phases_set, axis=1)),
+        amplitude='uniform',
         group_mask=mask,
         iterations=4,
     )
+
+    assert np.allclose(alg.gram, np.eye(N), atol=1e-6)
+
+    for m in range(N):
+        alg.cobasis
 
     result = alg.execute()
 
@@ -479,6 +487,7 @@ def test_custom_blind_dual_reference_non_ortho():
         feedback=sim,
         slm=sim.slm,
         phase_patterns=(phases_set, np.flip(phases_set, axis=1)),
+        amplitude='ones',
         group_mask=mask,
         phase_steps=4,
         iterations=4,
