@@ -144,7 +144,7 @@ class DualReference:
         )
 
     def execute(
-        self, capture_intermediate_results: bool = False, progress_bar=None
+        self, *, capture_intermediate_results: bool = False, progress_bar=None
     ) -> WFSResult:
         """
         Executes the blind focusing dual reference algorithm and compute the SLM transmission matrix.

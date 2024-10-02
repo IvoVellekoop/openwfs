@@ -5,7 +5,12 @@ import skimage
 from scipy.linalg import hadamard
 from scipy.ndimage import zoom
 
-from ..openwfs.algorithms import StepwiseSequential, FourierDualReference, DualReference
+from ..openwfs.algorithms import (
+    StepwiseSequential,
+    FourierDualReference,
+    DualReference,
+    SimpleGenetic,
+)
 from ..openwfs.algorithms.troubleshoot import field_correlation
 from ..openwfs.algorithms.utilities import WFSController
 from ..openwfs.processors import SingleRoi
@@ -54,9 +59,7 @@ def test_multi_target_algorithms(shape, noise: float, algorithm: str):
             k_radius=(np.min(shape) - 1) // 2,
             phase_steps=phase_steps,
         )
-        N = (
-            alg.phase_patterns[0].shape[2] + alg.phase_patterns[1].shape[2]
-        )  # number of input modes
+        N = alg.phase_patterns[0].shape[2] + alg.phase_patterns[1].shape[2]  # number of input modes
         alg_fidelity = 1.0  # Fourier is accurate for any N
         signal = 1 / 2  # for estimating SNR.
 
@@ -77,10 +80,7 @@ def test_multi_target_algorithms(shape, noise: float, algorithm: str):
         sim.slm.set_phases(-np.angle(result.t[:, :, b]))
         I_opt[b] = feedback.read()[b]
         t_correlation += abs(np.vdot(result.t[:, :, b], sim.t[:, :, b])) ** 2
-        t_norm += abs(
-            np.vdot(result.t[:, :, b], result.t[:, :, b])
-            * np.vdot(sim.t[:, :, b], sim.t[:, :, b])
-        )
+        t_norm += abs(np.vdot(result.t[:, :, b], result.t[:, :, b]) * np.vdot(sim.t[:, :, b], sim.t[:, :, b]))
     t_correlation /= t_norm
 
     # a correlation of 1 means optimal reconstruction of the N modulated modes, which may be less than the total number of inputs in the transmission matrix
@@ -90,24 +90,16 @@ def test_multi_target_algorithms(shape, noise: float, algorithm: str):
     # the fidelity of the transmission matrix reconstruction
     theoretical_noise_fidelity = signal / (signal + noise**2 / phase_steps)
     enhancement = I_opt.mean() / I_0
-    theoretical_enhancement = (
-        np.pi / 4 * theoretical_noise_fidelity * alg_fidelity * (N - 1) + 1
-    )
+    theoretical_enhancement = np.pi / 4 * theoretical_noise_fidelity * alg_fidelity * (N - 1) + 1
     estimated_enhancement = result.estimated_enhancement.mean() * alg_fidelity
     theoretical_t_correlation = theoretical_noise_fidelity * alg_fidelity
-    estimated_t_correlation = (
-        result.fidelity_noise * result.fidelity_calibration * alg_fidelity
-    )
+    estimated_t_correlation = result.fidelity_noise * result.fidelity_calibration * alg_fidelity
     tolerance = 2.0 / np.sqrt(M)
-    print(
-        f"\nenhancement:      \ttheoretical= {theoretical_enhancement},\testimated={estimated_enhancement},\tactual: {enhancement}"
-    )
+    print(f"\nenhancement:      \ttheoretical= {theoretical_enhancement},\testimated={estimated_enhancement},\tactual: {enhancement}")
     print(
         f"t-matrix fidelity:\ttheoretical = {theoretical_t_correlation},\testimated = {estimated_t_correlation},\tactual = {t_correlation}"
     )
-    print(
-        f"noise fidelity:   \ttheoretical = {theoretical_noise_fidelity},\testimated = {result.fidelity_noise}"
-    )
+    print(f"noise fidelity:   \ttheoretical = {theoretical_noise_fidelity},\testimated = {result.fidelity_noise}")
     print(f"comparing at relative tolerance: {tolerance}")
 
     assert np.allclose(
@@ -154,9 +146,7 @@ def test_fourier2():
     slm_shape = (1000, 1000)
     aberrations = skimage.data.camera() * ((2 * np.pi) / 255.0)
     sim = SimulatedWFS(aberrations=aberrations)
-    alg = FourierDualReference(
-        feedback=sim, slm=sim.slm, slm_shape=slm_shape, k_radius=7.5, phase_steps=3
-    )
+    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=slm_shape, k_radius=7.5, phase_steps=3)
     controller = WFSController(alg)
     controller.wavefront = WFSController.State.SHAPED_WAVEFRONT
     scaled_aberration = zoom(aberrations, np.array(slm_shape) / aberrations.shape)
@@ -166,15 +156,13 @@ def test_fourier2():
 @pytest.mark.skip("Not implemented")
 def test_fourier_microscope():
     aberration_phase = skimage.data.camera() * ((2 * np.pi) / 255.0) + np.pi
-    aberration = StaticSource(
-        aberration_phase, pixel_size=2.0 / np.array(aberration_phase.shape)
-    )
+    aberration = StaticSource(aberration_phase, pixel_size=2.0 / np.array(aberration_phase.shape))
     img = np.zeros((1000, 1000), dtype=np.int16)
     signal_location = (250, 250)
     img[signal_location] = 100
     slm_shape = (1000, 1000)
 
-    src = StaticSource(img, 400 * u.nm)
+    src = StaticSource(img, pixel_size=400 * u.nm)
     slm = SLM(shape=(1000, 1000))
     sim = Microscope(
         source=src,
@@ -186,9 +174,7 @@ def test_fourier_microscope():
     )
     cam = sim.get_camera(analog_max=100)
     roi_detector = SingleRoi(cam, pos=(250, 250))  # Only measure that specific point
-    alg = FourierDualReference(
-        feedback=roi_detector, slm=slm, slm_shape=slm_shape, k_radius=1.5, phase_steps=3
-    )
+    alg = FourierDualReference(feedback=roi_detector, slm=slm, slm_shape=slm_shape, k_radius=1.5, phase_steps=3)
     controller = WFSController(alg)
     controller.wavefront = WFSController.State.FLAT_WAVEFRONT
     before = roi_detector.read()
@@ -196,12 +182,8 @@ def test_fourier_microscope():
     after = roi_detector.read()
     # imshow(controller._optimized_wavefront)
     print(after / before)
-    scaled_aberration = zoom(
-        aberration_phase, np.array(slm_shape) / aberration_phase.shape
-    )
-    assert_enhancement(
-        slm, roi_detector, controller._result, np.exp(1j * scaled_aberration)
-    )
+    scaled_aberration = zoom(aberration_phase, np.array(slm_shape) / aberration_phase.shape)
+    assert_enhancement(slm, roi_detector, controller._result, np.exp(1j * scaled_aberration))
 
 
 def test_fourier_correction_field():
@@ -220,9 +202,7 @@ def test_fourier_correction_field():
     t = alg.execute().t
 
     t_correct = np.exp(1j * aberrations)
-    correlation = np.vdot(t, t_correct) / np.sqrt(
-        np.vdot(t, t) * np.vdot(t_correct, t_correct)
-    )
+    correlation = np.vdot(t, t_correct) / np.sqrt(np.vdot(t, t) * np.vdot(t_correct, t_correct))
 
     # TODO: integrate with other test cases, duplication
     assert abs(correlation) > 0.75
@@ -294,9 +274,7 @@ def test_flat_wf_response_fourier(optimized_reference, step):
     # test the optimized wavefront by checking if it has irregularities.
     measured_aberrations = np.squeeze(np.angle(t))
     measured_aberrations += aberrations[0, 0] - measured_aberrations[0, 0]
-    assert np.allclose(
-        measured_aberrations, aberrations, atol=0.02
-    )  # The measured wavefront is not flat.
+    assert np.allclose(measured_aberrations, aberrations, atol=0.02)  # The measured wavefront is not flat.
 
 
 def test_flat_wf_response_ssa():
@@ -314,9 +292,7 @@ def test_flat_wf_response_ssa():
 
     # Assert that the standard deviation of the optimized wavefront is below the threshold,
     # indicating that it is effectively flat
-    assert (
-        np.std(optimised_wf) < 0.001
-    ), f"Response flat wavefront not flat, std: {np.std(optimised_wf)}"
+    assert np.std(optimised_wf) < 0.001, f"Response flat wavefront not flat, std: {np.std(optimised_wf)}"
 
 
 def test_multidimensional_feedback_ssa():
@@ -367,6 +343,32 @@ def test_multidimensional_feedback_fourier():
         enhancement[2, 1] >= 3.0
     ), f"""The algorithm did not enhance the focus as much as expected.
             Expected at least 3.0, got {enhancement}"""
+
+
+@pytest.mark.parametrize("population_size, elite_size", [(30, 15), (30, 5)])
+def test_simple_genetic(population_size: int, elite_size: int):
+    """
+    Test the SimpleGenetic algorithm.
+    Note: this is not very rigid test, as we currently don't have theoretical expectations for the performance.
+    """
+    shape = (100, 71)
+    sim = SimulatedWFS(t=random_transmission_matrix(shape), multi_threaded=False)
+    alg = SimpleGenetic(
+        feedback=sim,
+        slm=sim.slm,
+        shape=shape,
+        population_size=population_size,
+        elite_size=elite_size,
+        generations=1000,
+    )
+    result = alg.execute()
+    sim.slm.set_phases(0.0)
+    before = sim.read()
+    sim.slm.set_phases(-np.angle(result.t))
+    after = sim.read()
+
+    print(after / before)
+    assert after / before > 4
 
 
 @pytest.mark.parametrize("type", ("plane_wave", "hadamard"))
@@ -427,9 +429,7 @@ def test_custom_blind_dual_reference_ortho_split(type: str, shape):
         plt.colorbar()
         plt.show()
 
-    assert (
-        np.abs(field_correlation(sim.t, result.t)) > 0.99
-    )  # todo: find out why this is not higher
+    assert np.abs(field_correlation(sim.t, result.t)) > 0.99  # todo: find out why this is not higher
 
 
 def test_custom_blind_dual_reference_non_ortho():
@@ -442,9 +442,7 @@ def test_custom_blind_dual_reference_non_ortho():
     N1 = 6
     N2 = 3
     M = N1 * N2
-    mode_set_half = (1 / M) * (
-        1j * np.eye(M).reshape((N1, N2, M)) * -np.ones(shape=(N1, N2, M))
-    )
+    mode_set_half = (1 / M) * (1j * np.eye(M).reshape((N1, N2, M)) * -np.ones(shape=(N1, N2, M)))
     mode_set = np.concatenate((mode_set_half, np.zeros(shape=(N1, N2, M))), axis=1)
     phases_set = np.angle(mode_set)
     mask = np.concatenate((np.zeros((N1, N2)), np.ones((N1, N2))), axis=1)
@@ -466,11 +464,7 @@ def test_custom_blind_dual_reference_non_ortho():
     # Create aberrations
     x = np.linspace(-1, 1, 1 * N1).reshape((1, -1))
     y = np.linspace(-1, 1, 1 * N1).reshape((-1, 1))
-    aberrations = (
-        np.sin(0.8 * np.pi * x)
-        * np.cos(1.3 * np.pi * y)
-        * (0.8 * np.pi + 0.4 * x + 0.4 * y)
-    ) % (2 * np.pi)
+    aberrations = (np.sin(0.8 * np.pi * x) * np.cos(1.3 * np.pi * y) * (0.8 * np.pi + 0.4 * x + 0.4 * y)) % (2 * np.pi)
     aberrations[0:1, :] = 0
     aberrations[:, 0:2] = 0
 
@@ -489,9 +483,7 @@ def test_custom_blind_dual_reference_non_ortho():
 
     if do_debug:
         plt.figure()
-        plt.imshow(
-            np.angle(np.exp(1j * aberrations)), vmin=-np.pi, vmax=np.pi, cmap="hsv"
-        )
+        plt.imshow(np.angle(np.exp(1j * aberrations)), vmin=-np.pi, vmax=np.pi, cmap="hsv")
         plt.title("Aberrations")
         plt.colorbar()
 

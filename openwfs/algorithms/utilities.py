@@ -32,9 +32,9 @@ class WFSResult:
         t: np.ndarray,
         t_f: np.ndarray,
         axis: int,
-        fidelity_noise: ArrayLike,
-        fidelity_amplitude: ArrayLike,
-        fidelity_calibration: ArrayLike,
+        fidelity_noise: ArrayLike = 1.0,
+        fidelity_amplitude: ArrayLike = 1.0,
+        fidelity_calibration: ArrayLike = 1.0,
         n: Optional[int] = None,
         intensity_offset: Optional[ArrayLike] = 0.0,
     ):
@@ -87,9 +87,7 @@ class WFSResult:
         self.estimated_optimized_intensity = np.atleast_1d(after)
 
     def __str__(self) -> str:
-        noise_warning = (
-            "OK" if self.fidelity_noise > 0.5 else "WARNING low signal quality."
-        )
+        noise_warning = "OK" if self.fidelity_noise > 0.5 else "WARNING low signal quality."
         amplitude_warning = (
             "OK"
             if self.fidelity_amplitude > 0.5
@@ -162,9 +160,7 @@ class WFSResult:
         )
 
 
-def analyze_phase_stepping(
-    measurements: np.ndarray, axis: int, A: Optional[float] = None
-):
+def analyze_phase_stepping(measurements: np.ndarray, axis: int, A: Optional[float] = None):
     """Analyzes the result of phase stepping measurements, returning matrix `t` and noise statistics
 
     This function assumes that all measurements were made using the same reference field `A`
@@ -221,9 +217,7 @@ def analyze_phase_stepping(
 
     # compute the effect of amplitude variations.
     # for perfectly developed speckle, and homogeneous illumination, this factor will be pi/4
-    amplitude_factor = np.mean(np.abs(t), segments) ** 2 / np.mean(
-        np.abs(t) ** 2, segments
-    )
+    amplitude_factor = np.mean(np.abs(t), segments) ** 2 / np.mean(np.abs(t) ** 2, segments)
 
     # estimate the calibration error
     # we first construct a matrix that can be used to fit
@@ -252,12 +246,8 @@ def analyze_phase_stepping(
     if phase_steps > 3:
         # estimate the noise energy as the energy that is not explained
         # by the signal or the offset.
-        noise_energy = (total_energy - signal_energy - offset_energy) / (
-            phase_steps - 3
-        )
-        noise_factor = np.abs(
-            np.maximum(signal_energy - 2 * noise_energy, 0.0) / signal_energy
-        )
+        noise_energy = (total_energy - signal_energy - offset_energy) / (phase_steps - 3)
+        noise_factor = np.abs(np.maximum(signal_energy - 2 * noise_energy, 0.0) / signal_energy)
     else:
         noise_factor = 1.0  # cannot estimate reliably
 
@@ -337,9 +327,7 @@ class WFSController:
                 self._amplitude_factor = result.fidelity_amplitude
                 self._estimated_enhancement = result.estimated_enhancement
                 self._calibration_fidelity = result.fidelity_calibration
-                self._estimated_optimized_intensity = (
-                    result.estimated_optimized_intensity
-                )
+                self._estimated_optimized_intensity = result.estimated_optimized_intensity
                 self._snr = 1.0 / (1.0 / result.fidelity_noise - 1.0)
                 self._result = result
             self.algorithm.slm.set_phases(self._optimized_wavefront)
@@ -430,8 +418,6 @@ class WFSController:
             feedback_flat = self.algorithm.feedback.read().copy()
             self.wavefront = WFSController.State.SHAPED_WAVEFRONT
             feedback_shaped = self.algorithm.feedback.read().copy()
-            self._feedback_enhancement = float(
-                feedback_shaped.sum() / feedback_flat.sum()
-            )
+            self._feedback_enhancement = float(feedback_shaped.sum() / feedback_flat.sum())
 
         self._test_wavefront = value
