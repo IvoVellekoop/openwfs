@@ -118,14 +118,10 @@ class DualReference:
             # find the modes in A and B that correspond to flat wavefronts with phase 0
             try:
                 a0_index = next(
-                    i
-                    for i in range(value[0].shape[2])
-                    if np.allclose(value[0][:, :, i], 0)
+                    i for i in range(value[0].shape[2]) if np.allclose(value[0][:, :, i], 0)
                 )
                 b0_index = next(
-                    i
-                    for i in range(value[1].shape[2])
-                    if np.allclose(value[1][:, :, i], 0)
+                    i for i in range(value[1].shape[2]) if np.allclose(value[1][:, :, i], 0)
                 )
                 self.zero_indices = (a0_index, b0_index)
             except StopIteration:
@@ -134,9 +130,7 @@ class DualReference:
                 )
 
         if (value[0].shape[0:2] != self._shape) or (value[1].shape[0:2] != self._shape):
-            raise ValueError(
-                "The phase patterns and group mask must all have the same shape."
-            )
+            raise ValueError("The phase patterns and group mask must all have the same shape.")
 
         self._phase_patterns = (
             value[0].astype(np.float32),
@@ -162,8 +156,7 @@ class DualReference:
 
         # Current estimate of the transmission matrix (start with all 0)
         cobasis = [
-            np.exp(-1j * self.phase_patterns[side])
-            * np.expand_dims(self.masks[side], axis=2)
+            np.exp(-1j * self.phase_patterns[side]) * np.expand_dims(self.masks[side], axis=2)
             for side in range(2)
         ]
 
@@ -200,9 +193,7 @@ class DualReference:
 
             if self.optimized_reference:
                 # use the best estimate so far to construct an optimized reference
-                t_this_side = self.compute_t_set(
-                    results_all[it].t, cobasis[side]
-                ).squeeze()
+                t_this_side = self.compute_t_set(results_all[it].t, cobasis[side]).squeeze()
                 ref_phases[self.masks[side]] = -np.angle(t_this_side[self.masks[side]])
 
             # Try full pattern
@@ -220,9 +211,7 @@ class DualReference:
             relative = results_all[0].t[self.zero_indices[0], ...] + np.conjugate(
                 results_all[1].t[self.zero_indices[1], ...]
             )
-            factor = (relative / np.abs(relative)).reshape(
-                (1, *self.feedback.data_shape)
-            )
+            factor = (relative / np.abs(relative)).reshape((1, *self.feedback.data_shape))
 
         t_full = self.compute_t_set(results_all[0].t, cobasis[0]) + self.compute_t_set(
             factor * results_all[1].t, cobasis[1]
@@ -258,9 +247,7 @@ class DualReference:
             WFSResult: An object containing the computed SLM transmission matrix and related data.
         """
         num_modes = mod_phases.shape[2]
-        measurements = np.zeros(
-            (num_modes, self.phase_steps, *self.feedback.data_shape)
-        )
+        measurements = np.zeros((num_modes, self.phase_steps, *self.feedback.data_shape))
 
         for m in range(num_modes):
             phases = ref_phases.copy()
