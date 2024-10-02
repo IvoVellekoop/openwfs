@@ -211,7 +211,7 @@ class DualReference:
             B = np.asmatrix((phase_factor * amplitude_factor).reshape((p, m)))  # Basis matrix
             self._gram = B.H @ B
             B_pinv = np.linalg.inv(self.gram) @ B.H  # Moore-Penrose pseudo-inverse
-            cobasis[side] = np.asarray(B_pinv).reshape(self.phase_patterns[side].shape)
+            cobasis[side] = np.asarray(B_pinv.T).reshape(self.phase_patterns[side].shape)
 
         self._cobasis = cobasis
 
