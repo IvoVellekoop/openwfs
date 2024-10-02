@@ -126,7 +126,7 @@ class DualReference:
                 (np.ones(shape=self._shape) / np.sqrt(self.masks[side].sum())).astype(np.float32) for side in range(2))
             return
 
-        if value.shape != self._shape:
+        if value[0].shape != self._shape or value[1].shape != self._shape:
             raise ValueError(
                 "The amplitude and group mask must all have the same shape."
             )
