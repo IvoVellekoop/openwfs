@@ -50,13 +50,13 @@ class SimulatedWFS(Processor):
         """
 
         # transmission matrix (normalized so that the maximum transmission is 1)
-        self._t = (
+        self.t = (
             t
             if t is not None
             else np.exp(1.0j * aberrations)
             / (aberrations.shape[0] * aberrations.shape[1])
         )
-        self.slm = slm if slm is not None else SLM(self._t.shape[0:2])
+        self.slm = slm if slm is not None else SLM(self.t.shape[0:2])
 
         super().__init__(self.slm.field, multi_threaded=multi_threaded)
         self.beam_amplitude = beam_amplitude
@@ -76,9 +76,9 @@ class SimulatedWFS(Processor):
             np.ndarray: A numpy array containing the calculated intensity in the focus.
 
         """
-        field = np.tensordot(incident_field * self.beam_amplitude, self._t, 2)
+        field = np.tensordot(incident_field * self.beam_amplitude, self.t, 2)
         return np.abs(field) ** 2
 
     @property
     def data_shape(self):
-        return self._t.shape[2:]
+        return self.t.shape[2:]

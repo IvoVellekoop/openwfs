@@ -27,11 +27,7 @@ monitor = slm.clone(
 # at a gray value of 142
 slm.lookup_table = range(142)
 alg = FourierDualReference(
-    feedback=roi_detector,
-    slm=slm,
-    slm_shape=[800, 800],
-    k_angles_min=-5,
-    k_angles_max=5,
+    feedback=roi_detector, slm=slm, slm_shape=[800, 800], k_radius=7
 )
 
 result = alg.execute()

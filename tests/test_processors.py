@@ -1,9 +1,10 @@
-import pytest
-import numpy as np
-from ..openwfs.simulation.mockdevices import StaticSource
-from ..openwfs.processors import SingleRoi, select_roi, Roi, MultipleRoi
-import skimage as sk
 import astropy.units as u
+import numpy as np
+import pytest
+import skimage as sk
+
+from ..openwfs.processors import SingleRoi, select_roi, Roi, MultipleRoi
+from ..openwfs.simulation.mockdevices import StaticSource
 
 
 @pytest.mark.skip(

@@ -13,6 +13,14 @@ classifiers = [
     'License :: OSI Approved :: BSD License',
     'Operating System :: OS Independent',
 ]
+packages = [
+    { include = "openwfs" },
+    { include = "openwfs.algorithms" },
+    { include = "openwfs.devices" },
+    { include = "openwfs.processors" },
+    { include = "openwfs.simulation" },
+    { include = "openwfs.utilities" }
+]
 
 [build-system]
 requires = ["poetry-core"]
@@ -25,7 +33,7 @@ numpy = ">=1.25.2"
 astropy = ">=5.3.4"
 glfw = ">=2.5.9"
 opencv-python = ">=4.9.0.80"
-matplotlib = ">=3.7.3"
+matplotlib = ">=3.7.3" # TODO: remove dependency?
 scipy = ">=1.11.3"
 annotated-types = "~0.7.0"
 tqdm = "^4.66.2" # TODO: remove dependency
@@ -51,6 +59,7 @@ optional = true
 scikit-image = ">=0.21.0"
 pytest = "~7.0.0"
 nidaq = "nidaqmx >=0.8.0" # we can test without the hardware, but still need the package
+black = ">=24.0.0" # code formatter
 
 [tool.poetry.group.docs]
 optional = true

@@ -215,6 +215,11 @@ class ADCProcessor(Processor):
         """
         return self._digital_max
 
+    @property
+    def conversion_factor(self) -> float:
+        """Conversion factor between analog and digital values."""
+        return self.digital_max / self.analog_max
+
     @digital_max.setter
     def digital_max(self, value):
         if value < 0 or value > 0xFFFF:
@@ -383,3 +388,36 @@ class Shutter(Processor):
 
     def _fetch(self, source: np.ndarray) -> np.ndarray:  # noqa
         return source if self._open else 0.0 * source
+
+
+class GaussianNoise(Processor):
+    """Adds gaussian noise of a specified standard deviation to the signal
+    Args:
+        source (Detector): The source detector object to process the data from.
+        std (float): The standard deviation of the gaussian noise.
+        multi_threaded: Whether to perform processing in a worker thread.
+    """
+
+    def __init__(self, source: Detector, std: float, multi_threaded: bool = True):
+        super().__init__(source, multi_threaded=multi_threaded)
+        self._std = std
+
+    @property
+    def std(self) -> float:
+        return self._std
+
+    @std.setter
+    def std(self, value: float):
+        if value < 0.0:
+            raise ValueError("Standard deviation must be non-negative")
+        self._std = float(value)
+
+    def _fetch(self, data: np.ndarray) -> np.ndarray:  # noqa
+        """
+        Args:
+            data (ndarray): source data
+
+        Returns: the out array containing the image with added noise.
+
+        """
+        return data + np.random.normal(0.0, self.std, data.shape)

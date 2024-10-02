@@ -1,11 +1,13 @@
 import logging
 import time
+
+import astropy.units as u
+import numpy as np
 import pytest
+
+from ..openwfs.processors import CropProcessor
 from ..openwfs.simulation import StaticSource, NoiseSource, SLM
 from ..openwfs.utilities import set_pixel_size, get_pixel_size
-from ..openwfs.processors import CropProcessor
-import numpy as np
-import astropy.units as u
 
 
 def test_set_pixel_size():

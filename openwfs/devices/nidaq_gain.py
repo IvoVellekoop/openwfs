@@ -1,9 +1,9 @@
-import nidaqmx as ni
-from nidaqmx.constants import LineGrouping
-from typing import Annotated
 import time
+
 import astropy.units as u
+import nidaqmx as ni
 from astropy.units import Quantity
+from nidaqmx.constants import LineGrouping
 
 
 class Gain:

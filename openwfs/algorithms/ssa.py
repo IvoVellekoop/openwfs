@@ -1,6 +1,7 @@
 import numpy as np
-from ..core import Detector, PhaseSLM
+
 from .utilities import analyze_phase_stepping, WFSResult
+from ..core import Detector, PhaseSLM
 
 
 class StepwiseSequential:

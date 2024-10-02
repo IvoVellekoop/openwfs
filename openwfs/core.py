@@ -559,6 +559,11 @@ class Processor(Detector, ABC):
     The `latency` and `duration` properties are computed from the latency and duration of the inputs and cannot be set.
     By default, the `pixel_size` and `data_shape` are the same as the `pixel_size` and `data_shape` of the first input.
     To override this behavior, override the `pixel_size` and `data_shape` properties.
+
+    Args:
+        multi_threaded: If True, `_fetch` is called from a worker thread. Otherwise, `_fetch` is called
+                directly from `trigger`. If the device is not thread-safe, or threading provides no benefit,
+                or for easy debugging, set this to False.
     """
 
     def __init__(self, *args, multi_threaded: bool):
