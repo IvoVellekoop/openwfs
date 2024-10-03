@@ -21,7 +21,11 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgl1-mesa-glx libglfw3
+          sudo apt-get install -y libgl1-mesa-glx libglfw3 libglu1-mesa-dev freeglut3-dev mesa-utils
+
+      - name: Verify OpenGL installation
+        run: |
+          glxinfo | grep "OpenGL"
 
       - name: Install Poetry
         run: |
@@ -32,7 +36,7 @@ jobs:
         run: |
           poetry install --with dev
 
-      - name: Install OpenGL and glfw Python dependencies
+      - name: Install OpenGL and GLFW Python dependencies
         run: |
           poetry run pip install PyOpenGL glfw
 
