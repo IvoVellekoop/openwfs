@@ -1,27 +1,18 @@
-.. 
-   NOTE: README.MD IS AUTO-GENERATED FROM DOCS/SOURCE/README.RST. DO NOT EDIT README.MD DIRECTLY.
+..
+   NOTE: README.MD IS AUTO-GENERATED FROM DOCS/SOURCE/README.RST. DO NOT EDIT README.MD DIRECTLY.  
+   
+.. only:: markdown
 
-.. only:: html
-
-    .. image:: https://readthedocs.org/projects/openwfs/badge/?version=latest
-       :target: https://openwfs.readthedocs.io/en/latest/?badge=latest
-       :alt: Documentation Status
 
 .. only:: markdown
 
-   .. image:: https://github.com/IvoVellekoop/openwfs/actions/workflows/pytest.yml/badge.svg
-      :target: https://github.com/IvoVellekoop/openwfs/actions/workflows/pytest.yml
-      :alt: PyTest Status
-      :align: left
-
    .. raw:: html
-   
-      &nbsp;
 
-   .. image:: https://github.com/IvoVellekoop/openwfs/actions/workflows/black.yml/badge.svg
-      :target: https://github.com/IvoVellekoop/openwfs/actions/workflows/black.yml
-      :alt: Black Code Style Status
+      [![PyTest Status](https://github.com/IvoVellekoop/openwfs/actions/workflows/pytest.yml/badge.svg)](https://github.com/IvoVellekoop/openwfs/actions/workflows/pytest.yml)
+      [![Black Code Style Status](https://github.com/IvoVellekoop/openwfs/actions/workflows/black.yml/badge.svg)](https://github.com/IvoVellekoop/openwfs/actions/workflows/black.yml)</p>
 
+
+      
 What is wavefront shaping?
 --------------------------------
 
