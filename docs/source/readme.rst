@@ -1,10 +1,5 @@
-.. _root-label:
-
-OpenWFS
-=====================================
-
-..
-    NOTE: README.MD IS AUTO-GENERATED FROM DOCS/SOURCE/README.RST. DO NOT EDIT README.MD DIRECTLY.
+.. 
+   NOTE: README.MD IS AUTO-GENERATED FROM DOCS/SOURCE/README.RST. DO NOT EDIT README.MD DIRECTLY.
 
 .. only:: html
 
@@ -14,8 +9,18 @@ OpenWFS
 
 .. only:: markdown
 
-   [![PyTest](https://github.com/IvoVellekoop/openwfs/actions/workflows/pytest.yml/badge.svg)](https://github.com/IvoVellekoop/openwfs/actions/workflows/pytest.yml)
-   [![Black](https://github.com/IvoVellekoop/openwfs/actions/workflows/black.yml/badge.svg)](https://github.com/IvoVellekoop/openwfs/actions/workflows/black.yml)
+   .. image:: https://github.com/IvoVellekoop/openwfs/actions/workflows/pytest.yml/badge.svg
+      :target: https://github.com/IvoVellekoop/openwfs/actions/workflows/pytest.yml
+      :alt: PyTest Status
+      :align: left
+
+   .. raw:: html
+   
+      &nbsp;
+
+   .. image:: https://github.com/IvoVellekoop/openwfs/actions/workflows/black.yml/badge.svg
+      :target: https://github.com/IvoVellekoop/openwfs/actions/workflows/black.yml
+      :alt: Black Code Style Status
 
 What is wavefront shaping?
 --------------------------------
