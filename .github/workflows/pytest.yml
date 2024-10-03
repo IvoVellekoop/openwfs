@@ -30,7 +30,11 @@ jobs:
 
       - name: Install dependencies
         run: |
-          poetry install --with dev,opengl
+          poetry install --with dev
+
+      - name: Install OpenGL Python dependencies for testing
+        run: |
+          poetry run pip install PyOpenGL
 
       - name: Run tests
         run: |
