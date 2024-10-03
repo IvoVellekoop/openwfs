@@ -7,6 +7,7 @@ select this script in the hardware configuration wizard for the PyDevice compone
 """
 
 import astropy.units as u
+
 # add 'openwfs' to the search path. This is only needed when developing openwfs
 # otherwise it is just installed as a package
 import set_path  # noqa
