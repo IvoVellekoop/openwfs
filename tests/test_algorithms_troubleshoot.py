@@ -222,7 +222,7 @@ def test_fidelity_phase_calibration_ssa_with_noise(
     aberration = StaticSource(aberration_phase, extent=2 * numerical_aperture)
     img = np.zeros((64, 64), dtype=np.int16)
     img[32, 32] = 250
-    src = StaticSource(img, 500 * u.nm)
+    src = StaticSource(img, pixel_size = 500 * u.nm)
 
     # SLM, simulation, camera, ROI detector
     slm = SLM(shape=(80, 80))
