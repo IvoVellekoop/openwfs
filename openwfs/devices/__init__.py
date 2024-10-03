@@ -10,5 +10,8 @@ try:
 except ImportError:
     pass  # ok, we don't have nidaqmx installed
 
-from . import slm
-from .slm import SLM
+try:
+    from . import slm
+    from .slm import SLM
+except ImportError:
+    pass  # ok, we don't have glfw or PyOpenGL installed

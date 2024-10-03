@@ -23,7 +23,6 @@ build-backend = "poetry.core.masonry.api"
 python = ">=3.9,<4.0"
 numpy = ">=1.25.2"  # also allow numpy 2.x.y
 astropy = ">=5.1.0" # assuming the astropy.units is stable
-glfw = "^2.5.9"
 opencv-python = "^4.9.0.80"
 matplotlib = "^3.7.3"
 scipy = "^1.11.3"
@@ -32,11 +31,8 @@ annotated-types = "^0.7.0"
 # optional dependencies for hardware components
 nidaqmx = { version = "^1.0.1", optional = true }
 harvesters = { version = "^1.4.2", optional = true }
-
-[tool.poetry.group.opengl.dependencies]
-# also required, but can be omitted explicitly using the without option
-# this is used for read the docs, which has trouble with the OpenGL dependency
-PyOpenGL = "^3.1.7"
+PyOpenGL = { version = "^3.1.7", optional = true }
+glfw = { version = "^2.5.9", optional = true }
 
 [tool.poetry.extras]
 # optional dependencies for hardware components
@@ -45,6 +41,7 @@ PyOpenGL = "^3.1.7"
 # or poetry install --extras "nidaq" --extras "genicam"
 nidaq = ["nidaqmx"]
 genicam = ["harvesters"]
+opengl = ["PyOpenGL", "glfw"]
 
 [tool.black]
 line-length = 120
