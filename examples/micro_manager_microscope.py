@@ -1,11 +1,11 @@
-""" Sample microscope
+""" Micro-Manager simulated microscope
 =======================
-This script simulates a microscopic imaging system, generating a random noise image as a mock source and capturing it
-through a microscope with adjustable magnification, numerical aperture, and wavelength. It visualizes the original and
-processed images dynamically, demonstrating how changes in optical parameters affect image quality and resolution.
+This script simulates a microscope with a random noise image as a mock specimen.
+The numerical aperture, stage position, and other parameters can be modified through the Micro-Manager GUI.
+To use this script as a device in Micro-Manager, make sure you have the PyDevice adapter installed and
+select this script in the hardware configuration wizard for the PyDevice component.
 
-This script should be opened from the μManager microscope GUI software using the PyDevice plugin.
-To do so, add a PyDevice adapter to the μManager hardware configuration, and select this script as the device script.
+See the 'Sample Microscope' example for a microscope simulation that runs from Python directly.
 """
 
 import astropy.units as u
@@ -13,29 +13,18 @@ import numpy as np
 
 from openwfs.simulation import Microscope, StaticSource
 
-# height × width, and resolution, of the specimen image
-specimen_size = (1024, 1024)
-specimen_resolution = 60 * u.nm
-
-# magnification from object plane to camera.
-magnification = 40
-
-# numerical aperture of the microscope objective
-numerical_aperture = 0.85
-
-# wavelength of the light, for computing diffraction.
-wavelength = 532.8 * u.nm
-
-# Size of the pixels on the camera
-pixel_size = 6.45 * u.um
-
-# number of pixels on the camera
-camera_resolution = (256, 256)
+specimen_resolution = (1024, 1024)  # height × width in pixels of the specimen image
+specimen_pixel_size = 60 * u.nm  # resolution (pixel size) of the specimen image
+magnification = 40  # magnification from object plane to camera.
+numerical_aperture = 0.85  # numerical aperture of the microscope objective
+wavelength = 532.8 * u.nm  # wavelength of the light, for computing diffraction.
+camera_resolution = (256, 256)  # number of pixels on the camera
+camera_pixel_size = 6.45 * u.um  # Size of the pixels on the camera
 
 # Create a random noise image with a few bright spots
 src = StaticSource(
-    data=np.maximum(np.random.randint(-10000, 100, specimen_size, dtype=np.int16), 0),
-    pixel_size=specimen_resolution,
+    data=np.maximum(np.random.randint(-10000, 100, specimen_resolution, dtype=np.int16), 0),
+    pixel_size=specimen_pixel_size,
 )
 
 # Create a microscope with the given parameters
@@ -51,25 +40,8 @@ cam = mic.get_camera(
     shot_noise=True,
     digital_max=255,
     data_shape=camera_resolution,
-    pixel_size=pixel_size,
+    pixel_size=camera_pixel_size,
 )
-
-# expose the xy-stage of the microscope
-stage = mic.xy_stage
 
 # construct dictionary of objects to expose to Micro-Manager
 devices = {"camera": cam, "stage": stage}
-
-if __name__ == "__main__":
-    # When running this script directly (not from μManager)
-    # the code below shows how to operate the stage and change the numerical aperture of the microscope
-    import matplotlib.pyplot as plt
-
-    for i in range(20):
-        stage.x = stage.x + 2 * u.um
-        mic.numerical_aperture -= 0.025
-        plt.imshow(mic.read(), cmap="gray")
-        if i == 0:
-            plt.colorbar()
-        plt.show(block=False)
-        plt.pause(0.5)

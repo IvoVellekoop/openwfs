@@ -97,7 +97,7 @@ class SimpleGenetic:
 
             # Terminate after the specified number of generations, return the best wavefront
             if i >= self.generations:
-                return WFSResult(t=np.exp(-1.0j * population[sorted_indices[-1]]), t_f=None, axis=2)
+                return WFSResult(t=np.exp(-1.0j * population[sorted_indices[-1]]), axis=2)
 
             # We keep the elite individuals, and regenerate the rest by mixing the elite
             # For this mixing, the probability of selecting an individual is proportional to its measured intensity.

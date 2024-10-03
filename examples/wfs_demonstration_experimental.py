@@ -2,6 +2,9 @@
 WFS demo experiment
 =====================
 This script demonstrates how to perform a wavefront shaping experiment using the openwfs library.
+It assumes that you have a genicam camera and an SLM connected to your computer.
+Please adjust the path to the camera driver and (when needed) the monitor id in the Camera and SLM objects.
+
 """
 
 import astropy.units as u
@@ -42,6 +45,3 @@ while True:
     plt.pause(1.0)
     slm.set_phases(0.0)
     plt.pause(1.0)
-
-# plt.show()
-# input("press any key")

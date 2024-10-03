@@ -82,7 +82,10 @@ class IterativeDualReference:
         self.phase_steps = phase_steps
         self.iterations = iterations
         self.analyzer = analyzer
-        self.phase_patterns = (phase_patterns[0].astype(np.float32), phase_patterns[1].astype(np.float32))
+        self.phase_patterns = (
+            phase_patterns[0].astype(np.float32),
+            phase_patterns[1].astype(np.float32),
+        )
         mask = group_mask.astype(bool)
         self.masks = (~mask, mask)  # masks[0] is True for group A, mask[1] is True for group B
 
@@ -113,7 +116,10 @@ class IterativeDualReference:
         # Initialize storage lists
         t_set_all = [None] * self.iterations
         results_all = [None] * self.iterations  # List to store all results
-        results_latest = [None, None]  # The two latest results. Used for computing fidelity factors.
+        results_latest = [
+            None,
+            None,
+        ]  # The two latest results. Used for computing fidelity factors.
         intermediate_results = np.zeros(self.iterations)  # List to store feedback from full patterns
 
         # Prepare progress bar
@@ -155,7 +161,10 @@ class IterativeDualReference:
 
         # Compute average fidelity factors
         fidelity_noise = weighted_average(
-            results_latest[0].fidelity_noise, results_latest[1].fidelity_noise, results_latest[0].n, results_latest[1].n
+            results_latest[0].fidelity_noise,
+            results_latest[1].fidelity_noise,
+            results_latest[0].n,
+            results_latest[1].n,
         )
         fidelity_amplitude = weighted_average(
             results_latest[0].fidelity_amplitude,
@@ -172,7 +181,6 @@ class IterativeDualReference:
 
         result = WFSResult(
             t=t_full,
-            t_f=None,
             n=self.modes[0].shape[2] + self.modes[1].shape[2],
             axis=2,
             fidelity_noise=fidelity_noise,

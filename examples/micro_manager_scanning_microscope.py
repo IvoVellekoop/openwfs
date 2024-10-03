@@ -1,16 +1,17 @@
-"""
-Constructs a scanning microscope controller for use with Micro-Manager
-
-The microscope object can be loaded into Micro-Manager through the PyDevice
-device adapter.
+""" Micro-Manager simulated scanning microscope
+=======================
+This script simulates a scanning microscope with a pre-set image as a mock specimen.
+The scan parameters can be modified through the Micro-Manager GUI.
+To use this script as a device in Micro-Manager, make sure you have the PyDevice adapter installed and
+select this script in the hardware configuration wizard for the PyDevice component.
 """
 
 import astropy.units as u
-import skimage
 
 # add 'openwfs' to the search path. This is only needed when developing openwfs
 # otherwise it is just installed as a package
 import set_path  # noqa
+import skimage
 from openwfs.devices import ScanningMicroscope, Axis
 from openwfs.devices.galvo_scanner import InputChannel
 

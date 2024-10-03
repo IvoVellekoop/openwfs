@@ -30,7 +30,6 @@ class WFSResult:
     def __init__(
         self,
         t: np.ndarray,
-        t_f: np.ndarray,
         axis: int,
         fidelity_noise: ArrayLike = 1.0,
         fidelity_amplitude: ArrayLike = 1.0,
@@ -60,7 +59,6 @@ class WFSResult:
 
         """
         self.t = t
-        self.t_f = t_f
         self.axis = axis
         self.fidelity_noise = np.atleast_1d(fidelity_noise)
         self.n = np.prod(t.shape[0:axis]) if n is None else n
@@ -107,7 +105,6 @@ class WFSResult:
         """
         return WFSResult(
             t=self.t.reshape((*self.t.shape[0:2], -1))[:, :, b],
-            t_f=self.t_f.reshape((*self.t_f.shape[0:2], -1))[:, :, b],
             axis=self.axis,
             intensity_offset=self.intensity_offset[:][b],
             fidelity_noise=self.fidelity_noise[:][b],
@@ -139,7 +136,6 @@ class WFSResult:
 
         return WFSResult(
             t=weighted_average("t"),
-            t_f=weighted_average("t_f"),
             n=n,
             axis=axis,
             fidelity_noise=weighted_average("fidelity_noise"),
@@ -243,7 +239,6 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int, A: Optional[floa
 
     return WFSResult(
         t,
-        t_f=t_f,
         axis=axis,
         fidelity_amplitude=amplitude_factor,
         fidelity_noise=noise_factor,

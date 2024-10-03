@@ -7,7 +7,7 @@ from astropy.units import Quantity
 
 from ..core import Detector, Processor, Actuator
 from ..processors import CropProcessor
-from ..utilities import ExtentType, get_pixel_size
+from ..utilities import ExtentType, get_pixel_size, set_pixel_size
 
 
 class StaticSource(Detector):
@@ -42,6 +42,8 @@ class StaticSource(Detector):
                 pixel_size = Quantity(extent) / data.shape
             else:
                 pixel_size = get_pixel_size(data)
+        else:
+            data = set_pixel_size(data, pixel_size)  # make sure the data array holds the pixel size
 
         if pixel_size is not None and (np.isscalar(pixel_size) or pixel_size.size == 1) and data.ndim > 1:
             pixel_size = pixel_size.repeat(data.ndim)

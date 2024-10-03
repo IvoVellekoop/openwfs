@@ -11,40 +11,23 @@ import numpy as np
 import set_path  # noqa - needed for setting the module search path to find openwfs
 from openwfs.plot_utilities import grab_and_show, imshow
 from openwfs.simulation import Microscope, StaticSource
-from openwfs.utilities import set_pixel_size
 
-# Parameters that can be altered
+specimen_resolution = (1024, 1024)  # height × width in pixels of the specimen image
+specimen_pixel_size = 60 * u.nm  # resolution (pixel size) of the specimen image
+magnification = 40  # magnification from object plane to camera.
+numerical_aperture = 0.85  # numerical aperture of the microscope objective
+wavelength = 532.8 * u.nm  # wavelength of the light, for computing diffraction.
+camera_resolution = (256, 256)  # number of pixels on the camera
+camera_pixel_size = 6.45 * u.um  # Size of the pixels on the camera
+p_limit = 100  # Number steps in the animation
 
-img_size_x = 1024
-# Determines how wide the image is.
-
-img_size_y = 1024
-# Determines how high the image is.
-
-magnification = 40
-# magnification from object plane to camera.
-
-numerical_aperture = 0.85
-# numerical aperture of the microscope objective
-
-wavelength = 532.8 * u.nm
-# wavelength of the light, different wavelengths are possible, units can be adjusted accordingly.
-
-pixel_size = 6.45 * u.um
-# Size of the pixels on the camera
-
-camera_resolution = (256, 256)
-# number of pixels on the camera
-
-p_limit = 100
-# Number of iterations. Influences how quick the 'animation' is complete.
-
-# Code
-img = set_pixel_size(
-    np.maximum(np.random.randint(-10000, 100, (img_size_y, img_size_x), dtype=np.int16), 0),
-    60 * u.nm,
+# Create a random noise image with a few bright spots
+src = StaticSource(
+    data=np.maximum(np.random.randint(-10000, 100, specimen_resolution, dtype=np.int16), 0),
+    pixel_size=specimen_pixel_size,
 )
-src = StaticSource(img)
+
+# Create a microscope with the given parameters
 mic = Microscope(
     src,
     magnification=magnification,
@@ -57,7 +40,7 @@ cam = mic.get_camera(
     shot_noise=True,
     digital_max=255,
     data_shape=camera_resolution,
-    pixel_size=pixel_size,
+    pixel_size=camera_pixel_size,
 )
 devices = {"camera": cam, "stage": mic.xy_stage}
 
@@ -65,7 +48,7 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
     plt.subplot(1, 2, 1)
-    imshow(img)
+    imshow(src.data)
     plt.title("Original image")
     plt.subplot(1, 2, 2)
     plt.title("Scanned image")
