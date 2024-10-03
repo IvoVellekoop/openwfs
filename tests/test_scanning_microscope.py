@@ -50,9 +50,7 @@ def test_scan_axis(start, stop):
     amplitude = 0.5 * (stop - start)
 
     # test clipping
-    assert np.allclose(
-        step, a.step(center - 1.1 * amplitude, center + 1.1 * amplitude, sample_rate)
-    )
+    assert np.allclose(step, a.step(center - 1.1 * amplitude, center + 1.1 * amplitude, sample_rate))
 
     # test scan. Note that we cannot use the full scan range because we need
     # some time to accelerate / decelerate
@@ -67,12 +65,8 @@ def test_scan_axis(start, stop):
     assert linear_region.start == len(scan) - linear_region.stop
     assert np.isclose(scan[0], a.to_volt(launch))
     assert np.isclose(scan[-1], a.to_volt(land))
-    assert np.isclose(
-        scan[linear_region.start], a.to_volt(center - 0.8 * amplitude + half_pixel)
-    )
-    assert np.isclose(
-        scan[linear_region.stop - 1], a.to_volt(center + 0.8 * amplitude - half_pixel)
-    )
+    assert np.isclose(scan[linear_region.start], a.to_volt(center - 0.8 * amplitude + half_pixel))
+    assert np.isclose(scan[linear_region.stop - 1], a.to_volt(center + 0.8 * amplitude - half_pixel))
     speed = np.diff(scan[linear_region])
     assert np.allclose(speed, speed[0])  # speed should be constant
 
@@ -116,9 +110,7 @@ def test_scan_pattern(direction, bidirectional):
     """A unit test for scanning patterns."""
     reference_zoom = 1.2
     scanner = make_scanner(bidirectional, direction, reference_zoom)
-    assert np.allclose(
-        scanner.extent, scanner._x_axis.scale * 4.0 * u.V / reference_zoom
-    )
+    assert np.allclose(scanner.extent, scanner._x_axis.scale * 4.0 * u.V / reference_zoom)
     # plt.imshow(scanner.read())
     # plt.show()
 
@@ -134,9 +126,7 @@ def test_scan_pattern(direction, bidirectional):
 
     if direction == "horizontal":
         assert np.allclose(full, full[0, :])  # all rows should be the same
-        assert np.allclose(
-            x, full, atol=0.2 * pixel_size
-        )  # some rounding due to quantization
+        assert np.allclose(x, full, atol=0.2 * pixel_size)  # some rounding due to quantization
     else:
         # all columns should be the same (note we need to keep the last dimension for correct broadcasting)
         assert np.allclose(full, full[:, 0:1])
@@ -159,9 +149,7 @@ def test_scan_pattern(direction, bidirectional):
     assert scanner.data_shape == (height, width)
 
     roi = scanner.read().astype("float32") - 0x8000
-    assert np.allclose(
-        full[top : (top + height), left : (left + width)], roi, atol=0.2 * pixel_size
-    )
+    assert np.allclose(full[top : (top + height), left : (left + width)], roi, atol=0.2 * pixel_size)
 
 
 @pytest.mark.parametrize("bidirectional", [False, True])
@@ -179,9 +167,7 @@ def test_park_beam(bidirectional):
     img = scanner.read()
     assert img.shape == (2, 1)
     voltages = scanner._scan_pattern
-    assert np.allclose(
-        voltages[1, :], voltages[1, 0]
-    )  # all voltages should be the same
+    assert np.allclose(voltages[1, :], voltages[1, 0])  # all voltages should be the same
 
     # Park beam vertically
     scanner.width = 2
@@ -197,12 +183,8 @@ def test_park_beam(bidirectional):
     img = scanner.read()
     assert img.shape == (1, 1)
     voltages = scanner._scan_pattern
-    assert np.allclose(
-        voltages[1, :], voltages[1, 0]
-    )  # all voltages should be the same
-    assert np.allclose(
-        voltages[0, :], voltages[0, 0]
-    )  # all voltages should be the same
+    assert np.allclose(voltages[1, :], voltages[1, 0])  # all voltages should be the same
+    assert np.allclose(voltages[0, :], voltages[0, 0])  # all voltages should be the same
 
 
 # test zooming

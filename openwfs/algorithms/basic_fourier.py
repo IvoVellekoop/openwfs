@@ -52,14 +52,14 @@ class FourierDualReference(DualReference):
         self.k_step = k_step
         self._slm_shape = slm_shape
         group_mask = np.zeros(slm_shape, dtype=bool)
-        group_mask[:, slm_shape[1] // 2:] = True
+        group_mask[:, slm_shape[1] // 2 :] = True
         super().__init__(
             feedback=feedback,
             slm=slm,
             phase_patterns=None,
             group_mask=group_mask,
             phase_steps=phase_steps,
-            amplitude='uniform',
+            amplitude="uniform",
             iterations=iterations,
             optimized_reference=optimized_reference,
             analyzer=analyzer,

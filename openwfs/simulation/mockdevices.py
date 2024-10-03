@@ -43,11 +43,7 @@ class StaticSource(Detector):
             else:
                 pixel_size = get_pixel_size(data)
 
-        if (
-            pixel_size is not None
-            and (np.isscalar(pixel_size) or pixel_size.size == 1)
-            and data.ndim > 1
-        ):
+        if pixel_size is not None and (np.isscalar(pixel_size) or pixel_size.size == 1) and data.ndim > 1:
             pixel_size = pixel_size.repeat(data.ndim)
 
         if multi_threaded is None:
@@ -176,9 +172,7 @@ class ADCProcessor(Processor):
         if self.analog_max == 0.0:  # auto scaling
             max_value = np.max(data)
             if max_value > 0.0:
-                data = data * (
-                    self.digital_max / max_value
-                )  # auto-scale to maximum value
+                data = data * (self.digital_max / max_value)  # auto-scale to maximum value
         else:
             data = data * (self.digital_max / self.analog_max)
 
@@ -186,9 +180,7 @@ class ADCProcessor(Processor):
             data = self._rng.poisson(data)
 
         if self._gaussian_noise_std > 0.0:
-            data = data + self._rng.normal(
-                scale=self._gaussian_noise_std, size=data.shape
-            )
+            data = data + self._rng.normal(scale=self._gaussian_noise_std, size=data.shape)
 
         return np.clip(np.rint(data), 0, self.digital_max).astype("uint16")
 

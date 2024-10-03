@@ -173,9 +173,7 @@ def test_refresh_rate():
     stop = time.time_ns() * u.ns
     del slm
     actual_refresh_rate = frame_count / (stop - start)
-    assert np.allclose(
-        refresh_rate.to_value(u.Hz), actual_refresh_rate.to_value(u.Hz), rtol=1e-2
-    )
+    assert np.allclose(refresh_rate.to_value(u.Hz), actual_refresh_rate.to_value(u.Hz), rtol=1e-2)
 
 
 def test_get_pixels():
@@ -261,9 +259,7 @@ def test_circular_geometry(slm):
 
     # read back the pixels and verify conversion to gray values
     pixels = np.rint(slm.pixels.read() / 256 * 70)
-    polar_pixels = cv2.warpPolar(
-        pixels, (100, 40), (99.5, 99.5), 100, cv2.WARP_POLAR_LINEAR
-    )
+    polar_pixels = cv2.warpPolar(pixels, (100, 40), (99.5, 99.5), 100, cv2.WARP_POLAR_LINEAR)
 
     assert np.allclose(
         polar_pixels[:, 3:24],

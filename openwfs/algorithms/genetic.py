@@ -61,9 +61,7 @@ class SimpleGenetic:
         self.elite_size = elite_size
         self.generations = generations
         self.generator = generator or np.random.default_rng()
-        self.mutation_count = round(
-            (population_size - elite_size) * np.prod(shape) * mutation_probability
-        )
+        self.mutation_count = round((population_size - elite_size) * np.prod(shape) * mutation_probability)
 
     def _generate_random_phases(self, shape):
         return self.generator.random(size=shape, dtype=np.float32) * (2 * np.pi)

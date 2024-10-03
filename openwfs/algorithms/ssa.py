@@ -48,9 +48,7 @@ class StepwiseSequential:
             WFSResult: An object containing the computed transmission matrix and statistics.
         """
         phase_pattern = np.zeros((self.n_y, self.n_x), "float32")
-        measurements = np.zeros(
-            (self.n_y, self.n_x, self.phase_steps, *self.feedback.data_shape)
-        )
+        measurements = np.zeros((self.n_y, self.n_x, self.phase_steps, *self.feedback.data_shape))
 
         for y in range(self.n_y):
             for x in range(self.n_x):

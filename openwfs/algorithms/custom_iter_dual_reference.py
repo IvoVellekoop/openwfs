@@ -45,8 +45,16 @@ class IterativeDualReference:
     https://opg.optica.org/oe/ abstract.cfm?uri=oe-27-8-1167
     """
 
-    def __init__(self, feedback: Detector, slm: PhaseSLM, phase_patterns: tuple[nd, nd], group_mask: nd,
-                 phase_steps: int = 4, iterations: int = 4, analyzer: Optional[callable] = analyze_phase_stepping):
+    def __init__(
+        self,
+        feedback: Detector,
+        slm: PhaseSLM,
+        phase_patterns: tuple[nd, nd],
+        group_mask: nd,
+        phase_steps: int = 4,
+        iterations: int = 4,
+        analyzer: Optional[callable] = analyze_phase_stepping,
+    ):
         """
         Args:
             feedback: The feedback source, usually a detector that provides measurement data.
@@ -79,8 +87,9 @@ class IterativeDualReference:
         self.masks = (~mask, mask)  # masks[0] is True for group A, mask[1] is True for group B
 
         # Pre-compute the conjugate modes for reconstruction
-        self.modes = [np.exp(-1j * self.phase_patterns[side]) * np.expand_dims(self.masks[side], axis=2) for side in
-                      range(2)]
+        self.modes = [
+            np.exp(-1j * self.phase_patterns[side]) * np.expand_dims(self.masks[side], axis=2) for side in range(2)
+        ]
 
     def execute(self, capture_intermediate_results: bool = False, progress_bar=None) -> WFSResult:
         """
@@ -109,8 +118,10 @@ class IterativeDualReference:
 
         # Prepare progress bar
         if progress_bar:
-            num_measurements = np.ceil(self.iterations / 2) * self.modes[0].shape[2] \
-                               + np.floor(self.iterations / 2) * self.modes[1].shape[2]
+            num_measurements = (
+                np.ceil(self.iterations / 2) * self.modes[0].shape[2]
+                + np.floor(self.iterations / 2) * self.modes[1].shape[2]
+            )
             progress_bar.total = num_measurements
 
         # Switch the phase sets back and forth multiple times
@@ -119,8 +130,12 @@ class IterativeDualReference:
             ref_phases = -np.angle(t_full)  # use the best estimate so far to construct an optimized reference
             side_mask = self.masks[side]
             # Perform WFS experiment on one side, keeping the other side sized at the ref_phases
-            result = self._single_side_experiment(mod_phases=self.phase_patterns[side], ref_phases=ref_phases,
-                                                  mod_mask=side_mask, progress_bar=progress_bar)
+            result = self._single_side_experiment(
+                mod_phases=self.phase_patterns[side],
+                ref_phases=ref_phases,
+                mod_mask=side_mask,
+                progress_bar=progress_bar,
+            )
 
             # Compute transmission matrix for the current side and update
             # estimated transmission matrix
@@ -139,23 +154,31 @@ class IterativeDualReference:
                 intermediate_results[it] = self.feedback.read()
 
         # Compute average fidelity factors
-        fidelity_noise = weighted_average(results_latest[0].fidelity_noise,
-                                          results_latest[1].fidelity_noise, results_latest[0].n,
-                                          results_latest[1].n)
-        fidelity_amplitude = weighted_average(results_latest[0].fidelity_amplitude,
-                                              results_latest[1].fidelity_amplitude, results_latest[0].n,
-                                              results_latest[1].n)
-        fidelity_calibration = weighted_average(results_latest[0].fidelity_calibration,
-                                                results_latest[1].fidelity_calibration, results_latest[0].n,
-                                                results_latest[1].n)
+        fidelity_noise = weighted_average(
+            results_latest[0].fidelity_noise, results_latest[1].fidelity_noise, results_latest[0].n, results_latest[1].n
+        )
+        fidelity_amplitude = weighted_average(
+            results_latest[0].fidelity_amplitude,
+            results_latest[1].fidelity_amplitude,
+            results_latest[0].n,
+            results_latest[1].n,
+        )
+        fidelity_calibration = weighted_average(
+            results_latest[0].fidelity_calibration,
+            results_latest[1].fidelity_calibration,
+            results_latest[0].n,
+            results_latest[1].n,
+        )
 
-        result = WFSResult(t=t_full,
-                           t_f=None,
-                           n=self.modes[0].shape[2] + self.modes[1].shape[2],
-                           axis=2,
-                           fidelity_noise=fidelity_noise,
-                           fidelity_amplitude=fidelity_amplitude,
-                           fidelity_calibration=fidelity_calibration)
+        result = WFSResult(
+            t=t_full,
+            t_f=None,
+            n=self.modes[0].shape[2] + self.modes[1].shape[2],
+            axis=2,
+            fidelity_noise=fidelity_noise,
+            fidelity_amplitude=fidelity_amplitude,
+            fidelity_calibration=fidelity_calibration,
+        )
 
         # TODO: document the t_set_all and results_all attributes
         result.t_set_all = t_set_all
@@ -163,8 +186,7 @@ class IterativeDualReference:
         result.intermediate_results = intermediate_results
         return result
 
-    def _single_side_experiment(self, mod_phases: nd, ref_phases: nd, mod_mask: nd,
-                                progress_bar=None) -> WFSResult:
+    def _single_side_experiment(self, mod_phases: nd, ref_phases: nd, mod_mask: nd, progress_bar=None) -> WFSResult:
         """
         Conducts experiments on one part of the SLM.
 

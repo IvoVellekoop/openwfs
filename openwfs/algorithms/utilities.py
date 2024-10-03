@@ -67,11 +67,7 @@ class WFSResult:
         self.fidelity_amplitude = np.atleast_1d(fidelity_amplitude)
         self.fidelity_calibration = np.atleast_1d(fidelity_calibration)
         self.estimated_enhancement = np.atleast_1d(
-            1.0
-            + (self.n - 1)
-            * self.fidelity_amplitude
-            * self.fidelity_noise
-            * self.fidelity_calibration
+            1.0 + (self.n - 1) * self.fidelity_amplitude * self.fidelity_noise * self.fidelity_calibration
         )
         self.intensity_offset = (
             intensity_offset * np.ones(self.fidelity_calibration.shape)
@@ -79,24 +75,16 @@ class WFSResult:
             else intensity_offset
         )
         after = (
-            np.sum(np.abs(t), tuple(range(self.axis))) ** 2
-            * self.fidelity_noise
-            * self.fidelity_calibration
+            np.sum(np.abs(t), tuple(range(self.axis))) ** 2 * self.fidelity_noise * self.fidelity_calibration
             + intensity_offset
         )
         self.estimated_optimized_intensity = np.atleast_1d(after)
 
     def __str__(self) -> str:
         noise_warning = "OK" if self.fidelity_noise > 0.5 else "WARNING low signal quality."
-        amplitude_warning = (
-            "OK"
-            if self.fidelity_amplitude > 0.5
-            else "WARNING uneven contribution of optical modes."
-        )
+        amplitude_warning = "OK" if self.fidelity_amplitude > 0.5 else "WARNING uneven contribution of optical modes."
         calibration_fidelity_warning = (
-            "OK"
-            if self.fidelity_calibration > 0.5
-            else ("WARNING non-linear phase response, check " "lookup table.")
+            "OK" if self.fidelity_calibration > 0.5 else ("WARNING non-linear phase response, check " "lookup table.")
         )
         return f"""
         Wavefront shaping results:

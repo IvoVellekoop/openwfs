@@ -20,13 +20,9 @@ def test_mock_camera_and_single_roi():
     """
     img = np.zeros((1000, 1000), dtype=np.int16)
     img[200, 300] = 39.39  # some random float
-    src = Camera(StaticSource(img, pixel_size=  450 * u.nm))
-    roi_detector = SingleRoi(
-        src, pos=(200, 300), radius=0
-    )  # Only measure that specific point
-    assert roi_detector.read() == int(
-        2**16 - 1
-    )  # it should cast the array into some int
+    src = Camera(StaticSource(img, pixel_size=450 * u.nm))
+    roi_detector = SingleRoi(src, pos=(200, 300), radius=0)  # Only measure that specific point
+    assert roi_detector.read() == int(2**16 - 1)  # it should cast the array into some int
 
 
 @pytest.mark.parametrize("shape", [(1000, 1000), (999, 999)])
@@ -38,12 +34,10 @@ def test_microscope_without_magnification(shape):
     # construct input image
     img = np.zeros(shape, dtype=np.int16)
     img[256, 256] = 100
-    src = Camera(StaticSource(img, pixel_size=  400 * u.nm))
+    src = Camera(StaticSource(img, pixel_size=400 * u.nm))
 
     # construct microscope
-    sim = Microscope(
-        source=src, magnification=1, numerical_aperture=1, wavelength=800 * u.nm
-    )
+    sim = Microscope(source=src, magnification=1, numerical_aperture=1, wavelength=800 * u.nm)
 
     cam = sim.get_camera()
     img = cam.read()
@@ -56,7 +50,7 @@ def test_microscope_and_aberration():
     """
     img = np.zeros((1000, 1000), dtype=np.int16)
     img[256, 256] = 100
-    src = Camera(StaticSource(img, pixel_size= 400 * u.nm))
+    src = Camera(StaticSource(img, pixel_size=400 * u.nm))
 
     slm = SLM(shape=(512, 512))
 
@@ -84,15 +78,13 @@ def test_slm_and_aberration():
     """
     img = np.zeros((1000, 1000), dtype=np.int16)
     img[256, 256] = 100
-    src = Camera(StaticSource(img, pixel_size= 400 * u.nm))
+    src = Camera(StaticSource(img, pixel_size=400 * u.nm))
 
     slm = SLM(shape=(512, 512))
 
     aberrations = skimage.data.camera() * ((2 * np.pi) / 255.0) * 0
     slm.set_phases(-aberrations)
-    aberration = StaticSource(
-        aberrations, pixel_size=1.0 / 512 * u.dimensionless_unscaled
-    )
+    aberration = StaticSource(aberrations, pixel_size=1.0 / 512 * u.dimensionless_unscaled)
 
     sim1 = Microscope(
         source=src,
@@ -125,7 +117,7 @@ def test_slm_tilt():
     img[signal_location] = 100
     pixel_size = 400 * u.nm
     wavelength = 750 * u.nm
-    src = Camera(StaticSource(img, pixel_size= pixel_size))
+    src = Camera(StaticSource(img, pixel_size=pixel_size))
 
     slm = SLM(shape=(1000, 1000))
 
@@ -159,9 +151,7 @@ def test_microscope_wavefront_shaping(caplog):
     # caplog.set_level(logging.DEBUG)
     aberrations = skimage.data.camera() * ((2 * np.pi) / 255.0) + np.pi
 
-    aberration = StaticSource(
-        aberrations, pixel_size=1.0 / 512 * u.dimensionless_unscaled
-    )  # note: incorrect scaling!
+    aberration = StaticSource(aberrations, pixel_size=1.0 / 512 * u.dimensionless_unscaled)  # note: incorrect scaling!
 
     img = np.zeros((1000, 1000), dtype=np.int16)
     img[256, 256] = 100
@@ -170,7 +160,7 @@ def test_microscope_wavefront_shaping(caplog):
     signal_location = (250, 200)
 
     img[signal_location] = 100
-    src = StaticSource(img, pixel_size= 400 * u.nm)
+    src = StaticSource(img, pixel_size=400 * u.nm)
 
     slm = SLM(shape=(1000, 1000))
 
@@ -183,13 +173,9 @@ def test_microscope_wavefront_shaping(caplog):
     )
 
     cam = sim.get_camera(analog_max=100)
-    roi_detector = SingleRoi(
-        cam, pos=signal_location, radius=0
-    )  # Only measure that specific point
+    roi_detector = SingleRoi(cam, pos=signal_location, radius=0)  # Only measure that specific point
 
-    alg = StepwiseSequential(
-        feedback=roi_detector, slm=slm, phase_steps=3, n_x=3, n_y=3
-    )
+    alg = StepwiseSequential(feedback=roi_detector, slm=slm, phase_steps=3, n_x=3, n_y=3)
     t = alg.execute().t
 
     # test if the modes differ. The error causes them not to differ
@@ -246,10 +232,7 @@ def test_mock_slm_lut_and_phase_response():
         / 256
     )
     expected_output_phases_a = (
-        np.asarray((255, 255, 0, 0, 1, 64, 128, 192, 255, 255, 0, 0, 1, 255, 0))
-        * 2
-        * np.pi
-        / 256
+        np.asarray((255, 255, 0, 0, 1, 64, 128, 192, 255, 255, 0, 0, 1, 255, 0)) * 2 * np.pi / 256
     )
     slm1 = SLM(shape=(3, input_phases_a.shape[0]))
     slm1.set_phases(input_phases_a)
@@ -275,21 +258,14 @@ def test_mock_slm_lut_and_phase_response():
     slm3.lookup_table = lookup_table
     slm3.set_phases(linear_phase)
     assert np.all(
-        np.abs(
-            slm3.phases.read()
-            - inverse_phase_response_test_function(linear_phase, b, c, gamma)
-        )
+        np.abs(slm3.phases.read() - inverse_phase_response_test_function(linear_phase, b, c, gamma))
         < (1.1 * np.pi / 256)
     )
 
     # === Test custom lookup table that counters custom synthetic phase response ===
-    linear_phase_highres = np.arange(
-        0, 2 * np.pi * 255.49 / 256, 0.25 * 2 * np.pi / 256
-    )
+    linear_phase_highres = np.arange(0, 2 * np.pi * 255.49 / 256, 0.25 * 2 * np.pi / 256)
     slm4 = SLM(shape=(3, linear_phase_highres.shape[0]))
     slm4.phase_response = phase_response
     slm4.lookup_table = lookup_table
     slm4.set_phases(linear_phase_highres)
-    assert np.all(
-        np.abs(slm4.phases.read()[0] - linear_phase_highres) < (3 * np.pi / 256)
-    )
+    assert np.all(np.abs(slm4.phases.read()[0] - linear_phase_highres) < (3 * np.pi / 256))

@@ -85,9 +85,7 @@ def test_timing_detector(caplog, duration):
 
 
 def test_noise_detector():
-    source = NoiseSource(
-        "uniform", data_shape=(10, 11, 20), low=-1.0, high=1.0, pixel_size=4 * u.um
-    )
+    source = NoiseSource("uniform", data_shape=(10, 11, 20), low=-1.0, high=1.0, pixel_size=4 * u.um)
     data = source.read()
     assert data.shape == (10, 11, 20)
     assert np.min(data) >= -1.0
@@ -102,18 +100,12 @@ def test_noise_detector():
 def test_mock_slm():
     slm = SLM((4, 4))
     slm.set_phases(0.5)
-    assert np.allclose(
-        slm.pixels.read(), round(0.5 * 256 / (2 * np.pi)), atol=0.5 / 256
-    )
+    assert np.allclose(slm.pixels.read(), round(0.5 * 256 / (2 * np.pi)), atol=0.5 / 256)
     discretized_phase = slm.phases.read()
     assert np.allclose(discretized_phase, 0.5, atol=1.1 * np.pi / 256)
-    assert np.allclose(
-        slm.field.read(), np.exp(1j * discretized_phase[0, 0]), rtol=2 / 256
-    )
+    assert np.allclose(slm.field.read(), np.exp(1j * discretized_phase[0, 0]), rtol=2 / 256)
     slm.set_phases(np.array(((0.1, 0.2), (0.3, 0.4))), update=False)
-    assert np.allclose(
-        slm.phases.read(), 0.5, atol=1.1 * np.pi / 256
-    )  # slm.update() not yet called, so should be 0.5
+    assert np.allclose(slm.phases.read(), 0.5, atol=1.1 * np.pi / 256)  # slm.update() not yet called, so should be 0.5
     slm.update()
     assert np.allclose(
         slm.phases.read(),

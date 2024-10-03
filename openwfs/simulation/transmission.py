@@ -50,12 +50,7 @@ class SimulatedWFS(Processor):
         """
 
         # transmission matrix (normalized so that the maximum transmission is 1)
-        self.t = (
-            t
-            if t is not None
-            else np.exp(1.0j * aberrations)
-            / (aberrations.shape[0] * aberrations.shape[1])
-        )
+        self.t = t if t is not None else np.exp(1.0j * aberrations) / (aberrations.shape[0] * aberrations.shape[1])
         self.slm = slm if slm is not None else SLM(self.t.shape[0:2])
 
         super().__init__(self.slm.field, multi_threaded=multi_threaded)

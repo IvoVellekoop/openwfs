@@ -89,9 +89,7 @@ class DualReference:
         if iterations < 2:
             raise ValueError("The number of iterations must be at least 2.")
         if not optimized_reference and iterations != 2:
-            raise ValueError(
-                "When not using an optimized reference, the number of iterations must be 2."
-            )
+            raise ValueError("When not using an optimized reference, the number of iterations must be 2.")
 
         self.slm = slm
         self.feedback = feedback
@@ -108,7 +106,7 @@ class DualReference:
             ~mask,
             mask,
         )  # self.masks[0] is True for group A, self.masks[1] is True for group B
-        self.amplitude = amplitude      # Note: when 'uniform' is passed, the shape of self.masks[0] is used.
+        self.amplitude = amplitude  # Note: when 'uniform' is passed, the shape of self.masks[0] is used.
         self.phase_patterns = phase_patterns
 
     @property
@@ -121,18 +119,16 @@ class DualReference:
             self._amplitude = None
             return
 
-        if value == 'uniform':
+        if value == "uniform":
             self._amplitude = tuple(
-                (np.ones(shape=self._shape) / np.sqrt(self.masks[side].sum())).astype(np.float32) for side in range(2))
+                (np.ones(shape=self._shape) / np.sqrt(self.masks[side].sum())).astype(np.float32) for side in range(2)
+            )
             return
 
         if value[0].shape != self._shape or value[1].shape != self._shape:
-            raise ValueError(
-                "The amplitude and group mask must all have the same shape."
-            )
+            raise ValueError("The amplitude and group mask must all have the same shape.")
 
         self._amplitude = value
-
 
     @property
     def phase_patterns(self) -> tuple[nd, nd]:
@@ -148,26 +144,14 @@ class DualReference:
         if not self.optimized_reference:
             # find the modes in A and B that correspond to flat wavefronts with phase 0
             try:
-                a0_index = next(
-                    i
-                    for i in range(value[0].shape[2])
-                    if np.allclose(value[0][:, :, i], 0)
-                )
-                b0_index = next(
-                    i
-                    for i in range(value[1].shape[2])
-                    if np.allclose(value[1][:, :, i], 0)
-                )
+                a0_index = next(i for i in range(value[0].shape[2]) if np.allclose(value[0][:, :, i], 0))
+                b0_index = next(i for i in range(value[1].shape[2]) if np.allclose(value[1][:, :, i], 0))
                 self.zero_indices = (a0_index, b0_index)
             except StopIteration:
-                raise (
-                    "For multi-target optimization, the both sets must contain a flat wavefront with phase 0."
-                )
+                raise ("For multi-target optimization, the both sets must contain a flat wavefront with phase 0.")
 
         if (value[0].shape[0:2] != self._shape) or (value[1].shape[0:2] != self._shape):
-            raise ValueError(
-                "The phase patterns and group mask must all have the same shape."
-            )
+            raise ValueError("The phase patterns and group mask must all have the same shape.")
 
         self._phase_patterns = (
             value[0].astype(np.float32),
@@ -200,7 +184,7 @@ class DualReference:
         denotes the matrix inverse, and ⁺ denotes the Moore-Penrose pseudo-inverse.
         """
         if self.phase_patterns is None:
-            raise('The phase_patterns must be set before computing the cobasis.')
+            raise ("The phase_patterns must be set before computing the cobasis.")
 
         cobasis = [None, None]
         for side in range(2):
@@ -215,9 +199,7 @@ class DualReference:
 
         self._cobasis = cobasis
 
-    def execute(
-        self, *, capture_intermediate_results: bool = False, progress_bar=None
-    ) -> WFSResult:
+    def execute(self, *, capture_intermediate_results: bool = False, progress_bar=None) -> WFSResult:
         """
         Executes the blind focusing dual reference algorithm and compute the SLM transmission matrix.
             capture_intermediate_results: When True, measures the feedback from the optimized wavefront after each iteration.
@@ -237,9 +219,7 @@ class DualReference:
 
         # Initialize storage lists
         results_all = [None] * self.iterations  # List to store all results
-        intermediate_results = np.zeros(
-            self.iterations
-        )  # List to store feedback from full patterns
+        intermediate_results = np.zeros(self.iterations)  # List to store feedback from full patterns
 
         # Prepare progress bar
         if progress_bar:
@@ -284,9 +264,7 @@ class DualReference:
             relative = results_all[0].t[self.zero_indices[0], ...] + np.conjugate(
                 results_all[1].t[self.zero_indices[1], ...]
             )
-            factor = (relative / np.abs(relative)).reshape(
-                (1, *self.feedback.data_shape)
-            )
+            factor = (relative / np.abs(relative)).reshape((1, *self.feedback.data_shape))
 
         t_full = self.compute_t_set(results_all[0].t, self.cobasis[0]) + self.compute_t_set(
             factor * results_all[1].t, self.cobasis[1]
@@ -304,9 +282,7 @@ class DualReference:
         result.intermediate_results = intermediate_results
         return result
 
-    def _single_side_experiment(
-        self, mod_phases: nd, ref_phases: nd, mod_mask: nd, progress_bar=None
-    ) -> WFSResult:
+    def _single_side_experiment(self, mod_phases: nd, ref_phases: nd, mod_mask: nd, progress_bar=None) -> WFSResult:
         """
         Conducts experiments on one part of the SLM.
 
@@ -322,9 +298,7 @@ class DualReference:
             WFSResult: An object containing the computed SLM transmission matrix and related data.
         """
         num_modes = mod_phases.shape[2]
-        measurements = np.zeros(
-            (num_modes, self.phase_steps, *self.feedback.data_shape)
-        )
+        measurements = np.zeros((num_modes, self.phase_steps, *self.feedback.data_shape))
 
         for m in range(num_modes):
             phases = ref_phases.copy()

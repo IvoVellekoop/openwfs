@@ -67,7 +67,7 @@ def slope_step(a: nd, width: nd | float) -> nd:
     Returns:
         An array the size of a, with the result of the sloped step function.
     """
-    return (a >= width) + a/width * (0 < a) * (a < width)
+    return (a >= width) + a / width * (0 < a) * (a < width)
 
 
 def linear_blend(a: nd, b: nd, blend: nd | float) -> nd:
@@ -82,7 +82,7 @@ def linear_blend(a: nd, b: nd, blend: nd | float) -> nd:
     Returns:
         A linear combination of a and b, corresponding to the blend factor. a*blend + b*(1-blend)
     """
-    return a*blend + b*(1-blend)
+    return a * blend + b * (1 - blend)
 
 
 def complex_to_rgb(array: nd, scale: float | nd | None = None, axis: int = 2) -> nd:
@@ -133,7 +133,7 @@ def plot_scatter_field(x, y, array, scale, scatter_kwargs=None):
     Plot complex scattered data as RGB values.
     """
     if scatter_kwargs is None:
-        scatter_kwargs = {'s': 80}
+        scatter_kwargs = {"s": 80}
     rgb = complex_to_rgb(array, scale, axis=1)
     plt.scatter(x, y, c=rgb, **scatter_kwargs)
 
@@ -147,20 +147,26 @@ def complex_colorbar(scale, width_inverse: int = 15):
     z = amp * np.exp(1j * phase)
     rgb = complex_to_rgb(z, 1)
     ax = plt.subplot(1, width_inverse, width_inverse)
-    plt.imshow(rgb, aspect='auto', extent=(0, scale, -np.pi, np.pi))
+    plt.imshow(rgb, aspect="auto", extent=(0, scale, -np.pi, np.pi))
 
     # Ticks and labels
-    ax.set_yticks((-np.pi, -np.pi / 2, 0, np.pi / 2, np.pi), ('$-\\pi$', '$-\\pi/2$', '0', '$\\pi/2$', '$\\pi$'))
-    ax.set_xlabel('amp.')
-    ax.set_ylabel('phase (rad)')
+    ax.set_yticks((-np.pi, -np.pi / 2, 0, np.pi / 2, np.pi), ("$-\\pi$", "$-\\pi/2$", "0", "$\\pi/2$", "$\\pi$"))
+    ax.set_xlabel("amp.")
+    ax.set_ylabel("phase (rad)")
     ax.yaxis.tick_right()
     ax.yaxis.set_label_position("right")
     return ax
 
 
-def complex_colorwheel(ax: Axes = None, shape: Tuple[int, int] = (100, 100), imshow_kwargs: dict = {},
-                       arrow_props: dict = {}, text_kwargs: dict = {}, amplitude_str: str = 'A',
-                       phase_str: str = '$\\phi$'):
+def complex_colorwheel(
+    ax: Axes = None,
+    shape: Tuple[int, int] = (100, 100),
+    imshow_kwargs: dict = {},
+    arrow_props: dict = {},
+    text_kwargs: dict = {},
+    amplitude_str: str = "A",
+    phase_str: str = "$\\phi$",
+):
     """
     Create an rgb image for a colorwheel representing the complex unit circle.
 
@@ -181,7 +187,7 @@ def complex_colorwheel(ax: Axes = None, shape: Tuple[int, int] = (100, 100), ims
 
     x = np.linspace(-1, 1, shape[1]).reshape(1, -1)
     y = np.linspace(-1, 1, shape[0]).reshape(-1, 1)
-    z = x + 1j*y
+    z = x + 1j * y
     rgb = complex_to_rgb(z, scale=1)
     step_width = 1.5 / shape[1]
     blend = np.expand_dims(slope_step(1 - np.abs(z) - step_width, width=step_width), axis=2)
@@ -189,18 +195,32 @@ def complex_colorwheel(ax: Axes = None, shape: Tuple[int, int] = (100, 100), ims
     ax.imshow(rgba_wheel, extent=(-1, 1, -1, 1), **imshow_kwargs)
 
     # Add arrows with annotations
-    ax.annotate('', xy=(-0.98/np.sqrt(2),)*2, xytext=(0, 0), arrowprops={'color': 'white', 'width': 1.8,
-                                                                         'headwidth': 5.0, 'headlength': 6.0, **arrow_props})
-    ax.text(**{'x': -0.4, 'y': -0.8, 's': amplitude_str, 'color': 'white', 'fontsize': 15, **text_kwargs})
-    ax.annotate('', xy=(0, 0.9), xytext=(0.9, 0),
-                arrowprops={'connectionstyle': 'arc3,rad=0.4', 'color': 'white', 'width': 1.8, 'headwidth': 5.0,
-                            'headlength': 6.0, **arrow_props})
-    ax.text(**{'x': 0.1, 'y': 0.5, 's': phase_str, 'color': 'white', 'fontsize': 15, **text_kwargs})
+    ax.annotate(
+        "",
+        xy=(-0.98 / np.sqrt(2),) * 2,
+        xytext=(0, 0),
+        arrowprops={"color": "white", "width": 1.8, "headwidth": 5.0, "headlength": 6.0, **arrow_props},
+    )
+    ax.text(**{"x": -0.4, "y": -0.8, "s": amplitude_str, "color": "white", "fontsize": 15, **text_kwargs})
+    ax.annotate(
+        "",
+        xy=(0, 0.9),
+        xytext=(0.9, 0),
+        arrowprops={
+            "connectionstyle": "arc3,rad=0.4",
+            "color": "white",
+            "width": 1.8,
+            "headwidth": 5.0,
+            "headlength": 6.0,
+            **arrow_props,
+        },
+    )
+    ax.text(**{"x": 0.1, "y": 0.5, "s": phase_str, "color": "white", "fontsize": 15, **text_kwargs})
 
     # Hide axes spines and ticks
     ax.set_xticks([])
     ax.set_yticks([])
-    ax.spines['left'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.spines['top'].set_visible(False)
-    ax.spines['bottom'].set_visible(False)
+    ax.spines["left"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["top"].set_visible(False)
+    ax.spines["bottom"].set_visible(False)

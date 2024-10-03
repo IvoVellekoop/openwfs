@@ -184,9 +184,7 @@ def circular(
     segments_inside = 0
     total_segments = np.sum(segments_per_ring)
     for r in range(ring_count):
-        x_outside = (
-            x * radii[r + 1]
-        )  # coordinates of the vertices at the outside of the ring
+        x_outside = x * radii[r + 1]  # coordinates of the vertices at the outside of the ring
         y_outside = y * radii[r + 1]
         segments = segments_inside + segments_per_ring[r]
         vertices[r, 0, :, 0] = x_inside + center[1]
@@ -194,8 +192,7 @@ def circular(
         vertices[r, 1, :, 0] = x_outside + center[1]
         vertices[r, 1, :, 1] = y_outside + center[0]
         vertices[r, :, :, 2] = (
-            np.linspace(segments_inside, segments, edge_count + 1).reshape((1, -1))
-            / total_segments
+            np.linspace(segments_inside, segments, edge_count + 1).reshape((1, -1)) / total_segments
         )  # tx
         x_inside = x_outside
         y_inside = y_outside
@@ -206,9 +203,6 @@ def circular(
 
     # construct indices for a single ring, and repeat for all rings with the appropriate offset
     indices = Geometry.compute_indices_for_grid((1, edge_count)).reshape((1, -1))
-    indices = (
-        indices
-        + np.arange(ring_count).reshape((-1, 1)) * vertices.shape[1] * vertices.shape[2]
-    )
+    indices = indices + np.arange(ring_count).reshape((-1, 1)) * vertices.shape[1] * vertices.shape[2]
     indices[:, -1] = 0xFFFF
     return Geometry(vertices.reshape((-1, 4)), indices.reshape(-1))

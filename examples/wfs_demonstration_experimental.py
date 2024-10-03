@@ -19,16 +19,12 @@ roi_detector = SingleRoi(cam, radius=2)
 
 # constructs the actual slm for wavefront shaping, and a monitor window to display the current phase pattern
 slm = SLM(monitor_id=2, duration=2)
-monitor = slm.clone(
-    monitor_id=0, pos=(0, 0), shape=(slm.shape[0] // 4, slm.shape[1] // 4)
-)
+monitor = slm.clone(monitor_id=0, pos=(0, 0), shape=(slm.shape[0] // 4, slm.shape[1] // 4))
 
 # we are using a setup with an SLM that produces 2pi phase shift
 # at a gray value of 142
 slm.lookup_table = range(142)
-alg = FourierDualReference(
-    feedback=roi_detector, slm=slm, slm_shape=[800, 800], k_radius=7
-)
+alg = FourierDualReference(feedback=roi_detector, slm=slm, slm_shape=[800, 800], k_radius=7)
 
 result = alg.execute()
 print(result)

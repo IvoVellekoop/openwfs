@@ -56,7 +56,5 @@ alg = StepwiseSequential(feedback=roi_detector, slm=slm, n_x=10, n_y=10, phase_s
 roi_background = SingleRoi(cam, radius=10)
 
 # Run WFS troubleshooter and output a report to the console
-trouble = troubleshoot(
-    algorithm=alg, background_feedback=roi_background, frame_source=cam, shutter=shutter
-)
+trouble = troubleshoot(algorithm=alg, background_feedback=roi_background, frame_source=cam, shutter=shutter)
 trouble.report()

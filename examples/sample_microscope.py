@@ -41,9 +41,7 @@ p_limit = 100
 
 # Code
 img = set_pixel_size(
-    np.maximum(
-        np.random.randint(-10000, 100, (img_size_y, img_size_x), dtype=np.int16), 0
-    ),
+    np.maximum(np.random.randint(-10000, 100, (img_size_y, img_size_x), dtype=np.int16), 0),
     60 * u.nm,
 )
 src = StaticSource(img)
@@ -76,7 +74,5 @@ if __name__ == "__main__":
         mic.xy_stage.x = p * 1 * u.um
         mic.numerical_aperture = 1.0 * (p + 1) / p_limit  # NA increases to 1.0
         ax = grab_and_show(cam, ax)
-        plt.title(
-            f"NA: {mic.numerical_aperture}, δ: {mic.abbe_limit.to_value(u.um):2.2} μm"
-        )
+        plt.title(f"NA: {mic.numerical_aperture}, δ: {mic.abbe_limit.to_value(u.um):2.2} μm")
         plt.pause(0.2)
