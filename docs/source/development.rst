@@ -48,6 +48,11 @@ Reporting bugs and contributing
 --------------------------------------------------
 Bugs can be reported through the GitHub issue tracking system. Better than reporting bugs, we encourage users to *contribute bug fixes, new algorithms, device drivers, and other improvements*. These contributions can be made in the form of a pull request :cite:`zandonellaMassiddaOpenScience2022`, which will be reviewed by the development team and integrated into the package when appropriate. Please contact the current development team through GitHub :cite:`openwfsgithub` to coordinate such contributions.
 
+Implementing new algorithms
+--------------------------------------------------
+To implement a new algorithm, the currently existing algorithms can be consulted for a few examples.
+Essentially, the algorithm needs to have an execute method, which needs to produce a WFSResult. With OpenWFS, all hardware interactions are abstracted away. Using `slm.set_phases` and `feedback.trigger` the algorithm can be naive to specific hardware. During the execution, different modes are measured, and a transmission matrix is calculated or approached. For most of our algorithms, the same algorithm can be used to analyze a phase stepping experiment. In order to show the versatility of this platform, we implemented the genetic algorithm described in :cite:`Piestun2012` and more recently adapted for a GUI in :cite:`Anderson2024`. 
+
 
 Implementing new devices
 --------------------------------------------------
