@@ -1,4 +1,4 @@
-from typing import Tuple, Union
+from typing import Tuple, Union, Optional, Dict
 
 import numpy as np
 from numpy import ndarray as nd
@@ -70,7 +70,7 @@ def slope_step(a: nd, width: Union[nd, float]) -> nd:
     return (a >= width) + a / width * (0 < a) * (a < width)
 
 
-def linear_blend(a: nd, b: nd, blend: nd | float) -> nd:
+def linear_blend(a: nd, b: nd, blend: Union[nd, float]) -> nd:
     """
     Return a linear, element-wise blend between two arrays a and b.
 
@@ -85,7 +85,7 @@ def linear_blend(a: nd, b: nd, blend: nd | float) -> nd:
     return a * blend + b * (1 - blend)
 
 
-def complex_to_rgb(array: nd, scale: float | nd | None = None, axis: int = 2) -> nd:
+def complex_to_rgb(array: nd, scale: Optional[Union[float, nd]] = None, axis: int = 2) -> nd:
     """
     Generate RGB color values to represent values of a complex array.
 
@@ -110,7 +110,7 @@ def complex_to_rgb(array: nd, scale: float | nd | None = None, axis: int = 2) ->
     return rgb
 
 
-def plot_field(array, scale: float | nd | None = None, imshow_kwargs: dict | None = None):
+def plot_field(array, scale: Optional[Union[float, nd]] = None, imshow_kwargs: Optional[Dict] = None):
     """
     Plot a complex array as an RGB image.
 
