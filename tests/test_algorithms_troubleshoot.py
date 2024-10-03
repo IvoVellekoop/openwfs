@@ -341,7 +341,7 @@ def test_measure_modulated_light_dual_phase_stepping_with_noise(
     # Aberration and image source
     img = np.zeros((64, 64), dtype=np.int16)
     img[32, 32] = 100
-    src = StaticSource(img, 200 * u.nm)
+    src = StaticSource(img, pixel_size= 200 * u.nm)
 
     # SLM, simulation, camera, ROI detector
     slm = SLM(
