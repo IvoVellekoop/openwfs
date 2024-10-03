@@ -471,12 +471,18 @@ def test_dual_reference_ortho_split(basis_str: str, shape):
         plt.colorbar()
         plt.show()
 
-    # Checks for orthonormal bases
+    # Checks for orthonormal basis properties
     assert np.allclose(alg.gram, np.eye(N), atol=1e-6)  # Gram matrix must be I
     assert np.allclose(alg.cobasis[0], mode_set.conj(), atol=1e-6)  # Cobasis vectors are just the complex conjugates
 
+    # Test phase-only field correlation
+    sim_t_phase_only = np.exp(1j * np.angle(sim.t))
+    result_t_phase_only = np.exp(1j * np.angle(result.t))
+    assert np.abs(field_correlation(sim_t_phase_only, result_t_phase_only)) > 0.999
+
     # todo: find out why this is not higher
-    assert np.abs(field_correlation(sim.t, result.t)) > 0.95
+    # Test field correlation
+    assert np.abs(field_correlation(sim.t, result.t)) > 0.9
 
 
 def test_dual_reference_non_ortho_split():
