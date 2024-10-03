@@ -30,7 +30,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          poetry install --with dev
+          poetry install --with dev,opengl
 
       - name: Run tests
         run: |
