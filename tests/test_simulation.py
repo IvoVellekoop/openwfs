@@ -56,7 +56,7 @@ def test_microscope_and_aberration():
     """
     img = np.zeros((1000, 1000), dtype=np.int16)
     img[256, 256] = 100
-    src = Camera(StaticSource(img, 400 * u.nm))
+    src = Camera(StaticSource(img, pixel_size= 400 * u.nm))
 
     slm = SLM(shape=(512, 512))
 
@@ -125,7 +125,7 @@ def test_slm_tilt():
     img[signal_location] = 100
     pixel_size = 400 * u.nm
     wavelength = 750 * u.nm
-    src = Camera(StaticSource(img, pixel_size))
+    src = Camera(StaticSource(img, pixel_size= pixel_size))
 
     slm = SLM(shape=(1000, 1000))
 
@@ -170,7 +170,7 @@ def test_microscope_wavefront_shaping(caplog):
     signal_location = (250, 200)
 
     img[signal_location] = 100
-    src = StaticSource(img, 400 * u.nm)
+    src = StaticSource(img, pixel_size= 400 * u.nm)
 
     slm = SLM(shape=(1000, 1000))
 
