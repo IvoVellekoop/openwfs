@@ -403,8 +403,8 @@ def test_simple_genetic(population_size: int, elite_size: int):
 
 @pytest.mark.parametrize("basis_str", ("plane_wave", "hadamard"))
 @pytest.mark.parametrize("shape", ((8, 8), (16, 4)))
-def test_custom_blind_dual_reference_ortho_split(basis_str: str, shape):
-    """Test custom blind dual reference with an orthonormal phase-only basis.
+def test_dual_reference_ortho_split(basis_str: str, shape):
+    """Test dual reference with an orthonormal phase-only basis.
     Two types of bases are tested: plane waves and Hadamard"""
     do_debug = False
     N = shape[0] * (shape[1] // 2)
@@ -479,9 +479,9 @@ def test_custom_blind_dual_reference_ortho_split(basis_str: str, shape):
     assert np.abs(field_correlation(sim.t, result.t)) > 0.95
 
 
-def test_custom_blind_dual_reference_non_ortho():
+def test_dual_reference_non_ortho_split():
     """
-    Test custom blind dual reference with a non-orthogonal basis.
+    Test dual reference with a non-orthogonal basis.
     """
     do_debug = False
 
