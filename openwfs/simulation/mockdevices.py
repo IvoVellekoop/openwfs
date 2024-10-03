@@ -7,7 +7,7 @@ from astropy.units import Quantity
 
 from ..core import Detector, Processor, Actuator
 from ..processors import CropProcessor
-from ..utilities import ExtentType, get_pixel_size
+from ..utilities import ExtentType, get_pixel_size, set_pixel_size
 
 
 class StaticSource(Detector):
@@ -42,6 +42,8 @@ class StaticSource(Detector):
                 pixel_size = Quantity(extent) / data.shape
             else:
                 pixel_size = get_pixel_size(data)
+        else:
+            data = set_pixel_size(data, pixel_size)  # make sure the data array holds the pixel size
 
         if (
             pixel_size is not None
@@ -176,9 +178,7 @@ class ADCProcessor(Processor):
         if self.analog_max == 0.0:  # auto scaling
             max_value = np.max(data)
             if max_value > 0.0:
-                data = data * (
-                    self.digital_max / max_value
-                )  # auto-scale to maximum value
+                data = data * (self.digital_max / max_value)  # auto-scale to maximum value
         else:
             data = data * (self.digital_max / self.analog_max)
 
@@ -186,9 +186,7 @@ class ADCProcessor(Processor):
             data = self._rng.poisson(data)
 
         if self._gaussian_noise_std > 0.0:
-            data = data + self._rng.normal(
-                scale=self._gaussian_noise_std, size=data.shape
-            )
+            data = data + self._rng.normal(scale=self._gaussian_noise_std, size=data.shape)
 
         return np.clip(np.rint(data), 0, self.digital_max).astype("uint16")
 
