@@ -2,9 +2,14 @@ import time
 
 import astropy.units as u
 import cv2
+import pytest
+
+pytest.importorskip("glfw", reason="GLFW is required for the ScanningMicroscope module")
+pytest.importorskip("OpenGL.GL", reason="PyOpenGL is required for OpenGL rendering")
+
 import glfw
 import numpy as np  # for debugging
-import pytest
+
 
 from ..openwfs.devices.slm import SLM, Patch, geometry
 from ..openwfs.utilities import Transform
