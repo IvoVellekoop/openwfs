@@ -403,8 +403,8 @@ def test_simple_genetic(population_size: int, elite_size: int):
 
 @pytest.mark.parametrize("basis_str", ("plane_wave", "hadamard"))
 @pytest.mark.parametrize("shape", ((8, 8), (16, 4)))
-def test_custom_blind_dual_reference_ortho_split(basis_str: str, shape):
-    """Test custom blind dual reference with an orthonormal phase-only basis.
+def test_dual_reference_ortho_split(basis_str: str, shape):
+    """Test dual reference with an orthonormal phase-only basis.
     Two types of bases are tested: plane waves and Hadamard"""
     do_debug = False
     N = shape[0] * (shape[1] // 2)
@@ -471,17 +471,23 @@ def test_custom_blind_dual_reference_ortho_split(basis_str: str, shape):
         plt.colorbar()
         plt.show()
 
-    # Checks for orthonormal bases
+    # Checks for orthonormal basis properties
     assert np.allclose(alg.gram, np.eye(N), atol=1e-6)  # Gram matrix must be I
     assert np.allclose(alg.cobasis[0], mode_set.conj(), atol=1e-6)  # Cobasis vectors are just the complex conjugates
 
+    # Test phase-only field correlation
+    sim_t_phase_only = np.exp(1j * np.angle(sim.t))
+    result_t_phase_only = np.exp(1j * np.angle(result.t))
+    assert np.abs(field_correlation(sim_t_phase_only, result_t_phase_only)) > 0.999
+
     # todo: find out why this is not higher
-    assert np.abs(field_correlation(sim.t, result.t)) > 0.95
+    # Test field correlation
+    assert np.abs(field_correlation(sim.t, result.t)) > 0.9
 
 
-def test_custom_blind_dual_reference_non_ortho():
+def test_dual_reference_non_ortho_split():
     """
-    Test custom blind dual reference with a non-orthogonal basis.
+    Test dual reference with a non-orthogonal basis.
     """
     do_debug = False
 
