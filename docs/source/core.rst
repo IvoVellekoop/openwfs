@@ -71,7 +71,6 @@ Processors
 ------------
 A `Processor` is a `Detector` that takes input from one or more other detectors, and combines/processes this data. We already encountered an example in :numref:`Getting started`, where the `SingleRoiProcessor` was used to average the data from a camera over a region of interest. A block diagram of the data flow of this code is shown in :numref:`hellowfsdiagram`. Since a processor, itself, is a `Detector`, multiple processors can be chained together to combine their functionality. The OpenWFS further includes various processors, such as a `CropProcessor` to crop data to a rectangular region of interest, and a `TransformProcessor` to perform affine image transformations to image produced by a source.
 
-
 Actuators
 ---------
 Actuators are devices that *move* things in the setup. This can be literal, such as moving a translation stage, or a virtual movement, like an SLM that takes time to switch to a different phase pattern. All actuators and derive from the common :class:`.Actuator` base class. Actuators have no additional methods or properties other than those in the :class:`.Device` base class.
@@ -140,4 +139,74 @@ This synchronization is performed automatically. If desired, it is possible to e
 
 Finally, devices have a `timeout` attribute, which is the maximum time to wait for a device to become ready. This timeout is used in the state-switching mechanism, and when explicitly waiting for results using :meth:`~.Device.wait()` or  :meth:`~.Device.read()`.
 
+Currently available devices
+----------------------------
 
+The following devices are currently implemented in OpenWFS:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Device Name
+     - Device Type
+     - Description
+   * - Camera
+     - Detector
+     - Adapter for GenICam/GenTL cameras
+   * - ScanningMicroscope
+     - Detector
+     - Laser scanning microscope using galvo mirrors and NI DAQ
+   * - StaticSource
+     - Detector
+     - Returns pre-set data, simulating a static source
+   * - NoiseSource
+     - Detector
+     - Generates uniform or Gaussian noise as a source
+   * - SingleRoi
+     - Processor (Detector)
+     - Averages signal over a single ROI
+   * - MultipleRoi
+     - Processor (Detector)
+     - Averages signals over multiple regions of interest (ROIs)
+   * - CropProcessor
+     - Processor (Detector)
+     - Crops data from the source to a region of interest
+   * - TransformProcessor
+     - Processor (Detector)
+     - Performs affine transformations on the source data
+   * - ADCProcessor
+     - Processor (Detector)
+     - Simulates an analog-digital converter
+   * - SimulatedWFS
+     - Processor
+     - Simulates wavefront shaping experiment using Fourier transform-based intensity computation at the focal plane
+   * - Gain
+     - Actuator
+     - Controls PMT gain voltage using NI data acquisition card
+   * - PhaseSLM
+     - Actuator
+     - Simulates a phase-only spatial light modulator
+   * - SLM
+     - Actuator
+     - Controls and renders patterns on a Spatial Light Modulator (SLM) using OpenGL
+     
+Available Algorithms
+---------------------
+
+The following algorithms are available in OpenWFS for wavefront shaping:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Algorithm Name
+     - Description
+   * - FourierDualReference
+     - A Fourier dual reference algorithm that uses plane waves from a disk in k-space for wavefront shaping :cite:`Mastiani2022`.
+   * - IterativeDualReference
+     - A generic iterative dual reference algorithm with the ability to use custom basis functions for non-linear feedback applications.
+   * - DualReference
+     - A generic dual reference algorithm with the option for optimized reference, suitable for multi-target optimization and iterative feedback.
+   * - SimpleGenetic
+     - A simple genetic algorithm that optimizes wavefronts by selecting elite individuals and introducing mutations for focusing through scattering media :cite:`Piestun2012`.
+   * - StepwiseSequential
+     - A stepwise sequential algorithm which systematically modifies the phase pattern of each SLM element :cite:`Vellekoop2007`.
