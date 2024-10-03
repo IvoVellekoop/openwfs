@@ -32,9 +32,9 @@ jobs:
         run: |
           poetry install --with dev
 
-      - name: Install glfw Python dependency
+      - name: Install OpenGL and glfw Python dependencies
         run: |
-          poetry run pip install glfw
+          poetry run pip install PyOpenGL glfw
 
       - name: Run tests
         run: |
