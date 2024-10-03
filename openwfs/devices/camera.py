@@ -71,9 +71,7 @@ class Camera(Detector):
         self._harvester.update()
 
         # open the camera, use the serial_number to select the camera if it is specified.
-        search_key = (
-            {"serial_number": serial_number} if serial_number is not None else None
-        )
+        search_key = {"serial_number": serial_number} if serial_number is not None else None
         self._camera = self._harvester.create(search_key=search_key)
         nodes = self._camera.remote_device.node_map
 

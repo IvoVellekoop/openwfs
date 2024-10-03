@@ -38,16 +38,8 @@ def test_roi(camera, binning, top, left):
     # take care that the size will be a multiple of the increment,
     # and that setting the binning will round this number down
     camera.binning = binning
-    expected_width = (
-        (original_shape[1] // binning)
-        // camera._nodes.Width.inc
-        * camera._nodes.Width.inc
-    )
-    expected_height = (
-        (original_shape[0] // binning)
-        // camera._nodes.Height.inc
-        * camera._nodes.Height.inc
-    )
+    expected_width = (original_shape[1] // binning) // camera._nodes.Width.inc * camera._nodes.Width.inc
+    expected_height = (original_shape[0] // binning) // camera._nodes.Height.inc * camera._nodes.Height.inc
     assert camera.data_shape == (expected_height, expected_width)
 
     # check if setting the ROI works

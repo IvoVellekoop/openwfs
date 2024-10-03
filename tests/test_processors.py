@@ -8,8 +8,7 @@ from ..openwfs.simulation.mockdevices import StaticSource
 
 
 @pytest.mark.skip(
-    reason="This is an interactive test: skip by default. TODO: actually test if the roi was "
-    "selected correctly."
+    reason="This is an interactive test: skip by default. TODO: actually test if the roi was " "selected correctly."
 )
 def test_croppers():
     img = sk.data.camera()
@@ -53,9 +52,7 @@ def test_single_roi(x, y, radius, expected_avg):
     roi_processor.trigger()
     result = roi_processor.read()
 
-    assert np.isclose(
-        result, expected_avg
-    ), f"ROI average value is incorrect. Expected: {expected_avg}, Got: {result}"
+    assert np.isclose(result, expected_avg), f"ROI average value is incorrect. Expected: {expected_avg}, Got: {result}"
 
 
 def test_multiple_roi_simple_case():

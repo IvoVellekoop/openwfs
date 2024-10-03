@@ -28,9 +28,7 @@ class Texture:
         self.context = Context(slm)
         self.handle = glGenTextures(1)
         self.type = texture_type
-        self.synchronized = (
-            False  # self.data is not yet synchronized with texture in GPU memory
-        )
+        self.synchronized = False  # self.data is not yet synchronized with texture in GPU memory
         self._data_shape = None  # current size of the texture, to see if we need to make a new texture or
         # overwrite the exiting one
 
@@ -64,9 +62,7 @@ class Texture:
 
         with self.context:
             glBindTexture(self.type, self.handle)
-            glPixelStorei(
-                GL.GL_UNPACK_ALIGNMENT, 4
-            )  # alignment is at least four bytes since we use float32
+            glPixelStorei(GL.GL_UNPACK_ALIGNMENT, 4)  # alignment is at least four bytes since we use float32
             (internal_format, data_format, data_type) = (
                 GL.GL_R32F,
                 GL.GL_RED,
@@ -140,7 +136,5 @@ class Texture:
     def get_data(self):
         with self.context:
             data = np.empty(self._data_shape, dtype="float32")
-            glGetTextureImage(
-                self.handle, 0, GL.GL_RED, GL.GL_FLOAT, data.size * 4, data
-            )
+            glGetTextureImage(self.handle, 0, GL.GL_RED, GL.GL_FLOAT, data.size * 4, data)
             return data
