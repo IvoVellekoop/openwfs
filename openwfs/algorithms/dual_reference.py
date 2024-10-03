@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Union
 
 import numpy as np
 from numpy import ndarray as nd
@@ -38,7 +38,7 @@ class DualReference:
         feedback: Detector,
         slm: PhaseSLM,
         phase_patterns: Optional[tuple[nd, nd]],
-        amplitude: Optional[tuple[nd, nd] | str],
+        amplitude: Optional[Union[tuple[nd, nd], str]],
         group_mask: nd,
         phase_steps: int = 4,
         iterations: int = 2,

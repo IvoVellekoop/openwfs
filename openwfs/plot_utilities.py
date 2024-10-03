@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, Union
 
 import numpy as np
 from numpy import ndarray as nd
@@ -56,7 +56,7 @@ def scale_prefix(value: u.Quantity) -> u.Quantity:
         return value
 
 
-def slope_step(a: nd, width: nd | float) -> nd:
+def slope_step(a: nd, width: Union[nd, float]) -> nd:
     """
     A sloped step function from 0 to 1.
 
