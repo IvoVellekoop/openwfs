@@ -65,7 +65,7 @@ latex_elements = {
                 and simulations for testing new algorithms. 
 
                 The complexity of the many different aspects of wavefront shaping software, however, 
-                is becoming a bottleneck for further developments in the field, as well as for end-user adoption.
+                is becoming a limiting factor for further developments in the field, as well as for end-user adoption.
                 OpenWFS addresses these challenges by providing a Python module that coherently integrates
                 all aspects of wavefront shaping code. The module is designed to be modular and easy to expand.
                 It incorporates elements for hardware control, software simulation, and automated troubleshooting. 
