@@ -92,18 +92,20 @@ class Axis:
         It is assumed that the mirror accelerates and decelerates at the maximum
         acceleration, and scans with a constant velocity over the linear range.
         There are two limits to the scan speed:
-        * A practical limit: if it takes longer to perform the acceleration + deceleration than
-            it does to traverse the linear range, it does not make sense to set the scan speed so high.
-            The speed at which acceleration + deceleration takes as long as the linear range is the maximum speed.
-        * A hardware limit: when accelerating with the maximum acceleration over a distance
-            0.5 * (V_max-V_min) * (1-linear_range),
-            the mirror will reach the maximum possible speed.
+
+        - A practical limit: if it takes longer to perform the acceleration + deceleration than
+          it does to traverse the linear range, it does not make sense to set the scan speed so high.
+          The speed at which acceleration + deceleration takes as long as the linear range is the maximum speed.
+        - A hardware limit: when accelerating with the maximum acceleration over a distance
+          0.5 · (V_max-V_min) · (1-linear_range),
+          the mirror will reach the maximum possible speed.
 
         Args:
             linear_range (float): fraction of the full range that is used for the linear part of the scan
 
         Returns:
             Quantity[u.V / u.s]: maximum scan speed
+
         """
         # x = 0.5 · a · t² = 0.5 (v_max - v_min) · (1 - linear_range)
         t_accel = np.sqrt((self.v_max - self.v_min) * (1 - linear_range) / self.maximum_acceleration)

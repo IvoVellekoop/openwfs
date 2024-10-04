@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Optional, Union, List
 
 import numpy as np
 from numpy import ndarray as nd
@@ -8,28 +8,32 @@ from ..core import Detector, PhaseSLM
 
 
 class DualReference:
-    """
-    A generic iterative dual reference WFS algorithm, which can use a custom set of basis functions.
+    """A generic iterative dual reference WFS algorithm, which can use a custom set of basis functions.
 
-    This algorithm is adapted from [1], with the addition of the ability to use custom basis functions and specify the number of iterations.
+    This algorithm is adapted from [Tao2017]_, with the addition of the ability to use custom basis functions and
+    specify the number of iterations.
 
-    In this algorithm, the SLM pixels are divided into two groups: A and B, as indicated by the boolean group_mask argument.
+    In this algorithm, the SLM pixels are divided into two groups:
+    A and B, as indicated by the boolean group_mask argument.
     The algorithm first keeps the pixels in group B fixed, and displays a sequence on patterns on the pixels of group A.
     It uses these measurements to construct an optimized wavefront that is displayed on the pixels of group A.
     This process is then repeated for the pixels of group B, now using the *optimized* wavefront on group A as reference.
     Optionally, the process can be repeated for a number of iterations, which each iteration using the current correction
-     pattern as a reference. This makes this algorithm suitable for non-linear feedback, such as multi-photon
-    excitation fluorescence [2].
+    pattern as a reference. This makes this algorithm suitable for non-linear feedback, such as multi-photon
+    excitation fluorescence [Osnabrugge2019]_.
 
     This algorithm assumes a phase-only SLM. Hence, the input modes are defined by passing the corresponding phase
     patterns (in radians) as input argument.
 
-    [1]: X. Tao, T. Lam, B. Zhu, et al., “Three-dimensional focusing through scattering media using conjugate adaptive
-    optics with remote focusing (CAORF),” Opt. Express 25, 10368–10383 (2017).
+    References
+    ----------
+    .. [Tao2017] X. Tao, T. Lam, B. Zhu, et al., “Three-dimensional focusing through scattering media using conjugate adaptive
+           optics with remote focusing (CAORF),” Opt. Express 25, 10368–10383 (2017).
 
-    [2]: Gerwin Osnabrugge, Lyubov V. Amitonova, and Ivo M. Vellekoop. "Blind focusing through strongly scattering media
-    using wavefront shaping with nonlinear feedback", Optics Express, 27(8):11673–11688, 2019.
-    https://opg.optica.org/oe/ abstract.cfm?uri=oe-27-8-1167
+    .. [Osnabrugge2019] Gerwin Osnabrugge, Lyubov V. Amitonova, and Ivo M. Vellekoop. "Blind focusing through strongly scattering media
+           using wavefront shaping with nonlinear feedback", Optics Express, 27(8):11673–11688, 2019.
+           https://opg.optica.org/oe/ abstract.cfm?uri=oe-27-8-1167
+
     """
 
     def __init__(
@@ -148,7 +152,7 @@ class DualReference:
                 b0_index = next(i for i in range(value[1].shape[2]) if np.allclose(value[1][:, :, i], 0))
                 self.zero_indices = (a0_index, b0_index)
             except StopIteration:
-                raise ("For multi-target optimization, the both sets must contain a flat wavefront with phase 0.")
+                raise "For multi-target optimization, the both sets must contain a flat wavefront with phase 0."
 
         if (value[0].shape[0:2] != self._shape) or (value[1].shape[0:2] != self._shape):
             raise ValueError("The phase patterns and group mask must all have the same shape.")
@@ -184,7 +188,7 @@ class DualReference:
         denotes the matrix inverse, and ⁺ denotes the Moore-Penrose pseudo-inverse.
         """
         if self.phase_patterns is None:
-            raise ("The phase_patterns must be set before computing the cobasis.")
+            raise "The phase_patterns must be set before computing the cobasis."
 
         cobasis = [None, None]
         for side in range(2):
@@ -218,7 +222,7 @@ class DualReference:
         ref_phases = np.zeros(self._shape)
 
         # Initialize storage lists
-        results_all = [None] * self.iterations  # List to store all results
+        results_all: List[Optional[WFSResult]] = [None] * self.iterations  # List to store all results
         intermediate_results = np.zeros(self.iterations)  # List to store feedback from full patterns
 
         # Prepare progress bar

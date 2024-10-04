@@ -11,7 +11,7 @@ class StepwiseSequential:
     TODO: enable low-res pre-optimization (as in Vellekoop & Mosk 2007)
     TODO: modulate segments in pupil (circle) only
 
-    [^1]:Vellekoop, I. M., & Mosk, A. P. (2007). Focusing coherent light through opaque strongly scattering media.
+    [1]: Vellekoop, I. M., & Mosk, A. P. (2007). Focusing coherent light through opaque strongly scattering media.
     Optics Letters, 32(16), 2309-2311.
     [2]: Ivo M. Vellekoop, "Feedback-based wavefront shaping," Opt. Express 23, 12189-12206 (2015)
     """
