@@ -73,7 +73,7 @@ A `Processor` is a `Detector` that takes input from one or more other detectors,
 
 Actuators
 ---------
-Actuators are devices that *move* things in the setup. This can be literal, such as moving a translation stage, or a virtual movement, like an SLM that takes time to switch to a different phase pattern. All actuators and derive from the common :class:`.Actuator` base class. Actuators have no additional methods or properties other than those in the :class:`.Device` base class.
+Actuators are devices that *move* things in the setup. This can be literal, such as moving a translation stage, or a virtual movement, like an SLM that takes time to switch to a different phase pattern. All actuators are derived from the common :class:`.Actuator` base class. Actuators have no additional methods or properties other than those in the :class:`.Device` base class.
 
 Units and metadata
 ----------------------------------
