@@ -46,6 +46,7 @@ PyOpenGL = "^3.1.7"
 nidaq = ["nidaqmx"]
 genicam = ["harvesters"]
 
+
 [tool.poetry.group.dev]
 optional = true
 
@@ -63,7 +64,7 @@ optional = true
 
 [tool.poetry.group.docs.dependencies]
 # documentation dependencies, used for building the sphinx documentation only
-# to install, use pip install openwfs[sphinx]
+# to install, use pip install openwfs[docs]
 sphinx = ">=4.1.2"
 sphinx_mdinclude = ">=0.5.0"
 sphinx-rtd-theme = ">=2.0.0"
