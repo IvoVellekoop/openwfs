@@ -64,7 +64,7 @@ For debugging or demonstration purposes, it is often useful to receive feedback 
 Lookup table
 ---------------------------------------
 
-Even though the SLM hardware itself often includes a hardware lookup table, there usually is no standard way to set it from Python, making switching between lookup tables cumbersome. The OpenGL-accelerated lookup table in the SLM object provides a solution to this problem, which is especially useful when working with tunable lasers, for which the lookup table needs to be adjusted often. The SLM object has a :attr:`~.slm.SLM.lookup_table` property, which holds a table that is used to convert phase values from radians to gray values on the screen. By default, this table is set to `range(256)`, meaning that a phase of 0 produces a gray value of 0, and a phase of  255/256·2π produces a gray value of 255. A phase of 2π again produces a gray value of 0.
+Even though the SLM hardware itself often includes a hardware lookup table, there usually is no standard way to set it from Python, making switching between lookup tables cumbersome. The OpenGL-accelerated lookup table in the SLM object provides a solution to this problem, which is especially useful when working with tunable lasers, for which the lookup table needs to be adjusted often. The SLM object has a :attr:`~.slm.SLM.lookup_table` property, which holds a table that is used to convert phase values from radians to gray values on the screen. By default, this table is set to `range(2 ** bit_depth)`, meaning that if an 8-bit video mode is selected, a phase of 0 produces a gray value of 0, and a phase of 255/256·2π produces a gray value of 255. A phase of 2π again produces a gray value of 0.
 
 .. _slm-synchronization:
 
