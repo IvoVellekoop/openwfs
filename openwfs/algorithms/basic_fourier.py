@@ -9,14 +9,14 @@ from ..utilities import tilt
 
 
 class FourierDualReference(DualReference):
-    """
-    Fourier double reference algorithm, based on Mastiani et al. [1].
+    """Fourier double reference algorithm, based on Mastiani et al. [1].
 
     Improvements over [1]:
-    * The set of plane waves is taken from a disk in k-space instead of a square.
-    * No overlap between the two halves is needed, instead the final stitching step is done using measurements already in the data set.
-    * When only a single target is optimized, the algorithm can be used in an iterative version to increase SNR during the measurument,
-       similar to [2].
+
+    - The set of plane waves is taken from a disk in k-space instead of a square.
+    - No overlap between the two halves is needed, instead the final stitching step is done using measurements already in the data set.
+    - When only a single target is optimized, the algorithm can be used in an iterative version to increase SNR during the measurument,
+      similar to [2].
 
     [1]: Bahareh Mastiani, Gerwin Osnabrugge, and Ivo M. Vellekoop,
     "Wavefront shaping for forward scattering," Opt. Express 30, 37436-37445 (2022)

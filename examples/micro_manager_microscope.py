@@ -1,5 +1,5 @@
 """ Micro-Manager simulated microscope
-=======================
+======================================================================
 This script simulates a microscope with a random noise image as a mock specimen.
 The numerical aperture, stage position, and other parameters can be modified through the Micro-Manager GUI.
 To use this script as a device in Micro-Manager, make sure you have the PyDevice adapter installed and
