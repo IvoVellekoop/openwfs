@@ -27,7 +27,7 @@ Detectors in OpenWFS are objects that capture, generate, or process data. All de
         def coordinates(dimension: int) -> Quantity
 
 
-The :meth:`~.Detector.read()` method of a detector starts a measurement and returns the captured data. It triggers the detector and blocks until the data is available. Data is always returned as `numpy` array :cite:`numpy`. Subclasses of :class:`~.Detector` typically add properties specific to that detector (e. g. shutter time, gain, etc.). In the simplest case, setting these properties and calling :meth:`.~Detector.read()` is all that is needed to capture data. The :meth:`~.Detector.trigger()` method is used for asynchronous measurements as described below. All other properties and methods are used for metadata and units, as described in :numref:`Units and metadata`.
+The :meth:`~.Detector.read()` method of a detector starts a measurement and returns the captured data. It triggers the detector and blocks until the data is available. Data is always returned as `numpy` array :cite:`numpy`. Subclasses of :class:`~.Detector` typically add properties specific to that detector (e.g. shutter time, gain, etc.). In the simplest case, setting these properties and calling :meth:`.~Detector.read()` is all that is needed to capture data. The :meth:`~.Detector.trigger()` method is used for asynchronous measurements as described below. All other properties and methods are used for metadata and units, as described in :numref:`Units and metadata`.
 
 The detector object inherits some properties and methods from the base class :class:`~.Device`. These are used by the synchronization mechanism to determine when it is safe to start a measurement, as described in :numref:`device-synchronization`.
 
@@ -88,7 +88,7 @@ OpenWFS consistently uses `astropy.units` :cite:`astropy` for quantities with ph
     c.shutter_time = 0.01 * u.s  # equivalent to the previous line
     c.shutter_time = 10 # raises an error, since the unit is missing
 
-In addition, OpenWFS allows attaching pixel-size metadata to data arrays using the functions :func:`~.set_pixel_size()`. Pixel sizes can represent a physical length (e. g. as in the size pixels on an image sensor), or other units such as time (e. g. as the sampling period in a time series). OpenWFS fully supports anisotropic pixels, where the pixel sizes in the x and y directions are different.
+In addition, OpenWFS allows attaching pixel-size metadata to data arrays using the functions :func:`~.set_pixel_size()`. Pixel sizes can represent a physical length (e.g. as in the size pixels on an image sensor), or other units such as time (e.g. as the sampling period in a time series). OpenWFS fully supports anisotropic pixels, where the pixel sizes in the x and y directions are different.
 
 The data arrays returned by the :meth:`~.Detector.read()` function of a detector have `pixel_size` metadata attached whenever appropriate. The pixel size can be retrieved from the array using  :func:`~.get_pixel_size()`, or obtained from the  :attr:`~.Detector.pixel_size` attribute directly. As an alternative to accessing the pixel size directly, :func:`~get_extent()` and :class:`~.Detector.extent` provide access to the extent of the array, which is always equal to the pixel size times the shape of the array. Finally, the convenience function :meth:`~.Detector.coordinates` returns a vector of coordinates with appropriate units along a specified dimension of the array.
 

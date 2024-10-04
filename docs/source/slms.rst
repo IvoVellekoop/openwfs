@@ -14,7 +14,7 @@ The :meth:`~.PhaseSLM.set_phases()` method takes a scalar or a 2-D array of phas
 
 Currently, there are two implementations of the `PhaseSLM` interface. The :class:`simulation.SLM` is used for simulating experiments and for testing algorithms (see :numref:`section-simulations`).  The :class:`hardware.SLM` is an OpenGL-accelerated controller for using a phase-only SLM that is connected to the video output of a computer. The SLM can be created in windowed mode (useful for debugging), or full screen. It is possible to have multiple windowed SLMs on the same monitor, but only one full-screen SLM per monitor. In addition, the SLM implements some advanced features that are discussed below.
 
-At the time of writing, SLMs that are controlled through other interfaces than the video output are not supported. However, the interface of the `PhaseSLM` class is designed to accommodate these devices in the future. Through this interface, support for intensity-only light modulators (e. g. Digital Mirror Devices) operating in phase-modulation mode (e. g. :cite:`conkey2012high`) may also be added.
+At the time of writing, SLMs that are controlled through other interfaces than the video output are not supported. However, the interface of the `PhaseSLM` class is designed to accommodate these devices in the future. Through this interface, support for intensity-only light modulators (e.g. Digital Mirror Devices) operating in phase-modulation mode (e.g. :cite:`conkey2012high`) may also be added.
 
 Texture mapping and blending
 -----------------------------------

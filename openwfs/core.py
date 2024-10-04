@@ -58,8 +58,8 @@ class Device(ABC):
         This function changes the global state to 'moving' or 'measuring' if needed,
         and it may block until this state switch is completed.
 
-        After switching, stores the time at which the operation will have ended in the `_end_time_ns`
-        field (i. e., `time.time_ns() + self.latency + self.duration`).
+        After switching, stores the time at which the operation will have ended in the ``_end_time_ns``
+        field (i.e., ``time.time_ns() + self.latency + self.duration``).
         """
 
         # acquire a global lock, to prevent multiple threads to switch moving/measuring state simultaneously
@@ -132,7 +132,7 @@ class Device(ABC):
         )` and the stabilization of the device.
 
         If the duration of an operation is not known in advance,
-        (e. g., when waiting for a hardware trigger), this function should return `np.inf * u.ms`.
+        (e.g., when waiting for a hardware trigger), this function should return `np.inf * u.ms`.
 
         Note: A device may update the duration dynamically.
         For example, a stage may compute the required time to
@@ -144,7 +144,7 @@ class Device(ABC):
         return self._duration
 
     def wait(self, up_to: Optional[Quantity[u.ms]] = None) -> None:
-        """Waits until the device is (almost) in the `ready` state, i. e., has finished measuring or moving.
+        """Waits until the device is (almost) in the `ready` state, i.e., has finished measuring or moving.
 
         This function is called by `_start` automatically to ensure proper synchronization between detectors and
         actuators, and it is called by `__del__` to ensure the device is not active when it is destroyed.
@@ -163,7 +163,7 @@ class Device(ABC):
                 *before* the device is finished.
 
         Raises:
-            Any other exception raised by the device in another thread (e. g., during `_fetch`).
+            Any other exception raised by the device in another thread (e.g., during `_fetch`).
             TimeoutError: if the device has `duration = ∞`, and `busy` does not return `True` within
                 `self.timeout`
             RuntimeError: if `wait` is called from inside a setter or from inside `_fetch`.
@@ -260,7 +260,7 @@ class Detector(Device, ABC):
                 Subclassed can override the `pixel_size` property to return the actual pixel size.
             duration: The maximum amount of time that elapses between returning from `trigger()`
                 and the end of the measurement. If the duration of an operation is not known in advance,
-                (e. g., when waiting for a hardware trigger), this value should be `np.inf * u.ms`
+                (e.g., when waiting for a hardware trigger), this value should be `np.inf * u.ms`
                 and the `busy` method should be overridden to return `False` when the measurement is finished.
                 If None is passed, the subclass should override the `duration` property to return the actual duration.
             latency: The minimum amount of time between sending a command or trigger to the device
@@ -299,7 +299,8 @@ class Detector(Device, ABC):
         explicitly when waiting for data to be stored in the `out` argument of :meth:`~.Detector.trigger()`.
 
         Args:
-            up_to: if specified, this function may return `up_to` milliseconds *before* the hardware has finished measurements.
+            up_to: if specified, this function may return `up_to` milliseconds *before* the hardware
+                has finished measurements.
                 If None, this function waits until the hardware has finished all measurements *and* all data is fetched,
                 and stored in the `out` array if that was passed to trigger().
 
@@ -315,8 +316,8 @@ class Detector(Device, ABC):
         """Triggers the detector to start acquisition of the data.
 
         This function does not wait for the measurement to complete.
-        Instead, it returns a `concurrent.futures.Future`..
-        Call `.result()` on the returned object to wait for the data.
+        Instead, it returns a ``concurrent.futures.Future``.
+        Call ``.result()`` on the returned object to wait for the data.
         Here is a typical usage pattern:
 
         .. code-block:: python
@@ -486,13 +487,13 @@ class Detector(Device, ABC):
         """Returns an array with the coordinate values along the d-th axis.
 
         The coordinates represent the _centers_ of the grid points. For example,
-        for an array of shape `(2,)` the coordinates are `[0.5, 1.5] * pixel_size`
+        for an array of shape ``(2,)`` the coordinates are `[0.5, 1.5] * pixel_size`
         and not `[0, 1] * pixel_size`. If `self.pixel_size is None`, a pixel size
         of 1.0 is used.
 
         The coordinates are returned as an array with the same number of
         dimensions as `data_shape`, with the d-th dimension holding the coordinates.
-        This facilitates meshgrid-like computations, e. g.
+        This facilitates meshgrid-like computations, e.g.
         `cam.coordinates(0) + cam.coordinates(1)` gives a 2-dimensional array of coordinates.
 
         Args:
@@ -521,7 +522,7 @@ class Processor(Detector, ABC):
     """Base class for all Processors.
 
     Processors can be used to build data processing graphs, where each Processor takes input from one or
-    more input Detectors and processes that data (e. g., cropping an image, averaging over an ROI, etc.).
+    more input Detectors and processes that data (e.g., cropping an image, averaging over an ROI, etc.).
     A processor, itself, is a Detector to allow chaining multiple processors together to combine functionality.
 
     To implement a processor, implement `_fetch`, and optionally override `data_shape`, `pixel_size`, and `__init__`.
@@ -569,7 +570,7 @@ class Processor(Detector, ABC):
     @property
     def duration(self) -> Quantity[u.ms]:
         """Returns the last end time minus the first start time for all detectors
-        i. e., max (duration + latency) - min(latency).
+        i.e., max (duration + latency) - min(latency).
 
         Note that `latency` is allowed to vary over time for devices that can only be triggered periodically,
         so this `duration` may also vary over time.

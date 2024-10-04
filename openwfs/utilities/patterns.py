@@ -103,7 +103,7 @@ def tilt(
           corresponds to having a ramp from -2 to +2 over the height of the pattern
           When this pattern is used as a phase in a pupil-conjugate configuration,
           this corresponds to a displacement of -2/π times the Abbe diffraction limit
-          (e. g. a positive x-gradient g causes the focal point to move in the _negative_ x-direction)
+          (e.g. a positive x-gradient g causes the focal point to move in the _negative_ x-direction)
         extent: see module documentation
         phase_offset: optional additional phase offset to be added to the pattern
     """
@@ -183,7 +183,7 @@ def gaussian(
     Args:
         shape: see module documentation
         waist (ScalarType): location of the beam waist (1/e value)
-            relative to half of the size of the pattern (i. e. relative to the `radius` of the square)
+            relative to half of the size of the pattern (i.e. relative to the `radius` of the square)
         truncation_radius (ScalarType): when not None, specifies the radius of a disk that is used to truncate the
             Gaussian. All values outside the disk are set to 0.
         extent: see module documentation

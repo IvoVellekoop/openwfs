@@ -70,7 +70,7 @@ def test_find_pixel_shift():
 
 def test_field_correlation():
     """
-    Test the field correlation, i. e. g_1 normalized first order correlation function.
+    Test the field correlation, i.e. g_1 normalized first order correlation function.
     """
     a = np.zeros(shape=(2, 3))
     a[1, 2] = 2.0
@@ -93,7 +93,7 @@ def test_field_correlation():
 
 def test_frame_correlation():
     """
-    Test the frame correlation, i. e. g_2 normalized second order correlation function.
+    Test the frame correlation, i.e. g_2 normalized second order correlation function.
     Test the following:
         g_2 correlation with self == 1/3 for distribution from `random.rand`
         g_2 correlation with other == 0

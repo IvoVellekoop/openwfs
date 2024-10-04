@@ -14,11 +14,12 @@ class FourierDualReference(DualReference):
     Improvements over [1]:
 
     - The set of plane waves is taken from a disk in k-space instead of a square.
-    - No overlap between the two halves is needed, instead the final stitching step is done using measurements already in the data set.
-    - When only a single target is optimized, the algorithm can be used in an iterative version to increase SNR during the measurument,
-      similar to [2].
+    - No overlap between the two halves is needed, instead the final stitching step is done
+      using measurements already in the data set.
+    - When only a single target is optimized, the algorithm can be used in an iterative version
+      to increase SNR during the measurement, similar to [2].
 
-    [1]: Bahareh Mastiani, Gerwin Osnabrugge, and Ivo M. Vellekoop,
+    [1]: Bahareh Mastiani, Gerwin Osnabrugge, and Ivo M. Vellekoop,
     "Wavefront shaping for forward scattering," Opt. Express 30, 37436-37445 (2022)
 
     [2]: X. Tao, T. Lam, B. Zhu, et al., “Three-dimensional focusing through scattering media using conjugate adaptive
@@ -89,8 +90,8 @@ class FourierDualReference(DualReference):
         modes = np.zeros((*self._slm_shape, len(k)), dtype=np.float32)
         for i, k_i in enumerate(k):
             # tilt generates a pattern from -2.0 to 2.0 (The convention for Zernike modes normalized to an RMS of 1).
-            # The natural step to take is the Abbe diffraction limit of the modulated part, which corresponds to a gradient
-            # from -π to π over the modulated part.
+            # The natural step to take is the Abbe diffraction limit of the modulated part,
+            # which corresponds to a gradient from -π to π over the modulated part.
             modes[..., i] = tilt(self._slm_shape, g=k_i * 0.5 * np.pi)
 
         self.phase_patterns = (modes, modes)

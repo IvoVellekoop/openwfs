@@ -293,7 +293,7 @@ def project(
 
     The input image is scaled so that the pixel sizes match those of the output,
     and cropped/zero-padded so that the data shape matches that of the output.
-    Optionally, an additional transformation can be specified, e. g., to scale or translate the source image.
+    Optionally, an additional transformation can be specified, e.g., to scale or translate the source image.
     This transformation is specified as a 2x3 transformation matrix in homogeneous coordinates.
 
     Args:

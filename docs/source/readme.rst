@@ -29,7 +29,7 @@ OpenWFS is a Python package for performing and for simulating wavefront shaping 
     * **Spatial light modulator**. The :class:`~.slm.SLM` object provides a versatile way to control spatial light modulators, allowing for software lookup tables, synchronization, texture warping, and multi-texture functionality accelerated by OpenGL.
     * **Scanning microscope**. The :class:`~.devices.ScanningMicroscope` object uses a National Instruments data acquisition card to control a laser-scanning microscope.
     * **GenICam cameras**. The :class:`~.devices.Camera` object uses the `harvesters` backend :cite:`harvesters` to access any camera supporting the GenICam standard :cite:`genicam`.
-    * **Automatic synchronization**. OpenWFS provides tools for automatic synchronization of actuators (e. g. an SLM) and detectors (e. g. a camera). The automatic synchronization makes it trivial to perform pipelined measurements that avoid the delay normally caused by the latency of the video card and SLM.
+    * **Automatic synchronization**. OpenWFS provides tools for automatic synchronization of actuators (e.g. an SLM) and detectors (e.g. a camera). The automatic synchronization makes it trivial to perform pipelined measurements that avoid the delay normally caused by the latency of the video card and SLM.
 
 * **Wavefront shaping algorithms**. A (growing) collection of wavefront shaping algorithms. OpenWFS abstracts the hardware control, synchronization, and signal processing so that the user can focus on the algorithm itself. As a result, most algorithms can be implemented cleanly without hardware-specific programming.
 
@@ -78,7 +78,7 @@ If these fidelities are much lower than 1, this indicates a problem in the exper
 
 Further troubleshooting can be performed with the :func:`~.troubleshoot` function, which estimates the following fidelities:
 
-* :attr:`~.WFSTroubleshootResult.fidelity_non_modulated`: The fidelity reduction due to non-modulated light., e. g. due to reflection from the front surface of the SLM.
+* :attr:`~.WFSTroubleshootResult.fidelity_non_modulated`: The fidelity reduction due to non-modulated light., e.g. due to reflection from the front surface of the SLM.
 * :attr:`~.WFSTroubleshootResult.fidelity_decorrelation`: The fidelity reduction due to decorrelation of the field during the measurement.
 
 All fidelity estimations are combined to make an order of magnitude estimation of the expected enhancement. :func:`~.troubleshoot` returns a ``WFSTroubleshootResult`` object containing the outcome of the different tests and analyses, which can be printed to the console as a comprehensive troubleshooting report with the method :meth:`~.WFSTroubleshootResult.report()`. See ``examples/troubleshooter_demo.py`` for an example of how to use the automatic troubleshooter.

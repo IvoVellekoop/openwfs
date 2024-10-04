@@ -8,6 +8,7 @@ from numpy.fft import fft2, ifft2
 from ..core import Detector, PhaseSLM
 
 
+# TODO: review, replace by numpy/scipy functions where possible, remove or hide functions that are too specific
 def signal_std(signal_with_noise: np.ndarray, noise: np.ndarray) -> float:
     """
     Compute noise corrected standard deviation of signal measurement.
@@ -39,7 +40,7 @@ def cnr(signal_with_noise: np.ndarray, noise: np.ndarray) -> np.float64:
             ND array containing the measured signal including noise. The noise is assumed to be uncorrelated with the
             signal, such that var(measured) = var(signal) + var(noise).
         noise:
-            ND array containing only noise, e. g. a dark frame.
+            ND array containing only noise, e.g. a dark frame.
 
     Returns:
         Standard deviation of the signal, corrected for the variance due to given noise.
@@ -54,9 +55,9 @@ def contrast_enhancement(signal_with_noise: np.ndarray, reference_with_noise: np
 
     Args:
         signal_with_noise:
-            ND array containing the measured signal including noise, e. g. image signal with shaped wavefront.
+            ND array containing the measured signal including noise, e.g. image signal with shaped wavefront.
         reference_with_noise:
-            ND array containing a reference signal including noise, e. g. image signal with a flat wavefront.
+            ND array containing a reference signal including noise, e.g. image signal with a flat wavefront.
         noise:
             ND array containing only noise.
 
@@ -95,7 +96,7 @@ def find_pixel_shift(f: np.ndarray, g: np.ndarray) -> tuple[int, ...]:
 
 def field_correlation(a: np.ndarray, b: np.ndarray) -> float:
     """
-    Compute field correlation, i. e. inner product of two fields, normalized by the product of the L2 norms,
+    Compute field correlation, i.e. inner product of two fields, normalized by the product of the L2 norms,
     such that field_correlation(f, s*f) == 1, where s is a scalar value.
     Also known as normalized first order correlation :math:`g_1`.
 
@@ -137,8 +138,8 @@ def pearson_correlation(a: np.ndarray, b: np.ndarray, noise_var: np.ndarray = 0.
     a_dev = a - a.mean()  # Deviations from mean a
     b_dev = b - b.mean()  # Deviations from mean b
     covar = (a_dev * b_dev).mean()  # Covariance
-    a_var_signal = a.var() - noise_var  # Variance of signal in a, excluding noise
-    b_var_signal = b.var() - noise_var  # Variance of signal in b, excluding noise
+    a_var_signal = a.var() - noise_var  # Variance of signal in ``a``, excluding noise
+    b_var_signal = b.var() - noise_var  # Variance of signal in ``b``, excluding noise
     return covar / np.sqrt(a_var_signal * b_var_signal)
 
 
@@ -542,9 +543,9 @@ def troubleshoot(
 
     Args:
         measure_non_modulated_phase_steps:
-        algorithm: Wavefront Shaping algorithm object, e. g. StepwiseSequential.
+        algorithm: Wavefront Shaping algorithm object, e.g. StepwiseSequential.
         background_feedback: Feedback source that determines average background speckle intensity.
-        frame_source: Source object for reading frames, e. g. Camera.
+        frame_source: Source object for reading frames, e.g. Camera.
         shutter: Device object that can block/unblock light source.
         do_frame_capture: Boolean. If False, skip frame capture before and after running the WFS algorithm.
             Also skips computation of corresponding metrics. Also skips stability test.

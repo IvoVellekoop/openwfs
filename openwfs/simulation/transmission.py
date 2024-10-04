@@ -38,11 +38,11 @@ class SimulatedWFS(Processor):
         Args:
             t: Transmission matrix.
             aberrations: An array containing the aberrations in radians. Can be used instead of a transmission matrix,
-                equivalent to specifying t = np.exp(1j * aberrations) / (aberrations.shape[0] * aberrations.shape[1]).
+                equivalent to specifying ``t = np.exp(1j * aberrations) / (aberrations.shape[0] * aberrations.shape[1])``.
             slm:
             multi_threaded (bool, optional): If True, the simulation will use multiple threads to compute the
                 intensity in the focus. If False, the simulation will use a single thread. Defaults to True.
-            beam_amplitude (ScalarType, optional): The beam profile amplitude. Can be an np.ndarray. Defaults to 1.0.
+            beam_amplitude (ScalarType, optional): The amplitude profile of the incident beam. Defaults to 1.0.
 
         The constructor creates a MockSLM instance based on the shape of the aberrations, calculates the electric
         field at the SLM considering the aberrations and optionally the Gaussian beam profile, and initializes the

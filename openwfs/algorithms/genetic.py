@@ -33,7 +33,7 @@ class SimpleGenetic:
     ----------
     [^1]: Conkey D B, Brown A N, Caravaca-Aguirre A M and Piestun R 'Genetic algorithm optimization
           for focusing through turbid media in noisy environments' Opt. Express 20 4840–9 (2012).
-    [^2]: Benjamin R Anderson et al 'A modular GUI-based program for genetic algorithm-based
+    [^2]: Benjamin R Anderson et al. 'A modular GUI-based program for genetic algorithm-based
           feedback-assisted wavefront shaping', J. Phys. Photonics 6 045008 (2024).
     """
 

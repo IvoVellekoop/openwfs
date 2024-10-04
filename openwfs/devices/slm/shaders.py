@@ -33,7 +33,7 @@ default_fragment_shader = """
 # the range -δ to δ maps to a gray value 0 instead of
 # negative values mapping to 255 and positive values mapping to 0.
 # Since the lookup table texture is configured to use GL_WRAP,
-# only the fractional part of texCoord is used (i. e., texCoord - floor(texCoord)).
+# only the fractional part of texCoord is used (i.e., texCoord - floor(texCoord)).
 #
 post_process_fragment_shader = """
         #version 440 core

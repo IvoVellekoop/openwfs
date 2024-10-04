@@ -206,7 +206,7 @@ class SLM(Actuator, PhaseSLM):
         """Updates shape and refresh rate to the actual values of the window.
 
         Note that these values are in pixels, which may be different from the window size because the window size is
-        in screen coordinates, which may not always the same as pixels (e. g. on a retina display).
+        in screen coordinates, which may not always the same as pixels (e.g. on a retina display).
 
         For windowed SLMs, the refresh rate property is set to the refresh rate of the primary monitor.
 
@@ -407,7 +407,7 @@ class SLM(Actuator, PhaseSLM):
 
         Note:
             At the moment, :meth:`~.SLM.update` blocks until all OpenGL commands are processed,
-            and a vertical retrace occurs (i. e., the hardware signals the start of a new frame).
+            and a vertical retrace occurs (i.e., the hardware signals the start of a new frame).
             This behavior may change in the future and should not be relied on.
             Instead, use the automatic synchronization mechanism to synchronize detectors with
             the SLM hardware.

@@ -49,7 +49,8 @@ latex_elements = {
         \author[1]{Tom~Knop}
         \author[1,2]{Harish~Sasikumar}
         \author[1]{Ivo~M.~Vellekoop} 
-        \affil[1]{University of Twente, Biomedical Photonic Imaging, TechMed Institute, P. O. Box 217, 7500 AE Enschede, The Netherlands}
+        \affil[1]{University of Twente, Biomedical Photonic Imaging, TechMed Institute, P. O. Box 217,
+         7500 AE Enschede, The Netherlands}
         \affil[2]{Imec (Netherlands), Holst Centre (HTC-31), 5656 AE, Eindhoven, The Netherlands}
         \publishers{%
             \normalfont\normalsize%
@@ -128,11 +129,11 @@ sphinx_gallery_conf = {
 autodoc_mock_imports = ["PyOpenGL", "OpenGL"]
 
 
-## Hide some classes that are not production ready yet
-def skip(app, what, name, obj, skip, options):
+# Hide some classes that are not production ready yet
+def skip(app, what, name, obj, do_skip, options):
     if name in ("WFSController", "Gain"):
         return True
-    return skip
+    return do_skip
 
 
 def visit_citation(self, node):

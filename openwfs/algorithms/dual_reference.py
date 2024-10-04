@@ -17,8 +17,8 @@ class DualReference:
     A and B, as indicated by the boolean group_mask argument.
     The algorithm first keeps the pixels in group B fixed, and displays a sequence on patterns on the pixels of group A.
     It uses these measurements to construct an optimized wavefront that is displayed on the pixels of group A.
-    This process is then repeated for the pixels of group B, now using the *optimized* wavefront on group A as reference.
-    Optionally, the process can be repeated for a number of iterations, which each iteration using the current correction
+    This process is then repeated for the pixels of group B, now using the *optimized* wavefront on group A as
+    reference. Optionally, the process can be repeated for a number of iterations, which each iteration using the current correction
     pattern as a reference. This makes this algorithm suitable for non-linear feedback, such as multi-photon
     excitation fluorescence [Osnabrugge2019]_.
 
@@ -27,12 +27,12 @@ class DualReference:
 
     References
     ----------
-    .. [Tao2017] X. Tao, T. Lam, B. Zhu, et al., “Three-dimensional focusing through scattering media using conjugate adaptive
-           optics with remote focusing (CAORF),” Opt. Express 25, 10368–10383 (2017).
+    .. [Tao2017] X. Tao, T. Lam, B. Zhu, et al., “Three-dimensional focusing through scattering media using conjugate
+            adaptive optics with remote focusing (CAORF),” Opt. Express 25, 10368–10383 (2017).
 
-    .. [Osnabrugge2019] Gerwin Osnabrugge, Lyubov V. Amitonova, and Ivo M. Vellekoop. "Blind focusing through strongly scattering media
-           using wavefront shaping with nonlinear feedback", Optics Express, 27(8):11673–11688, 2019.
-           https://opg.optica.org/oe/ abstract.cfm?uri=oe-27-8-1167
+    .. [Osnabrugge2019] Gerwin Osnabrugge, Lyubov V. Amitonova, and Ivo M. Vellekoop. "Blind focusing through strongly
+            scattering media using wavefront shaping with nonlinear feedback", Optics Express, 27(8):11673–11688, 2019.
+            https://opg.optica.org/oe/ abstract.cfm?uri=oe-27-8-1167
 
     """
 
@@ -53,9 +53,11 @@ class DualReference:
         Args:
             feedback: The feedback source, usually a detector that provides measurement data.
             slm: Spatial light modulator object.
-            phase_patterns: A tuple of two 3D arrays, containing the phase patterns for group A and group B, respectively.
+            phase_patterns:
+                A tuple of two 3D arrays, containing the phase patterns for group A and group B, respectively.
                 The first two dimensions are the spatial dimensions, and should match the size of group_mask.
-                The 3rd dimension in the array is index of the phase pattern. The number of phase patterns in A and B may be different.
+                The 3rd dimension in the array is index of the phase pattern.
+                The number of phase patterns in A and B may be different.
                 When None, the phase_patterns attribute must be set before executing the algorithm.
             amplitude: Tuple of 2D arrays, one array for each group. The arrays have shape equal to the shape of
                 group_mask. When None, the amplitude attribute must be set before executing the algorithm. When
@@ -68,14 +70,19 @@ class DualReference:
                 non-linear feedback and the SNR, more might be required.
             iterations: Number of times to optimize a mode set, e.g. when iterations = 5, the measurements are
                 A, B, A, B, A.
-            optimized_reference: When `True`, during each iteration the other half of the SLM displays the optimized pattern so far (as in [1]).
-                When `False`, the algorithm optimizes A with a flat wavefront on B, and then optimizes B with a flat wavefront on A.
-                This mode also allows for multi-target optimization, where the algorithm optimizes multiple targets in parallel.
+            optimized_reference:
+                When `True`, during each iteration the other half of the SLM displays the optimized pattern so far (as in [1]).
+                When `False`, the algorithm optimizes A with a flat wavefront on B,
+                and then optimizes B with a flat wavefront on A.
+                This mode also allows for multi-target optimization,
+                where the algorithm optimizes multiple targets in parallel.
                 The two halves are then combined (stitched) to form the full transmission matrix.
-                In this mode, it is essential that both A and B include a flat wavefront as mode 0. The measurement for
-                mode A0 and for B0 both give contain relative phase between group A and B, so there is a slight redundancy.
+                In this mode, it is essential that both A and B include a flat wavefront as mode 0.
+                The measurement for mode A0 and for B0 both give contain relative phase between group A and B,
+                so there is a slight redundancy.
                 These two measurements are combined to find the final phase for stitching.
-                When set to `None` (default), the algorithm uses True if there is a single target, and False if there are multiple targets.
+                When set to `None` (default), the algorithm uses True if there is a single target,
+                and False if there are multiple targets.
 
             analyzer: The function used to analyze the phase stepping data.
                 Must return a WFSResult object. Defaults to `analyze_phase_stepping`

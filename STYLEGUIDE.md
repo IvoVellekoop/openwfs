@@ -6,8 +6,12 @@
 
 # General
 
-- The package `black` is used to ensure correct formatting. Install with `pip install black` and run in the terminal
-  using `black .` when located at the root of the repository.
+- The package `black` is used to ensure correct formatting.
+  When using PyCharm, just install black through the settings dialog.
+- PyCharm warnings and errors should be fixed. Exceptions:
+    - PEP 8: E501 line too long. May be disabled. This is already checked by black. For docstrings, keeping a string
+      line limit can be very cumbersome.
+    - PEP 8:E203 whitespace before ':'. May be disabled. This is already checked by (and conflicts with) black.
 
 # Tests
 

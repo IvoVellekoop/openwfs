@@ -32,7 +32,7 @@ class Camera(Detector):
             The node map should not be used to set properties that are available as properties in the Camera object,
             such as `duration` (exposure time), `width`, `height`, `binning`, etc.
 
-            Also, the node map should not be used to set properties while the camera is fetching a frame (i. e.,
+            Also, the node map should not be used to set properties while the camera is fetching a frame (i.e.,
             between `trigger()` and calling `result()` on the returned concurrent.futures.Future object).
 
     Note:

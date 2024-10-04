@@ -185,7 +185,7 @@ class FrameBufferPatch(Patch):
             slm: SLM object that this patch belongs to
             lookup_table: 1-D array of gray values that will be used to map the phase values to the gray-scale output.
                 see :attr:`~SLM.lookup_table` for details.
-            bit_depth: bit depth of the SLM. The maximum value in the lookup table can be 2**bit_depth - 1.
+            bit_depth: The bit depth of the SLM. The maximum value in the lookup table can be 2**bit_depth - 1.
                 Note: this maximum value is mapped to 1.0 in the opengl shader, and converted back to 2**bit_depth by
                 the opengl hardware.
         """

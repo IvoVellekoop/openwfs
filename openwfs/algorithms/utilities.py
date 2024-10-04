@@ -12,9 +12,9 @@ class WFSResult:
     Attributes:
         t (ndarray): Measured transmission matrix. If multiple targets were used, the first dimension(s) of `t`
             denote the columns of the transmission matrix (`a` indices), and the last dimensions(s) denote the targets,
-            i. e., the rows of the transmission matrix (`b` indices).
+            i.e., the rows of the transmission matrix (`b` indices).
         axis (int): Number of dimensions used for denoting a single column of the transmission matrix
-            (e. g., 2 dimensions representing the x and y coordinates of the SLM pixels).
+            (e.g., 2 dimensions representing the x and y coordinates of the SLM pixels).
         fidelity_noise (ndarray): The estimated loss in fidelity caused by the limited SNR (for each target).
         fidelity_amplitude (ndarray): Estimated reduction of the fidelity due to phase-only modulation (for each target)
             (≈ π/4 for fully developed speckle).
@@ -42,7 +42,7 @@ class WFSResult:
             t(ndarray): measured transmission matrix.
             axis(int):
                 number of dimensions used for denoting a single columns of the transmission matrix
-                (e. g. 2 dimensions representing the x and y coordinates of the SLM pixels)
+                (e.g. 2 dimensions representing the x and y coordinates of the SLM pixels)
             fidelity_noise(ArrayLike):
                 the estimated loss in fidelity caused by the the limited snr (for each target).
             fidelity_amplitude(ArrayLike):
@@ -82,7 +82,7 @@ class WFSResult:
         noise_warning = "OK" if self.fidelity_noise > 0.5 else "WARNING low signal quality."
         amplitude_warning = "OK" if self.fidelity_amplitude > 0.5 else "WARNING uneven contribution of optical modes."
         calibration_fidelity_warning = (
-            "OK" if self.fidelity_calibration > 0.5 else ("WARNING non-linear phase response, check " "lookup table.")
+            "OK" if self.fidelity_calibration > 0.5 else "WARNING non-linear phase response, check " "lookup table."
         )
         return f"""
         Wavefront shaping results:
@@ -144,7 +144,7 @@ class WFSResult:
         )
 
 
-def analyze_phase_stepping(measurements: np.ndarray, axis: int, A: Optional[float] = None):
+def analyze_phase_stepping(measurements: np.ndarray, axis: int):
     """Analyzes the result of phase stepping measurements, returning matrix `t` and noise statistics
 
     This function assumes that all measurements were made using the same reference field `A`
@@ -159,9 +159,6 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int, A: Optional[floa
             and the last zero or more dimensions corresponding to the individual targets
             where the feedback was measured.
         axis(int): indicates which axis holds the phase steps.
-        A(Optional[float]): magnitude of the reference field.
-            This value is used to correctly normalize the returned transmission matrix.
-            When missing, the value of `A` is estimated from the measurements.
 
     With `phase_steps` phase steps, the measurements are given by
 
@@ -187,16 +184,7 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int, A: Optional[floa
     segments = tuple(range(axis))
 
     # Fourier transform the phase stepping measurements
-    t_f_raw = np.fft.fft(measurements, axis=axis) / phase_steps
-
-    if A is None:  # reference field strength not known: estimate from data
-        t_abs = np.abs(np.take(t_f_raw, 1, axis=axis))
-        offset = np.take(t_f_raw, 0, axis=axis)
-        a_plus_b = np.sqrt(offset + 2.0 * t_abs)
-        a_minus_b = np.sqrt(offset - 2.0 * t_abs)
-        A = 0.5 * np.mean(a_plus_b + a_minus_b)
-
-    t_f = t_f_raw / A
+    t_f = np.fft.fft(measurements, axis=axis) / phase_steps
     t = np.take(t_f, 1, axis=axis)
 
     # compute the effect of amplitude variations.

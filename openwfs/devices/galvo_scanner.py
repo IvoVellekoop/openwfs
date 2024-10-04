@@ -163,7 +163,7 @@ class Axis:
         The launch point and landing point are returned along with the scan sequence.
 
         This function also returns a slice object, which represents the part of the sequence
-        that corresponds to a linear movement from start to stop. `slice.stop - slice.start = sample_count`.
+        that corresponds to a linear movement from start to stop. ``slice.stop - slice.start = sample_count``.
 
         The scan follows the coordinate convention used throughout OpenWFS and Astropy,
         where the coordinates correspond to the centers of the pixels.
@@ -221,7 +221,7 @@ class Axis:
 
         Args:
             optical_deflection (Quantity[u.deg/u.V]):
-                The optical deflection (i. e. twice the mechanical angle) of the mirror
+                The optical deflection (i.e. twice the mechanical angle) of the mirror
                  as a function of applied voltage.
             galvo_to_pupil_magnification (float):
                 The magnification of the relay system between the galvo mirrors and the pupil.
@@ -256,7 +256,7 @@ class Axis:
 
         Args:
             optical_deflection (Quantity[u.deg/u.V]):
-                The optical deflection (i. e. twice the mechanical angle) of the mirror
+                The optical deflection (i.e. twice the mechanical angle) of the mirror
                  as a function of applied voltage.
             torque_constant (Quantity[u.N*u.m/u.A]):
                 The torque constant of the galvo mirror driving coil.
@@ -676,7 +676,7 @@ class ScanningMicroscope(Detector):
     @property
     def duration(self) -> Quantity[u.ms]:
         """Total duration of scanning for one frame."""
-        self._ensure_valid()  # make sure _scan_pattern is up to date
+        self._ensure_valid()  # make sure _scan_pattern is up-to-date
         return (self._scan_pattern.shape[1] / self._sample_rate).to(u.ms)
 
     @property
