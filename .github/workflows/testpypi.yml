@@ -9,6 +9,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://pypi.org/p/openwfs
 
     # enable openid authentication for PyPi
     permissions:
