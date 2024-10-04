@@ -1,5 +1,5 @@
 import warnings
-from typing import Sequence
+from typing import Sequence, Optional
 
 import numpy as np
 from numpy.typing import ArrayLike
@@ -172,12 +172,23 @@ class Patch(PhaseSLM):
 class FrameBufferPatch(Patch):
     """Special patch that represents the frame buffer. All patches are first rendered to the frame buffer,
     and this buffer is rendered to the screen through a  final post-processing step that does the phase wrapping and
-    implements the software lookup table."""
+    implements the software lookup table.
+    """
 
     _LUT_TEXTURE = 1
     _textures: list[Texture]
 
-    def __init__(self, slm, lookup_table: Sequence[int]):
+    def __init__(self, slm, lookup_table: Optional[Sequence[int]], bit_depth: int):
+        """
+
+        Args:
+            slm: SLM object that this patch belongs to
+            lookup_table: 1-D array of gray values that will be used to map the phase values to the gray-scale output.
+                see :attr:`~SLM.lookup_table` for details.
+            bit_depth: bit depth of the SLM. The maximum value in the lookup table can be 2**bit_depth - 1.
+                Note: this maximum value is mapped to 1.0 in the opengl shader, and converted back to 2**bit_depth by
+                the opengl hardware.
+        """
         super().__init__(
             slm,
             fragment_shader=post_process_fragment_shader,
@@ -201,6 +212,7 @@ class FrameBufferPatch(Patch):
             raise Exception("Could not construct frame buffer")
         glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
 
+        self._bit_depth = bit_depth
         self._textures.append(Texture(self.context, GL.GL_TEXTURE_1D))  # create texture for lookup table
         self._lookup_table = None
         self.lookup_table = lookup_table
@@ -213,13 +225,21 @@ class FrameBufferPatch(Patch):
 
     @property
     def lookup_table(self):
-        """1-D array"""
+        """1-D array
+
+        See :attr:`~SLM.lookup_table` for details.
+        """
         return self._lookup_table
 
     @lookup_table.setter
     def lookup_table(self, value):
+        max_value = 2**self._bit_depth - 1
+        if value is None:
+            value = range(max_value + 1)
+        elif np.min(value) < 0.0 or np.max(value) > max_value:
+            raise ValueError(f"Lookup table values must be in the range [0, {max_value}]")
         self._lookup_table = np.array(value)
-        self._textures[FrameBufferPatch._LUT_TEXTURE].set_data(self._lookup_table / 255)
+        self._textures[FrameBufferPatch._LUT_TEXTURE].set_data(self._lookup_table / max_value)
 
     def get_pixels(self):
         data = self._textures[FrameBufferPatch._PHASES_TEXTURE].get_data()

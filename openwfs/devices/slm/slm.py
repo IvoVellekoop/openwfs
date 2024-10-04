@@ -215,24 +215,7 @@ class SLM(Actuator, PhaseSLM):
 
         This function also sets the viewport to the full window size and creates a frame buffer.
         """
-        # create a new frame buffer, re-use the old one if one was present, otherwise use a default of range(256)
-        # re-use the lookup table if possible, otherwise create a default one ranging from 0 to 255.
-        old_lut = self._frame_buffer.lookup_table if self._frame_buffer is not None else range(256)
-        self._frame_buffer = FrameBufferPatch(self, old_lut)
-        glViewport(0, 0, self._shape[1], self._shape[0])
-        # tell openGL to wait for the vertical retrace when swapping buffers (it appears need to do this
-        # after creating the frame buffer)
-        glfw.swap_interval(1)
-
-        # update the shape property to match the actual value of the window
-        (fb_width, fb_height) = glfw.get_framebuffer_size(self._window)
-        fb_shape = (fb_height, fb_width)
-        if self._shape != fb_shape:
-            warnings.warn(f"Actual resolution {fb_shape} does not match requested resolution {self._shape}.")
-            self._shape = fb_shape
-
         (current_size, current_rate, current_bit_depth) = SLM._current_mode(self._monitor_id)
-
         # verify that the bit depth is at least 8 bit
         if current_bit_depth < 8:
             warnings.warn(
@@ -246,6 +229,22 @@ class SLM(Actuator, PhaseSLM):
                 f"Actual refresh rate of {current_rate} Hz does not match set rate " f"of {self._refresh_rate} Hz"
             )
         self._refresh_rate = current_rate
+
+        # create a new frame buffer
+        # re-use the lookup table if possible, otherwise create a default one ranging from 0 to 2 ** bit_depth-1.
+        old_lut = self._frame_buffer.lookup_table if self._frame_buffer is not None else None
+        self._frame_buffer = FrameBufferPatch(self, old_lut, current_bit_depth)
+        glViewport(0, 0, self._shape[1], self._shape[0])
+        # tell openGL to wait for the vertical retrace when swapping buffers (it appears need to do this
+        # after creating the frame buffer)
+        glfw.swap_interval(1)
+
+        # update the shape property to match the actual value of the window
+        (fb_width, fb_height) = glfw.get_framebuffer_size(self._window)
+        fb_shape = (fb_height, fb_width)
+        if self._shape != fb_shape:
+            warnings.warn(f"Actual resolution {fb_shape} does not match requested resolution {self._shape}.")
+            self._shape = fb_shape
 
     @staticmethod
     def _init_glfw():
@@ -539,10 +538,13 @@ class SLM(Actuator, PhaseSLM):
     @property
     def lookup_table(self) -> Sequence[int]:
         """Lookup table that is used to map the wrapped phase range of 0-2pi to gray values
-        (represented in a range from 0 to 256). By default, this is just range(256).
-        Note that the lookup table need not contain 256 elements.
+
+        The gray values are represented in the range from 0 to 2**bit_depth - 1). For an 8-bit video mode, this is 0-255.
+        By default, a linear lookup table is set: range(2**bit_depth - 1).
+
+        Note: lookup table need not contain 2**bit_depth elements.
         A typical scenario is to use something like `slm.lookup_table=range(142)` to map the 0-2pi range
-        to only the first 142 gray values of the slm.
+        to only the first 142 gray values.
         """
         return self._frame_buffer.lookup_table
 
