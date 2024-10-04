@@ -328,10 +328,6 @@ class Camera(ADCProcessor):
     def exposure(self) -> Quantity[u.ms]:
         return self.duration
 
-    @exposure.setter
-    def exposure(self, value: Quantity[u.ms]):
-        self.duration = value.to(u.ms)
-
 
 class XYStage(Actuator):
     """

@@ -13,16 +13,16 @@ from ..openwfs.algorithms import (
 )
 from ..openwfs.algorithms.troubleshoot import field_correlation
 from ..openwfs.algorithms.utilities import WFSController
-from ..openwfs.processors import SingleRoi
-from ..openwfs.simulation.mockdevices import GaussianNoise
-from ..openwfs.simulation import SimulatedWFS, StaticSource, SLM, Microscope
 from ..openwfs.plot_utilities import plot_field
+from ..openwfs.processors import SingleRoi
+from ..openwfs.simulation import SimulatedWFS, StaticSource, SLM, Microscope
+from ..openwfs.simulation.mockdevices import GaussianNoise, Camera
 
 
 @pytest.mark.parametrize("shape", [(4, 7), (10, 7), (20, 31)])
 @pytest.mark.parametrize("noise", [0.0, 0.1])
 @pytest.mark.parametrize("algorithm", ["ssa", "fourier"])
-def test_multi_target_algorithms(shape, noise: float, algorithm: str):
+def test_multi_target_algorithms(shape: tuple[int, int], noise: float, algorithm: str):
     """
     Test the multi-target capable algorithms (SSA and Fourier dual ref).
 
@@ -165,7 +165,7 @@ def test_fourier_microscope():
     img[signal_location] = 100
     slm_shape = (1000, 1000)
 
-    src = StaticSource(img, 400 * u.nm)
+    src = StaticSource(img, pixel_size=400 * u.nm)
     slm = SLM(shape=(1000, 1000))
     sim = Microscope(
         source=src,
@@ -175,7 +175,7 @@ def test_fourier_microscope():
         aberrations=aberration,
         wavelength=800 * u.nm,
     )
-    cam = sim.get_camera(analog_max=100)
+    cam = Camera(sim, analog_max=100)
     roi_detector = SingleRoi(cam, pos=(250, 250))  # Only measure that specific point
     alg = FourierDualReference(feedback=roi_detector, slm=slm, slm_shape=slm_shape, k_radius=1.5, phase_steps=3)
     controller = WFSController(alg)
@@ -231,7 +231,6 @@ def test_phase_shift_correction():
     # compute the phase pattern to optimize the intensity in target 0
     optimised_wf = -np.angle(t)
     sim.slm.set_phases(0)
-    before = sim.read()
 
     optimised_wf -= 5
     signals = []
@@ -376,7 +375,7 @@ def test_simple_genetic(population_size: int, elite_size: int):
 
 @pytest.mark.parametrize("basis_str", ("plane_wave", "hadamard"))
 @pytest.mark.parametrize("shape", ((8, 8), (16, 4)))
-def test_dual_reference_ortho_split(basis_str: str, shape):
+def test_dual_reference_ortho_split(basis_str: str, shape: tuple[int, int]):
     """Test dual reference with an orthonormal phase-only basis.
     Two types of bases are tested: plane waves and Hadamard"""
     do_debug = False
@@ -426,6 +425,9 @@ def test_dual_reference_ortho_split(basis_str: str, shape):
     result = alg.execute()
 
     if do_debug:
+        # Plot the modes
+        import matplotlib.pyplot as plt
+
         plt.figure()
         for m in range(N):
             plt.subplot(*modes_shape[0:2], m + 1)
@@ -512,6 +514,9 @@ def test_dual_reference_non_ortho_split():
     t_field = np.exp(1j * np.angle(result.t))
 
     if do_debug:
+        # Plot the modes
+        import matplotlib.pyplot as plt
+
         plt.figure()
         for m in range(M):
             plt.subplot(N2, N1, m + 1)

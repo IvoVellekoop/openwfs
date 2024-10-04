@@ -130,7 +130,7 @@ autodoc_mock_imports = ["PyOpenGL", "OpenGL"]
 
 
 # Hide some classes that are not production ready yet
-def skip(app, what, name, obj, do_skip, options):
+def skip(_app, _what, name, _obj, do_skip, _options):
     if name in ("WFSController", "Gain"):
         return True
     return do_skip
@@ -142,7 +142,7 @@ def visit_citation(self, node):
     self.add(f'<a name="{id}"></a>')
 
 
-def visit_label(self, node):
+def visit_label(_self, _node):
     """Patch-in function for markdown builder to support citations."""
     pass
 

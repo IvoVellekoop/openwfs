@@ -132,7 +132,8 @@ def pearson_correlation(a: np.ndarray, b: np.ndarray, noise_var: np.ndarray = 0.
     by subtracting the noise variance from the signal variance.
 
     Args:
-        a, b: Real valued arrays.
+        a: real-valued input array.
+        b: real-valued input array.
         noise_var: Variance of uncorrelated noise to compensate for.
     """
     a_dev = a - a.mean()  # Deviations from mean a
@@ -396,7 +397,7 @@ class WFSTroubleshootResult:
 
     Attributes:
         fidelity_non_modulated: The estimated fidelity reduction factor due to the presence of non-modulated light.
-        phase_calibration_ratio: A ratio indicating the correctness of the SLM phase response. An incorrect phase
+        fidelity_phase_calibration: A ratio indicating the correctness of the SLM phase response. An incorrect phase
             response produces a value < 1.
         wfs_result (WFSResult): Object containing the analyzed result of running the WFS algorithm.
         feedback_before: Feedback from before running the WFS algorithm, with a flat wavefront.

@@ -11,7 +11,7 @@ See the 'Sample Microscope' example for a microscope simulation that runs from P
 import astropy.units as u
 import numpy as np
 
-from openwfs.simulation import Microscope, StaticSource
+from openwfs.simulation import Microscope, StaticSource, Camera
 
 specimen_resolution = (1024, 1024)  # height × width in pixels of the specimen image
 specimen_pixel_size = 60 * u.nm  # resolution (pixel size) of the specimen image
@@ -36,7 +36,8 @@ mic = Microscope(
 )
 
 # simulate shot noise in an 8-bit camera with auto-exposure:
-cam = mic.get_camera(
+cam = Camera(
+    mic,
     shot_noise=True,
     digital_max=255,
     data_shape=camera_resolution,
@@ -44,4 +45,4 @@ cam = mic.get_camera(
 )
 
 # construct dictionary of objects to expose to Micro-Manager
-devices = {"camera": cam, "stage": mic.stage}
+devices = {"camera": cam, "stage": mic.xy_stage}

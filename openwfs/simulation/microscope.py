@@ -9,16 +9,8 @@ from scipy.signal import fftconvolve
 
 from ..core import Processor, Detector
 from ..plot_utilities import imshow  # noqa - for debugging
-from ..processors import TransformProcessor
-from ..simulation.mockdevices import XYStage, Camera, StaticSource
-from ..utilities import (
-    project,
-    place,
-    Transform,
-    get_pixel_size,
-    patterns,
-    CoordinateType,
-)
+from ..simulation.mockdevices import XYStage, StaticSource
+from ..utilities import project, place, Transform, get_pixel_size, patterns
 
 
 class Microscope(Processor):
@@ -251,33 +243,3 @@ class Microscope(Processor):
     def data_shape(self):
         """Returns the shape of the image in the image plane"""
         return self._data_shape
-
-    def get_camera(
-        self,
-        *,
-        transform: Optional[Transform] = None,
-        data_shape: Optional[tuple[int, int]] = None,
-        pixel_size: Optional[CoordinateType] = None,
-        **kwargs
-    ) -> Detector:
-        """
-        Returns a simulated camera that observes the microscope image.
-
-        The camera is a MockCamera object that simulates an AD-converter with optional noise.
-        shot noise and readout noise (see MockCamera for options).
-        In addition to the inputs accepted by the MockCamera constructor (data_shape, analog_max, shot_noise, etc.),
-        it is also possible to specify a transform, to mimic the (mis)alignment of the camera.
-
-        Args:
-            transform ():
-            **kwargs ():
-
-        Returns:
-
-        """
-        if transform is None and data_shape is None and pixel_size is None:
-            src = self
-        else:
-            src = TransformProcessor(self, data_shape=data_shape, pixel_size=pixel_size, transform=transform)
-
-        return Camera(src, **kwargs)

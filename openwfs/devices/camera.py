@@ -163,7 +163,7 @@ class Camera(Detector):
         """Returns the exposure time in milliseconds if software triggering is used.
         Returns ∞ if hardware triggering is used.
         TODO: implement hardware triggering."""
-        return self.exposure_time.to(u.ms)
+        return self.exposure.to(u.ms)
 
     @property
     def exposure(self) -> u.Quantity[u.ms]:

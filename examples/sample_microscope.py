@@ -10,7 +10,7 @@ import numpy as np
 
 import set_path  # noqa - needed for setting the module search path to find openwfs
 from openwfs.plot_utilities import grab_and_show, imshow
-from openwfs.simulation import Microscope, StaticSource
+from openwfs.simulation import Microscope, StaticSource, Camera
 
 specimen_resolution = (1024, 1024)  # height × width in pixels of the specimen image
 specimen_pixel_size = 60 * u.nm  # resolution (pixel size) of the specimen image
@@ -36,7 +36,8 @@ mic = Microscope(
 )
 
 # simulate shot noise in an 8-bit camera with auto-exposure:
-cam = mic.get_camera(
+cam = Camera(
+    mic,
     shot_noise=True,
     digital_max=255,
     data_shape=camera_resolution,

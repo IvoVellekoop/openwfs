@@ -15,6 +15,7 @@ from ..openwfs.algorithms.troubleshoot import (
     measure_modulated_light_dual_phase_stepping,
 )
 from ..openwfs.processors import SingleRoi
+from ..openwfs.simulation import Camera
 from ..openwfs.simulation import SimulatedWFS, StaticSource, SLM, Microscope
 
 
@@ -214,7 +215,7 @@ def test_fidelity_phase_calibration_ssa_with_noise(n_y, n_x, phase_steps, gaussi
         aberrations=aberration,
         wavelength=800 * u.nm,
     )
-    cam = sim.get_camera(analog_max=1e4, gaussian_noise_std=gaussian_noise_std)
+    cam = Camera(sim, analog_max=1e4, gaussian_noise_std=gaussian_noise_std)
     roi_detector = SingleRoi(cam, radius=0)  # Only measure that specific point
 
     # Define and run WFS algorithm
@@ -253,7 +254,7 @@ def test_measure_modulated_light_dual_phase_stepping_with_noise(num_blocks, phas
     # Aberration and image source
     img = np.zeros((64, 64), dtype=np.int16)
     img[32, 32] = 100
-    src = StaticSource(img, 200 * u.nm)
+    src = StaticSource(img, pixel_size=200 * u.nm)
 
     # SLM, simulation, camera, ROI detector
     slm = SLM(shape=(100, 100))
@@ -264,7 +265,7 @@ def test_measure_modulated_light_dual_phase_stepping_with_noise(num_blocks, phas
         numerical_aperture=1.0,
         wavelength=800 * u.nm,
     )
-    cam = sim.get_camera(analog_max=1e4, gaussian_noise_std=gaussian_noise_std)
+    cam = Camera(sim, analog_max=1e4, gaussian_noise_std=gaussian_noise_std)
     roi_detector = SingleRoi(cam, radius=0)  # Only measure that specific point
 
     # Measure the amount of modulated light (no non-modulated light present)
@@ -316,7 +317,7 @@ def test_measure_modulated_light_dual_phase_stepping_with_noise(
         non_modulated_field_fraction=non_modulated_field,
     )
     sim = Microscope(source=src, incident_field=slm.field, wavelength=800 * u.nm)
-    cam = sim.get_camera(analog_max=1e3, gaussian_noise_std=gaussian_noise_std)
+    cam = Camera(sim, analog_max=1e3, gaussian_noise_std=gaussian_noise_std)
     roi_detector = SingleRoi(cam, radius=0)  # Only measure that specific point
 
     # Measure the amount of modulated light (no non-modulated light present)

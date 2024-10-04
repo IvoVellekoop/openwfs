@@ -197,6 +197,7 @@ class DualReference:
         if self.phase_patterns is None:
             raise "The phase_patterns must be set before computing the cobasis."
 
+        # TODO: simplify, integrate in calling function, fix warnings
         cobasis = [None, None]
         for side in range(2):
             p = np.prod(self._shape)  # Number of SLM pixels

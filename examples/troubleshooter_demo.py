@@ -13,7 +13,7 @@ import numpy as np
 
 from openwfs.algorithms import StepwiseSequential, troubleshoot
 from openwfs.processors import SingleRoi
-from openwfs.simulation import SLM, Microscope, Shutter
+from openwfs.simulation import SLM, Microscope, Shutter, Camera
 from openwfs.utilities import set_pixel_size
 
 # === Define virtual devices for a WFS simulation ===
@@ -43,7 +43,7 @@ sim = Microscope(
 )
 
 # Simulate a camera device with gaussian noise and shot noise
-cam = sim.get_camera(analog_max=1e4, shot_noise=True, gaussian_noise_std=4.0)
+cam = Camera(sim, analog_max=1e4, shot_noise=True, gaussian_noise_std=4.0)
 
 # Define feedback as circular region of interest in the center of the frame
 roi_detector = SingleRoi(cam, radius=0.1)

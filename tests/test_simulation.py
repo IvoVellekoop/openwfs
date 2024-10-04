@@ -38,8 +38,7 @@ def test_microscope_without_magnification(shape):
 
     # construct microscope
     sim = Microscope(source=src, magnification=1, numerical_aperture=1, wavelength=800 * u.nm)
-
-    cam = sim.get_camera()
+    cam = Camera(sim)
     img = cam.read()
     assert img[256, 256] == 2**16 - 1
 
@@ -138,7 +137,7 @@ def test_slm_tilt():
 
     new_location = signal_location + shift
 
-    cam = sim.get_camera()
+    cam = Camera(sim)
     img = cam.read(immediate=True)
     max_pos = np.unravel_index(np.argmax(img), img.shape)
     assert np.all(max_pos == new_location)
@@ -172,7 +171,7 @@ def test_microscope_wavefront_shaping(caplog):
         wavelength=800 * u.nm,
     )
 
-    cam = sim.get_camera(analog_max=100)
+    cam = Camera(sim, analog_max=100)
     roi_detector = SingleRoi(cam, pos=signal_location, radius=0)  # Only measure that specific point
 
     alg = StepwiseSequential(feedback=roi_detector, slm=slm, phase_steps=3, n_x=3, n_y=3)

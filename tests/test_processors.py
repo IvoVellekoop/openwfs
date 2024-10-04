@@ -12,7 +12,7 @@ from ..openwfs.simulation.mockdevices import StaticSource
 )
 def test_croppers():
     img = sk.data.camera()
-    src = StaticSource(img, 50 * u.nm)
+    src = StaticSource(img, pixel_size=50 * u.nm)
     roi = select_roi(src, "disk")
     assert roi.mask_type == "disk"
 
