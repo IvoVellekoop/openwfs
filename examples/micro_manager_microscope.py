@@ -44,4 +44,4 @@ cam = mic.get_camera(
 )
 
 # construct dictionary of objects to expose to Micro-Manager
-devices = {"camera": cam, "stage": stage}
+devices = {"camera": cam, "stage": mic.stage}
