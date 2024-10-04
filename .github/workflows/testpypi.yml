@@ -40,4 +40,5 @@ jobs:
     # Publish to TestPyPI
     - name: Publish to TestPyPI
       run: |
+        poetry config repositories.testpypi https://test.pypi.org/legacy/
         poetry publish --repository testpypi
