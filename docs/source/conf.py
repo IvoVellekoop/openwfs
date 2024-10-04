@@ -58,17 +58,16 @@ latex_elements = {
                 Wavefront shaping (WFS) is a technique for controlling the propagation of light.
                 With applications ranging from microscopy to free-space telecommunication, 
                 this research field is expanding rapidly. 
-                It stands out that many of the important breakthroughs are made by developing better software that
-                incorporates increasingly advanced physical models and algorithms.
-                Typical control software involves individual code for scanning microscopy, image processing, 
+                As the field advances, it stands out that many breakthroughs are driven by the development of better 
+                software that incorporates increasingly advanced physical models and algorithms.
+                Typical control software involves fragmented implementations for scanning microscopy, image processing, 
                 optimization algorithms, low-level hardware control, calibration and troubleshooting, 
                 and simulations for testing new algorithms. 
 
                 The complexity of the many different aspects of wavefront shaping software, however, 
                 is becoming a limiting factor for further developments in the field, as well as for end-user adoption.
-                OpenWFS addresses these challenges by providing a Python module that coherently integrates
-                all aspects of wavefront shaping code. The module is designed to be modular and easy to expand.
-                It incorporates elements for hardware control, software simulation, and automated troubleshooting. 
+                OpenWFS addresses these challenges by providing a modular and extensible Python library that 
+                incorporates elements for hardware control, software simulation, and automated troubleshooting. 
                 Using these elements, the actual wavefront shaping algorithm and its automated tests can be written
                 in just a few lines of code.
             }
