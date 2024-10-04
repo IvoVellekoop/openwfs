@@ -13,7 +13,6 @@ jobs:
     # enable openid authentication for PyPi
     permissions:
       id-token: write  # Required for OIDC
-      contents: read
     
     steps:
     # Checkout the repository
@@ -28,9 +27,10 @@ jobs:
 
     # Install Poetry
     - name: Install Poetry
-      run: |
-        curl -sSL https://install.python-poetry.org | python3 -
-
+      uses: abatilo/actions-poetry@v2
+      with:
+        version: '1.8.3'
+        
     # Install dependencies and build the project
     - name: Install dependencies and build package
       run: |
@@ -40,4 +40,4 @@ jobs:
     # Publish to TestPyPI
     - name: Publish to TestPyPI
       run: |
-        poetry publish --repository testpypi --build
+        poetry publish --repository testpypi
