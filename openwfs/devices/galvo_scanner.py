@@ -496,8 +496,8 @@ class ScanningMicroscope(Detector):
             retrace[len(v_yr) :] = v_yr[-1]
 
         self._scan_pattern = scan_pattern.reshape(2, -1)
+        self._valid = True  # indicate that scan patterns have been computed
         if self._test_pattern != TestPatternType.NONE:
-            self._valid = True
             return
 
         # Sets up NI-DAQ task and i/o channels
@@ -510,6 +510,9 @@ class ScanningMicroscope(Detector):
 
         self._write_task = ni.Task()
         self._read_task = ni.Task()
+        # set the timeout for the nidaq task. Note that this line calls .duration, which
+        # in turn calls ._ensure_valid. Therefore, it is important that we gave set self._valid = True
+        # above, to avoid an infinite loop.
         self._read_task.in_stream.timeout = self.timeout.to_value(u.s)
 
         # Configure the sample clock task
@@ -544,7 +547,6 @@ class ScanningMicroscope(Detector):
             self._read_task.triggers.start_trigger.delay_units = DigitalWidthUnits.SECONDS
 
         self._writer = AnalogMultiChannelWriter(self._write_task.out_stream)
-        self._valid = True
 
     def _ensure_valid(self):
         if not self._valid:
@@ -672,7 +674,7 @@ class ScanningMicroscope(Detector):
     @property
     def duration(self) -> Quantity[u.ms]:
         """Total duration of scanning for one frame."""
-        self._ensure_valid()  # make sure _scan_pattern is up to data
+        self._ensure_valid()  # make sure _scan_pattern is up to date
         return (self._scan_pattern.shape[1] / self._sample_rate).to(u.ms)
 
     @property
