@@ -18,10 +18,6 @@ classifiers = [
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
-[tool.poetry.repositories]
-testpypi = { url = "https://test.pypi.org/legacy/" }
-pypi = { url = "https://upload.pypi.org/legacy/" }
-
 [tool.poetry.dependencies]
 # required dependencies
 python = ">=3.9,<4.0"
