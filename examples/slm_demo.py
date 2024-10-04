@@ -34,9 +34,7 @@ p3.phases = 0.25
 p4.phases = 1
 p4.additive_blend = False
 
-pf.phases = patterns.lens(
-    100, f=1 * u.m, wavelength=0.8 * u.um, extent=(10 * u.mm, 10 * u.mm)
-)
+pf.phases = patterns.lens(100, f=1 * u.m, wavelength=0.8 * u.um, extent=(10 * u.mm, 10 * u.mm))
 rng = np.random.default_rng()
 for n in range(200):
     random_data = rng.random([10, 10], np.float32) * 2.0 * np.pi

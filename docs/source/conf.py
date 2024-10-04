@@ -34,13 +34,9 @@ extensions = [
 # basic project information
 project = "OpenWFS"
 copyright = "2023-, Ivo Vellekoop, Daniël W. S. Cox, and Jeroen H. Doornbos, University of Twente"
-author = (
-    "Jeroen H. Doornbos, Daniël W. S. Cox, Tom Knop, Harish Sasikumar, Ivo M. Vellekoop"
-)
+author = "Jeroen H. Doornbos, Daniël W. S. Cox, Tom Knop, Harish Sasikumar, Ivo M. Vellekoop"
 release = "0.1.0rc2"
-html_title = (
-    "OpenWFS - a library for conducting and simulating wavefront shaping experiments"
-)
+html_title = "OpenWFS - a library for conducting and simulating wavefront shaping experiments"
 #   \renewenvironment{sphinxtheindex}{\setbox0\vbox\bgroup\begin{theindex}}{\end{theindex}}
 
 # latex configuration
@@ -167,23 +163,17 @@ def setup(app):
 def source_read(app, docname, source):
     if docname == "readme" or docname == "conclusion":
         if (app.builder.name == "latex") == (docname == "conclusion"):
-            source[0] = source[0].replace(
-                "%endmatter%", ".. include:: acknowledgements.rst"
-            )
+            source[0] = source[0].replace("%endmatter%", ".. include:: acknowledgements.rst")
         else:
             source[0] = source[0].replace("%endmatter%", "")
 
 
 def builder_inited(app):
     if app.builder.name == "html":
-        exclude_patterns.extend(
-            ["conclusion.rst", "index_latex.rst", "index_markdown.rst"]
-        )
+        exclude_patterns.extend(["conclusion.rst", "index_latex.rst", "index_markdown.rst"])
         app.config.master_doc = "index"
     elif app.builder.name == "latex":
-        exclude_patterns.extend(
-            ["auto_examples/*", "index_markdown.rst", "index.rst", "api*"]
-        )
+        exclude_patterns.extend(["auto_examples/*", "index_markdown.rst", "index.rst", "api*"])
         app.config.master_doc = "index_latex"
     elif app.builder.name == "markdown":
         include_patterns.clear()

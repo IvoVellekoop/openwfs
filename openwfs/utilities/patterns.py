@@ -153,9 +153,7 @@ def propagation(
     # convert pupil coordinates to absolute k_x, k_y coordinates
     k_0 = 2.0 * np.pi / wavelength
     extent_k = Quantity(extent) * numerical_aperture * k_0
-    k_z = np.sqrt(
-        np.maximum((refractive_index * k_0) ** 2 - r2_range(shape, extent_k), 0.0)
-    )
+    k_z = np.sqrt(np.maximum((refractive_index * k_0) ** 2 - r2_range(shape, extent_k), 0.0))
     return unitless(k_z * distance)
 
 

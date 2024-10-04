@@ -55,9 +55,7 @@ def test_to_matrix():
 
     # Also check openGL matrix (has y-axis flipped and extra row and column)
     expected_matrix = ((1, 2, 1), (3, 4, 2))
-    transform = Transform(
-        transform=((1, 2), (3, 4)), source_origin=(0, 0), destination_origin=(1, 2)
-    )
+    transform = Transform(transform=((1, 2), (3, 4)), source_origin=(0, 0), destination_origin=(1, 2))
     result_matrix = transform.to_matrix((1, 1), (1, 1))
     assert np.allclose(result_matrix, expected_matrix)
 
@@ -111,9 +109,7 @@ def test_transform():
     assert np.allclose(matrix, ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0)))
 
     # shift both origins by same distance
-    t0 = Transform(
-        source_origin=-ps1 * (1.7, 2.2), destination_origin=-ps1 * (1.7, 2.2)
-    )
+    t0 = Transform(source_origin=-ps1 * (1.7, 2.2), destination_origin=-ps1 * (1.7, 2.2))
     dst0 = project(
         src,
         source_extent=ps1 * np.array(src.shape),

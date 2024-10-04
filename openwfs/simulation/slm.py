@@ -38,9 +38,7 @@ class PhaseToField(Processor):
         Updates the complex field output of the SLM. The output field is the sum of the modulated field and the
         non-modulated field.
         """
-        return self.modulated_field_amplitude * (
-            np.exp(1j * slm_phases) + self.non_modulated_field
-        )
+        return self.modulated_field_amplitude * (np.exp(1j * slm_phases) + self.non_modulated_field)
 
 
 class _SLMTiming(Detector):
@@ -202,9 +200,7 @@ class SLM(PhaseSLM, Actuator):
         self._hardware_fields = PhaseToField(
             self._hardware_phases, field_amplitude, non_modulated_field_fraction
         )  # Simulates reading the field from the SLM
-        self._lookup_table = (
-            None  # index = input phase (scaled to -> [0, 255]), value = grey value
-        )
+        self._lookup_table = None  # index = input phase (scaled to -> [0, 255]), value = grey value
         self._first_update_ns = time.time_ns()
         self._back_buffer = np.zeros(shape, dtype=np.float32)
 
@@ -214,12 +210,8 @@ class SLM(PhaseSLM, Actuator):
         self._start()  # wait for detectors to finish
         if self.refresh_rate > 0:
             # wait for the vertical retrace
-            time_in_frames = unitless(
-                (time.time_ns() - self._first_update_ns) * u.ns * self.refresh_rate
-            )
-            time_to_next_frame = (
-                np.ceil(time_in_frames) - time_in_frames
-            ) / self.refresh_rate
+            time_in_frames = unitless((time.time_ns() - self._first_update_ns) * u.ns * self.refresh_rate)
+            time_to_next_frame = (np.ceil(time_in_frames) - time_in_frames) / self.refresh_rate
             time.sleep(time_to_next_frame.tovalue(u.s))
             # update the start time (this is also done in the actual SLM)
             self._start()
@@ -235,9 +227,7 @@ class SLM(PhaseSLM, Actuator):
         if self._lookup_table is None:
             grey_values = (256 * tx).astype(np.uint8)
         else:
-            lookup_index = (self._lookup_table.shape[0] * tx).astype(
-                np.uint8
-            )  # index into lookup table
+            lookup_index = (self._lookup_table.shape[0] * tx).astype(np.uint8)  # index into lookup table
             grey_values = self._lookup_table[lookup_index]
 
         self._hardware_timing.send(grey_values)

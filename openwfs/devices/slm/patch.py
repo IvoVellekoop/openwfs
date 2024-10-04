@@ -112,9 +112,7 @@ class Patch(PhaseSLM):
         # perform the actual drawing
         glBindBuffer(GL.GL_ELEMENT_ARRAY_BUFFER, self._indices)
         glBindVertexBuffer(0, self._vertices, 0, 16)
-        glDrawElements(
-            GL.GL_TRIANGLE_STRIP, self._index_count, GL.GL_UNSIGNED_SHORT, None
-        )
+        glDrawElements(GL.GL_TRIANGLE_STRIP, self._index_count, GL.GL_UNSIGNED_SHORT, None)
 
     def set_phases(self, values: ArrayLike, update=True):
         """
@@ -190,9 +188,7 @@ class FrameBufferPatch(Patch):
         # is then processed as a whole (applying the software lookup table) and displayed on the screen.
         self._frame_buffer = glGenFramebuffers(1)
 
-        self.set_phases(
-            np.zeros(self.context.slm.shape, dtype=np.float32), update=False
-        )
+        self.set_phases(np.zeros(self.context.slm.shape, dtype=np.float32), update=False)
         glBindFramebuffer(GL.GL_FRAMEBUFFER, self._frame_buffer)
         glFramebufferTexture2D(
             GL.GL_FRAMEBUFFER,
@@ -205,9 +201,7 @@ class FrameBufferPatch(Patch):
             raise Exception("Could not construct frame buffer")
         glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
 
-        self._textures.append(
-            Texture(self.context, GL.GL_TEXTURE_1D)
-        )  # create texture for lookup table
+        self._textures.append(Texture(self.context, GL.GL_TEXTURE_1D))  # create texture for lookup table
         self._lookup_table = None
         self.lookup_table = lookup_table
         self.additive_blend = False
@@ -250,25 +244,15 @@ class VertexArray:
     # Since we have a fixed vertex format, we only need to bind the VertexArray once, and not bother with
     # updating, binding, or even deleting it
     def __init__(self):
-        self._vertex_array = glGenVertexArrays(
-            1
-        )  # no need to destroy explicitly, destroyed when window is destroyed
+        self._vertex_array = glGenVertexArrays(1)  # no need to destroy explicitly, destroyed when window is destroyed
         glBindVertexArray(self._vertex_array)
         glEnableVertexAttribArray(0)
         glEnableVertexAttribArray(1)
-        glVertexAttribFormat(
-            0, 2, GL.GL_FLOAT, GL.GL_FALSE, 0
-        )  # first two float32 are screen coordinates
-        glVertexAttribFormat(
-            1, 2, GL.GL_FLOAT, GL.GL_FALSE, 8
-        )  # second two are texture coordinates
+        glVertexAttribFormat(0, 2, GL.GL_FLOAT, GL.GL_FALSE, 0)  # first two float32 are screen coordinates
+        glVertexAttribFormat(1, 2, GL.GL_FLOAT, GL.GL_FALSE, 8)  # second two are texture coordinates
         glVertexAttribBinding(0, 0)  # use binding index 0 for both attributes
-        glVertexAttribBinding(
-            1, 0
-        )  # the attribute format can now be used with glBindVertexBuffer
+        glVertexAttribBinding(1, 0)  # the attribute format can now be used with glBindVertexBuffer
 
         # enable primitive restart, so that we can draw multiple triangle strips with a single draw call
         glEnable(GL.GL_PRIMITIVE_RESTART)
-        glPrimitiveRestartIndex(
-            0xFFFF
-        )  # this is the index we use to separate individual triangle strips
+        glPrimitiveRestartIndex(0xFFFF)  # this is the index we use to separate individual triangle strips

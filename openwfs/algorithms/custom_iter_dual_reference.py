@@ -70,9 +70,7 @@ class IterativeDualReference:
                 A, B, A, B, A. Should be at least 2
             analyzer: The function used to analyze the phase stepping data. Must return a WFSResult object. Defaults to `analyze_phase_stepping`
         """
-        if (phase_patterns[0].shape[0:2] != group_mask.shape) or (
-            phase_patterns[1].shape[0:2] != group_mask.shape
-        ):
+        if (phase_patterns[0].shape[0:2] != group_mask.shape) or (phase_patterns[1].shape[0:2] != group_mask.shape):
             raise ValueError("The phase patterns and group mask must all have the same shape.")
         if iterations < 2:
             raise ValueError("The number of iterations must be at least 2.")
@@ -93,8 +91,7 @@ class IterativeDualReference:
 
         # Pre-compute the conjugate modes for reconstruction
         self.modes = [
-            np.exp(-1j * self.phase_patterns[side]) * np.expand_dims(self.masks[side], axis=2)
-            for side in range(2)
+            np.exp(-1j * self.phase_patterns[side]) * np.expand_dims(self.masks[side], axis=2) for side in range(2)
         ]
 
     def execute(self, capture_intermediate_results: bool = False, progress_bar=None) -> WFSResult:
@@ -123,9 +120,7 @@ class IterativeDualReference:
             None,
             None,
         ]  # The two latest results. Used for computing fidelity factors.
-        intermediate_results = np.zeros(
-            self.iterations
-        )  # List to store feedback from full patterns
+        intermediate_results = np.zeros(self.iterations)  # List to store feedback from full patterns
 
         # Prepare progress bar
         if progress_bar:
@@ -138,9 +133,7 @@ class IterativeDualReference:
         # Switch the phase sets back and forth multiple times
         for it in range(self.iterations):
             side = it % 2  # pick set A or B for phase stepping
-            ref_phases = -np.angle(
-                t_full
-            )  # use the best estimate so far to construct an optimized reference
+            ref_phases = -np.angle(t_full)  # use the best estimate so far to construct an optimized reference
             side_mask = self.masks[side]
             # Perform WFS experiment on one side, keeping the other side sized at the ref_phases
             result = self._single_side_experiment(
@@ -201,9 +194,7 @@ class IterativeDualReference:
         result.intermediate_results = intermediate_results
         return result
 
-    def _single_side_experiment(
-        self, mod_phases: nd, ref_phases: nd, mod_mask: nd, progress_bar=None
-    ) -> WFSResult:
+    def _single_side_experiment(self, mod_phases: nd, ref_phases: nd, mod_mask: nd, progress_bar=None) -> WFSResult:
         """
         Conducts experiments on one part of the SLM.
 

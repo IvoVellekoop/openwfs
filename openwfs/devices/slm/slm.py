@@ -122,9 +122,7 @@ class SLM(Actuator, PhaseSLM):
         self._position = pos
         (default_shape, default_rate, _) = SLM._current_mode(monitor_id)
         self._shape = default_shape if shape is None else shape
-        self._refresh_rate = (
-            default_rate if refresh_rate is None else refresh_rate.to_value(u.Hz)
-        )
+        self._refresh_rate = default_rate if refresh_rate is None else refresh_rate.to_value(u.Hz)
         self._frame_buffer = None
         self._window = None
         self._globals = -1
@@ -159,9 +157,7 @@ class SLM(Actuator, PhaseSLM):
             Exception: If a full screen SLM is already present on the target monitor.
         """
         if monitor_id == SLM.WINDOWED:
-            if any(
-                [slm.monitor_id == 1 for slm in SLM._active_slms if slm is not self]
-            ):
+            if any([slm.monitor_id == 1 for slm in SLM._active_slms if slm is not self]):
                 raise RuntimeError(
                     f"Cannot create an SLM window because a full-screen SLM is already active on monitor 1"
                 )
@@ -170,8 +166,7 @@ class SLM(Actuator, PhaseSLM):
             # a full screen window on monitor 1 if there are already windowed SLMs.
             if any(
                 [
-                    slm.monitor_id == monitor_id
-                    or (monitor_id == 1 and slm.monitor_id == SLM.WINDOWED)
+                    slm.monitor_id == monitor_id or (monitor_id == 1 and slm.monitor_id == SLM.WINDOWED)
                     for slm in SLM._active_slms
                     if slm is not self
                 ]
@@ -182,8 +177,7 @@ class SLM(Actuator, PhaseSLM):
                 )
             if monitor_id > len(glfw.get_monitors()):
                 raise IndexError(
-                    f"Monitor {monitor_id} not found, only {len(glfw.get_monitors())} monitor(s) "
-                    f"are connected."
+                    f"Monitor {monitor_id} not found, only {len(glfw.get_monitors())} monitor(s) " f"are connected."
                 )
 
     @staticmethod
@@ -223,11 +217,7 @@ class SLM(Actuator, PhaseSLM):
         """
         # create a new frame buffer, re-use the old one if one was present, otherwise use a default of range(256)
         # re-use the lookup table if possible, otherwise create a default one ranging from 0 to 255.
-        old_lut = (
-            self._frame_buffer.lookup_table
-            if self._frame_buffer is not None
-            else range(256)
-        )
+        old_lut = self._frame_buffer.lookup_table if self._frame_buffer is not None else range(256)
         self._frame_buffer = FrameBufferPatch(self, old_lut)
         glViewport(0, 0, self._shape[1], self._shape[0])
         # tell openGL to wait for the vertical retrace when swapping buffers (it appears need to do this
@@ -238,28 +228,22 @@ class SLM(Actuator, PhaseSLM):
         (fb_width, fb_height) = glfw.get_framebuffer_size(self._window)
         fb_shape = (fb_height, fb_width)
         if self._shape != fb_shape:
-            warnings.warn(
-                f"Actual resolution {fb_shape} does not match requested resolution {self._shape}."
-            )
+            warnings.warn(f"Actual resolution {fb_shape} does not match requested resolution {self._shape}.")
             self._shape = fb_shape
 
-        (current_size, current_rate, current_bit_depth) = SLM._current_mode(
-            self._monitor_id
-        )
+        (current_size, current_rate, current_bit_depth) = SLM._current_mode(self._monitor_id)
 
         # verify that the bit depth is at least 8 bit
         if current_bit_depth < 8:
             warnings.warn(
-                f"Bit depth is less than 8 bits "
-                f"You may not be able to use the full phase resolution of your SLM."
+                f"Bit depth is less than 8 bits " f"You may not be able to use the full phase resolution of your SLM."
             )
 
         # verify the refresh rate is correct
         # Then update the refresh rate to the actual value
         if int(self._refresh_rate) != current_rate:
             warnings.warn(
-                f"Actual refresh rate of {current_rate} Hz does not match set rate "
-                f"of {self._refresh_rate} Hz"
+                f"Actual refresh rate of {current_rate} Hz does not match set rate " f"of {self._refresh_rate} Hz"
             )
         self._refresh_rate = current_rate
 
@@ -273,29 +257,19 @@ class SLM(Actuator, PhaseSLM):
             trouble if the user of our library also uses glfw for something else.
         """
         glfw.init()
-        glfw.window_hint(
-            glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE
-        )  # Required on Mac. Doesn't hurt on Windows
-        glfw.window_hint(
-            glfw.OPENGL_FORWARD_COMPAT, glfw.TRUE
-        )  # Required on Mac. Useless on Windows
+        glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)  # Required on Mac. Doesn't hurt on Windows
+        glfw.window_hint(glfw.OPENGL_FORWARD_COMPAT, glfw.TRUE)  # Required on Mac. Useless on Windows
         glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 4)  # request at least opengl 4.2
         glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 2)
         glfw.window_hint(glfw.FLOATING, glfw.TRUE)  # Keep window on top
         glfw.window_hint(glfw.DECORATED, glfw.FALSE)  # Disable window border
-        glfw.window_hint(
-            glfw.AUTO_ICONIFY, glfw.FALSE
-        )  # Prevent window minimization during task switch
+        glfw.window_hint(glfw.AUTO_ICONIFY, glfw.FALSE)  # Prevent window minimization during task switch
         glfw.window_hint(glfw.FOCUSED, glfw.FALSE)
         glfw.window_hint(glfw.DOUBLEBUFFER, glfw.TRUE)
-        glfw.window_hint(
-            glfw.RED_BITS, 8
-        )  # require at least 8 bits per color channel (256 gray values)
+        glfw.window_hint(glfw.RED_BITS, 8)  # require at least 8 bits per color channel (256 gray values)
         glfw.window_hint(glfw.GREEN_BITS, 8)
         glfw.window_hint(glfw.BLUE_BITS, 8)
-        glfw.window_hint(
-            glfw.COCOA_RETINA_FRAMEBUFFER, glfw.FALSE
-        )  # disable retina multisampling on Mac (untested)
+        glfw.window_hint(glfw.COCOA_RETINA_FRAMEBUFFER, glfw.FALSE)  # disable retina multisampling on Mac (untested)
         glfw.window_hint(glfw.SAMPLES, 0)  # disable multisampling
 
     def _create_window(self):
@@ -307,18 +281,10 @@ class SLM(Actuator, PhaseSLM):
         shared = other._window if other is not None else None  # noqa: ok to use _window
         SLM._active_slms.add(self)
 
-        monitor = (
-            glfw.get_monitors()[self._monitor_id - 1]
-            if self._monitor_id != SLM.WINDOWED
-            else None
-        )
+        monitor = glfw.get_monitors()[self._monitor_id - 1] if self._monitor_id != SLM.WINDOWED else None
         glfw.window_hint(glfw.REFRESH_RATE, int(self._refresh_rate))
-        self._window = glfw.create_window(
-            self._shape[1], self._shape[0], "OpenWFS SLM", monitor, shared
-        )
-        glfw.set_input_mode(
-            self._window, glfw.CURSOR, glfw.CURSOR_HIDDEN
-        )  # disable cursor
+        self._window = glfw.create_window(self._shape[1], self._shape[0], "OpenWFS SLM", monitor, shared)
+        glfw.set_input_mode(self._window, glfw.CURSOR, glfw.CURSOR_HIDDEN)  # disable cursor
         if monitor:  # full screen mode
             glfw.set_gamma(monitor, 1.0)
         else:  # windowed mode
@@ -449,9 +415,7 @@ class SLM(Actuator, PhaseSLM):
         """
         with self._context:
             # first draw all patches into the frame buffer
-            glBindFramebuffer(
-                GL.GL_FRAMEBUFFER, self._frame_buffer._frame_buffer
-            )  # noqa - ok to access 'friend class'
+            glBindFramebuffer(GL.GL_FRAMEBUFFER, self._frame_buffer._frame_buffer)  # noqa - ok to access 'friend class'
             glClear(GL.GL_COLOR_BUFFER_BIT)
             for patch in self.patches:
                 patch._draw()  # noqa - ok to access 'friend class'
@@ -463,9 +427,7 @@ class SLM(Actuator, PhaseSLM):
             glfw.poll_events()  # process window messages
 
             if len(self._clones) > 0:
-                self._context.__exit__(
-                    None, None, None
-                )  # release context before updating clones
+                self._context.__exit__(None, None, None)  # release context before updating clones
                 for clone in self._clones:
                     with clone.slm._context:  # noqa
                         self._frame_buffer._draw()  # noqa - ok to access 'friend class'
@@ -563,24 +525,16 @@ class SLM(Actuator, PhaseSLM):
         else:
             scale_width = (width > height) == (self._coordinate_system == "short")
             if scale_width:
-                root_transform = Transform(
-                    np.array(((1.0, 0.0), (0.0, height / width)))
-                )
+                root_transform = Transform(np.array(((1.0, 0.0), (0.0, height / width))))
             else:
-                root_transform = Transform(
-                    np.array(((width / height, 0.0), (0.0, 1.0)))
-                )
+                root_transform = Transform(np.array(((width / height, 0.0), (0.0, 1.0))))
             transform = self._transform @ root_transform
 
         padded = transform.opencl_matrix()
         with self._context:
             glBindBuffer(GL.GL_UNIFORM_BUFFER, self._globals)
-            glBufferData(
-                GL.GL_UNIFORM_BUFFER, padded.size * 4, padded, GL.GL_STATIC_DRAW
-            )
-            glBindBufferBase(
-                GL.GL_UNIFORM_BUFFER, 1, self._globals
-            )  # connect buffer to binding point 1
+            glBufferData(GL.GL_UNIFORM_BUFFER, padded.size * 4, padded, GL.GL_STATIC_DRAW)
+            glBindBufferBase(GL.GL_UNIFORM_BUFFER, 1, self._globals)  # connect buffer to binding point 1
 
     @property
     def lookup_table(self) -> Sequence[int]:

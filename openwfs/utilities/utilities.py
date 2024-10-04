@@ -97,17 +97,11 @@ class Transform:
     ):
 
         self.transform = Quantity(transform if transform is not None else np.eye(2))
-        self.source_origin = (
-            Quantity(source_origin) if source_origin is not None else None
-        )
-        self.destination_origin = (
-            Quantity(destination_origin) if destination_origin is not None else None
-        )
+        self.source_origin = Quantity(source_origin) if source_origin is not None else None
+        self.destination_origin = Quantity(destination_origin) if destination_origin is not None else None
 
         if source_origin is not None:
-            self.destination_unit(
-                self.source_origin.unit
-            )  # check if the units are consistent
+            self.destination_unit(self.source_origin.unit)  # check if the units are consistent
 
     def destination_unit(self, src_unit: u.Unit) -> u.Unit:
         """Computes the unit of the output of the transformation, given the unit of the input.
@@ -116,17 +110,11 @@ class Transform:
             ValueError: If src_unit does not match the unit of the source_origin (if specified) or
                 if dst_unit does not match the unit of the destination_origin (if specified).
         """
-        if (
-            self.source_origin is not None
-            and not self.source_origin.unit.is_equivalent(src_unit)
-        ):
+        if self.source_origin is not None and not self.source_origin.unit.is_equivalent(src_unit):
             raise ValueError("src_unit must match the units of source_origin.")
 
         dst_unit = (self.transform[0, 0] * src_unit).unit
-        if (
-            self.destination_origin is not None
-            and not self.destination_origin.unit.is_equivalent(dst_unit)
-        ):
+        if self.destination_origin is not None and not self.destination_origin.unit.is_equivalent(dst_unit):
             raise ValueError("dst_unit must match the units of destination_origin.")
 
         return dst_unit
@@ -150,9 +138,7 @@ class Transform:
         if self.source_origin is not None:
             source_origin += self.source_origin
 
-        destination_origin = (
-            0.5 * (np.array(destination_shape) - 1.0) * destination_pixel_size
-        )
+        destination_origin = 0.5 * (np.array(destination_shape) - 1.0) * destination_pixel_size
         if self.destination_origin is not None:
             destination_origin += self.destination_origin
 
@@ -173,19 +159,13 @@ class Transform:
         transform_matrix = transform_matrix[:, [1, 0, 2]]
         return transform_matrix
 
-    def to_matrix(
-        self, source_pixel_size: CoordinateType, destination_pixel_size: CoordinateType
-    ) -> np.ndarray:
+    def to_matrix(self, source_pixel_size: CoordinateType, destination_pixel_size: CoordinateType) -> np.ndarray:
         matrix = np.zeros((2, 3))
-        matrix[0:2, 0:2] = unitless(
-            self.transform * source_pixel_size / destination_pixel_size
-        )
+        matrix[0:2, 0:2] = unitless(self.transform * source_pixel_size / destination_pixel_size)
         if self.destination_origin is not None:
             matrix[0:2, 2] = unitless(self.destination_origin / destination_pixel_size)
         if self.source_origin is not None:
-            matrix[0:2, 2] -= unitless(
-                (self.transform @ self.source_origin) / destination_pixel_size
-            )
+            matrix[0:2, 2] -= unitless((self.transform @ self.source_origin) / destination_pixel_size)
         return matrix
 
     def opencl_matrix(self) -> np.ndarray:
@@ -261,11 +241,7 @@ class Transform:
         """
         transform = self.transform @ other.transform
         source_origin = other.source_origin
-        destination_origin = (
-            self.apply(other.destination_origin)
-            if other.destination_origin is not None
-            else None
-        )
+        destination_origin = self.apply(other.destination_origin) if other.destination_origin is not None else None
         return Transform(transform, source_origin, destination_origin)
 
     def _standard_input(self) -> Quantity:
@@ -301,9 +277,7 @@ def place(
     """
     out_extent = out_pixel_size * np.array(out_shape)
     transform = Transform(destination_origin=offset)
-    return project(
-        source, out_extent=out_extent, out_shape=out_shape, transform=transform, out=out
-    )
+    return project(source, out_extent=out_extent, out_shape=out_shape, transform=transform, out=out)
 
 
 def project(
@@ -335,9 +309,7 @@ def project(
     transform = transform if transform is not None else Transform()
     if out is not None:
         if out_shape is not None and out_shape != out.shape:
-            raise ValueError(
-                "out_shape and out.shape must match. Note that out_shape may be omitted"
-            )
+            raise ValueError("out_shape and out.shape must match. Note that out_shape may be omitted")
         if out.dtype != source.dtype:
             raise ValueError("out and source must have the same dtype")
         out_shape = out.shape
@@ -345,9 +317,7 @@ def project(
     if out_shape is None:
         raise ValueError("Either out_shape or out must be specified")
     if out_extent is None:
-        raise ValueError(
-            "Either out_extent or the pixel_size metadata of out must be specified"
-        )
+        raise ValueError("Either out_extent or the pixel_size metadata of out must be specified")
     source_extent = source_extent if source_extent is not None else get_extent(source)
     source_ps = source_extent / np.array(source.shape)
     out_ps = out_extent / np.array(out_shape)
@@ -388,9 +358,7 @@ def project(
             borderValue=(0.0,),
         )
         if out is not None and out is not dst:
-            raise ValueError(
-                "OpenCV did not use the specified output array. This should not happen."
-            )
+            raise ValueError("OpenCV did not use the specified output array. This should not happen.")
         out = dst
     return set_pixel_size(out, out_ps)
 

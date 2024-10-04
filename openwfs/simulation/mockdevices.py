@@ -45,11 +45,7 @@ class StaticSource(Detector):
         else:
             data = set_pixel_size(data, pixel_size)  # make sure the data array holds the pixel size
 
-        if (
-            pixel_size is not None
-            and (np.isscalar(pixel_size) or pixel_size.size == 1)
-            and data.ndim > 1
-        ):
+        if pixel_size is not None and (np.isscalar(pixel_size) or pixel_size.size == 1) and data.ndim > 1:
             pixel_size = pixel_size.repeat(data.ndim)
 
         if multi_threaded is None:

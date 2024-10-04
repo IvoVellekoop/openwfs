@@ -107,9 +107,7 @@ class Microscope(Processor):
             if get_pixel_size(aberrations) is None:
                 aberrations = StaticSource(aberrations)
 
-        super().__init__(
-            source, aberrations, incident_field, multi_threaded=multi_threaded
-        )
+        super().__init__(source, aberrations, incident_field, multi_threaded=multi_threaded)
         self._magnification = magnification
         self._data_shape = data_shape if data_shape is not None else source.data_shape
         self.numerical_aperture = numerical_aperture
@@ -153,9 +151,7 @@ class Microscope(Processor):
         source_pixel_size = get_pixel_size(source)
         target_pixel_size = self.pixel_size / self.magnification
         if np.any(source_pixel_size > target_pixel_size):
-            warnings.warn(
-                "The resolution of the specimen image is worse than that of the output."
-            )
+            warnings.warn("The resolution of the specimen image is worse than that of the output.")
 
         # Note: there seems to be a bug (feature?) in `fftconvolve` that shifts the image by one pixel
         # when the 'same' option is used. To compensate for this feature,
@@ -188,21 +184,13 @@ class Microscope(Processor):
 
         # Compute the field in the pupil plane
         # The aberrations and the SLM phase pattern are both mapped to the pupil plane coordinates
-        pupil_field = patterns.disk(
-            pupil_shape, radius=self.numerical_aperture, extent=pupil_extent
-        )
-        pupil_area = np.sum(
-            pupil_field
-        )  # TODO (efficiency): compute area directly from radius
+        pupil_field = patterns.disk(pupil_shape, radius=self.numerical_aperture, extent=pupil_extent)
+        pupil_area = np.sum(pupil_field)  # TODO (efficiency): compute area directly from radius
 
         # Project aberrations
         if aberrations is not None:
             # use default of 2.0 * NA for the extent of the aberration map if no pixel size is provided
-            aberration_extent = (
-                (2.0 * self.numerical_aperture,) * 2
-                if get_pixel_size(aberrations) is None
-                else None
-            )
+            aberration_extent = (2.0 * self.numerical_aperture,) * 2 if get_pixel_size(aberrations) is None else None
             pupil_field = pupil_field * np.exp(
                 1.0j
                 * project(
@@ -290,8 +278,6 @@ class Microscope(Processor):
         if transform is None and data_shape is None and pixel_size is None:
             src = self
         else:
-            src = TransformProcessor(
-                self, data_shape=data_shape, pixel_size=pixel_size, transform=transform
-            )
+            src = TransformProcessor(self, data_shape=data_shape, pixel_size=pixel_size, transform=transform)
 
         return Camera(src, **kwargs)

@@ -17,9 +17,7 @@ class Roi:
     radius, mask type, and parameters specific to the mask type.
     """
 
-    def __init__(
-        self, pos, radius=0.1, mask_type: str = "disk", waist=None, source_shape=None
-    ):
+    def __init__(self, pos, radius=0.1, mask_type: str = "disk", waist=None, source_shape=None):
         """
         Initialize the Roi object.
 
@@ -41,10 +39,7 @@ class Roi:
             round(pos[0] - radius) < 0
             or round(pos[1] - radius) < 0
             or source_shape is not None
-            and (
-                round(pos[0] + radius) >= source_shape[0]
-                or round(pos[1] + radius) >= source_shape[1]
-            )
+            and (round(pos[0] + radius) >= source_shape[0] or round(pos[1] + radius) >= source_shape[1])
         ):
             raise ValueError("ROI does not fit inside source image")
 
@@ -266,11 +261,7 @@ class CropProcessor(Processor):
         """
         super().__init__(source, multi_threaded=multi_threaded)
         self._data_shape = tuple(shape) if shape is not None else source.data_shape
-        self._pos = (
-            np.array(pos)
-            if pos is not None
-            else np.zeros((len(self.data_shape),), dtype=int)
-        )
+        self._pos = np.array(pos) if pos is not None else np.zeros((len(self.data_shape),), dtype=int)
         self._padding_value = padding_value
 
     @property
@@ -302,15 +293,11 @@ class CropProcessor(Processor):
         src_end = np.minimum(self._pos + self._data_shape, image.shape).astype("int32")
         dst_start = np.maximum(-self._pos, 0).astype("int32")
         dst_end = dst_start + src_end - src_start
-        src_select = tuple(
-            slice(start, end) for (start, end) in zip(src_start, src_end)
-        )
+        src_select = tuple(slice(start, end) for (start, end) in zip(src_start, src_end))
         src = image.__getitem__(src_select)
         if any(dst_start != 0) or any(dst_end != self._data_shape):
             dst = np.zeros(self._data_shape) + self._padding_value
-            dst_select = tuple(
-                slice(start, end) for (start, end) in zip(dst_start, dst_end)
-            )
+            dst_select = tuple(slice(start, end) for (start, end) in zip(dst_start, dst_end))
             dst.__setitem__(dst_select, src)
         else:
             dst = src
@@ -349,9 +336,7 @@ def select_roi(source: Detector, mask_type: str):
             roi_size = np.minimum(x - roi_start[0], y - roi_start[1])
             rect_image = image.copy()
             if mask_type == "square":
-                cv2.rectangle(
-                    rect_image, roi_start, roi_start + roi_size, (0.0, 0.0, 255.0), 2
-                )
+                cv2.rectangle(rect_image, roi_start, roi_start + roi_size, (0.0, 0.0, 255.0), 2)
             else:
                 cv2.circle(
                     rect_image,
@@ -403,9 +388,7 @@ class TransformProcessor(Processor):
             data_shape: Shape of the output. If omitted, the shape of the input data is used.
             multi_threaded: Whether to perform processing in a worker thread.
         """
-        if (data_shape is not None and len(data_shape) != 2) or len(
-            source.data_shape
-        ) != 2:
+        if (data_shape is not None and len(data_shape) != 2) or len(source.data_shape) != 2:
             raise ValueError("TransformProcessor only supports 2-D data")
         if transform is None:
             transform = Transform()
@@ -413,13 +396,10 @@ class TransformProcessor(Processor):
         # check if input and output pixel sizes are compatible
         dst_unit = transform.destination_unit(source.pixel_size.unit)
         if pixel_size is not None and not pixel_size.unit.is_equivalent(dst_unit):
-            raise ValueError(
-                "Pixel size unit does not match the unit of the transformed data"
-            )
+            raise ValueError("Pixel size unit does not match the unit of the transformed data")
         if pixel_size is None and not source.pixel_size.unit.is_equivalent(dst_unit):
             raise ValueError(
-                "The transform changes the unit of the coordinates."
-                " An output pixel_size must be provided."
+                "The transform changes the unit of the coordinates." " An output pixel_size must be provided."
             )
 
         self.transform = transform
