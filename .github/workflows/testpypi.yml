@@ -1,14 +1,20 @@
 name: Publish to TestPyPI using Poetry
 
+# trigger upload on a new push to master
 on:
   push:
     branches:
-      - master  # You can change this to the branch you want to trigger the workflow
-
+      - master
+      
 jobs:
   build:
     runs-on: ubuntu-latest
 
+    # enable openid authentication for PyPi
+    permissions:
+      id-token: write  # Required for OIDC
+      contents: read
+    
     steps:
     # Checkout the repository
     - name: Check out the repository
