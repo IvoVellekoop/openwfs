@@ -1,0 +1,37 @@
+name: Publish to TestPyPI using Poetry
+
+on:
+  push:
+    branches:
+      - master  # You can change this to the branch you want to trigger the workflow
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    # Checkout the repository
+    - name: Check out the repository
+      uses: actions/checkout@v3
+
+    # Set up Python
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    # Install Poetry
+    - name: Install Poetry
+      run: |
+        curl -sSL https://install.python-poetry.org | python3 -
+
+    # Install dependencies and build the project
+    - name: Install dependencies and build package
+      run: |
+        poetry install
+        poetry build
+
+    # Publish to TestPyPI
+    - name: Publish to TestPyPI
+      run: |
+        poetry publish --repository testpypi --build
