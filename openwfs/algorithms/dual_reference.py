@@ -1,4 +1,4 @@
-from typing import Optional, Union, List
+from typing import Optional, List
 
 import numpy as np
 from numpy import ndarray as nd
@@ -42,8 +42,8 @@ class DualReference:
         feedback: Detector,
         slm: PhaseSLM,
         phase_patterns: Optional[tuple[nd, nd]],
-        amplitude: Optional[Union[tuple[nd, nd], str]],
         group_mask: nd,
+        amplitude: nd = 1.0,
         phase_steps: int = 4,
         iterations: int = 2,
         analyzer: Optional[callable] = analyze_phase_stepping,
@@ -59,11 +59,8 @@ class DualReference:
                 The 3rd dimension in the array is index of the phase pattern.
                 The number of phase patterns in A and B may be different.
                 When None, the phase_patterns attribute must be set before executing the algorithm.
-            amplitude: Tuple of 2D arrays, one array for each group. The arrays have shape equal to the shape of
-                group_mask. When None, the amplitude attribute must be set before executing the algorithm. When
-                'uniform', a 2D array of normalized uniform values is used, such that ⟨A,A⟩=1, where ⟨.,.⟩ denotes the
-                inner product and A is the amplitude profile per group. This corresponds to a uniform illumination of
-                the SLM. Note: if the groups have different sizes, their normalization factors will be different.
+            amplitude:
+                Amplitude distribution on the SLM, should have the same size as group_mask and phase_patterns.
             group_mask: A 2D bool array of that defines the pixels used by group A with False and elements used by
                 group B with True.
             phase_steps: The number of phase steps for each mode (default is 4). Depending on the type of
@@ -109,7 +106,6 @@ class DualReference:
         self.iterations = iterations
         self._analyzer = analyzer
         self._phase_patterns = None
-        self._amplitude = None
         self._gram = None
         self._shape = group_mask.shape
         mask = group_mask.astype(bool)
@@ -117,7 +113,8 @@ class DualReference:
             ~mask,
             mask,
         )  # self.masks[0] is True for group A, self.masks[1] is True for group B
-        self.amplitude = amplitude  # Note: when 'uniform' is passed, the shape of self.masks[0] is used.
+        self._amplitude = 1.0
+        self.amplitude = amplitude
         self.phase_patterns = phase_patterns
 
     @property
@@ -125,18 +122,8 @@ class DualReference:
         return self._amplitude
 
     @amplitude.setter
-    def amplitude(self, value):
-        if value is None:
-            self._amplitude = None
-            return
-
-        if value == "uniform":
-            self._amplitude = tuple(
-                (np.ones(shape=self._shape) / np.sqrt(self.masks[side].sum())).astype(np.float32) for side in range(2)
-            )
-            return
-
-        if value[0].shape != self._shape or value[1].shape != self._shape:
+    def amplitude(self, value: np.ndarray):
+        if not np.isscalar(value) and value.shape != self._shape:
             raise ValueError("The amplitude and group mask must all have the same shape.")
 
         self._amplitude = value
@@ -146,17 +133,16 @@ class DualReference:
         return self._phase_patterns
 
     @phase_patterns.setter
-    def phase_patterns(self, value):
+    def phase_patterns(self, value: np.ndarray):
         """Sets the phase patterns for group A and group B. This also updates the conjugate modes."""
         self._zero_indices = [0, 0]
         self._phase_patterns = [None, None]
         self._cobasis = [None, None]
         self._gram = [None, None]
-        if value is None:
-            return
 
         for side in range(2):
             phase = value[side]
+            mask = self.masks[side]
             if phase.shape[0:2] != self._shape:
                 raise ValueError("The phase patterns and group mask must all have the same shape.")
             if not self.optimized_reference:
@@ -173,9 +159,11 @@ class DualReference:
             # B⁺ = (B^* B)^(-1) B^*
             # Where B is the basis matrix (a column corresponds to a basis vector), ^* denotes the conjugate transpose, ^(-1)
             # denotes the matrix inverse, and ⁺ denotes the Moore-Penrose pseudo-inverse.
-            basis = np.expand_dims(self.amplitude[side] * self.masks[side], -1) * np.exp(1j * phase)
-            self._gram[side] = np.tensordot(basis, basis.conj(), axes=((0, 1), (0, 1)))
-            self._cobasis[side] = np.tensordot(basis.conj(), np.linalg.inv(self._gram[side]), 1)
+            basis = np.expand_dims(self.amplitude * mask, -1) * np.exp(1j * phase)
+            basis /= np.linalg.norm(basis, axis=(0, 1))
+            gram = np.tensordot(basis, basis.conj(), axes=((0, 1), (0, 1)))
+            self._cobasis[side] = np.tensordot(basis.conj(), np.linalg.inv(gram), 1)
+            self._gram[side] = gram
 
     @property
     def cobasis(self) -> tuple[nd, nd]:

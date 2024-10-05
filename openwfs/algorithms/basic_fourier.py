@@ -36,38 +36,51 @@ class FourierDualReference(DualReference):
         k_radius: float = 3.2,
         k_step: float = 1.0,
         iterations: int = 2,
+        amplitude: np.ndarray = 1.0,
         analyzer: Optional[callable] = analyze_phase_stepping,
         optimized_reference: Optional[bool] = None
     ):
         """
         Args:
-            feedback (Detector): Source of feedback
-            slm (PhaseSLM): The spatial light modulator
-            slm_shape (tuple of two ints): The shape that the SLM patterns & transmission matrices are calculated for,
+            feedback: Source of feedback
+            slm: The spatial light modulator
+            slm_shape: The shape that the SLM patterns & transmission matrices are calculated for,
                 does not necessarily have to be the actual pixel dimensions as the SLM.
-            k_radius (float): Limit grid points to lie within a circle of this radius.
-            k_step (float): Make steps in k-space of this value. 1 corresponds to diffraction limited tilt.
-            phase_steps (int): The number of phase steps.
+            phase_steps: The number of phase steps.
+            k_radius: Limit grid points to lie within a circle of this radius.
+            k_step: Make steps in k-space of this value. 1 corresponds to diffraction limited tilt.
+            iterations: Number of ping-pong iterations. Defaults to 2.
+            amplitude: Amplitude profile over the SLM. Defaults to 1.0 (flat)
+            analyzer: The function used to analyze the phase stepping data.
+                Must return a WFSResult object. Defaults to `analyze_phase_stepping`
+            optimized_reference:
+                When `True`, during each iteration the other half of the SLM displays the optimized pattern so far (as in [1]).
+                When `False`, the algorithm optimizes A with a flat wavefront on B,
+                and then optimizes B with a flat wavefront on A.
+                This mode also allows for multi-target optimization.
+                When set to `None` (default), the algorithm uses True if there is a single target,
+                and False if there are multiple targets.
+
+
         """
         self._k_radius = k_radius
-        self.k_step = k_step
-        self._slm_shape = slm_shape
+        self._k_step = k_step
+        self._shape = slm_shape
         group_mask = np.zeros(slm_shape, dtype=bool)
         group_mask[:, slm_shape[1] // 2 :] = True
         super().__init__(
             feedback=feedback,
             slm=slm,
-            phase_patterns=None,
+            phase_patterns=self._construct_modes(),
             group_mask=group_mask,
             phase_steps=phase_steps,
-            amplitude="uniform",
             iterations=iterations,
+            amplitude=amplitude,
             optimized_reference=optimized_reference,
             analyzer=analyzer,
         )
-        self._update_modes()
 
-    def _update_modes(self):
+    def _construct_modes(self) -> tuple[np.ndarray, np.ndarray]:
         """Constructs the set of plane wave modes."""
 
         # start with a grid of k-values
@@ -87,14 +100,14 @@ class FourierDualReference(DualReference):
         k = np.stack((ky[mask], kx[mask])).T
 
         # construct the modes for these kx ky values
-        modes = np.zeros((*self._slm_shape, len(k)), dtype=np.float32)
+        modes = np.zeros((*self._shape, len(k)), dtype=np.float32)
         for i, k_i in enumerate(k):
             # tilt generates a pattern from -2.0 to 2.0 (The convention for Zernike modes normalized to an RMS of 1).
             # The natural step to take is the Abbe diffraction limit of the modulated part,
             # which corresponds to a gradient from -π to π over the modulated part.
-            modes[..., i] = tilt(self._slm_shape, g=k_i * 0.5 * np.pi)
+            modes[..., i] = tilt(self._shape, g=k_i * 0.5 * np.pi)
 
-        self.phase_patterns = (modes, modes)
+        return modes, modes
 
     @property
     def k_radius(self) -> float:
@@ -102,7 +115,16 @@ class FourierDualReference(DualReference):
         return self._k_radius
 
     @k_radius.setter
-    def k_radius(self, value):
+    def k_radius(self, value: float):
         """Sets the maximum radius of the k-space circle, triggers the building of the internal k-space properties."""
-        self._k_radius = value
-        self._update_modes()
+        self._k_radius = float(value)
+        self.phase_patterns = self._construct_modes()
+
+    @property
+    def k_step(self) -> float:
+        return self._k_step
+
+    @k_step.setter
+    def k_step(self, value: float):
+        self._k_step = float(value)
+        self.phase_patterns = self._construct_modes()

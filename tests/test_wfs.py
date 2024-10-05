@@ -144,6 +144,20 @@ def random_transmission_matrix(shape):
     return np.random.normal(size=shape) + 1j * np.random.normal(size=shape)
 
 
+def half_mask(shape):
+    """
+    Args:
+        shape: shape of the output array
+
+    Returns:
+        Returns a boolean mask with [:, :shape[2]] set to False
+        and [:, shape[1]] set to True].
+    """
+    mask = np.zeros(shape, dtype=bool)
+    mask[:, shape[1] // 2 :] = True
+    return mask
+
+
 def t_fidelity(t: np.ndarray, t_correct: np.ndarray, masks: Optional[tuple[np.ndarray, ...]] = (True,)) -> float:
     """
     Compute the fidelity of the measured transmission matrix.
@@ -160,16 +174,16 @@ def t_fidelity(t: np.ndarray, t_correct: np.ndarray, masks: Optional[tuple[np.nd
         t_correct: The correct transmission matrix
         masks: Masks for the left and right half of the wavefront, or None to use the full wavefront
     """
-    t_fidelity = 0.0
-    t_norm = 0.0
+    fidelity = 0.0
+    norm = 0.0
     for r in range(t.shape[-1]):  # each row
         for m in masks:
             rm = t[..., r][m]
             rm_c = t_correct[..., r][m]
-            t_fidelity += abs(np.vdot(rm, rm_c) ** 2 / np.vdot(rm, rm))
-            t_norm += np.vdot(rm_c, rm_c)
+            fidelity += abs(np.vdot(rm, rm_c) ** 2 / np.vdot(rm, rm))
+            norm += np.vdot(rm_c, rm_c)
 
-    return t_fidelity / t_norm
+    return fidelity / norm
 
 
 @pytest.mark.skip("Not implemented")
@@ -411,79 +425,37 @@ def test_simple_genetic(population_size: int, elite_size: int):
 def test_dual_reference_ortho_split(basis_str: str, shape: tuple[int, int]):
     """Test dual reference in iterative mode with an orthonormal phase-only basis.
     Two types of bases are tested: plane waves and Hadamard"""
-    do_debug = False
     N = shape[0] * (shape[1] // 2)
     modes_shape = (shape[0], shape[1] // 2, N)
     if basis_str == "plane_wave":
         # Create a full plane wave basis for one half of the SLM.
-        modes = np.fft.fft2(np.eye(N).reshape(modes_shape), axes=(0, 1)) / np.sqrt(N)
+        phases = np.angle(np.fft.fft2(np.eye(N).reshape(modes_shape), axes=(0, 1)))
     elif basis_str == "hadamard":
-        modes = hadamard(N).reshape(modes_shape) / np.sqrt(N)
+        phases = np.angle(hadamard(N).reshape(modes_shape))
     else:
         raise f'Unknown type of basis "{basis_str}".'
 
-    mask = np.concatenate(
-        (np.zeros(modes_shape[0:2], dtype=bool), np.ones(modes_shape[0:2], dtype=bool)),
-        axis=1,
-    )
-    mode_set = np.concatenate((modes, np.zeros(shape=modes_shape)), axis=1)
-    phases_set = np.angle(mode_set)
+    mask = half_mask(shape)
+    phases_set = np.concatenate((phases, np.zeros(shape=modes_shape)), axis=1)
 
-    if do_debug:
-        # Plot the modes
-        import matplotlib.pyplot as plt
-
-        plt.figure(figsize=(12, 7))
-        for m in range(N):
-            plt.subplot(*modes_shape[0:2], m + 1)
-            plot_field(mode_set[:, :, m])
-            plt.title(f"m={m}")
-            plt.xticks([])
-            plt.yticks([])
-        plt.suptitle("Basis")
-        plt.pause(0.01)
-
-    # Create aberrations
     sim = SimulatedWFS(t=random_transmission_matrix(shape))
 
     alg = DualReference(
         feedback=sim,
         slm=sim.slm,
         phase_patterns=(phases_set, np.flip(phases_set, axis=1)),
-        amplitude="uniform",
         group_mask=mask,
         iterations=4,
     )
 
-    result = alg.execute()
-
-    if do_debug:
-        # Plot the modes
-        import matplotlib.pyplot as plt
-
-        plt.figure()
-        for m in range(N):
-            plt.subplot(*modes_shape[0:2], m + 1)
-            plot_field(alg.cobasis[0][:, :, m])
-            plt.title(f"{m}")
-        plt.suptitle("Cobasis")
-        plt.pause(0.01)
-
-        plt.figure()
-        plt.imshow(np.angle(sim.t), vmin=-np.pi, vmax=np.pi, cmap="hsv")
-        plt.title("Aberrations")
-
-        plt.figure()
-        plt.imshow(np.angle(result.t), vmin=-np.pi, vmax=np.pi, cmap="hsv")
-        plt.title("t")
-        plt.colorbar()
-        plt.show()
-
     # Checks for orthonormal basis properties
-    assert np.allclose(alg.gram, np.eye(N), atol=1e-6)  # Gram matrix must be I
-    assert np.allclose(alg.cobasis[0], mode_set.conj(), atol=1e-6)  # Cobasis vectors are just the complex conjugates
+    assert np.allclose(alg.gram[0], np.eye(N), atol=1e-6)  # Gram matrix must be I
+
+    # Cobasis vectors are just the complex conjugates
+    assert np.allclose(alg.cobasis[0], np.exp(-1j * phases_set) * abs(alg.cobasis[0]), atol=1e-6)
 
     # Test phase-only field correlation
+    result = alg.execute()
     sim_t_phase_only = np.exp(1j * np.angle(sim.t))
     result_t_phase_only = np.exp(1j * np.angle(result.t))
     assert np.abs(field_correlation(sim_t_phase_only, result_t_phase_only)) > 0.999
@@ -533,7 +505,6 @@ def test_dual_reference_non_ortho_split():
         feedback=sim,
         slm=sim.slm,
         phase_patterns=(phases_set, np.flip(phases_set, axis=1)),
-        amplitude="uniform",
         group_mask=mask,
         phase_steps=4,
         iterations=4,
