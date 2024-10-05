@@ -148,35 +148,41 @@ class DualReference:
     @phase_patterns.setter
     def phase_patterns(self, value):
         """Sets the phase patterns for group A and group B. This also updates the conjugate modes."""
+        self._zero_indices = [0, 0]
+        self._phase_patterns = [None, None]
+        self._cobasis = [None, None]
+        self._gram = [None, None]
         if value is None:
-            self._phase_patterns = None
             return
 
-        if not self.optimized_reference:
-            # find the modes in A and B that correspond to flat wavefronts with phase 0
-            try:
-                a0_index = next(i for i in range(value[0].shape[2]) if np.allclose(value[0][:, :, i], 0))
-                b0_index = next(i for i in range(value[1].shape[2]) if np.allclose(value[1][:, :, i], 0))
-                self.zero_indices = (a0_index, b0_index)
-            except StopIteration:
-                raise "For multi-target optimization, the both sets must contain a flat wavefront with phase 0."
+        for side in range(2):
+            phase = value[side]
+            if phase.shape[0:2] != self._shape:
+                raise ValueError("The phase patterns and group mask must all have the same shape.")
+            if not self.optimized_reference:
+                # find the modes in A and B that correspond to flat wavefronts with phase 0
+                try:
+                    self._zero_indices[side] = next(i for i in range(phase.shape[2]) if np.allclose(phase[:, :, i], 0))
+                except StopIteration:
+                    raise "For multi-target optimization, the both sets must contain a flat wavefront with phase 0."
 
-        if (value[0].shape[0:2] != self._shape) or (value[1].shape[0:2] != self._shape):
-            raise ValueError("The phase patterns and group mask must all have the same shape.")
+            self._phase_patterns[side] = phase.astype(np.float32)
 
-        self._phase_patterns = (
-            value[0].astype(np.float32),
-            value[1].astype(np.float32),
-        )
-
-        self._compute_cobasis()
+            # Computes the cobasis
+            # As a basis matrix is full rank, this is equivalent to the Moore-Penrose pseudo-inverse.
+            # B⁺ = (B^* B)^(-1) B^*
+            # Where B is the basis matrix (a column corresponds to a basis vector), ^* denotes the conjugate transpose, ^(-1)
+            # denotes the matrix inverse, and ⁺ denotes the Moore-Penrose pseudo-inverse.
+            basis = np.expand_dims(self.amplitude[side] * self.masks[side], -1) * np.exp(1j * phase)
+            self._gram[side] = np.tensordot(basis, basis.conj(), axes=((0, 1), (0, 1)))
+            self._cobasis[side] = np.tensordot(basis.conj(), np.linalg.inv(self._gram[side]), 1)
 
     @property
     def cobasis(self) -> tuple[nd, nd]:
         """
         The cobasis corresponding to the given basis.
         """
-        return self._cobasis
+        return tuple(self._cobasis)
 
     @property
     def gram(self) -> np.matrix:
@@ -184,32 +190,6 @@ class DualReference:
         The Gram matrix corresponding to the given basis (i.e. phase pattern and amplitude profile).
         """
         return self._gram
-
-    def _compute_cobasis(self):
-        """
-        Computes the cobasis from the phase patterns.
-
-        As a basis matrix is full rank, this is equivalent to the Moore-Penrose pseudo-inverse.
-        B⁺ = (B^* B)^(-1) B^*
-        Where B is the basis matrix (a column corresponds to a basis vector), ^* denotes the conjugate transpose, ^(-1)
-        denotes the matrix inverse, and ⁺ denotes the Moore-Penrose pseudo-inverse.
-        """
-        if self.phase_patterns is None:
-            raise "The phase_patterns must be set before computing the cobasis."
-
-        # TODO: simplify, integrate in calling function, fix warnings
-        cobasis = [None, None]
-        for side in range(2):
-            p = np.prod(self._shape)  # Number of SLM pixels
-            m = self.phase_patterns[side].shape[2]  # Number of modes
-            phase_factor = np.exp(1j * self.phase_patterns[side])
-            amplitude_factor = np.expand_dims(self.amplitude[side] * self.masks[side], axis=2)
-            B = np.asmatrix((phase_factor * amplitude_factor).reshape((p, m)))  # Basis matrix
-            self._gram = B.H @ B
-            B_pinv = np.linalg.inv(self.gram) @ B.H  # Moore-Penrose pseudo-inverse
-            cobasis[side] = np.asarray(B_pinv.T).reshape(self.phase_patterns[side].shape)
-
-        self._cobasis = cobasis
 
     def execute(self, *, capture_intermediate_results: bool = False, progress_bar=None) -> WFSResult:
         """
@@ -273,8 +253,8 @@ class DualReference:
             # two halves of the wavefront together. For that, we need the
             # relative phase between the two sides, which we extract from
             # the measurements of the flat wavefronts.
-            relative = results_all[0].t[self.zero_indices[0], ...] + np.conjugate(
-                results_all[1].t[self.zero_indices[1], ...]
+            relative = results_all[0].t[self._zero_indices[0], ...] + np.conjugate(
+                results_all[1].t[self._zero_indices[1], ...]
             )
             factor = (relative / np.abs(relative)).reshape((1, *self.feedback.data_shape))
 
