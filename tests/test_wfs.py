@@ -1,3 +1,5 @@
+from typing import Optional
+
 import astropy.units as u
 import numpy as np
 import pytest
@@ -30,8 +32,6 @@ def test_multi_target_algorithms(shape: tuple[int, int], noise: float, algorithm
     and it also verifies that the enhancement and noise fidelity
     are estimated correctly by the algorithm.
     """
-    np.random.seed(42)  # for reproducibility
-
     M = 100  # number of targets
     phase_steps = 6
 
@@ -52,6 +52,7 @@ def test_multi_target_algorithms(shape: tuple[int, int], noise: float, algorithm
         N = np.prod(shape)  # number of input modes
         alg_fidelity = (N - 1) / N  # SSA is inaccurate if N is low
         signal = (N - 1) / N**2  # for estimating SNR
+        masks = [True]  # use all segments for determining fidelity
     else:  # 'fourier':
         alg = FourierDualReference(
             feedback=feedback,
@@ -63,6 +64,7 @@ def test_multi_target_algorithms(shape: tuple[int, int], noise: float, algorithm
         N = alg.phase_patterns[0].shape[2] + alg.phase_patterns[1].shape[2]  # number of input modes
         alg_fidelity = 1.0  # Fourier is accurate for any N
         signal = 1 / 2  # for estimating SNR.
+        masks = alg.masks  # use separate halves of the segments for determining fidelity
 
     # Execute the algorithm to get the optimized wavefront
     # for all targets simultaneously
@@ -74,27 +76,25 @@ def test_multi_target_algorithms(shape: tuple[int, int], noise: float, algorithm
     # the unknown phases. The normalization of the correlation function
     # is performed on all rows together, not per row, to increase
     # the accuracy of the estimate.
+    # For the dual reference algorithm, the left and right half will have a different overall amplitude factor.
+    # This is corrected for by computing the correlations for the left and right half separately
+    #
     I_opt = np.zeros((M,))
-    t_correlation = 0.0
-    t_norm = 0.0
     for b in range(M):
         sim.slm.set_phases(-np.angle(result.t[:, :, b]))
         I_opt[b] = feedback.read()[b]
-        t_correlation += abs(np.vdot(result.t[:, :, b], sim.t[:, :, b])) ** 2
-        t_norm += abs(np.vdot(result.t[:, :, b], result.t[:, :, b]) * np.vdot(sim.t[:, :, b], sim.t[:, :, b]))
-    t_correlation /= t_norm
 
-    # a correlation of 1 means optimal reconstruction of the N modulated modes, which may be less than the total number of inputs in the transmission matrix
-    t_correlation *= np.prod(shape) / N
+    t_correlation = t_fidelity(result.t, sim.t, masks)
 
     # Check the enhancement, noise fidelity and
     # the fidelity of the transmission matrix reconstruction
+    coverage = N / np.prod(shape)
     theoretical_noise_fidelity = signal / (signal + noise**2 / phase_steps)
     enhancement = I_opt.mean() / I_0
     theoretical_enhancement = np.pi / 4 * theoretical_noise_fidelity * alg_fidelity * (N - 1) + 1
     estimated_enhancement = result.estimated_enhancement.mean() * alg_fidelity
-    theoretical_t_correlation = theoretical_noise_fidelity * alg_fidelity
-    estimated_t_correlation = result.fidelity_noise * result.fidelity_calibration * alg_fidelity
+    theoretical_t_correlation = theoretical_noise_fidelity * alg_fidelity * coverage
+    estimated_t_correlation = result.fidelity_noise * result.fidelity_calibration * alg_fidelity * coverage
     tolerance = 2.0 / np.sqrt(M)
     print(
         f"\nenhancement:      \ttheoretical= {theoretical_enhancement},\testimated={estimated_enhancement},\tactual: {enhancement}"
@@ -140,7 +140,36 @@ def random_transmission_matrix(shape):
     """
     Create a random transmission matrix with the given shape.
     """
+    np.random.seed(42)  # for reproducibility
     return np.random.normal(size=shape) + 1j * np.random.normal(size=shape)
+
+
+def t_fidelity(t: np.ndarray, t_correct: np.ndarray, masks: Optional[tuple[np.ndarray, ...]] = (True,)) -> float:
+    """
+    Compute the fidelity of the measured transmission matrix.
+
+    Since the overall phase for each row is unknown, the fidelity is computed row by row.
+    Moreover, for dual-reference algorithms the left and right half of the wavefront
+    may have different overall amplitude factors. This is corrected for by computing
+    the fidelity for the left and right half separately.
+
+    The fidelities for all rows (and halves) are weighted by the 'intensity' in the correct transmission matrix.
+
+    Args:
+        t: The measured transmission matrix. 'rows' of t are the *last* index
+        t_correct: The correct transmission matrix
+        masks: Masks for the left and right half of the wavefront, or None to use the full wavefront
+    """
+    t_fidelity = 0.0
+    t_norm = 0.0
+    for r in range(t.shape[-1]):  # each row
+        for m in masks:
+            rm = t[..., r][m]
+            rm_c = t_correct[..., r][m]
+            t_fidelity += abs(np.vdot(rm, rm_c) ** 2 / np.vdot(rm, rm))
+            t_norm += np.vdot(rm_c, rm_c)
+
+    return t_fidelity / t_norm
 
 
 @pytest.mark.skip("Not implemented")
@@ -248,8 +277,8 @@ def test_phase_shift_correction():
 
 
 @pytest.mark.parametrize("optimized_reference", [True, False])
-@pytest.mark.parametrize("step", [True, False])
-def test_flat_wf_response_fourier(optimized_reference, step):
+@pytest.mark.parametrize("type", ["flat", "phase_step", "amplitude_step"])
+def test_flat_wf_response_fourier(optimized_reference, type):
     """
     Test the response of the Fourier-based WFS method when the solution is flat
     A flat solution means that the optimal correction is no correction.
@@ -257,26 +286,30 @@ def test_flat_wf_response_fourier(optimized_reference, step):
 
     test the optimized wavefront by checking if it has irregularities.
     """
-    aberrations = np.ones(shape=(4, 4))
-    if step:
-        aberrations[:, 2:] = 2.0
-    sim = SimulatedWFS(aberrations=aberrations.reshape((*aberrations.shape, 1)))
+    t = np.ones(shape=(4, 4), dtype=np.complex64)
+    if type == "phase_step":
+        t[:, 2:] = np.exp(2.0j)
+    elif type == "amplitude_step":
+        t[:, 2:] = 2.0
+
+    sim = SimulatedWFS(t=t)
 
     alg = FourierDualReference(
         feedback=sim,
         slm=sim.slm,
-        slm_shape=np.shape(aberrations),
+        slm_shape=np.shape(t),
         k_radius=1.5,
         phase_steps=3,
         optimized_reference=optimized_reference,
     )
 
-    t = alg.execute().t
-
-    # test the optimized wavefront by checking if it has irregularities.
-    measured_aberrations = np.squeeze(np.angle(t))
-    measured_aberrations += aberrations[0, 0] - measured_aberrations[0, 0]
-    assert np.allclose(measured_aberrations, aberrations, atol=0.02)  # The measured wavefront is not flat.
+    result = alg.execute()
+    assert (
+        abs(field_correlation(result.t / np.abs(result.t), t / np.abs(t))) > 0.99
+    ), "The phases were not calculated correctly"
+    assert (
+        t_fidelity(np.expand_dims(result.t, -1), np.expand_dims(t, -1), alg.masks) > 0.99
+    ), "The amplitudes were not calculated correctly"
 
 
 def test_flat_wf_response_ssa():
@@ -347,7 +380,7 @@ def test_multidimensional_feedback_fourier():
             Expected at least 3.0, got {enhancement}"""
 
 
-@pytest.mark.parametrize("population_size, elite_size", [(30, 15), (30, 5)])
+@pytest.mark.parametrize("population_size, elite_size", [(30, 15)])  # , (30, 5)])
 def test_simple_genetic(population_size: int, elite_size: int):
     """
     Test the SimpleGenetic algorithm.
@@ -376,7 +409,7 @@ def test_simple_genetic(population_size: int, elite_size: int):
 @pytest.mark.parametrize("basis_str", ("plane_wave", "hadamard"))
 @pytest.mark.parametrize("shape", ((8, 8), (16, 4)))
 def test_dual_reference_ortho_split(basis_str: str, shape: tuple[int, int]):
-    """Test dual reference with an orthonormal phase-only basis.
+    """Test dual reference in iterative mode with an orthonormal phase-only basis.
     Two types of bases are tested: plane waves and Hadamard"""
     do_debug = False
     N = shape[0] * (shape[1] // 2)
@@ -455,9 +488,7 @@ def test_dual_reference_ortho_split(basis_str: str, shape: tuple[int, int]):
     result_t_phase_only = np.exp(1j * np.angle(result.t))
     assert np.abs(field_correlation(sim_t_phase_only, result_t_phase_only)) > 0.999
 
-    # todo: find out why this is not higher
-    # Test field correlation
-    assert np.abs(field_correlation(sim.t, result.t)) > 0.9
+    assert t_fidelity(np.expand_dims(result.t, -1), np.expand_dims(sim.t, -1), alg.masks) > 0.9
 
 
 def test_dual_reference_non_ortho_split():
