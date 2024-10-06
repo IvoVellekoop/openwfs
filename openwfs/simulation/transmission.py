@@ -36,7 +36,8 @@ class SimulatedWFS(Processor):
         Gaussian beam.
 
         Args:
-            t: Transmission matrix.
+            t: Transmission matrix. Must have the form (*feedback_shape, height, width), where feedback_shape
+                is the shape of the feedback signal and may be 0 or more dimensional.
             aberrations: An array containing the aberrations in radians. Can be used instead of a transmission matrix,
                 equivalent to specifying ``t = np.exp(1j * aberrations) / (aberrations.shape[0] * aberrations.shape[1])``.
             slm:
@@ -51,7 +52,7 @@ class SimulatedWFS(Processor):
 
         # transmission matrix (normalized so that the maximum transmission is 1)
         self.t = t if t is not None else np.exp(1.0j * aberrations) / (aberrations.shape[0] * aberrations.shape[1])
-        self.slm = slm if slm is not None else SLM(self.t.shape[0:2])
+        self.slm = slm if slm is not None else SLM(self.t.shape[-2:])
 
         super().__init__(self.slm.field, multi_threaded=multi_threaded)
         self.beam_amplitude = beam_amplitude
@@ -71,9 +72,9 @@ class SimulatedWFS(Processor):
             np.ndarray: A numpy array containing the calculated intensity in the focus.
 
         """
-        field = np.tensordot(incident_field * self.beam_amplitude, self.t, 2)
+        field = np.tensordot(self.t, incident_field * self.beam_amplitude, 2)
         return np.abs(field) ** 2
 
     @property
     def data_shape(self):
-        return self.t.shape[2:]
+        return self.t.shape[:-2]

@@ -251,8 +251,8 @@ class DualReference:
             # two halves of the wavefront together. For that, we need the
             # relative phase between the two sides, which we extract from
             # the measurements of the flat wavefronts.
-            relative = t_side_0[self._zero_indices[0]] + np.conjugate(t_side_1[self._zero_indices[1]])
-            factor = (relative / np.abs(relative)).reshape((1, *self.feedback.data_shape))
+            relative = t_side_0[..., self._zero_indices[0]] + np.conjugate(t_side_1[..., self._zero_indices[1]])
+            factor = np.expand_dims(relative / np.abs(relative), -1)
 
         t_full = self.compute_t_set(t_side_0, 0) + self.compute_t_set(factor * t_side_1, 1)
 
@@ -304,11 +304,11 @@ class DualReference:
         """
         Compute the transmission matrix in SLM space from transmission matrix in input mode space.
 
-        TODO: make sure t is in t_ba form, so that this is equivalent to np.tensordot(t, cobasis, 1)
+        Equivalent to ``np.tensordot(t, cobasis[side], 1)``
 
         Args:
             t: transmission matrix in mode-index space. The first axis corresponds to the input modes.
         Returns:
             nd: The transmission matrix in SLM space. The last two axes correspond to SLM coordinates
         """
-        return np.tensordot(self.cobasis[side], t, ((0,), (0,)))
+        return np.tensordot(t, self.cobasis[side], 1)

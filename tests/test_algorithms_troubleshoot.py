@@ -2,6 +2,7 @@ import astropy.units as u
 import numpy as np
 import pytest
 
+from . import complex_random
 from .test_simulation import phase_response_test_function, lookup_table_test_function
 from ..openwfs.algorithms import StepwiseSequential
 from ..openwfs.algorithms.troubleshoot import (
@@ -14,9 +15,31 @@ from ..openwfs.algorithms.troubleshoot import (
     measure_modulated_light,
     measure_modulated_light_dual_phase_stepping,
 )
+from ..openwfs.algorithms.utilities import analyze_phase_stepping
 from ..openwfs.processors import SingleRoi
 from ..openwfs.simulation import Camera
 from ..openwfs.simulation import SimulatedWFS, StaticSource, SLM, Microscope
+
+
+@pytest.mark.parametrize("phase_steps", [5, 6, 10, 20])
+@pytest.mark.parametrize("noise", [0.0, 0.5, 1.0, 2.0, 4.0])
+def test_analyze_phase_stepping(phase_steps, noise):
+    """Test the analyze_phase_stepping function"""
+    # TODO: find out why there is a (small) systematic error when the noise is high
+    # Construct a perfect phase stepping signal
+    np.random.seed(123)
+    t = complex_random((10000, 1))
+    ref = np.exp(np.arange(phase_steps) * 2j * np.pi / phase_steps)
+    signal = np.abs(ref + t) ** 2
+    signal += np.random.normal(scale=noise, size=signal.shape)
+    result = analyze_phase_stepping(signal, axis=1)
+    # the signal energy for a signal 2·cos(φ) is 2 P  (with P the number of phase steps), distributed over 2 bins,
+    # giving P per bin.
+    # the noise energy is σ²·P, distributed over P bins, giving σ² per bin.
+    tolerance = 4 / np.sqrt(t.size)
+    theoretical_fidelity = phase_steps / (phase_steps + noise**2)
+    print(f"noise fidelity. theoretical: {theoretical_fidelity}  measured: {result.fidelity_noise}")
+    assert np.isclose(result.fidelity_noise, theoretical_fidelity, rtol=tolerance)
 
 
 def test_signal_std():

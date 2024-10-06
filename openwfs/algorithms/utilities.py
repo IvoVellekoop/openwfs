@@ -154,9 +154,9 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int):
     Args:
         measurements(ndarray): array of phase stepping measurements.
             The array holds measured intensities
-            with the first one or more dimensions corresponding to the segments(pixels) of the SLM,
+            with the first one or more dimensions (a1, a2, ...) corresponding to the segments of the SLM,
             one dimension corresponding to the phase steps,
-            and the last zero or more dimensions corresponding to the individual targets
+            and the last zero or more dimensions (b1, b2, ...) corresponding to the individual targets
             where the feedback was measured.
         axis(int): indicates which axis holds the phase steps.
 
@@ -172,16 +172,14 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int):
 
         \\frac{1}{phase_{steps}} \\sum I_p  \\exp(-i 2\\pi p / phase_{steps}) = A^* B
 
-    The value of A^* B for each set of measurements is stored in the `field` attribute of the return
-    value.
-    Other attributes hold an estimate of the signal-to-noise ratio,
-    and an estimate of the maximum enhancement that can be expected
-    if these measurements are used for wavefront shaping.
+    Returns:
+        WFSResult: The result of the analysis. The attribute `t` holds the complex transmission matrix.
+            Note that the dimensions of t are reversed with respect to the input, so t has shape b1×b2×...×a1×a2×...
+            Other attributes hold fidelity estimates (see WFSResult).
     """
     phase_steps = measurements.shape[axis]
-    n = int(np.prod(measurements.shape[:axis]))
-    # M = np.prod(measurements.shape[axis + 1:])
-    segments = tuple(range(axis))
+    a_count = int(np.prod(measurements.shape[:axis]))
+    a_axes = tuple(range(axis))
 
     # Fourier transform the phase stepping measurements
     t_f = np.fft.fft(measurements, axis=axis) / phase_steps
@@ -189,7 +187,7 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int):
 
     # compute the effect of amplitude variations.
     # for perfectly developed speckle, and homogeneous illumination, this factor will be pi/4
-    amplitude_factor = np.mean(np.abs(t), segments) ** 2 / np.mean(np.abs(t) ** 2, segments)
+    fidelity_amplitude = np.mean(np.abs(t), a_axes) ** 2 / np.mean(np.abs(t) ** 2, a_axes)
 
     # estimate the calibration error
     # we first construct a matrix that can be used to fit
@@ -203,6 +201,9 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int):
         cc = ff_inv @ np.take(t_f, k, axis=axis).ravel()
         signal_energy = signal_energy + np.sum(np.abs(ff @ cc) ** 2)
         c[k] = cc[0]
+    fidelity_calibration = np.abs(c[1]) ** 2 / np.sum(np.abs(c[1:]) ** 2)
+
+    # TODO: use the pinv fit to estimate the signal strength (requires special treatment of offset)
 
     # Estimate the error due to noise
     # The signal consists of the response with incorrect modulation,
@@ -212,26 +213,28 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int):
     # average over all targets to get the most accurate result (assuming all targets are similar)
     axes = tuple([i for i in range(t_f.ndim) if i != axis])
     energies = np.sum(np.abs(t_f) ** 2, axis=axes)
-    offset_energy = energies[0]
     total_energy = np.sum(energies)
+    offset_energy = energies[0]
     signal_energy = energies[1] + energies[-1]
     if phase_steps > 3:
         # estimate the noise energy as the energy that is not explained
         # by the signal or the offset.
         noise_energy = (total_energy - signal_energy - offset_energy) / (phase_steps - 3)
-        noise_factor = np.abs(np.maximum(signal_energy - 2 * noise_energy, 0.0) / signal_energy)
+        fidelity_noise = np.abs(np.maximum(signal_energy - 2 * noise_energy, 0.0) / signal_energy)
     else:
-        noise_factor = 1.0  # cannot estimate reliably
+        fidelity_noise = 1.0  # cannot estimate reliably
 
-    calibration_fidelity = np.abs(c[1]) ** 2 / np.sum(np.abs(c[1:]) ** 2)
+    # convert from t_ab to t_ba form
+    a_destination = np.array(a_axes) + t.ndim - len(a_axes)
+    t = np.moveaxis(t, a_axes, a_destination)
 
     return WFSResult(
         t,
         axis=axis,
-        fidelity_amplitude=amplitude_factor,
-        fidelity_noise=noise_factor,
-        fidelity_calibration=calibration_fidelity,
-        n=n,
+        fidelity_amplitude=fidelity_amplitude,
+        fidelity_noise=fidelity_noise,
+        fidelity_calibration=fidelity_calibration,
+        n=a_count,
     )
 
 
