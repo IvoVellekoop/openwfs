@@ -55,14 +55,12 @@ class DualReference:
             slm: Spatial light modulator object.
             phase_patterns:
                 A tuple of two 3D arrays, containing the phase patterns for group A and group B, respectively.
-                The first two dimensions are the spatial dimensions, and should match the size of group_mask.
-                The 3rd dimension in the array is index of the phase pattern.
+                The 3D arrays have shape ``(pattern_count, height, width)``.
                 The number of phase patterns in A and B may be different.
-                When None, the phase_patterns attribute must be set before executing the algorithm.
             amplitude:
-                Amplitude distribution on the SLM, should have the same size as group_mask and phase_patterns.
+                2D amplitude distribution on the SLM, should have shape ``(height, width)``.
             group_mask: A 2D bool array of that defines the pixels used by group A with False and elements used by
-                group B with True.
+                group B with True, should have shape ``(height, width)``.
             phase_steps: The number of phase steps for each mode (default is 4). Depending on the type of
                 non-linear feedback and the SNR, more might be required.
             iterations: Number of times to optimize a mode set, e.g. when iterations = 5, the measurements are
@@ -141,43 +139,47 @@ class DualReference:
         self._gram = [None, None]
 
         for side in range(2):
-            phase = value[side]
+            patterns = value[side]
             mask = self.masks[side]
-            if phase.shape[0:2] != self._shape:
+            if patterns[0].shape != self._shape:
                 raise ValueError("The phase patterns and group mask must all have the same shape.")
             if not self.optimized_reference:
                 # find the modes in A and B that correspond to flat wavefronts with phase 0
                 try:
-                    self._zero_indices[side] = next(i for i in range(phase.shape[2]) if np.allclose(phase[:, :, i], 0))
+                    self._zero_indices[side] = next(i for i, p in enumerate(patterns) if np.allclose(p, 0))
                 except StopIteration:
                     raise "For multi-target optimization, the both sets must contain a flat wavefront with phase 0."
 
-            self._phase_patterns[side] = phase.astype(np.float32)
+            self._phase_patterns[side] = patterns.astype(np.float32)
 
             # Computes the cobasis
-            # As a basis matrix is full rank, this is equivalent to the Moore-Penrose pseudo-inverse.
-            # B⁺ = (B^* B)^(-1) B^*
-            # Where B is the basis matrix (a column corresponds to a basis vector), ^* denotes the conjugate transpose, ^(-1)
-            # denotes the matrix inverse, and ⁺ denotes the Moore-Penrose pseudo-inverse.
-            basis = np.expand_dims(self.amplitude * mask, -1) * np.exp(1j * phase)
-            basis /= np.linalg.norm(basis, axis=(0, 1))
-            gram = np.tensordot(basis, basis.conj(), axes=((0, 1), (0, 1)))
-            self._cobasis[side] = np.tensordot(basis.conj(), np.linalg.inv(gram), 1)
+            # As a basis matrix B is full rank, the cobasis is equivalent to the Moore-Penrose pseudo-inverse B⁺.
+            # B⁺ = (B^* B)⁻¹ B^*
+            # Where B is the basis matrix, ^* denotes the conjugate transpose, and ^(-1)
+            # denotes the matrix inverse. Note: we store the cobasis in transposed form,
+            # with shape (mode, y, x) to allow for easy
+            # multiplication with the transmission matrix t_ba.
+            basis = self.amplitude * mask * np.exp(1j * patterns)
+            basis /= np.linalg.norm(basis, axis=(1, 2), keepdims=True)
+            gram = np.tensordot(basis, basis.conj(), axes=((1, 2), (1, 2)))  # inner product (contracts x and y axis)
+            self._cobasis[side] = np.tensordot(np.linalg.inv(gram), basis.conj(), 1)
             self._gram[side] = gram
 
     @property
     def cobasis(self) -> tuple[nd, nd]:
         """
         The cobasis corresponding to the given basis.
+
+        Note: The cobasis is stored in transposed form, with shape = (mode_count, height, width)
         """
         return tuple(self._cobasis)
 
     @property
-    def gram(self) -> np.matrix:
+    def gram(self) -> tuple[nd, nd]:
         """
         The Gram matrix corresponding to the given basis (i.e. phase pattern and amplitude profile).
         """
-        return self._gram
+        return tuple(self._gram)
 
     def execute(self, *, capture_intermediate_results: bool = False, progress_bar=None) -> WFSResult:
         """
@@ -226,13 +228,21 @@ class DualReference:
 
             if self.optimized_reference:
                 # use the best estimate so far to construct an optimized reference
-                t_this_side = self.compute_t_set(results_all[it].t, self.cobasis[side]).squeeze()
+                # TODO: see if the squeeze can be removed
+                t_this_side = self.compute_t_set(results_all[it].t, side).squeeze()
                 ref_phases[self.masks[side]] = -np.angle(t_this_side[self.masks[side]])
 
             # Try full pattern
             if capture_intermediate_results:
                 self.slm.set_phases(ref_phases)
                 intermediate_results[it] = self.feedback.read()
+
+        if self.iterations % 2 == 0:
+            t_side_0 = results_all[-2].t
+            t_side_1 = results_all[-1].t
+        else:
+            t_side_0 = results_all[-1].t
+            t_side_1 = results_all[-2].t
 
         if self.optimized_reference:
             factor = 1.0
@@ -241,14 +251,10 @@ class DualReference:
             # two halves of the wavefront together. For that, we need the
             # relative phase between the two sides, which we extract from
             # the measurements of the flat wavefronts.
-            relative = results_all[0].t[self._zero_indices[0], ...] + np.conjugate(
-                results_all[1].t[self._zero_indices[1], ...]
-            )
+            relative = t_side_0[self._zero_indices[0]] + np.conjugate(t_side_1[self._zero_indices[1]])
             factor = (relative / np.abs(relative)).reshape((1, *self.feedback.data_shape))
 
-        t_full = self.compute_t_set(results_all[0].t, self.cobasis[0]) + self.compute_t_set(
-            factor * results_all[1].t, self.cobasis[1]
-        )
+        t_full = self.compute_t_set(t_side_0, 0) + self.compute_t_set(factor * t_side_1, 1)
 
         # Compute average fidelity factors
         # subtract 1 from n, because both sets (usually) contain a flat wavefront,
@@ -267,8 +273,8 @@ class DualReference:
         Conducts experiments on one part of the SLM.
 
         Args:
-            mod_phases: 3D array containing the phase patterns of each mode. Axis 0 and 1 are used as spatial axis.
-                Axis 2 is used for the 'phase pattern index' or 'mode index'.
+            mod_phases: 3D array containing the phase patterns of each mode.
+                ``shape = mode_count × height × width``
             ref_phases: 2D array containing the reference phase pattern.
             mod_mask: 2D array containing a boolean mask, where True indicates the modulated part of the SLM.
             progress_bar: Optional progress bar object. Following the convention for tqdm progress bars,
@@ -277,12 +283,10 @@ class DualReference:
         Returns:
             WFSResult: An object containing the computed SLM transmission matrix and related data.
         """
-        num_modes = mod_phases.shape[2]
-        measurements = np.zeros((num_modes, self.phase_steps, *self.feedback.data_shape))
+        measurements = np.zeros((len(mod_phases), self.phase_steps, *self.feedback.data_shape))
 
-        for m in range(num_modes):
+        for m, modulated in enumerate(mod_phases):
             phases = ref_phases.copy()
-            modulated = mod_phases[:, :, m]
             for p in range(self.phase_steps):
                 phi = p * 2 * np.pi / self.phase_steps
                 # set the modulated pixel values to the values corresponding to mode m and phase offset phi
@@ -296,22 +300,15 @@ class DualReference:
         self.feedback.wait()
         return self._analyzer(measurements, axis=1)
 
-    @staticmethod
-    def compute_t_set(t, cobasis: nd) -> nd:
+    def compute_t_set(self, t, side) -> nd:
         """
         Compute the transmission matrix in SLM space from transmission matrix in input mode space.
 
-        Note 1: This function computes the transmission matrix for one mode set, and thus returns one part of the full
-        transmission matrix. The elements that are not part of the mode set will be 0. The full transmission matrix can
-        be obtained by simply adding the parts, i.e. t_full = t_set0 + t_set1.
-
-        Note 2: As this is a blind focusing WFS algorithm, there may be only one target or 'output mode'.
+        TODO: make sure t is in t_ba form, so that this is equivalent to np.tensordot(t, cobasis, 1)
 
         Args:
             t: transmission matrix in mode-index space. The first axis corresponds to the input modes.
-            cobasis: 3D array with set of modes (conjugated)
         Returns:
             nd: The transmission matrix in SLM space. The last two axes correspond to SLM coordinates
         """
-        norm_factor = np.prod(cobasis.shape[0:2])
-        return np.tensordot(cobasis, t, 1) / norm_factor
+        return np.tensordot(self.cobasis[side], t, ((0,), (0,)))

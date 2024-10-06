@@ -100,12 +100,13 @@ class FourierDualReference(DualReference):
         k = np.stack((ky[mask], kx[mask])).T
 
         # construct the modes for these kx ky values
-        modes = np.zeros((*self._shape, len(k)), dtype=np.float32)
+        modes = np.zeros((len(k), *self._shape), dtype=np.float32)
         for i, k_i in enumerate(k):
             # tilt generates a pattern from -2.0 to 2.0 (The convention for Zernike modes normalized to an RMS of 1).
             # The natural step to take is the Abbe diffraction limit of the modulated part,
             # which corresponds to a gradient from -π to π over the modulated part.
-            modes[..., i] = tilt(self._shape, g=k_i * 0.5 * np.pi)
+            # TODO: modify tilt to take a 2-D argument, returning the mode set directly?
+            modes[i] = tilt(self._shape, g=k_i * 0.5 * np.pi)
 
         return modes, modes
 

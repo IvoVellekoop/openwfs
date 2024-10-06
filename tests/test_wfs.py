@@ -15,15 +15,14 @@ from ..openwfs.algorithms import (
 )
 from ..openwfs.algorithms.troubleshoot import field_correlation
 from ..openwfs.algorithms.utilities import WFSController
-from ..openwfs.plot_utilities import plot_field
 from ..openwfs.processors import SingleRoi
 from ..openwfs.simulation import SimulatedWFS, StaticSource, SLM, Microscope
 from ..openwfs.simulation.mockdevices import GaussianNoise, Camera
 
 
+@pytest.mark.parametrize("algorithm", ["ssa", "fourier"])
 @pytest.mark.parametrize("shape", [(4, 7), (10, 7), (20, 31)])
 @pytest.mark.parametrize("noise", [0.0, 0.1])
-@pytest.mark.parametrize("algorithm", ["ssa", "fourier"])
 def test_multi_target_algorithms(shape: tuple[int, int], noise: float, algorithm: str):
     """
     Test the multi-target capable algorithms (SSA and Fourier dual ref).
@@ -61,7 +60,7 @@ def test_multi_target_algorithms(shape: tuple[int, int], noise: float, algorithm
             k_radius=(np.min(shape) - 1) // 2,
             phase_steps=phase_steps,
         )
-        N = alg.phase_patterns[0].shape[2] + alg.phase_patterns[1].shape[2]  # number of input modes
+        N = len(alg.phase_patterns[0]) + len(alg.phase_patterns[1])  # number of input modes
         alg_fidelity = 1.0  # Fourier is accurate for any N
         signal = 1 / 2  # for estimating SNR.
         masks = alg.masks  # use separate halves of the segments for determining fidelity
@@ -426,24 +425,24 @@ def test_dual_reference_ortho_split(basis_str: str, shape: tuple[int, int]):
     """Test dual reference in iterative mode with an orthonormal phase-only basis.
     Two types of bases are tested: plane waves and Hadamard"""
     N = shape[0] * (shape[1] // 2)
-    modes_shape = (shape[0], shape[1] // 2, N)
+    modes_shape = (N, shape[0], shape[1] // 2)
     if basis_str == "plane_wave":
         # Create a full plane wave basis for one half of the SLM.
-        phases = np.angle(np.fft.fft2(np.eye(N).reshape(modes_shape), axes=(0, 1)))
+        phases = np.angle(np.fft.fft2(np.eye(N).reshape(modes_shape), axes=(1, 2)))
     elif basis_str == "hadamard":
         phases = np.angle(hadamard(N).reshape(modes_shape))
     else:
         raise f'Unknown type of basis "{basis_str}".'
 
     mask = half_mask(shape)
-    phases_set = np.concatenate((phases, np.zeros(shape=modes_shape)), axis=1)
+    phases_set = np.pad(phases, ((0, 0), (0, 0), (0, shape[1] // 2)))
 
     sim = SimulatedWFS(t=random_transmission_matrix(shape))
 
     alg = DualReference(
         feedback=sim,
         slm=sim.slm,
-        phase_patterns=(phases_set, np.flip(phases_set, axis=1)),
+        phase_patterns=(phases_set, np.flip(phases_set, axis=2)),
         group_mask=mask,
         iterations=4,
     )
@@ -467,34 +466,21 @@ def test_dual_reference_non_ortho_split():
     """
     Test dual reference with a non-orthogonal basis.
     """
-    do_debug = False
-
     # Create set of modes that are barely linearly independent
     N1 = 6
     N2 = 3
     M = N1 * N2
-    mode_set_half = np.exp(2j * np.pi / 3 * np.eye(M).reshape((N1, N2, M))) / np.sqrt(M)
-    mode_set = np.concatenate((mode_set_half, np.zeros(shape=(N1, N2, M))), axis=1)
+    mode_set_half = np.exp(2j * np.pi / 3 * np.eye(M).reshape((N2, N1, M))).T / np.sqrt(M)
+
+    # note: typically we just use the other half for the mode set B, but here we set the half to 0 to
+    # make sure it is not used.
+    mode_set = np.pad(mode_set_half, ((0, 0), (0, 0), (0, N2)))
     phases_set = np.angle(mode_set)
-    mask = np.concatenate((np.zeros((N1, N2)), np.ones((N1, N2))), axis=1)
-
-    if do_debug:
-        # Plot the modes
-        import matplotlib.pyplot as plt
-
-        plt.figure(figsize=(12, 7))
-        for m in range(M):
-            plt.subplot(N2, N1, m + 1)
-            plot_field(mode_set[:, :, m])
-            plt.title(f"m={m}")
-            plt.xticks([])
-            plt.yticks([])
-        plt.pause(0.01)
-        plt.suptitle("Phase of basis functions for one half")
+    mask = half_mask((N1, 2 * N2))
 
     # Create aberrations
-    x = np.linspace(-1, 1, 1 * N1).reshape((1, -1))
-    y = np.linspace(-1, 1, 1 * N1).reshape((-1, 1))
+    x = np.linspace(-1, 1, N1).reshape((1, -1))
+    y = np.linspace(-1, 1, N1).reshape((-1, 1))
     aberrations = (np.sin(0.8 * np.pi * x) * np.cos(1.3 * np.pi * y) * (0.8 * np.pi + 0.4 * x + 0.4 * y)) % (2 * np.pi)
     aberrations[0:1, :] = 0
     aberrations[:, 0:2] = 0
@@ -504,7 +490,7 @@ def test_dual_reference_non_ortho_split():
     alg = DualReference(
         feedback=sim,
         slm=sim.slm,
-        phase_patterns=(phases_set, np.flip(phases_set, axis=1)),
+        phase_patterns=(phases_set, np.flip(phases_set, axis=2)),
         group_mask=mask,
         phase_steps=4,
         iterations=4,
@@ -514,32 +500,5 @@ def test_dual_reference_non_ortho_split():
 
     aberration_field = np.exp(1j * aberrations)
     t_field = np.exp(1j * np.angle(result.t))
-
-    if do_debug:
-        # Plot the modes
-        import matplotlib.pyplot as plt
-
-        plt.figure()
-        for m in range(M):
-            plt.subplot(N2, N1, m + 1)
-            plot_field(alg.cobasis[0][:, :, m], scale=2)
-            plt.title(f"{m}")
-        plt.suptitle("Cobasis")
-        plt.pause(0.01)
-
-        plt.figure()
-        plt.imshow(abs(alg.gram), vmin=0, vmax=1)
-        plt.title("Gram matrix abs values")
-        plt.colorbar()
-
-        plt.figure()
-        plt.subplot(1, 2, 1)
-        plot_field(aberration_field)
-        plt.title("Aberrations")
-
-        plt.subplot(1, 2, 2)
-        plot_field(t_field)
-        plt.title("t")
-        plt.show()
 
     assert np.abs(field_correlation(aberration_field, t_field)) > 0.999
