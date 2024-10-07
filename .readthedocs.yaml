@@ -9,7 +9,8 @@ build:
     post_create_environment:
       - pip install poetry
       - pip install poetry-plugin-export
-      - poetry export -f requirements.txt -o requirements.txt --with docs --without opengl
+      - poetry config warnings.export false'
+      - poetry export -f requirements.txt -o requirements.txt --with docs --extras "nidaq" --extras "genicam"
       - cat requirements.txt
 
 python:
