@@ -36,12 +36,15 @@ wavefront shaping research by providing:
 
 * **Hardware control**. Modular code for controlling spatial light modulators, cameras, and other hardware typically
   encountered in wavefront shaping experiments. Highlights include:
-  > * **Spatial light modulator**. The `SLM` object provides a versatile way to control spatial light modulators,
+  > * **Spatial light modulator**. The :class:`.~SLM` object provides a versatile way to control spatial light
+      modulators,
       allowing for software lookup tables, synchronization, texture warping, and multi-texture functionality accelerated
       by OpenGL.
-  > * **Scanning microscope**. The `ScanningMicroscope` object uses a National Instruments data acquisition card to
+  > * **Scanning microscope**. The :class:`.~ScanningMicroscope` object uses a National Instruments data acquisition
+      card to
       control a laser-scanning microscope.
-  > * **GenICam cameras**. The `Camera` object uses the harvesters backend [[24](#id39)] to access any camera supporting
+  > * **GenICam cameras**. The :class:`.~Camera` object uses the harvesters backend [[24](#id39)] to access any camera
+      supporting
       the GenICam standard [[25](#id42)].
   > * **Automatic synchronization**. OpenWFS provides tools for automatic synchronization of actuators (e.g. an SLM) and
       detectors (e.g. a camera). The automatic synchronization makes it trivial to perform pipelined measurements that
@@ -269,6 +272,7 @@ Photonics*, 2019. [doi:10.1038/s41566-019-0503-6](https://doi.org/10.1038/s41566
 
 Tomáš Čižmár, Michael Mazilu, and Kishan Dholakia. In situ wavefront correction and its application to
 micromanipulation. *Nature Photonics*, 4:388–394, 05
+
 2010. [doi:10.1038/nphoton.2010.85](https://doi.org/10.1038/nphoton.2010.85).
 
 <a name="id45"></a>19
@@ -281,6 +285,7 @@ URL: [https://pubmed.ncbi.nlm.nih.gov/27082341/](https://pubmed.ncbi.nlm.nih.gov
 
 Lina Streich et al. High-resolution structural and functional deep brain imaging using adaptive optics three-photon
 microscopy. *Nature Methods 2021 18:10*, 18:1253–1258, 9
+
 2021. [doi:10.1038/s41592-021-01257-6](https://doi.org/10.1038/s41592-021-01257-6).
 
 <a name="id63"></a>21
@@ -330,4 +335,5 @@ Ivo M. Vellekoop and AP Mosk. Phase control algorithms for focusing light throug
 
 Bahareh Mastiani, Daniël W. S. Cox, and Ivo M. Vellekoop. Practical considerations for high-fidelity wavefront shaping
 experiments. http://arxiv.org/abs/2403.15265, March
+
 2024. [arXiv:2403.15265](https://arxiv.org/abs/2403.15265), [doi:10.48550/arXiv.2403.15265](https://doi.org/10.48550/arXiv.2403.15265).

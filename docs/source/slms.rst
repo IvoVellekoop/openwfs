@@ -12,9 +12,9 @@ Spatial Light Modulators are the heart of any wavefront shaping experiment. Curr
 
 The :meth:`~.PhaseSLM.set_phases()` method takes a scalar or a 2-D array of phase values in radians, which is wrapped to the range [0, 2π) and displayed on the SLM. This function calls :meth:`~.PhaseSLM.update()` by default to send the image to the SLM hardware. In more advanced scenarios, like texture blending (see below), it can be useful to postpone the update by passing ``update=False`` and manually cal :meth:`~.PhaseSLM.update()` later. The algorithms in OpenWFS only access SLMs through this simple interface. As a result, the details of the SLM hardware are decoupled from the wavefront shaping algorithm itself.
 
-Currently, there are two implementations of the `PhaseSLM` interface. The :class:`simulation.SLM` is used for simulating experiments and for testing algorithms (see :numref:`section-simulations`).  The :class:`hardware.SLM` is an OpenGL-accelerated controller for using a phase-only SLM that is connected to the video output of a computer. The SLM can be created in windowed mode (useful for debugging), or full screen. It is possible to have multiple windowed SLMs on the same monitor, but only one full-screen SLM per monitor. In addition, the SLM implements some advanced features that are discussed below.
+Currently, there are two implementations of the :class:`~.PhaseSLM` interface. The :class:`simulation.SLM` is used for simulating experiments and for testing algorithms (see :numref:`section-simulations`).  The :class:`hardware.SLM` is an OpenGL-accelerated controller for using a phase-only SLM that is connected to the video output of a computer. The SLM can be created in windowed mode (useful for debugging), or full screen. It is possible to have multiple windowed SLMs on the same monitor, but only one full-screen SLM per monitor. In addition, the SLM implements some advanced features that are discussed below.
 
-At the time of writing, SLMs that are controlled through other interfaces than the video output are not supported. However, the interface of the `PhaseSLM` class is designed to accommodate these devices in the future. Through this interface, support for intensity-only light modulators (e.g. Digital Mirror Devices) operating in phase-modulation mode (e.g. :cite:`conkey2012high`) may also be added.
+At the time of writing, SLMs that are controlled through other interfaces than the video output are not supported. However, the interface of the :class:`~.PhaseSLM` class is designed to accommodate these devices in the future. Through this interface, support for intensity-only light modulators (e.g. Digital Mirror Devices) operating in phase-modulation mode (e.g. :cite:`conkey2012high`) may also be added.
 
 Texture mapping and blending
 -----------------------------------
@@ -49,10 +49,10 @@ The combination of texture mapping and blending allows for a wide range of use c
 
     - Aligning the size and position of a square phase map with the illuminating beam.
     - Correcting phase maps for distortions in the optical system, such as barrel distortion.
-    - Using two parts of the same SLM independently. This feature is possible because each patch object can independently be used as a `:class:`~.PhaseSLM` object.
-    - Blocking part of a wavefront by drawing a different patch on top of it, with `:attr:`~.Patch.additive_blend` = ``False``.
+    - Using two parts of the same SLM independently. This feature is possible because each patch object can independently be used as a :class:`~.PhaseSLM` object.
+    - Blocking part of a wavefront by drawing a different patch on top of it, with :attr:`~.Patch.additive_blend` ``= False``.
     - Modifying an existing wavefront by adding a gradient or defocus pattern.
-    - Compensating for curvature in the SLM and other system aberrations by adding an offset layer with `:attr:`~.Patch.additive_blend` = ``True`` to compensate for these aberrations.
+    - Compensating for curvature in the SLM and other system aberrations by adding an offset layer with :attr:`~.Patch.additive_blend` ``= True`` to compensate for these aberrations.
 
 All of these corrections can be done in real time using OpenGL acceleration, making the SLM object a versatile tool for wavefront shaping experiments.
 
@@ -64,7 +64,7 @@ For debugging or demonstration purposes, it is often useful to receive feedback 
 Lookup table
 ---------------------------------------
 
-Even though the SLM hardware itself often includes a hardware lookup table, there usually is no standard way to set it from Python, making switching between lookup tables cumbersome. The OpenGL-accelerated lookup table in the SLM object provides a solution to this problem, which is especially useful when working with tunable lasers, for which the lookup table needs to be adjusted often. The SLM object has a :attr:`~.slm.SLM.lookup_table` property, which holds a table that is used to convert phase values from radians to gray values on the screen. By default, this table is set to `range(2 ** bit_depth)`, meaning that if an 8-bit video mode is selected, a phase of 0 produces a gray value of 0, and a phase of 255/256·2π produces a gray value of 255. A phase of 2π again produces a gray value of 0.
+Even though the SLM hardware itself often includes a hardware lookup table, there usually is no standard way to set it from Python, making switching between lookup tables cumbersome. The OpenGL-accelerated lookup table in the SLM object provides a solution to this problem, which is especially useful when working with tunable lasers, for which the lookup table needs to be adjusted often. The SLM object has a :attr:`~.slm.SLM.lookup_table` property, which holds a table that is used to convert phase values from radians to gray values on the screen. By default, this table is set to ``range(2 ** bit_depth)``, meaning that if an 8-bit video mode is selected, a phase of 0 produces a gray value of 0, and a phase of 255/256·2π produces a gray value of 255. A phase of 2π again produces a gray value of 0.
 
 .. _slm-synchronization:
 

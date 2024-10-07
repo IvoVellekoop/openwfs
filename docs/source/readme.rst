@@ -30,7 +30,7 @@ OpenWFS is a Python package that is primarily designed for performing and for si
 
     * **Spatial light modulator**. The :class:`~.slm.SLM` object provides a versatile way to control spatial light modulators, allowing for software lookup tables, synchronization, texture warping, and multi-texture functionality accelerated by OpenGL.
     * **Scanning microscope**. The :class:`~.devices.ScanningMicroscope` object uses a National Instruments data acquisition card to control a laser-scanning microscope.
-    * **GenICam cameras**. The :class:`~.devices.Camera` object uses the `harvesters` backend :cite:`harvesters` to access any camera supporting the GenICam standard :cite:`genicam`.
+    * **GenICam cameras**. The :class:`~.devices.Camera` object uses the ``harvesters`` backend :cite:`harvesters` to access any camera supporting the GenICam standard :cite:`genicam`.
     * **Automatic synchronization**. OpenWFS provides tools for automatic synchronization of actuators (e.g. an SLM) and detectors (e.g. a camera). The automatic synchronization makes it trivial to perform pipelined measurements that avoid the delay normally caused by the latency of the video card and SLM.
 
 * **Simulation**. OpenWFS provides an extensive framework for testing and simulating wavefront shaping algorithms, including the effect of measurement noise, stage drift, and user-defined aberrations. This allows for rapid prototyping and testing of new algorithms without the need for physical hardware.
