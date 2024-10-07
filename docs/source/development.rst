@@ -48,6 +48,11 @@ Reporting bugs and contributing
 --------------------------------------------------
 Bugs can be reported through the GitHub issue tracking system. Better than reporting bugs, we encourage users to *contribute bug fixes, new algorithms, device drivers, and other improvements*. These contributions can be made in the form of a pull request :cite:`zandonellaMassiddaOpenScience2022`, which will be reviewed by the development team and integrated into the package when appropriate. Please contact the current development team through GitHub :cite:`openwfsgithub` to coordinate such contributions.
 
+Implementing new algorithms
+--------------------------------------------------
+To implement a new algorithm, the currently existing algorithms can be consulted for a few examples.
+Essentially, the algorithm needs to have an execute method, which needs to produce a WFSResult. With OpenWFS, all hardware interactions are abstracted away. Using `slm.set_phases` and `feedback.trigger` the algorithm can be naive to specific hardware. During the execution, different modes are measured, and a transmission matrix is calculated or approached. For most of our algorithms, the same algorithm can be used to analyze a phase stepping experiment. In order to show the versatility of this platform, we implemented the genetic algorithm described in :cite:`Piestun2012` and more recently adapted for a GUI in :cite:`Anderson2024`.
+
 
 Implementing new devices
 --------------------------------------------------
@@ -70,7 +75,7 @@ If the detector is created with the flag ``multi_threaded = True``, then `_fetch
 
 Implementing a processor
 ++++++++++++++++++++++++++++++++++
-To implement a data processing step that dynamically processes date from one or more input detectors, implement a custom processor. This is done by deriving from the `Processor` base class and implementing the `__init__` function. This function should pass a list of all upstream nodes, i.e. all detectors which provide the input signals to the processor, the base class constructor. In addition, the :meth"`~Detector._fetch()` method should be implemented to process the data. The framework will wait until the data from all sources is available, and calls `_fetch()` with this data as input. See the implementation of :class:`~.Shutter` or any other processor for an example of how to implement this function.
+To implement a data processing step that dynamically processes data from one or more input detectors, implement a custom processor. This is done by deriving from the `Processor` base class and implementing the `__init__` function. This function should pass a list of all upstream nodes, i.e. all detectors which provide the input signals to the processor, the base class constructor. In addition, the :meth"`~Detector._fetch()` method should be implemented to process the data. The framework will wait until the data from all sources is available, and calls `_fetch()` with this data as input. See the implementation of :class:`~.Shutter` or any other processor for an example of how to implement this function.
 
 Implementing an actuator
 +++++++++++++++++++++++++++++++
