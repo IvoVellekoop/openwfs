@@ -10,7 +10,27 @@ In addition, OpenWFS maintains metadata and units for all data arrays and proper
 
 Detectors
 ------------
-Detectors in OpenWFS are objects that capture, generate, or process data. All detectors derive from the :class:`~.Detector` base class. A Detector object may correspond to a physical device such as a camera, or it may be a software component that generates synthetic data (see :numref:`section-simulations`). Detectors have the following properties and methods:
+Detectors in OpenWFS are objects that capture, generate, or process data. A Detector object may correspond to a physical device such as a camera, or it may be a software component that generates synthetic data (see :numref:`section-simulations`). Currently, the following detectors are supported:
+
+.. list-table::
+  :header-rows: 1
+
+  * - Detector
+    -
+  * - Camera
+    - Supports all GenICam/GenTL cameras.
+  * - ScanningMicroscope
+    - Laser scanning microscope using galvo mirrors and National Instruments data acquisition card.
+  * - SimulatedWFS
+    - Simulated detector for testing wavefront shaping algorithms.
+  * - Microscope
+    - Fully simulated microscope, including aberrations, diffraction limit, and translation stage.
+  * - StaticSource
+    - Returns pre-set data, simulating a static source.
+  * - NoiseSource
+    - Generates uniform or Gaussian noise as a source.
+
+All detectors derive from the :class:`~.Detector` base class. and have the following properties and methods:
 
 .. code-block:: python
 
@@ -27,7 +47,7 @@ Detectors in OpenWFS are objects that capture, generate, or process data. All de
         def coordinates(dimension: int) -> Quantity
 
 
-The :meth:`~.Detector.read()` method of a detector starts a measurement and returns the captured data. It triggers the detector and blocks until the data is available. Data is always returned as `numpy` array :cite:`numpy`. Subclasses of :class:`~.Detector` typically add properties specific to that detector (e.g. shutter time, gain, etc.). In the simplest case, setting these properties and calling :meth:`.~Detector.read()` is all that is needed to capture data. The :meth:`~.Detector.trigger()` method is used for asynchronous measurements as described below. All other properties and methods are used for metadata and units, as described in :numref:`Units and metadata`.
+The :meth:`~.Detector.read()` method of a detector starts a measurement and returns the captured data. It triggers the detector and blocks until the data is available. Data is always returned as ``numpy`` array :cite:`numpy`. Subclasses of :class:`~.Detector` typically add properties specific to that detector (e.g. shutter time, gain, etc.). In the simplest case, setting these properties and calling :meth:`.~Detector.read()` is all that is needed to capture data. The :meth:`~.Detector.trigger()` method is used for asynchronous measurements as described below. All other properties and methods are used for metadata and units, as described in :numref:`Units and metadata`.
 
 The detector object inherits some properties and methods from the base class :class:`~.Device`. These are used by the synchronization mechanism to determine when it is safe to start a measurement, as described in :numref:`device-synchronization`.
 
@@ -36,7 +56,7 @@ Asynchronous measurements
 +++++++++++++++++++++++++++
 :meth:`.~Detector.read()` blocks the program until the captured data is available. This behavior is not ideal when multiple detectors are used simultaneously, or when transferring or processing the data takes a long time. In these cases, it is preferable to use :meth:`.~Detector.trigger()`, which initiates the process of capturing or generating data and returns directly. The program can continue operation while the data is being captured/transferred/generated in a worker thread. While fetching and processing data is underway, any attempt to modify a property of the detector will block until the fetching and processing is complete. This way, all properties (such as the region of interest) are guaranteed to be constant between the calls to :meth:`.~Detector.trigger` and the moment the data is actually fetched and processed in the worker thread.
 
-The asynchronous measurement mechanism can be seen in action in the `StepwiseSequential` algorithm used in :numref:`hello-wfs`. The `execute()` function of this algorithm is implemented as
+The asynchronous measurement mechanism can be seen in action in the :class:`.~StepwiseSequential` algorithm used in :numref:`hello-wfs`. The :meth:`execute() <StepwiseSequential.execute>` function of this algorithm is implemented as
 
 .. code-block:: python
 
@@ -55,7 +75,7 @@ The asynchronous measurement mechanism can be seen in action in the `StepwiseSeq
         self.feedback.wait()
         return analyze_phase_stepping(measurements, axis=2)
 
-This code performs a wavefront shaping algorithm similar to the one described in :cite:`Vellekoop2007`. In this version, there is no pre-optimization. It works by cycling the phase of each of the n_x × n_y segments on the SLM between 0 and 2π, and measuring the feedback signal at each step. `self.feedback` holds a `Detector` object that is triggered, and stores the measurement in a pre-allocated `measurements` array when it becomes available. It is possible to find the optimized wavefront for multiple targets simultaneously by using a detector that returns an array of size `feedback.data_shape`, which contains a feedback value for each of the targets.
+This code performs a wavefront shaping algorithm similar to the one described in :cite:`Vellekoop2007`. In this version, there is no pre-optimization. It works by cycling the phase of each of the ``n_x × n_y`` segments on the SLM between 0 and 2π, and measuring the feedback signal at each step. ``self.feedback`` holds a :class:`~.Detector` object that is triggered, and stores the measurement in a pre-allocated ``measurements`` array when it becomes available. It is possible to find the optimized wavefront for multiple targets simultaneously by using a detector that returns an array of size ``feedback.data_shape``, which contains a feedback value for each of the targets.
 
 The program does not wait for the data to become available and can directly proceed with preparing the next pattern to send to the SLM (also see :numref:`device-synchronization`). After running the algorithm, `wait` is called to wait until all measurement data is stored in the `measurements` array, and the utility function `analyze_phase_stepping` is used to extract the transmission matrix from the measurements, as well as a series of troubleshooting statistics (see :numref:`Analysis and troubleshooting`).
 
@@ -69,15 +89,68 @@ Note that, except for this asynchronous mechanism for fetching and processing da
 
 Processors
 ------------
-A `Processor` is a `Detector` that takes input from one or more other detectors, and combines/processes this data. We already encountered an example in :numref:`Getting started`, where the `SingleRoiProcessor` was used to average the data from a camera over a region of interest. A block diagram of the data flow of this code is shown in :numref:`hellowfsdiagram`. Since a processor, itself, is a `Detector`, multiple processors can be chained together to combine their functionality. The OpenWFS further includes various processors, such as a `CropProcessor` to crop data to a rectangular region of interest, and a `TransformProcessor` to perform affine image transformations to image produced by a source.
+A :class:`.~Processor` is an object that takes input from one or more other detectors, and combines/processes this data. By itself, a processor is a :class:`.~Detector`, enabling multiple processors to be chained together to combine their functionality. We already encountered an example in :numref:`Getting started`, where the :class:`.~SingleRoiProcessor` was used to average the data from a camera over a region of interest. A block diagram of the data flow of this code is shown in :numref:`hellowfsdiagram`.  The OpenWFS currently includes the following processors:
+
+.. list-table::
+  :header-rows: 1
+
+  * - Processor
+    -
+  * - SingleRoi
+    - Averages signal over a single ROI.
+  * - MultipleRoi
+    - Averages signals over multiple regions of interest (ROIs).
+  * - CropProcessor
+    - Crops data from the source to a region of interest.
+  * - TransformProcessor
+    - Performs affine transformations on the source data.
+  * - GaussianNoise
+    - Adds Gaussian noise to the source data.
+  * - ADCProcessor
+    - Simulates an analog-digital converter, including optional shot-noise and readout noise.
+
 
 Actuators
 ---------
-Actuators are devices that *move* things in the setup. This can be literal, such as moving a translation stage, or a virtual movement, like an SLM that takes time to switch to a different phase pattern. All actuators are derived from the common :class:`.Actuator` base class. Actuators have no additional methods or properties other than those in the :class:`.Device` base class.
+
+Actuators are devices that *move* things in the setup. This can be literal, such as moving a translation stage, or a virtual movement, like an SLM that takes time to switch to a different phase pattern. All actuators are derived from the common :class:`.Actuator` base class. Actuators have no additional methods or properties other than those in the :class:`.Device` base class. A list of actuators currently supported by OpenWFS can be found in the table below.
+
+.. list-table::
+  :header-rows: 1
+  :name: supported-actuators
+
+  * - SLM
+    - Controls and renders patterns on a Spatial Light Modulator (SLM) using OpenGL
+  * - simulation.SLM
+    - Simulates a phase-only spatial light modulator, including timing and non-linear phase response.
+  * - simulation.XYStage
+    - Simulates a translation stage, used in :class:`~Microscope`.
+
+
+Algorithms
+------------
+OpenWFS comes with a number of wavefront shaping algorithms already implemented, as listed in the table below. Although these algorithms could be implemented as functions, we chose to implement them as objects, so that the parameters of the algorithm can be stored as attributes of the object. This simplifies keeping the parameters together in one place in the code, and also allows the algorithm parameters to be accessible in the the Micro-Manager graphical user interface (GUI), see :ref:`micromanager`.
+
+All algorithms are designed to be completely hardware-agnostic, so that they can be used with any type of feedback signal and either use real hardware or simulated hardware without the need to change a single line of code in the algorithm implementation. The :class:`.~FourierDualReference`, :class:`.~DualReference` and :class:`.~StepwiseSequential` algorithms provide support for optimizing multiple targets simulaneously in a single run of the algorithm.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Algorithm
+     -
+   * - FourierDualReference
+     - A dual reference algorithm that uses plane waves from a disk in k-space for wavefront shaping :cite:`Mastiani2022`.
+   * - DualReference
+     - A generic dual reference algorithm with a configurable basis set :cite:`Cox2024`.
+   * - SimpleGenetic
+     - A simple genetic algorithm for optimiziang wavefronts :cite:`Piestun2012`.
+   * - StepwiseSequential
+     - A simplified version of the original wavefront shaping algorithm :cite:`Vellekoop2007`, with pre-optimization omitted.
+
 
 Units and metadata
 ----------------------------------
-OpenWFS consistently uses `astropy.units` :cite:`astropy` for quantities with physical dimensions, which allows for calculations to be performed with correct units, and for automatic unit conversion where necessary. Importantly, it prevents errors caused by passing a quantity in incorrect units, such as passing a wavelength in micrometers when the function expects a wavelength in nanometers. By using `astropy.units`, the quantities are converted automatically, so one may for example specify a time in milliseconds, minutes or days. The use of units is illustrated in the following snippet:
+OpenWFS consistently uses ``astropy.units`` :cite:`astropy` for quantities with physical dimensions, which allows for calculations to be performed with correct units, and for automatic unit conversion where necessary. Importantly, it prevents errors caused by passing a quantity in incorrect units, such as passing a wavelength in micrometers when the function expects a wavelength in nanometers. By using ``astropy.units``, the quantities are converted automatically, so one may for example specify a time in milliseconds, minutes or days. The use of units is illustrated in the following snippet:
 
 .. code-block:: python
 
@@ -89,7 +162,7 @@ OpenWFS consistently uses `astropy.units` :cite:`astropy` for quantities with ph
 
 In addition, OpenWFS allows attaching pixel-size metadata to data arrays using the functions :func:`~.set_pixel_size()`. Pixel sizes can represent a physical length (e.g. as in the size pixels on an image sensor), or other units such as time (e.g. as the sampling period in a time series). OpenWFS fully supports anisotropic pixels, where the pixel sizes in the x and y directions are different.
 
-The data arrays returned by the :meth:`~.Detector.read()` function of a detector have `pixel_size` metadata attached whenever appropriate. The pixel size can be retrieved from the array using  :func:`~.get_pixel_size()`, or obtained from the  :attr:`~.Detector.pixel_size` attribute directly. As an alternative to accessing the pixel size directly, :func:`~get_extent()` and :class:`~.Detector.extent` provide access to the extent of the array, which is always equal to the pixel size times the shape of the array. Finally, the convenience function :meth:`~.Detector.coordinates` returns a vector of coordinates with appropriate units along a specified dimension of the array.
+The data arrays returned by the :meth:`~.Detector.read()` function of a detector have ``pixel_size`` metadata attached whenever appropriate. The pixel size can be retrieved from the array using  :func:`~.get_pixel_size()`, or obtained from the  :attr:`~.Detector.pixel_size` attribute directly. As an alternative to accessing the pixel size directly, :func:`~get_extent()` and :class:`~.Detector.extent` provide access to the extent of the array, which is always equal to the pixel size times the shape of the array. Finally, the convenience function :meth:`~.Detector.coordinates` returns a vector of coordinates with appropriate units along a specified dimension of the array.
 
 .. _device-synchronization:
 
@@ -115,9 +188,9 @@ Each device can either be *busy* or *ready*, and this state can be polled by cal
 - before starting a measurement, wait until all motion is (almost) completed
 - before starting any movement, wait until all measurements are (almost) completed
 
-Here, 'almost' refers to the fact that devices may have a *latency*. Latency is the time between sending a command to a device, and the moment the device starts responding. An important example is the SLM, which typically takes one or two frame periods to transfer the image data to the liquid crystal chip. Such devices can specify a non-zero `latency` attribute. When specified, the device 'promises' not to do anything until `latency` milliseconds after the start of the measurement or movement. When a latency is specified, detectors or actuators can be started slightly before the devices of the other type (actuators or detectors, respectively) have finished their operation. For example, this mechanism allows sending a new frame to the SLM *before* the measurements of the current frame are finished, since it is known that the SLM will not respond for `latency` milliseconds anyway. This way, measurements and SLM updates can be pipelined to maximize the number of measurements that can be done in a certain amount of time. To enable these pipelined measurements, the `Device` class also provides a `duration` attribute, which is the maximum time interval between the start and end of a measurement or actuator action.
+Here, 'almost' refers to the fact that devices may have a *latency*. Latency is the time between sending a command to a device, and the moment the device starts responding. An important example is the SLM, which typically takes one or two frame periods to transfer the image data to the liquid crystal chip. Such devices can specify a non-zero ``latency`` attribute. When specified, the device 'promises' not to do anything until ``latency`` milliseconds after the start of the measurement or movement. When a latency is specified, detectors or actuators can be started slightly before the devices of the other type (actuators or detectors, respectively) have finished their operation. For example, this mechanism allows sending a new frame to the SLM *before* the measurements of the current frame are finished, since it is known that the SLM will not respond for ``latency`` milliseconds anyway. This way, measurements and SLM updates can be pipelined to maximize the number of measurements that can be done in a certain amount of time. To enable these pipelined measurements, the ``Device`` class also provides a `duration` attribute, which is the maximum time interval between the start and end of a measurement or actuator action.
 
-This synchronization is performed automatically. If desired, it is possible to explicitly wait for the device to become ready by calling :meth:`~.Device.wait()`. To accommodate taking into account the latency, this function takes an optional parameter `up_to`, which indicates that the function may return the specified time *before* the device hardware is ready. In user code, it is only necessary to call `wait` when using the `out` parameter to store measurements in a pre-defined location (see :numref:`Asynchronous measurements` above). A typical usage pattern is illustrated in the following snippet:
+This synchronization is performed automatically. If desired, it is possible to explicitly wait for the device to become ready by calling :meth:`~.Device.wait()`. To accommodate taking into account the latency, this function takes an optional parameter ``up_to``, which indicates that the function may return the specified time *before* the device hardware is ready. In user code, it is only necessary to call ``wait`` when using the ``out`` parameter to store measurements in a pre-defined location (see :numref:`Asynchronous measurements` above). A typical usage pattern is illustrated in the following snippet:
 
 .. code-block:: python
 
@@ -137,76 +210,5 @@ This synchronization is performed automatically. If desired, it is possible to e
     cam1.wait() # wait until camera 1 is done grabbing frames
     cam2.wait() # wait until camera 2 is done grabbing frames
 
-Finally, devices have a `timeout` attribute, which is the maximum time to wait for a device to become ready. This timeout is used in the state-switching mechanism, and when explicitly waiting for results using :meth:`~.Device.wait()` or  :meth:`~.Device.read()`.
+Finally, devices have a ``timeout`` attribute, which is the maximum time to wait for a device to become ready. This timeout is used in the state-switching mechanism, and when explicitly waiting for results using :meth:`~.Device.wait()` or  :meth:`~.Device.read()`.
 
-Currently available devices
-----------------------------
-
-The following devices are currently implemented in OpenWFS:
-
-.. list-table::
-   :header-rows: 1
-
-   * - Device Name
-     - Device Type
-     - Description
-   * - Camera
-     - Detector
-     - Adapter for GenICam/GenTL cameras
-   * - ScanningMicroscope
-     - Detector
-     - Laser scanning microscope using galvo mirrors and NI DAQ
-   * - StaticSource
-     - Detector
-     - Returns pre-set data, simulating a static source
-   * - NoiseSource
-     - Detector
-     - Generates uniform or Gaussian noise as a source
-   * - SingleRoi
-     - Processor (Detector)
-     - Averages signal over a single ROI
-   * - MultipleRoi
-     - Processor (Detector)
-     - Averages signals over multiple regions of interest (ROIs)
-   * - CropProcessor
-     - Processor (Detector)
-     - Crops data from the source to a region of interest
-   * - TransformProcessor
-     - Processor (Detector)
-     - Performs affine transformations on the source data
-   * - ADCProcessor
-     - Processor (Detector)
-     - Simulates an analog-digital converter
-   * - SimulatedWFS
-     - Processor
-     - Simulates wavefront shaping experiment using Fourier transform-based intensity computation at the focal plane
-   * - Gain
-     - Actuator
-     - Controls PMT gain voltage using NI data acquisition card
-   * - PhaseSLM
-     - Actuator
-     - Simulates a phase-only spatial light modulator
-   * - SLM
-     - Actuator
-     - Controls and renders patterns on a Spatial Light Modulator (SLM) using OpenGL
-     
-Available Algorithms
----------------------
-
-The following algorithms are available in OpenWFS for wavefront shaping:
-
-.. list-table::
-   :header-rows: 1
-
-   * - Algorithm Name
-     - Description
-   * - FourierDualReference
-     - A Fourier dual reference algorithm that uses plane waves from a disk in k-space for wavefront shaping :cite:`Mastiani2022`.
-   * - IterativeDualReference
-     - A generic iterative dual reference algorithm with the ability to use custom basis functions for non-linear feedback applications.
-   * - DualReference
-     - A generic dual reference algorithm with the option for optimized reference, suitable for multi-target optimization and iterative feedback.
-   * - SimpleGenetic
-     - A simple genetic algorithm that optimizes wavefronts by selecting elite individuals and introducing mutations for focusing through scattering media :cite:`Piestun2012`.
-   * - StepwiseSequential
-     - A stepwise sequential algorithm which systematically modifies the phase pattern of each SLM element :cite:`Vellekoop2007`.

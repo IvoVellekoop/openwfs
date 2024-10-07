@@ -43,6 +43,8 @@ html_title = "OpenWFS - a library for conducting and simulating wavefront shapin
 latex_elements = {
     "preamble": r"""
         \usepackage{authblk}
+        \usepackage{etoolbox}        % Reduce font size for all tables
+        \AtBeginEnvironment{tabular}{\small}
      """,
     "maketitle": r"""
         \author[1]{Daniël~W.~S.~Cox}
@@ -61,16 +63,21 @@ latex_elements = {
                 this research field is expanding rapidly. 
                 As the field advances, it stands out that many breakthroughs are driven by the development of better 
                 software that incorporates increasingly advanced physical models and algorithms.
-                Typical control software involves fragmented implementations for scanning microscopy, image processing, 
-                optimization algorithms, low-level hardware control, calibration and troubleshooting, 
-                and simulations for testing new algorithms. 
+                
+                Typical WFS software involves a complex combination of low-level hardware control, signal processing, 
+                calibration, troubleshooting, simulation, and the wavefront shaping algorithm itself.
+                This complexity makes it hard to compare different algorithms and to extend existing software with new
+                hardware or algorithms. Moreover, the complexity of the software can be a significant barrier for end
+                users of microscopes to adopt wavefront shaping.
 
-                The complexity of the many different aspects of wavefront shaping software, however, 
-                is becoming a limiting factor for further developments in the field, as well as for end-user adoption.
-                OpenWFS addresses these challenges by providing a modular and extensible Python library that 
-                incorporates elements for hardware control, software simulation, and automated troubleshooting. 
-                Using these elements, the actual wavefront shaping algorithm and its automated tests can be written
-                in just a few lines of code.
+                OpenWFS addresses these challenges by providing a modular Python library that 
+                separates hardware control from the wavefront shaping algorithm itself. 
+                Using these elements, an wavefront shaping algorithm can be written
+                in just a few lines of code, with OpenWFS taking care of low-level hardware control, synchronization,
+                and troubleshooting. Algorithms can be used on different hardware or in a completely
+                simulated environment without changing the code. Moreover, we provide full integration with
+                the \textmu Manager microscope control software, enabling wavefront shaping experiments to be
+                executed from a user-friendly graphical user interface. 
             }
         }
         \maketitle
