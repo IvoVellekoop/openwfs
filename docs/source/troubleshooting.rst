@@ -1,8 +1,8 @@
-.. _troubleshooting:
+.. _section-troubleshooting:
 
 Analysis and troubleshooting
 ==================================================
-The principles of wavefront shaping are well established, and under close-to-ideal experimental conditions, it is possible to accurately predict the signal enhancement. In practice, however, there exist many practical issues that can negatively affect the outcome of the experiment. OpenWFS has built-in functions to analyze and troubleshoot the measurements from a wavefront shaping experiment.
+The principles of wavefront shaping are well established and, under close-to-ideal experimental conditions, it is possible to accurately predict the signal enhancement. In practice, however, there exist many practical issues that can negatively affect the outcome of the experiment. OpenWFS has built-in functions to analyze and troubleshoot the measurements from a wavefront shaping experiment.
 
 The ``result`` structure in :numref:`hello-wfs`, as returned by the wavefront shaping algorithm, was computed with the utility function :func:`analyze_phase_stepping`. This function extracts the transmission matrix from phase stepping measurements, and additionally computes a series of troubleshooting statistics in the form of a *fidelity*, which is a number that ranges from 0 (no sensible measurement possible) to 1 (perfect situation, optimal focus expected). These fidelities are:
 

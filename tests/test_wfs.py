@@ -357,7 +357,7 @@ def test_multidimensional_feedback_ssa():
 
     # compute the phase pattern to optimize the intensity in target 2,1
     target = (2, 1)
-    optimised_wf = -np.angle(t[*target, ...])
+    optimised_wf = -np.angle(t[(*target, ...)])
 
     # Calculate the enhancement factor
     # Note: technically this is not the enhancement, just the ratio after/before

@@ -1,3 +1,5 @@
+import warnings
+
 try:
     import glfw
     import OpenGL
@@ -10,7 +12,7 @@ except ImportError:
         Alternatively, specify the opengl extra when installing openwfs:
          ```pip install openwfs[opengl]```
          
-        Note that these installs will fail if no suitable OpenGL driver is found on the system. 
+        Note that these installs will fail if no suitable *OpenGL driver* is found on the system. 
         Please make sure you have the latest video drivers installed.
         """
     )
