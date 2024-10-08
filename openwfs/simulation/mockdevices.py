@@ -108,6 +108,9 @@ class NoiseSource(Detector):
             multi_threaded=multi_threaded,
         )
 
+    def _do_trigger(self) -> None:
+        pass  # no hardware triggering is needed for this mock device
+
     def _fetch(self) -> np.ndarray:  # noqa
         if self._noise_type == "uniform":
             return self._rng.uniform(**self._noise_arguments, size=self.data_shape)
@@ -407,7 +410,7 @@ class GaussianNoise(Processor):
         multi_threaded: Whether to perform processing in a worker thread.
     """
 
-    def __init__(self, source: Detector, std: float, multi_threaded: bool = True):
+    def __init__(self, source: Detector, std: float, multi_threaded: bool = False):
         super().__init__(source, multi_threaded=multi_threaded)
         self._std = std
 

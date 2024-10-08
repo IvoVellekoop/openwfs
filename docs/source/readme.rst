@@ -33,7 +33,7 @@ OpenWFS is a Python package that is primarily designed for performing and for si
     * **GenICam cameras**. The :class:`~.devices.Camera` object uses the ``harvesters`` backend :cite:`harvesters` to access any camera supporting the GenICam standard :cite:`genicam`.
     * **Automatic synchronization**. OpenWFS provides tools for automatic synchronization of actuators (e.g. an SLM) and detectors (e.g. a camera). The automatic synchronization makes it trivial to perform pipelined measurements that avoid the delay normally caused by the latency of the video card and SLM.
 
-* **Simulation**. OpenWFS provides an extensive framework for testing and simulating wavefront shaping algorithms, including the effect of measurement noise, stage drift, and user-defined aberrations. This allows for rapid prototyping and testing of new algorithms without the need for physical hardware.
+* **Simulation**.  The ability to simulate optical experiments is essential for the rapid development and debugging of wavefront shaping algorithms. OpenWFS provides an extensive framework for testing and simulating wavefront shaping algorithms, including the effect of measurement noise, stage drift, and user-defined aberrations. This allows for rapid prototyping and testing of new algorithms without the need for physical hardware.
 
 * **Wavefront shaping algorithms**. A growing collection of wavefront shaping algorithms. OpenWFS abstracts the hardware control, synchronization, and signal processing so that the user can focus on the algorithm itself. As a result, even advanced algorithms can be implemented in a few dozens of lines of code, and automatically work with any combination of hardware and simulation tools that OpenWFS supports.
 
@@ -47,12 +47,9 @@ OpenWFS is a Python package that is primarily designed for performing and for si
 
 .. only:: latex
 
-    Here, we first show how to get started using OpenWFS for simulating and controlling wavefront shaping experiments. An in-depth discussion of the core design of OpenWFS is given in :numref:`Key concepts`. Key to any wavefront shaping experiment is the SLM. The support for advanced options like texture mapping and the use of a software lookup table are explained in :numref:`section-slms`.
+    Here, we first show how to get started using OpenWFS for simulating and controlling wavefront shaping experiments. An in-depth discussion of the core design of OpenWFS is given in :numref:`Key concepts`. Key to any wavefront shaping experiment is the spatial light modulator. The support for advanced options like texture mapping and the use of a software lookup table are explained in :numref:`section-slms`. The tools for realistically simulating experiments, automatic troubleshooting of experiments, and Micro-Manager integration are discussed in :numref:`section-simulations`, :numref:`section-troubleshooting`, and :numref:`section-micromanager`, respectively. Finally, in :numref:`section-development`, we show how to write custom hardware control modules in order to extend the functionality of OpenWFS.
 
-    The ability to simulate optical experiments is essential for the rapid development and debugging of wavefront shaping algorithms. The built-in options for realistically simulating experiments are be discussed in :numref:`section-simulations`. The automatic troubleshooter and Micro-Manager integration are discussed in :numref:`section-troubleshooting` and :numref:`section-micromanager`, respectively.
-
-    Finally, OpenWFS is designed to be modular and easy to extend.  In :numref:`section-development`, we show how to write custom hardware control modules. Note that not all functionality of the package is covered in this document, and we refer to the API documentation :cite:`openwfsdocumentation` for a complete overview of most recent version of the package.
-
+    Note that not all functionality of the package is covered in this document. We refer to the API documentation :cite:`openwfsdocumentation` for a complete overview of most recent version of the package.
 
 Getting started
 ----------------------

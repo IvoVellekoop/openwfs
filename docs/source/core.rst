@@ -13,11 +13,8 @@ Detectors
 Detectors in OpenWFS are objects that capture, generate, or process data. A Detector object may correspond to a physical device such as a camera, or it may be a software component that generates synthetic data (see :numref:`section-simulations`). Currently, the following detectors are supported:
 
 .. list-table::
-  :widths: 30 70
-  :header-rows: 1
+  :widths: 27 73
 
-  * - Detector
-    -
   * - devices.Camera
     - Supports all GenICam/GenTL cameras.
   * - devices.ScanningMicroscope
@@ -93,22 +90,19 @@ Processors
 A :class:`~.Processor` is an object that takes input from one or more other detectors, and combines/processes this data. By itself, a processor is a :class:`~.Detector`, enabling multiple processors to be chained together to combine their functionality. We already encountered an example in :numref:`Getting started`, where the :class:`~.SingleRoiProcessor` was used to average the data from a camera over a region of interest. A block diagram of the data flow of this code is shown in :numref:`hellowfsdiagram`.  The OpenWFS currently includes the following processors:
 
 .. list-table::
-  :widths: 30 70
-  :header-rows: 1
+  :widths: 27 73
 
-  * - Processor
-    -
-  * - :class:`processors.SingleRoi`
+  * - processors.SingleRoi
     - Averages signal over a single ROI.
-  * - :class:`processors.MultipleRoi`
+  * - processors.MultipleRoi
     - Averages signals over multiple regions of interest (ROIs).
-  * - :class:`processors.CropProcessor`
+  * - processors.CropProcessor
     - Crops data from the source to a region of interest.
-  * - :class:`processors.TransformProcessor`
+  * - processors.TransformProcessor
     - Performs affine transformations on the source data.
-  * - :class:`simulation.GaussianNoise`
+  * - simulation.GaussianNoise
     - Adds Gaussian noise to the source data.
-  * - :class:`simulation.ADCProcessor`
+  * - simulation.ADCProcessor
     - Simulates an analog-digital converter, including optional shot-noise and readout noise.
 
 
@@ -118,30 +112,23 @@ Actuators
 Actuators are devices that *move* things in the setup. This can be literal, such as moving a translation stage, or a virtual movement, like an SLM that takes time to switch to a different phase pattern. All actuators are derived from the common :class:`.Actuator` base class. Actuators have no additional methods or properties other than those in the :class:`.Device` base class. A list of actuators currently supported by OpenWFS can be found in the table below.
 
 .. list-table::
-  :widths: 30 70
-  :header-rows: 1
-  :name: supported-actuators
+  :widths: 27 73
 
-  * - :class:`devices.SLM`
+  * - devices.SLM
     - Controls and renders patterns on a Spatial Light Modulator (SLM) using OpenGL
-  * - :class:`simulation.SLM`
+  * - simulation.SLM
     - Simulates a phase-only spatial light modulator, including timing and non-linear phase response.
-  * - :class:`simulation.XYStage`
+  * - simulation.XYStage
     - Simulates a translation stage, used in :class:`~Microscope`.
 
 
 Algorithms
 ------------
-OpenWFS comes with a number of wavefront shaping algorithms already implemented, as listed in the table below. Although these algorithms could be implemented as functions, we chose to implement them as objects, so that the parameters of the algorithm can be stored as attributes of the object. This simplifies keeping the parameters together in one place in the code, and also allows the algorithm parameters to be accessible in the the Micro-Manager graphical user interface (GUI), see :ref:`section-micromanager`.
-
-All algorithms are designed to be completely hardware-agnostic, so that they can be used with any type of feedback signal and either use real hardware or simulated hardware without the need to change a single line of code in the algorithm implementation. The :class:`~.FourierDualReference`, :class:`~.DualReference` and :class:`~.StepwiseSequential` algorithms provide support for optimizing multiple targets simulaneously in a single run of the algorithm.
+OpenWFS comes with a number of wavefront shaping algorithms already implemented, as listed in the table below. Although these algorithms could have been implemented as functions, we chose to implement them as objects, so that the parameters of the algorithm can be stored as attributes of the object. This simplifies keeping the parameters together in one place in the code, and also allows the algorithm parameters to be accessible in the Micro-Manager graphical user interface, see :ref:`section-micromanager`.
 
 .. list-table::
    :widths: 30 70
-   :header-rows: 1
 
-   * - Algorithm
-     -
    * - :class:`algorithms.FourierDualReference`
      - A dual reference algorithm that uses plane waves from a disk in k-space for wavefront shaping :cite:`Mastiani2022`.
    * - :class:`algorithms.DualReference`
@@ -151,6 +138,7 @@ All algorithms are designed to be completely hardware-agnostic, so that they can
    * - :class:`algorithms.StepwiseSequential`
      - A simplified version of the original wavefront shaping algorithm :cite:`Vellekoop2007`, with pre-optimization omitted.
 
+All algorithms are designed to be completely hardware-agnostic, so that the exact same code can be used with any type of feedback signal on real or simulated hardware. All algorithms except the :class:`~.SimpleGenetic` algorithm provide support for optimizing multiple targets simulaneously in a single run of the algorithm.
 
 Units and metadata
 ----------------------------------

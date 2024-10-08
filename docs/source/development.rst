@@ -48,11 +48,6 @@ Reporting bugs and contributing
 --------------------------------------------------
 Bugs can be reported through the GitHub issue tracking system. Better than reporting bugs, we encourage users to *contribute bug fixes, new algorithms, device drivers, and other improvements*. These contributions can be made in the form of a pull request :cite:`zandonellaMassiddaOpenScience2022`, which will be reviewed by the development team and integrated into the package when appropriate. Please contact the current development team through GitHub :cite:`openwfsgithub` to coordinate such contributions.
 
-Implementing new algorithms
---------------------------------------------------
-To implement a new algorithm, the currently existing algorithms can be consulted for a few examples.
-Essentially, the algorithm needs to have an execute method, which needs to produce a WFSResult. With OpenWFS, all hardware interactions are abstracted away in the calls to  ``slm.set_phases`` and ``feedback.trigger``. During the execution, different modes are measured, and a transmission matrix is calculated or approached. For most of our algorithms, the same algorithm can be used to analyze a phase stepping experiment. In order to show the versatility of this platform, we implemented the genetic algorithm described in :cite:`Piestun2012` and more recently adapted for a GUI in :cite:`Anderson2024`.
-
 
 Implementing new devices
 --------------------------------------------------
@@ -66,7 +61,7 @@ When an actuator is started, or when a detector is triggered, it calls ``self._s
 
 Implementing a detector
 ++++++++++++++++++++++++++++++++++
-To implement a detector, the user should subclass the :meth:`~.Detector` base class, and implement properties and logic to control the detector hardware. In particular, the user should implement the :meth:`~Detector._do_trigger` method to start the measurement process, and the  :meth:`~Detector._fetch()` method to fetch the data from the hardware, optionally process it, and return it as a numpy array.
+To implement a detector, the user should subclass the :meth:`~.Detector` base class, and implement properties and logic to control the detector hardware. In particular, the user should implement the :meth:`~Detector._do_trigger` method to start the measurement process in the hardware if needed, and the  :meth:`~Detector._fetch()` method to fetch the data from the hardware, optionally process it, and return it as a numpy array. A simple example of a detector that can be used as a starting point is the :class:`mockdevices.NoiseDetector`, which generates random noise with a given shape and pixel size.
 
 If ``duration``, ``pixel_size`` and ``data_shape`` are constants, they should be passed to the base class constructor. If these properties may change during operation, the user should override the ``duration``, ``pixel_size`` and ``data_shape`` properties to provide the correct values dynamically. If the ``duration`` is not known in advance (for example, when waiting for a hardware trigger), the Detector should implement the ``busy`` function to poll the hardware for the busy state.
 
@@ -75,12 +70,18 @@ If the detector is created with the flag ``multi_threaded = True``, then :meth:`
 
 Implementing a processor
 ++++++++++++++++++++++++++++++++++
-To implement a data processing step that dynamically processes data from one or more input detectors, implement a custom processor. This is done by deriving from the :class:`~.Processor` base class and implementing the ``__init__`` function. This function should pass a list of all upstream nodes, i.e. all detectors which provide the input signals to the processor, the base class constructor. In addition, the :meth:`~Detector._fetch()` method should be implemented to process the data. The framework will wait until the data from all sources is available, and calls :meth:`~.Detector._fetch()` with this data as input. See the implementation of :class:`~.Shutter` or any other processor for an example of how to implement this function.
+To implement a data processing step that dynamically processes data from one or more input detectors, implement a custom processor. This is done by deriving from the :class:`~.Processor` base class and implementing the ``__init__`` function. This function should pass a list of all upstream nodes, i.e. all detectors which provide the input signals to the processor, the base class constructor. In addition, the :meth:`~Detector._fetch()` method should be implemented to process the data. The framework will wait until the data from all sources is available, and calls :meth:`~.Detector._fetch()` with this data as input. See the implementation of :class:`~.GaussianNoise` or any other processor for an example of how to implement this function.
 
 Implementing an actuator
 +++++++++++++++++++++++++++++++
 To implement an actuator, the user should subclass the :class:`~Actuator` base class, and implement whatever properties and logic appropriate to the device. All methods that start the actuator (e.g. ``update()`` or ``move()``), should first call  ``self._start()`` to request a state switch to the ``moving`` state. As for detectors, actuators should either specify a static ``duration` and ``latency`` if known, or override these properties to return run-time values for the duration and latency. Similarly, if the duration of an action of the actuator is not known in advance, the class should override ``busy`` to poll for the action to complete.
 
+Implementing new algorithms
+--------------------------------------------------
+Algorithms in OpenWFS do not necessarily need to be implemented as classes. However, the included algorithms are wrapped in a class so that the parameters of the algorithm can be viewed and changed from the Micro-Manager GUI. Moreover, wrapping are implemented as classes with an ``execute()`` method.
+that inherit from the :class:`~.Algorithm` base class.
+To implement a new algorithm, the currently existing algorithms can be consulted for a few examples.
+Essentially, the algorithm needs to have an execute method, which needs to produce a WFSResult. With OpenWFS, all hardware interactions are abstracted away in the calls to  ``slm.set_phases`` and ``feedback.trigger``. During the execution, different modes are measured, and a transmission matrix is calculated or approached. For most of our algorithms, the same algorithm can be used to analyze a phase stepping experiment. In order to show the versatility of this platform, we implemented the genetic algorithm described in :cite:`Piestun2012` and more recently adapted for a GUI in :cite:`Anderson2024`.
 
 
 
