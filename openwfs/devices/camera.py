@@ -4,17 +4,11 @@ import astropy.units as u
 import numpy as np
 from astropy.units import Quantity
 
-try:
+from . import safe_import
+
+hc = safe_import("harvesters.core")
+if hc is not None:
     from harvesters.core import Harvester
-except ImportError:
-    raise ImportError(
-        """The harvesters package is required for the Camera class. 
-        To install: 
-         ```pip install harvesters```
-         Alternatively, specify the genicam dependency when installing openwfs:
-         ```pip install openwfs[genicam]```
-        """
-    )
 
 from ..core import Detector
 

@@ -34,6 +34,22 @@ harvesters = { version = "^1.4.2", optional = true }
 PyOpenGL = { version = "^3.1.7", optional = true }
 glfw = { version = "^2.5.9", optional = true }
 
+# optional dependencies for development and testing
+scikit-image = { version = ">=0.21.0", optional = true }
+pytest = { version = ">=7.0.0", optional = true }
+black = { version = ">=24.0.0", optional = true } # code formatter
+poetry = { version = ">=1.2.0", optional = true } # package manager
+
+# optional dependenies for documentation building
+sphinx = { verstion = ">=4.1.2", optional = true }
+sphinx_mdinclude = { verstion = ">=0.5.0", optional = true }
+sphinx-rtd-theme = { verstion = ">=2.0.0", optional = true }
+sphinx-autodoc-typehints = { verstion = ">=2.2.0", optional = true }
+sphinxcontrib-bibtex = { verstion = ">=2.6.0", optional = true }
+sphinx-markdown-builder = { verstion = ">=0.6.6", optional = true }
+sphinx-gallery = { verstion = ">=0.15.0", optional = true }
+
+
 [tool.poetry.extras]
 # optional dependencies for hardware components
 # these are not required for the core functionality of the library
@@ -42,34 +58,11 @@ glfw = { version = "^2.5.9", optional = true }
 nidaq = ["nidaqmx"]
 genicam = ["harvesters"]
 opengl = ["PyOpenGL", "glfw"]
+dev = ["scikit-image", "pytest", "black", "poetry"]
+doc = ["sphinx", "sphinx_mdinclude", "sphinx-rtd-theme", "sphinx-autodoc-typehints", "sphinxcontrib-bibtex", "sphinx-markdown-builder", "sphinx-gallery"]
+
 
 [tool.black]
 line-length = 120
 
-
-[tool.poetry.group.dev]
-optional = true
-
-[tool.poetry.group.dev.dependencies]
-# development dependencies, used for testing only, not needed for normal use
-# to install, use pip install openwfs[dev]
-scikit-image = ">=0.21.0"
-pytest = ">=7.0.0"
-nidaqmx = "^1.0.1" # we can test without the hardware, but still need the package
-black = ">=24.0.0" # code formatter
-poetry = ">=1.2.0" # package manager
-
-[tool.poetry.group.docs]
-optional = true
-
-[tool.poetry.group.docs.dependencies]
-# documentation dependencies, used for building the sphinx documentation only
-# to install, use pip install openwfs[docs]
-sphinx = ">=4.1.2"
-sphinx_mdinclude = ">=0.5.0"
-sphinx-rtd-theme = ">=2.0.0"
-sphinx-autodoc-typehints = ">=2.2.0"
-sphinxcontrib-bibtex = ">=2.6.0"
-sphinx-markdown-builder = ">=0.6.6"
-sphinx-gallery = ">=0.15.0"
 

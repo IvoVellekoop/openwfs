@@ -7,20 +7,13 @@ import numpy as np
 from annotated_types import Ge, Le
 from astropy.units import Quantity
 
-try:
-    import nidaqmx as ni
+from . import safe_import
+
+ni = safe_import("nidaqmx")
+if ni is not None:
     import nidaqmx.system
     from nidaqmx.constants import TerminalConfiguration, DigitalWidthUnits
     from nidaqmx.stream_writers import AnalogMultiChannelWriter
-except ImportError:
-    raise ImportError(
-        """The nidaqmx package is required for the ScanningMicroscope class, even when only using test data. 
-        To install: 
-         ```pip install nidaqmx```
-         Alternatively, specify the genicam dependency when installing openwfs:
-         ```pip install openwfs[nidaq]```
-        """
-    )
 
 from ..core import Detector
 from ..utilities import unitless
