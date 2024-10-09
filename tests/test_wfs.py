@@ -192,17 +192,26 @@ def t_fidelity(
     return fidelity / norm
 
 
-@pytest.mark.skip("Not implemented")
 def test_fourier2():
     """Test the Fourier dual reference algorithm using WFSController."""
-    slm_shape = (1000, 1000)
+    slm_shape = (10, 10)
     aberrations = skimage.data.camera() * ((2 * np.pi) / 255.0)
     sim = SimulatedWFS(aberrations=aberrations)
-    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=slm_shape, k_radius=7.5, phase_steps=3)
-    controller = WFSController(alg)
-    controller.wavefront = WFSController.State.SHAPED_WAVEFRONT
-    scaled_aberration = zoom(aberrations, np.array(slm_shape) / aberrations.shape)
-    assert_enhancement(sim.slm, sim, controller._result, np.exp(1j * scaled_aberration))
+    alg = WFSController(
+        FourierDualReference, feedback=sim, slm=sim.slm, slm_shape=slm_shape, k_radius=3.5, phase_steps=3
+    )
+
+    # check if the attributes of the algorithm were passed through correctly
+    assert alg.k_radius == 3.5
+    alg.k_radius = 2.5
+    assert alg.k_radius == 2.5
+    before = sim.read()
+    alg.wavefront = WFSController.State.OPTIMIZED  # this will trigger the algorithm to optimize the wavefront
+    after = sim.read()
+    alg.wavefront = WFSController.State.FLAT  # this set the wavefront back to flat
+    before2 = sim.read()
+    assert before == before2
+    assert after / before > 3.0
 
 
 @pytest.mark.skip("Not implemented")

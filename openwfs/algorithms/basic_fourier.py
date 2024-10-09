@@ -37,7 +37,6 @@ class FourierDualReference(DualReference):
         k_step: float = 1.0,
         iterations: int = 2,
         amplitude: np.ndarray = 1.0,
-        analyzer: Optional[callable] = analyze_phase_stepping,
         optimized_reference: Optional[bool] = None
     ):
         """
@@ -51,8 +50,6 @@ class FourierDualReference(DualReference):
             k_step: Make steps in k-space of this value. 1 corresponds to diffraction limited tilt.
             iterations: Number of ping-pong iterations. Defaults to 2.
             amplitude: Amplitude profile over the SLM. Defaults to 1.0 (flat)
-            analyzer: The function used to analyze the phase stepping data.
-                Must return a WFSResult object. Defaults to `analyze_phase_stepping`
             optimized_reference:
                 When `True`, during each iteration the other half of the SLM displays the optimized pattern so far (as in [1]).
                 When `False`, the algorithm optimizes A with a flat wavefront on B,
@@ -77,7 +74,6 @@ class FourierDualReference(DualReference):
             iterations=iterations,
             amplitude=amplitude,
             optimized_reference=optimized_reference,
-            analyzer=analyzer,
         )
 
     def _construct_modes(self) -> tuple[np.ndarray, np.ndarray]:

@@ -143,6 +143,10 @@ class WFSResult:
             fidelity_calibration=weighted_average("fidelity_calibration"),
         )
 
+    @property
+    def snr(self):
+        return 1.0 / (1.0 / self.fidelity_noise - 1.0)
+
 
 def analyze_phase_stepping(measurements: np.ndarray, axis: int):
     """Analyzes the result of phase stepping measurements, returning matrix `t` and noise statistics
@@ -240,88 +244,93 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int):
 
 class WFSController:
     """
-    Controller for Wavefront Shaping (WFS) operations using a specified algorithm in the MicroManager environment.
+    EXPERIMENTAL - Controller for Wavefront Shaping (WFS) operations using a specified algorithm in the Micro-Manager environment.
+
+    Usage:
+
+    .. code-block:: python
+
+        # not wrapped:
+        alg = FourierDualReference(feedback, slm)
+
+        # wrapped
+        alg = WFSController(FourierDualReference, feedback, slm)
+
+    Under the hood, a dynamic class is created that inherits both ``WFSController`` and ``FourierDualReference)``.
+    Effectively this is similar to having ``class WFSController(FourierDualReference)`` inheritance.
+
+    Since Micro-Manager / PyDevice does not yet support buttons to activate actions, a WFS experiment is started by setting
+    the trigger attribute :attr:`wavefront` to the value State.OPTIMIZED
+    It adds attributes for inspecting the statistics of the last WFS optimization.
     Manages the state of the wavefront and executes the algorithm to optimize and apply wavefront corrections, while
     exposing all these parameters to MicroManager.
     """
 
     class State(Enum):
-        FLAT_WAVEFRONT = 0
-        SHAPED_WAVEFRONT = 1
+        FLAT = 0
+        OPTIMIZED = 1
+        REOPTIMIZE = 2
 
-    def __init__(self, algorithm):
+    def __init__(self, _algorithm_class, *args, **kwargs):
         """
         Args:
             algorithm: An instance of a wavefront shaping algorithm.
         """
-        self.algorithm = algorithm
-        self._wavefront = WFSController.State.FLAT_WAVEFRONT
-        self._result = None
-        self._noise_factor = None
-        self._amplitude_factor = None
-        self._estimated_enhancement = None
-        self._calibration_fidelity = None
-        self._estimated_optimized_intensity = None
-        self._snr = None  # Average SNR. Computed when wavefront is computed.
-        self._optimized_wavefront = None
-        self._recompute_wavefront = False
-        self._feedback_enhancement = None
+        super().__init__(*args, **kwargs)
+        self._wavefront = WFSController.State.FLAT
+        self._result: Optional[WFSResult] = None
+        self._feedback_ratio = 0.0
         self._test_wavefront = False  # Trigger to test the optimized wavefront
-        self._run_troubleshooter = False  # Trigger troubleshooter
-        self.dark_frame = None
-        self.before_frame = None
+
+    def __new__(cls, algorithm_class, *args, **kwargs):
+        """Dynamically creates a class of type `class X(WFSController, algorithm_class` and returns an instance of that class"""
+
+        # Dynamically create the class using type()
+        class_name = "WFSController_" + algorithm_class.__name__
+        DynamicClass = type(class_name, (cls, algorithm_class), {})
+        instance = super(WFSController, cls).__new__(DynamicClass)
+        return instance
 
     @property
     def wavefront(self) -> State:
         """
-        Gets the current wavefront state.
-
-        Returns:
-            State: The current state of the wavefront, either FLAT_WAVEFRONT or SHAPED_WAVEFRONT.
+        Enables switching between FLAT or OPTIMIZED wavefront on the SLM.
+        Setting this state to OPTIMIZED causes the algorithm execute if the optimized wavefront is not yet computed.
+        Setting this state to REOPTIMIZE always causes the algorithm to recompute the wavefront. The state switches to OPTIMIZED after executioin of the algorithm.
+        For multi-target optimizations, OPTIMIZED shows the wavefront for the first target.
         """
         return self._wavefront
 
     @wavefront.setter
     def wavefront(self, value):
-        """
-        Sets the wavefront state and applies the corresponding phases to the SLM.
-
-        Args:
-            value (State): The desired state of the wavefront to set.
-        """
-        self._wavefront = value
-        if value == WFSController.State.FLAT_WAVEFRONT:
-            self.algorithm.slm.set_phases(0.0)
-        else:
-            if self._recompute_wavefront or self._optimized_wavefront is None:
-                # select only the wavefront and statistics for the first target
-                result = self.algorithm.execute().select_target(0)
-                self._optimized_wavefront = -np.angle(result.t)
-                self._noise_factor = result.fidelity_noise
-                self._amplitude_factor = result.fidelity_amplitude
-                self._estimated_enhancement = result.estimated_enhancement
-                self._calibration_fidelity = result.fidelity_calibration
-                self._estimated_optimized_intensity = result.estimated_optimized_intensity
-                self._snr = 1.0 / (1.0 / result.fidelity_noise - 1.0)
-                self._result = result
-            self.algorithm.slm.set_phases(self._optimized_wavefront)
+        self._wavefront = WFSController.State(value)
+        if value == WFSController.State.FLAT:
+            self.slm.set_phases(0.0)
+        elif value == WFSController.State.OPTIMIZED:
+            if self._result is None:
+                # run the algorithm
+                self._result = self.execute().select_target(0)
+            self.slm.set_phases(self.optimized_wavefront)
+        else:  # value == WFSController.State.REOPTIMIZE:
+            self._result = None  # remove stored result
+            self.wavefront = WFSController.State.OPTIMIZED  # recompute the wavefront
 
     @property
-    def noise_factor(self) -> float:
+    def fidelity_noise(self) -> float:
         """
         Returns:
-            float: noise factor: the estimated loss in fidelity caused by the limited snr.
+            float: the estimated loss in fidelity caused by the limited snr.
         """
-        return self._noise_factor
+        return self._result.fidelity_noise if self._result is not None else 0.0
 
     @property
-    def amplitude_factor(self) -> float:
+    def fidelity_amplitude(self) -> float:
         """
         Returns:
-            float: amplitude factor: estimated reduction of the fidelity due to phase-only
+            float: estimated reduction of the fidelity due to phase-only
             modulation (≈ π/4 for fully developed speckle)
         """
-        return self._amplitude_factor
+        return self._result.fidelity_amplitude if self._result is not None else 0.0
 
     @property
     def estimated_enhancement(self) -> float:
@@ -330,15 +339,15 @@ class WFSController:
             float: estimated enhancement: estimated ratio <after>/<before>  (with <> denoting
             ensemble average)
         """
-        return self._estimated_enhancement
+        return self._result.estimated_enhancement if self._result is not None else 0.0
 
     @property
-    def calibration_fidelity(self) -> float:
+    def fidelity_calibration(self) -> float:
         """
         Returns:
             float: non-linearity.
         """
-        return self._calibration_fidelity
+        return self._result.fidelity_calibration if self._result is not None else 0.0
 
     @property
     def estimated_optimized_intensity(self) -> float:
@@ -346,52 +355,47 @@ class WFSController:
         Returns:
             float: estimated optimized intensity.
         """
-        return self._estimated_optimized_intensity
+        return self._estimated_optimized_intensity if self._result is not None else 0.0
 
     @property
     def snr(self) -> float:
         """
-        Gets the signal-to-noise ratio (SNR) of the optimized wavefront.
+        Returns:
+            float: The average signal-to-noise ratio (SNR) of the wavefront optimization measurements.
+        """
+        return self._result.snr if self._result is not None else 0.0
+
+    @property
+    def optimized_wavefront(self) -> np.ndarray:
+        return -np.angle(self._result.t) if self._result is not None else 0.0
+
+    @property
+    def feedback_ratio(self) -> float:
+        """The ratio of average feedback signals after and before optimization.
+
+        This value is calculated when the :attr:`test_wavefront` trigger is set to True.
+
+        Note: this is *not* the enhancement factor, because the 'before' signal is not ensemble averaged.
+            Therefore, this value should be used with caution.
 
         Returns:
-            float: The average SNR computed during wavefront optimization.
-        """
-        return self._snr
-
-    @property
-    def recompute_wavefront(self) -> bool:
-        """Returns: bool that indicates whether the wavefront needs to be recomputed."""
-        return self._recompute_wavefront
-
-    @recompute_wavefront.setter
-    def recompute_wavefront(self, value):
-        """Sets the bool that indicates whether the wavefront needs to be recomputed."""
-        self._recompute_wavefront = value
-
-    @property
-    def feedback_enhancement(self) -> float:
-        """Returns: the average enhancement of the feedback, returns none if no such enhancement was measured."""
-        return self._feedback_enhancement
+            float: average enhancement of the feedback, 0.0 none if no such enhancement was measured."""
+        return self._feedback_ratio
 
     @property
     def test_wavefront(self) -> bool:
-        """Returns: bool that indicates whether test_wavefront will be performed if set."""
-        return self._test_wavefront
+        """Trigger to test the wavefront.
+
+        Set this value `True` to measure feedback signals with a flat and an optimized wavefront and compute the :attr:`feedback_ratio`.
+        This value is reset to `False` after the test is performed.
+        """
+        return False
 
     @test_wavefront.setter
     def test_wavefront(self, value):
-        """
-        Calculates the feedback enhancement between the flat and shaped wavefronts by measuring feedback for both
-        cases.
-
-        Args:
-            value (bool): True to enable test mode, False to disable.
-        """
         if value:
-            self.wavefront = WFSController.State.FLAT_WAVEFRONT
-            feedback_flat = self.algorithm.feedback.read().copy()
-            self.wavefront = WFSController.State.SHAPED_WAVEFRONT
-            feedback_shaped = self.algorithm.feedback.read().copy()
-            self._feedback_enhancement = float(feedback_shaped.sum() / feedback_flat.sum())
-
-        self._test_wavefront = value
+            self.wavefront = WFSController.State.FLAT
+            feedback_flat = self.feedback.read().sum()
+            self.wavefront = WFSController.State.OPTIMIZED
+            feedback_shaped = self.feedback.read().sum()
+            self._feedback_ratio = float(feedback_shaped / feedback_flat)

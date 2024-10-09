@@ -137,7 +137,7 @@ autodoc_mock_imports = ["PyOpenGL", "OpenGL"]
 
 # Hide some classes that are not production ready yet
 def skip(_app, _what, name, _obj, do_skip, _options):
-    if name in ("WFSController", "Gain"):
+    if name in ("Gain"):
         return True
     return do_skip
 

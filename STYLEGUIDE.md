@@ -13,6 +13,11 @@
       line limit can be very cumbersome.
     - PEP 8:E203 whitespace before ':'. May be disabled. This is already checked by (and conflicts with) black.
 
+# Layout
+
+- Line length of code is limited to 120 characters by `black`.
+- Use soft wrapping for Markdown (`.md`) and reStructuredTest (`.rst`) files.
+
 # Tests
 
 - Tests must *not* plot figures.
@@ -39,4 +44,7 @@ Common warnings:
   images, use ``len(images)`` instead of ``images.shape(0)``. But to access the number of rows in an image, use
   ``image.shape(0)``.
 
-
+  # Properties
+- Document properties in the getter method only, not in the setter method. Also describe what happens if the property is
+  set.
+- 
