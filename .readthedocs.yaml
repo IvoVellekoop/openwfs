@@ -11,7 +11,7 @@ build:
       - pip install poetry
       - pip install poetry-plugin-export
       - poetry config warnings.export false
-      - poetry export -f requirements.txt -o requirements.txt --with docs --extras "nidaq" --extras "genicam" --extras "opengl"
+      - poetry export -f requirements.txt -o requirements.txt --with docs --extras "all"
       - cat requirements.txt
 
 python:
