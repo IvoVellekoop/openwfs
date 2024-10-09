@@ -399,3 +399,18 @@ class WFSController:
             self.wavefront = WFSController.State.OPTIMIZED
             feedback_shaped = self.feedback.read().sum()
             self._feedback_ratio = float(feedback_shaped / feedback_flat)
+
+
+class DummyProgressBar:
+    """Placeholder for a progress bar object.
+
+    Some functions take an optional tdqm-style progress bar as input.
+    This class serves as a placeholder iif no progress bar is given.
+    It does nothing.
+    """
+
+    def __init__(self):
+        self.count = 0
+
+    def update(self):
+        pass

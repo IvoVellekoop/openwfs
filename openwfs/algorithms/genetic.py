@@ -2,7 +2,7 @@ import itertools
 
 import numpy as np
 
-from .utilities import WFSResult
+from .utilities import WFSResult, DummyProgressBar
 from ..core import Detector, PhaseSLM
 
 
@@ -74,7 +74,7 @@ class SimpleGenetic:
     def _generate_random_phases(self, shape):
         return self.generator.random(size=shape, dtype=np.float32) * (2 * np.pi)
 
-    def execute(self, *, progress_bar=None) -> WFSResult:
+    def execute(self, *, progress_bar=DummyProgressBar()) -> WFSResult:
         """Executes the algorithm.
         Args:
             progress_bar: Optional tqdm-like progress bar for displaying progress
@@ -84,8 +84,7 @@ class SimpleGenetic:
         population = self._generate_random_phases((self.population_size, *self.shape))
 
         # initialize the progress bar if available
-        if progress_bar is not None:
-            progress_bar.total = self.generations * self.population_size
+        progress_bar.total = self.generations * self.population_size
 
         for i in itertools.count():
             # Try all phase patterns
@@ -93,8 +92,7 @@ class SimpleGenetic:
             for p in range(self.population_size):
                 self.slm.set_phases(population[p])
                 self.feedback.trigger(out=measurements[p, ...])
-                if progress_bar is not None:
-                    progress_bar.update(1)
+                progress_bar.update()
 
             self.feedback.wait()
 

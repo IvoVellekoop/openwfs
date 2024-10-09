@@ -1,6 +1,6 @@
 import numpy as np
 
-from .utilities import analyze_phase_stepping, WFSResult
+from .utilities import analyze_phase_stepping, WFSResult, DummyProgressBar
 from ..core import Detector, PhaseSLM
 
 
@@ -41,7 +41,7 @@ class StepwiseSequential:
         self.slm = slm
         self.feedback = feedback
 
-    def execute(self) -> WFSResult:
+    def execute(self, progress_bar=DummyProgressBar()) -> WFSResult:
         """Executes the StepwiseSequential algorithm, computing the transmission matrix of the sample
 
         Returns:
@@ -49,6 +49,7 @@ class StepwiseSequential:
         """
         phase_pattern = np.zeros((self.n_y, self.n_x), "float32")
         measurements = np.zeros((self.n_y, self.n_x, self.phase_steps, *self.feedback.data_shape))
+        progress_bar.count = self.n_x * self.n_y
 
         for y in range(self.n_y):
             for x in range(self.n_x):
@@ -57,6 +58,7 @@ class StepwiseSequential:
                     self.slm.set_phases(phase_pattern)
                     self.feedback.trigger(out=measurements[y, x, p, ...])
                 phase_pattern[y, x] = 0
+                progress_bar.update()
 
         self.feedback.wait()
         return analyze_phase_stepping(measurements, axis=2)

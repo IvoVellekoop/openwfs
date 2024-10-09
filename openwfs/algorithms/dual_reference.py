@@ -3,7 +3,7 @@ from typing import Optional, List
 import numpy as np
 from numpy import ndarray as nd
 
-from .utilities import analyze_phase_stepping, WFSResult
+from .utilities import analyze_phase_stepping, WFSResult, DummyProgressBar
 from ..core import Detector, PhaseSLM
 
 
@@ -173,7 +173,7 @@ class DualReference:
         """
         return tuple(self._gram)
 
-    def execute(self, *, capture_intermediate_results: bool = False, progress_bar=None) -> WFSResult:
+    def execute(self, *, capture_intermediate_results: bool = False, progress_bar=DummyProgressBar()) -> WFSResult:
         """
         Executes the blind focusing dual reference algorithm and compute the SLM transmission matrix.
             capture_intermediate_results: When True, measures the feedback from the optimized wavefront after each iteration.
@@ -196,12 +196,10 @@ class DualReference:
         intermediate_results = np.zeros(self.iterations)  # List to store feedback from full patterns
 
         # Prepare progress bar
-        if progress_bar:
-            num_measurements = (
-                np.ceil(self.iterations / 2) * self.phase_patterns[0].shape[2]
-                + np.floor(self.iterations / 2) * self.phase_patterns[1].shape[2]
-            )
-            progress_bar.total = num_measurements
+        progress_bar.total = (
+            np.ceil(self.iterations / 2) * self.phase_patterns[0].shape[2]
+            + np.floor(self.iterations / 2) * self.phase_patterns[1].shape[2]
+        )
 
         # Switch the phase sets back and forth multiple times
         for it in range(self.iterations):
@@ -221,7 +219,7 @@ class DualReference:
             if self.optimized_reference:
                 # use the best estimate so far to construct an optimized reference
                 # TODO: see if the squeeze can be removed
-                t_this_side = self.compute_t_set(results_all[it].t, side).squeeze()
+                t_this_side = self._compute_t_set(results_all[it].t, side).squeeze()
                 ref_phases[self.masks[side]] = -np.angle(t_this_side[self.masks[side]])
 
             # Try full pattern
@@ -246,7 +244,7 @@ class DualReference:
             relative = t_side_0[..., self._zero_indices[0]] + np.conjugate(t_side_1[..., self._zero_indices[1]])
             factor = np.expand_dims(relative / np.abs(relative), -1)
 
-        t_full = self.compute_t_set(t_side_0, 0) + self.compute_t_set(factor * t_side_1, 1)
+        t_full = self._compute_t_set(t_side_0, 0) + self._compute_t_set(factor * t_side_1, 1)
 
         # Compute average fidelity factors
         # subtract 1 from n, because both sets (usually) contain a flat wavefront,
@@ -260,7 +258,7 @@ class DualReference:
         result.intermediate_results = intermediate_results
         return result
 
-    def _single_side_experiment(self, mod_phases: nd, ref_phases: nd, mod_mask: nd, progress_bar=None) -> WFSResult:
+    def _single_side_experiment(self, mod_phases: nd, ref_phases: nd, mod_mask: nd, progress_bar) -> WFSResult:
         """
         Conducts experiments on one part of the SLM.
 
@@ -269,7 +267,7 @@ class DualReference:
                 ``shape = mode_count × height × width``
             ref_phases: 2D array containing the reference phase pattern.
             mod_mask: 2D array containing a boolean mask, where True indicates the modulated part of the SLM.
-            progress_bar: Optional progress bar object. Following the convention for tqdm progress bars,
+            progress_bar: Progress bar object. Following the convention for tqdm progress bars,
                 this object should have a `total` attribute and an `update()` function.
 
         Returns:
@@ -285,14 +283,12 @@ class DualReference:
                 phases[mod_mask] = modulated[mod_mask] + phi
                 self.slm.set_phases(phases)
                 self.feedback.trigger(out=measurements[m, p, ...])
-
-            if progress_bar is not None:
                 progress_bar.update()
 
         self.feedback.wait()
         return analyze_phase_stepping(measurements, axis=1)
 
-    def compute_t_set(self, t, side) -> nd:
+    def _compute_t_set(self, t, side) -> nd:
         """
         Compute the transmission matrix in SLM space from transmission matrix in input mode space.
 

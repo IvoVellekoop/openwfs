@@ -78,11 +78,10 @@ To implement an actuator, the user should subclass the :class:`~Actuator` base c
 
 Implementing new algorithms
 --------------------------------------------------
-Algorithms in OpenWFS do not necessarily need to be implemented as classes. However, the included algorithms are wrapped in a class so that the parameters of the algorithm can be viewed and changed from the Micro-Manager GUI. Moreover, wrapping are implemented as classes with an ``execute()`` method.
-that inherit from the :class:`~.Algorithm` base class.
-To implement a new algorithm, the currently existing algorithms can be consulted for a few examples.
-Essentially, the algorithm needs to have an execute method, which needs to produce a WFSResult. With OpenWFS, all hardware interactions are abstracted away in the calls to  ``slm.set_phases`` and ``feedback.trigger``. During the execution, different modes are measured, and a transmission matrix is calculated or approached. For most of our algorithms, the same algorithm can be used to analyze a phase stepping experiment. In order to show the versatility of this platform, we implemented the genetic algorithm described in :cite:`Piestun2012` and more recently adapted for a GUI in :cite:`Anderson2024`.
-
+The algorithms that are included in OpenWFS are wrapped in classes with two common attribute: ``slm``, ``feedback``, which respectively hold a :class:`~.PhaseSLM` object to control the SLM and a :class:`~Detector` object that returns the feedback signals used in the optimization. For algorithms that support optimizing multiple targets simulaneously, the ``feedback`` detector may return an array of values.
+In addition, all algorithms have an ``execute()`` method that executes the algoritm and returns the measured transmission matrix, along with statistics about the measurements in a :class:`WFSResults` structure (see :numref:`section-troubleshooting).
+When implementing a new algorithm, it is perfectly acceptable to deviate from this convention. However, if an algorithm follows the convention described above, it can directly be wrapped in a `WFSController` so that it can be used in Micro-Manager (see :numref:`section-micromanager`)
+As can be seen in the example in :numref:`hello-wfs`,  OpenWFS abstracts all hardware interactions in the calls to  ``slm.set_phases`` and ``feedback.trigger``.
 
 
 
