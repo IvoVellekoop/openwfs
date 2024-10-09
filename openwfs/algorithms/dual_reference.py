@@ -46,7 +46,6 @@ class DualReference:
         amplitude: nd = 1.0,
         phase_steps: int = 4,
         iterations: int = 2,
-        analyzer: Optional[callable] = analyze_phase_stepping,
         optimized_reference: Optional[bool] = None
     ):
         """
@@ -79,19 +78,13 @@ class DualReference:
                 When set to `None` (default), the algorithm uses True if there is a single target,
                 and False if there are multiple targets.
 
-            analyzer: The function used to analyze the phase stepping data.
-                Must return a WFSResult object. Defaults to `analyze_phase_stepping`
-
         [1]: X. Tao, T. Lam, B. Zhu, et al., “Three-dimensional focusing through scattering media using conjugate adaptive
         optics with remote focusing (CAORF),” Opt. Express 25, 10368–10383 (2017).
         """
         if optimized_reference is None:  # 'auto' mode
             optimized_reference = np.prod(feedback.data_shape) == 1
         elif optimized_reference and np.prod(feedback.data_shape) != 1:
-            raise ValueError(
-                "When using an optimized reference, the feedback detector should return a single scalar value."
-            )
-
+            raise ValueError("In optimized_reference mode, only scalar (single target) feedback signals can be used.")
         if iterations < 2:
             raise ValueError("The number of iterations must be at least 2.")
         if not optimized_reference and iterations != 2:
@@ -102,7 +95,6 @@ class DualReference:
         self.phase_steps = phase_steps
         self.optimized_reference = optimized_reference
         self.iterations = iterations
-        self._analyzer = analyzer
         self._phase_patterns = None
         self._gram = None
         self._shape = group_mask.shape
@@ -298,7 +290,7 @@ class DualReference:
                 progress_bar.update()
 
         self.feedback.wait()
-        return self._analyzer(measurements, axis=1)
+        return analyze_phase_stepping(measurements, axis=1)
 
     def compute_t_set(self, t, side) -> nd:
         """
