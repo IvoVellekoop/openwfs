@@ -133,7 +133,7 @@ class ADCProcessor(Processor):
     def __init__(
         self,
         source: Detector,
-        analog_max: float = 0.0,
+        analog_max: Optional[float],
         digital_max: int = 0xFFFF,
         shot_noise: bool = False,
         gaussian_noise_std: float = 0.0,
@@ -144,20 +144,20 @@ class ADCProcessor(Processor):
         Initializes the ADCProcessor class, which mimics an analog-digital converter.
 
         Args:
-            source (Detector): The source detector providing analog data.
-            analog_max (float): The maximum analog value that can be handled by the ADC.
-                If set to 0.0, each measurement will be automatically scaled so that the maximum
+            source: The source detector providing analog data.
+            analog_max: The maximum analog value that can be handled by the ADC.
+                If set to None, each measurement will be automatically scaled so that the maximum
                 value in the data set returned by `source` is converted to `digital_max`.
                 Note that this means that the values from two different measurements cannot be compared quantitatively.
 
-            digital_max (int):
+            digital_max:
                 The maximum digital value that the ADC can output, default is unsigned 16-bit maximum.
 
-            shot_noise (bool):
+            shot_noise:
                 Flag to determine if Poisson noise should be applied instead of rounding.
                 Useful for realistically simulating detectors.
 
-            gaussian_noise_std (float):
+            gaussian_noise_std:
                 If >0, add gaussian noise with std of this value to the data.
         """
         super().__init__(source, multi_threaded=multi_threaded)
@@ -174,7 +174,7 @@ class ADCProcessor(Processor):
     def _fetch(self, data) -> np.ndarray:  # noqa
         """Clips the data to the range of the ADC, and digitizes the values."""
 
-        if self.analog_max == 0.0:  # auto scaling
+        if self.analog_max is None:  # auto scaling
             max_value = np.max(data)
             if max_value > 0.0:
                 data = data * (self.digital_max / max_value)  # auto-scale to maximum value
@@ -200,10 +200,13 @@ class ADCProcessor(Processor):
         return self._analog_max
 
     @analog_max.setter
-    def analog_max(self, value):
+    def analog_max(self, value: Optional[float]):
+        if value is None:
+            self._analog_max = None
+            return
         if value < 0.0:
             raise ValueError("analog_max cannot be negative")
-        self._analog_max = value
+        self._analog_max = float(value)
 
     @property
     def digital_max(self) -> int:
@@ -214,11 +217,11 @@ class ADCProcessor(Processor):
         return self._digital_max
 
     @property
-    def conversion_factor(self) -> float:
+    def conversion_factor(self) -> Optional[float]:
         """Conversion factor between analog and digital values.
-        If analog_max is set to 0.0, each frame is auto-scaled, and this function returns 0.
+        If analog_max is set to None, each frame is auto-scaled, and this function returns None.
         """
-        return self.digital_max / self.analog_max if self.analog_max > 0.0 else 0.0
+        return self.digital_max / self.analog_max if self.analog_max is not None else None
 
     @digital_max.setter
     def digital_max(self, value):

@@ -355,7 +355,7 @@ class WFSController:
         Returns:
             float: estimated optimized intensity.
         """
-        return self._estimated_optimized_intensity if self._result is not None else 0.0
+        return self._result.estimated_optimized_intensity.mean() if self._result is not None else 0.0
 
     @property
     def snr(self) -> float:

@@ -20,7 +20,7 @@ def test_mock_camera_and_single_roi():
     """
     img = np.zeros((1000, 1000), dtype=np.int16)
     img[200, 300] = 39.39  # some random float
-    src = Camera(StaticSource(img, pixel_size=450 * u.nm))
+    src = Camera(StaticSource(img, pixel_size=450 * u.nm), analog_max=0xFFFF)
     roi_detector = SingleRoi(src, pos=(200, 300), radius=0)  # Only measure that specific point
     assert roi_detector.read() == int(2**16 - 1)  # it should cast the array into some int
 
@@ -34,11 +34,11 @@ def test_microscope_without_magnification(shape):
     # construct input image
     img = np.zeros(shape, dtype=np.int16)
     img[256, 256] = 100
-    src = Camera(StaticSource(img, pixel_size=400 * u.nm))
+    src = Camera(StaticSource(img, pixel_size=400 * u.nm), analog_max=0xFFFF)
 
     # construct microscope
     sim = Microscope(source=src, magnification=1, numerical_aperture=1, wavelength=800 * u.nm)
-    cam = Camera(sim)
+    cam = Camera(sim, analog_max=None)
     img = cam.read()
     assert img[256, 256] == 2**16 - 1
 

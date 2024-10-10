@@ -38,6 +38,7 @@ mic = Microscope(
 # simulate shot noise in an 8-bit camera with auto-exposure:
 cam = Camera(
     mic,
+    analog_max=None,
     shot_noise=True,
     digital_max=255,
     data_shape=camera_resolution,

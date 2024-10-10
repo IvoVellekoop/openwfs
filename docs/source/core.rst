@@ -147,10 +147,10 @@ OpenWFS consistently uses ``astropy.units`` :cite:`astropy` for quantities with 
 .. code-block:: python
 
     import astropy.units as u
-    c = Camera()
-    c.shutter_time = 10 * u.ms
-    c.shutter_time = 0.01 * u.s  # equivalent to the previous line
-    c.shutter_time = 10 # raises an error, since the unit is missing
+    c = Camera(...)
+    c.exposure = 10 * u.ms
+    c.exposure = 0.01 * u.s  # equivalent to the previous line
+    c.exposure = 10 # raises an error, since the unit is missing
 
 In addition, OpenWFS allows attaching pixel-size metadata to data arrays using the functions :func:`~.set_pixel_size()`. Pixel sizes can represent a physical length (e.g. as in the size pixels on an image sensor), or other units such as time (e.g. as the sampling period in a time series). OpenWFS fully supports anisotropic pixels, where the pixel sizes in the x and y directions are different.
 
