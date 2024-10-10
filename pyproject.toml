@@ -42,7 +42,7 @@ glfw = { version = "^2.5.9", optional = true }
 nidaq = ["nidaqmx"]
 genicam = ["harvesters"]
 opengl = ["PyOpenGL", "glfw"]
-all = ["dev", "doc", "harvesters", "opengl", "nidaq"]
+all = ["nidaqmx", "harvesters", "PyOpenGL", "glfw"]
 
 
 [tool.black]

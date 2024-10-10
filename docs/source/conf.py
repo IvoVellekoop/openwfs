@@ -72,8 +72,8 @@ latex_elements = {
 
                 OpenWFS addresses these challenges by providing a modular Python library that 
                 separates hardware control from the wavefront shaping algorithm itself. 
-                Using these elements, an wavefront shaping algorithm can be written
-                in just a few lines of code, with OpenWFS taking care of low-level hardware control, synchronization,
+                Using these elements, a wavefront shaping algorithm can be written
+                in a minimal amount of code, with OpenWFS taking care of low-level hardware control, synchronization,
                 and troubleshooting. Algorithms can be used on different hardware or in a completely
                 simulated environment without changing the code. Moreover, we provide full integration with
                 the \textmu Manager microscope control software, enabling wavefront shaping experiments to be

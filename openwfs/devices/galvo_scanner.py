@@ -9,7 +9,7 @@ from astropy.units import Quantity
 
 from . import safe_import
 
-ni = safe_import("nidaqmx")
+ni = safe_import("nidaqmx", "nidaq")
 if ni is not None:
     import nidaqmx.system
     from nidaqmx.constants import TerminalConfiguration, DigitalWidthUnits

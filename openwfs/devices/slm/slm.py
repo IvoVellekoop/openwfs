@@ -11,8 +11,8 @@ from .context import Context
 from .. import safe_import
 from ...simulation import PhaseToField
 
-GL = safe_import("OpenGL.GL")
-glfw = safe_import("glfw")
+GL = safe_import("OpenGL.GL", "opengl")
+glfw = safe_import("glfw", "opengl")
 from .patch import FrameBufferPatch, Patch, VertexArray
 from ...core import PhaseSLM, Actuator, Device, Detector
 from ...utilities import Transform

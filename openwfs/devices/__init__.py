@@ -2,20 +2,16 @@ import importlib
 import warnings
 
 
-def safe_import(module_name):
+def safe_import(module_name: str, extra_name: str):
     try:
         return importlib.import_module(module_name)
     except ModuleNotFoundError:
         warnings.warn(
             f"""Could not import {module_name}, because the package is not installed.
-            To install, use:
-                pip install {module_name}
-                
-            Alternatively, specify to install the required extras when installing openwfs, using one of:
+            To install, using:
+                pip install openwfs[{extra_name}]
+            or
                 pip install openwfs[all]
-                pip install openwfs[opengl]
-                pip install openwfs[genicam]
-                pip install openwfs[nidaq]
             """
         )
         return None

@@ -3,7 +3,7 @@ import weakref
 
 from .. import safe_import
 
-glfw = safe_import("glfw")
+glfw = safe_import("glfw", "opengl")
 
 SLM = "slm.SLM"
 

@@ -59,9 +59,17 @@ To use OpenWFS, Python 3.9 or later is required. Since it is available on the Py
 
     pip install openwfs[all]
 
-This will also install the optional dependencies for OpenWFS, such as ``PyOpenGL``, ``nidaqmx`` and ``harvesters``, which are used for OpenGL-accelerated SLM control, scanning microscopy, and camera control, respectively. If these dependencies cannot be installed  on your system, the installation will fail. This can happen with ``PyOpenGL`` on systems with no OpenGL driver installed, or for ``harvesters``, which currently only works for Python versions up to 3.11. In this case, you can instead install OpenWFS without dependencies by omitting ``[all]`` in the installation command, and manually install only the required dependencies as indicated in the documentation for each hardware component.
+This will also install the optional dependencies for OpenWFS:
 
-At the time of writing, OpenWFS is tested up to Python version 3.11 on Windows 11 and Manjaro Linux, and the latest version is 0.1.0. Note that the latest versions of the package will be available on the PyPI repository, and the latest documentation and the example code can be found on the `Read the Docs <https://openwfs.readthedocs.io/en/latest/>`_ website :cite:`openwfsdocumentation`. The source code can be found on :cite:`openwfsgithub`.
+*opengl* For the OpenGL-accelerated SLM control, the ``PyOpenGL`` package is installed. In order for this package to work, an OpenGL-compatible graphics card and driver is required.
+
+*genicam* For the GenICam camera support, the ``harvesters`` package is installed, which, in turn, needs the  ``genicam`` package. At the time of writing, this package is only available for Python versions up to 3.11. To use the GenICam camera support, you also need a compatible camera with driver installed.
+
+* nidaq* For the scanning microscope, the ``nidaqmx`` package is installed, which requires a National Instruments data acquisition card with corresponding drivers to be installed on your system.
+
+If these dependencies cannot be installed on your system, the installation will fail. In this case, you can instead install OpenWFS without dependencies by omitting ``[all]`` in the installation command, and manually install only the required dependencies, e.g. ``pip install openwfs[opengl]``.
+
+At the time of writing, OpenWFS is at version 0.1.0, and it is tested up to Python version 3.11 on Windows 11 and Manjaro and Ubuntu Linux distributions. Note that the latest versions of the package will be available on the PyPI repository, and the latest documentation and the example code can be found on the `Read the Docs <https://openwfs.readthedocs.io/en/latest/>`_ website :cite:`openwfsdocumentation`. The source code can be found on :cite:`openwfsgithub`.
 
 :numref:`hello-wfs` shows an example of how to use OpenWFS to run a simple wavefront shaping experiment. This example illustrates several of the main concepts of OpenWFS. First, the code initializes objects to control a spatial light modulator (SLM) connected to a video port, and a camera that provides feedback to the wavefront shaping algorithm. It then runs a WFS algorithm to focus the light.
 

@@ -1,4 +1,3 @@
-import warnings
 from typing import Sequence, Optional
 
 import numpy as np
@@ -7,7 +6,7 @@ from numpy.typing import ArrayLike
 from .context import Context
 from .. import safe_import
 
-GL = safe_import("OpenGL.GL")
+GL = safe_import("OpenGL.GL", "opengl")
 if GL is not None:
     from OpenGL.GL import shaders
 

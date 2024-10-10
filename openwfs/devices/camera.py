@@ -6,7 +6,7 @@ from astropy.units import Quantity
 
 from . import safe_import
 
-hc = safe_import("harvesters.core")
+hc = safe_import("harvesters.core", "genicam")
 if hc is not None:
     from harvesters.core import Harvester
 
