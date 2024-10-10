@@ -20,7 +20,7 @@ def test_mock_camera_and_single_roi():
     """
     img = np.zeros((1000, 1000), dtype=np.int16)
     img[200, 300] = 39.39  # some random float
-    src = Camera(StaticSource(img, pixel_size=450 * u.nm), analog_max=0xFFFF)
+    src = Camera(StaticSource(img, pixel_size=450 * u.nm), analog_max=None)
     roi_detector = SingleRoi(src, pos=(200, 300), radius=0)  # Only measure that specific point
     assert roi_detector.read() == int(2**16 - 1)  # it should cast the array into some int
 
@@ -49,7 +49,7 @@ def test_microscope_and_aberration():
     """
     img = np.zeros((1000, 1000), dtype=np.int16)
     img[256, 256] = 100
-    src = Camera(StaticSource(img, pixel_size=400 * u.nm))
+    src = Camera(StaticSource(img, pixel_size=400 * u.nm), analog_max=None)
 
     slm = SLM(shape=(512, 512))
 
@@ -77,7 +77,7 @@ def test_slm_and_aberration():
     """
     img = np.zeros((1000, 1000), dtype=np.int16)
     img[256, 256] = 100
-    src = Camera(StaticSource(img, pixel_size=400 * u.nm))
+    src = Camera(StaticSource(img, pixel_size=400 * u.nm), analog_max=None)
 
     slm = SLM(shape=(512, 512))
 
@@ -116,7 +116,7 @@ def test_slm_tilt():
     img[signal_location] = 100
     pixel_size = 400 * u.nm
     wavelength = 750 * u.nm
-    src = Camera(StaticSource(img, pixel_size=pixel_size))
+    src = Camera(StaticSource(img, pixel_size=pixel_size), analog_max=None)
 
     slm = SLM(shape=(1000, 1000))
 
@@ -137,7 +137,7 @@ def test_slm_tilt():
 
     new_location = signal_location + shift
 
-    cam = Camera(sim)
+    cam = Camera(sim, analog_max=None)
     img = cam.read(immediate=True)
     max_pos = np.unravel_index(np.argmax(img), img.shape)
     assert np.all(max_pos == new_location)
