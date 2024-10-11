@@ -3,8 +3,9 @@ name: Publish to TestPyPI using Poetry
 on:
   push:
     tags:
-      - 'v0*'    # only when the commit was tagged with a tag starting with v0
-      
+      - 'v1*'    # only when the commit was tagged with a tag starting with v0
+  workflow_dispatch:
+    
 jobs:
   build:
     if: github.ref_name == 'master'
