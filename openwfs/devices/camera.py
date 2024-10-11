@@ -24,10 +24,10 @@ class Camera(Detector):
             <https://www.emva.org/wp-content/uploads/GenICam_SFNC_2_3.pdf>` for more details.
 
             The node map should not be used to set properties that are available as properties in the Camera object,
-            such as `duration` (exposure time), `width`, `height`, `binning`, etc.
+            such as ``exposure``, ``width`, ``height``, ``binning``, etc.
 
             Also, the node map should not be used to set properties while the camera is fetching a frame (i.e.,
-            between `trigger()` and calling `result()` on the returned concurrent.futures.Future object).
+            between ``trigger()`` and calling ``result()`` on the returned concurrent.futures.Future object).
 
     Note:
         This class is a thin wrapper around the Harvesters module,
@@ -85,7 +85,7 @@ class Camera(Detector):
         self._camera = self._harvester.create(search_key=search_key)
         nodes = self._camera.remote_device.node_map
 
-        print(dir(nodes))  # for debugging, should go in a separate function
+        # print(dir(nodes))  # for debugging, should go in a separate function
 
         # set triggering to 'Software', so that we can trigger the camera by calling `trigger`.
         # turn off auto exposure so that `duration` accurately reflects the required measurement time.
@@ -170,9 +170,10 @@ class Camera(Detector):
 
     @property
     def duration(self) -> Quantity[u.ms]:
-        """Returns the exposure time in milliseconds if software triggering is used.
-        Returns ∞ if hardware triggering is used.
-        TODO: implement hardware triggering."""
+        """The duration between the trigger and the end of the exposure.
+
+        Returns ∞ · ms if hardware triggering is used."""
+        # TODO: implement hardware triggering.
         return self.exposure.to(u.ms)
 
     @property
@@ -205,10 +206,9 @@ class Camera(Detector):
     @property
     def top(self) -> int:
         """
-        Top position of the camera frame.
+        The vertical start position of the region of interest (in pixels).
 
-        Returns:
-        int: The top position of the camera frame.
+        Note: the camera may round up this value to multiples of some power of 2.
         """
         return self._nodes.OffsetY.value
 
@@ -219,10 +219,9 @@ class Camera(Detector):
     @property
     def left(self) -> int:
         """
-        Left position of the camera frame.
+        The horizontal start position of the region of interest (in pixels).
 
-        Returns:
-        int: The left position of the camera frame.
+        Note: the camera may round up this value to multiples of some power of 2.
         """
         return self._nodes.OffsetX.value
 
@@ -240,10 +239,9 @@ class Camera(Detector):
     @property
     def width(self) -> int:
         """
-        Width of the camera frame.
+        Width of the camera frame, in pixels.
 
-        Returns:
-        int: The width of the camera frame.
+        Note: the camera may round up this value to multiples of some power of 2.
         """
         return self._nodes.Width.value
 
@@ -254,10 +252,9 @@ class Camera(Detector):
     @property
     def height(self) -> int:
         """
-        Height of the camera frame.
+        Height of the camera frame, in pixels.
 
-        Returns:
-        int: The height of the camera frame.
+        Note: the camera may round up this value to multiples of some power of 2.
         """
         return self._nodes.Height.value
 
@@ -269,9 +266,6 @@ class Camera(Detector):
     def pixel_size(self) -> Optional[Quantity[u.um]]:
         """
         Physical pixel size of the camera sensor.
-
-        Returns:
-        Quantity: The pixel size of the camera.
         """
         return self._pixel_size
 
@@ -288,6 +282,8 @@ class Camera(Detector):
 
 
 class _CameraPause:
+    """Context manager for pausing the camera."""
+
     def __init__(self, camera):
         self._camera = camera
 

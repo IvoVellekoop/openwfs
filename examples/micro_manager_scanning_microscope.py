@@ -1,9 +1,12 @@
 """ Micro-Manager simulated scanning microscope
 ======================================================================
 This script simulates a scanning microscope with a pre-set image as a mock specimen.
-The scan parameters can be modified through the Micro-Manager GUI.
-To use this script as a device in Micro-Manager, make sure you have the PyDevice adapter installed and
-select this script in the hardware configuration wizard for the PyDevice component.
+To use it:
+  * make sure  you have the PyDevice adapter installed in Micro-Manager (install the nightly build if you don't have it).
+  * load the micro_manager_scanning_microscope.cfg hardware configuration in Micro-Manager,
+  * locate the micro_manager_scanning_microscope.py in the file open dialog box that popps up.
+  * take a snapshot or turn on live preview, you may need to auto-adjust the color scale
+  * experiment with the scanning microscope parameters such as zoom in the script to see how they affect the image
 """
 
 import astropy.units as u

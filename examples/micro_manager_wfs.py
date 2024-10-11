@@ -1,16 +1,23 @@
-""" Micro-Manager simulated microscope
+""" Micro-Manager simulated wavefront shaping
 ======================================================================
-This script simulates a microscope with a random noise image as a mock specimen.
-The numerical aperture, stage position, and other parameters can be modified through the Micro-Manager GUI.
-To use this script as a device in Micro-Manager, make sure you have the PyDevice adapter installed and
-select this script in the hardware configuration wizard for the PyDevice component.
+This script simulates a full wavefront shaping experiment in the Micro-Manager GUI.
+To use it:
+  * make sure  you have the PyDevice adapter installed in Micro-Manager (install the nightly build if you don't have it).
+  * load the micro_manager_wfs.cfg hardware configuration in Micro-Manager,
+  * locate the micro_manager_wfs.py in the file open dialog box that popps up.
+  * take an initial snapshot, you may need to auto-adjust the color scale
+  * to run the wavefront shaping algorithm, open the device properties, and use the 'wavefront' dropdown to select 'Optimized'
+  * the Micro-Manager GUI will freeze while the algorithm is executed
+  * afterwards, you can take another snapshot to see the optimized image with an improved contrast and resolution.
+  * you can turn on live mode and switch between Flat and Optimized wavefronts.
 
-See the 'Sample Microscope' example for a microscope simulation that runs from Python directly.
+You can also run this script from Python directly, in which case it will display the images in a matplotlib window.
 """
 
 import astropy.units as u
 import numpy as np
 import skimage.data
+
 from openwfs.algorithms import FourierDualReference
 from openwfs.algorithms.utilities import WFSController
 from openwfs.processors import SingleRoi
@@ -38,7 +45,7 @@ src = StaticSource(
 aberrations = StaticSource(data=skimage.data.camera() * (np.pi / 128), extent=2 * numerical_aperture)
 
 # simulate a spatial light modulator illuminated by a gaussian beam
-slm = SLM(slm_shape)  # , field_amplitude=gaussian((100, 100), waist=1.0))
+slm = SLM(slm_shape, field_amplitude=gaussian((100, 100), waist=1.0))
 
 # Create a microscope
 mic = Microscope(
@@ -51,7 +58,7 @@ mic = Microscope(
     incident_field=slm.field,
 )
 
-# simulate shot noise in an 8-bit camera:
+# simulate shot noise in a 16-bit camera:
 saturation = mic.read().mean() * 20
 cam = Camera(
     mic,
