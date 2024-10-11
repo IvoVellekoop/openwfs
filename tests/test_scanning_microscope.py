@@ -2,10 +2,14 @@ import astropy.units as u
 import numpy as np
 import pytest
 
-pytest.importorskip(
-    "nidaqmx",
-    reason="nidaqmx is required for the ScanningMicroscope module, install with pip install nidaqmx",
-)
+from ..openwfs.devices import safe_import
+
+nidaqmx = safe_import("nidaqmx", "nidaq")
+if not nidaqmx:
+    pytest.skip(
+        "nidaqmx is required for the ScanningMicroscope module, install with pip install nidaqmx",
+        allow_module_level=True,
+    )
 
 from ..openwfs.devices import ScanningMicroscope, Axis
 from ..openwfs.devices.galvo_scanner import InputChannel

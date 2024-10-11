@@ -4,10 +4,14 @@ import astropy.units as u
 import cv2
 import pytest
 
-pytest.importorskip("glfw", reason="GLFW is required for the ScanningMicroscope module")
-pytest.importorskip("OpenGL.GL", reason="PyOpenGL is required for OpenGL rendering")
+from ..openwfs.devices import safe_import
 
-import glfw
+glfw = safe_import("glfw", "glfw")
+OpenGL = safe_import("OpenGL", "OpenGL")
+if not glfw or not OpenGL:
+    pytest.skip("GLFW and PyOpenGL are required for the test_slm module", allow_module_level=True)
+
+
 import numpy as np  # for debugging
 
 
