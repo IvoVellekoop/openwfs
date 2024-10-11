@@ -221,7 +221,7 @@ class SingleRoi(MultipleRoi):
             pos (int, int): y,x coordinates of the center of the ROI, measured in pixels from the top-left corner.
                 when omitted, the default value of source.data_shape // 2 is used.
                 note: non-integer positions for the ROI are currently not supported.
-            radius (float): Radius of the ROI. Default is 0.1.
+            radius (float): Radius of the ROI in pixels. Default is 0.1.
             mask_type: Type of the mask. Options are 'disk', 'gaussian', or 'square'. Default is 'disk'.
             waist (float): Defines the width of the Gaussian distribution. Default is 0.5.
         """

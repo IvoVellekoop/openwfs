@@ -1,14 +1,17 @@
 from typing import Tuple, Union, Optional, Dict
 
 import numpy as np
-from numpy import ndarray as nd
 from astropy import units as u
 from matplotlib import pyplot as plt
-from matplotlib.colors import hsv_to_rgb
 from matplotlib.axes import Axes
+from matplotlib.colors import hsv_to_rgb
+from numpy import ndarray as nd
 
 from .core import Detector
 from .utilities import get_extent
+
+
+# TODO: needs review and documentation. Remove single-use functions, simplify code.
 
 
 def grab_and_show(cam: Detector, axis=None):
@@ -169,6 +172,7 @@ def complex_colorwheel(
 ):
     """
     Create an rgb image for a colorwheel representing the complex unit circle.
+    TODO: needs review
 
     Args:
         ax: Matplotlib Axes.

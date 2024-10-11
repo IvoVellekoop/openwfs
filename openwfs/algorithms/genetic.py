@@ -2,7 +2,7 @@ import itertools
 
 import numpy as np
 
-from .utilities import WFSResult
+from .utilities import WFSResult, DummyProgressBar
 from ..core import Detector, PhaseSLM
 
 
@@ -13,21 +13,28 @@ class SimpleGenetic:
     in [1] and [2].
 
     The algorithm performs the following steps:
-    1. Initialize all wavefronts in the population with random phases
-    2. For each generation
-        1. Determine the feedback signal for each wavefront
-        2. Select the 'elite_size' best wavefronts to keep. Replace the rest:
-            * If the elite wavefronts are too similar (> 97% identical elements),
-            randomly generate the new wavefronts
-            * Otherwise, generate new wavefronts by randomly selecting two elite wavefronts
-            and mixing them randomly (element-wise).
-            Then perform a mutation that replaces a fraction (`mutation_probability`) of the
-            elements by a new value.
 
-    [1]: Conkey D B, Brown A N, Caravaca-Aguirre A M and Piestun R 'Genetic algorithm optimization
-    for focusing through turbid media in noisy environments' Opt. Express 20 4840–9 (2012).
-    [2]: Benjamin R Anderson et al 'A modular GUI-based program for genetic algorithm-based
-    feedback-assisted wavefront shaping', J. Phys. Photonics 6 045008 (2024).
+    1. Initialize all wavefronts in the population with random phases
+
+    2. For each generation:
+
+      2.1. Determine the feedback signal for each wavefront.
+
+      2.2. Select the 'elite_size' best wavefronts to keep. Replace the rest with new wavefronts.
+        2.2.1 If the elite wavefronts are too similar (> 97% identical elements),
+              randomly generate the new wavefronts.
+
+        2.2.2 Otherwise, generate new wavefronts by randomly selecting two elite wavefronts
+              and mixing them randomly (element-wise).
+              Then perform a mutation that replaces a fraction (`mutation_probability`) of the
+              elements by a new value.
+
+    References
+    ----------
+    [^1]: Conkey D B, Brown A N, Caravaca-Aguirre A M and Piestun R 'Genetic algorithm optimization
+          for focusing through turbid media in noisy environments' Opt. Express 20 4840–9 (2012).
+    [^2]: Benjamin R Anderson et al. 'A modular GUI-based program for genetic algorithm-based
+          feedback-assisted wavefront shaping', J. Phys. Photonics 6 045008 (2024).
     """
 
     def __init__(
@@ -51,6 +58,7 @@ class SimpleGenetic:
             generations (int): The number of generations
             mutation_probability (int): Fraction of elements in the offspring to mutate
             generator: a `np.random.Generator`, defaults to np.random.default_rng()
+
         """
         if np.prod(feedback.data_shape) != 1:
             raise ValueError("Only scalar feedback is supported")
@@ -66,7 +74,7 @@ class SimpleGenetic:
     def _generate_random_phases(self, shape):
         return self.generator.random(size=shape, dtype=np.float32) * (2 * np.pi)
 
-    def execute(self, *, progress_bar=None) -> WFSResult:
+    def execute(self, *, progress_bar=DummyProgressBar()) -> WFSResult:
         """Executes the algorithm.
         Args:
             progress_bar: Optional tqdm-like progress bar for displaying progress
@@ -76,8 +84,7 @@ class SimpleGenetic:
         population = self._generate_random_phases((self.population_size, *self.shape))
 
         # initialize the progress bar if available
-        if progress_bar is not None:
-            progress_bar.total = self.generations * self.population_size
+        progress_bar.total = self.generations * self.population_size
 
         for i in itertools.count():
             # Try all phase patterns
@@ -85,8 +92,7 @@ class SimpleGenetic:
             for p in range(self.population_size):
                 self.slm.set_phases(population[p])
                 self.feedback.trigger(out=measurements[p, ...])
-                if progress_bar is not None:
-                    progress_bar.update(1)
+                progress_bar.update()
 
             self.feedback.wait()
 

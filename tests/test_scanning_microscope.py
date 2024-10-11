@@ -186,30 +186,4 @@ def test_park_beam(bidirectional):
     assert np.allclose(voltages[1, :], voltages[1, 0])  # all voltages should be the same
     assert np.allclose(voltages[0, :], voltages[0, 0])  # all voltages should be the same
 
-
-# test zooming
-# ps = scanner.pixel_size
-# scanner.zoom = 2.0
-# assert np.allclose(scanner.pixel_size, ps * 0.5)
-# assert scanner.width == width
-# assert scanner.height == height
-# assert scanner.data_shape == (height, width)
-# assert scanner.left == np.floor(2 * left + 0.5 * width)
-# assert scanner.top == np.floor(2 * top + 0.5 * height)
-
-# zoomed = scanner.read().astype('float32') - 0x8000
-# scaled = place(zoomed.shape, 0.5 * ps, set_pixel_size(roi, ps))
-# assert np.allclose(get_pixel_size(scaled), 0.5 * ps)
-# step = zoomed[1, 1] - zoomed[0, 0]
-# assert np.allclose(zoomed, scaled - step / 2, atol=0.5 * step)
-
-# scanner.zoom = 1.0
-# reset_zoom = scanner.read().astype('float32') - 0x8000
-# assert np.allclose(reset_zoom, roi)
-
-# test setting dwell time
-# original_duration = scanner.duration
-# scanner.delay = 1.0
-# scanner.dwell_time = scanner.dwell_time * 2.0
-# assert scanner.duration == original_duration * 2.0
-# assert scanner.delay == 0.5
+    # TODO: add test for zooming

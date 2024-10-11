@@ -43,13 +43,16 @@ html_title = "OpenWFS - a library for conducting and simulating wavefront shapin
 latex_elements = {
     "preamble": r"""
         \usepackage{authblk}
+        \usepackage{etoolbox}        % Reduce font size for all tables
+        \AtBeginEnvironment{tabular}{\small}
      """,
     "maketitle": r"""
         \author[1]{Daniël~W.~S.~Cox}
         \author[1]{Tom~Knop}
         \author[1,2]{Harish~Sasikumar}
         \author[1]{Ivo~M.~Vellekoop} 
-        \affil[1]{University of Twente, Biomedical Photonic Imaging, TechMed Institute, P. O. Box 217, 7500 AE Enschede, The Netherlands}
+        \affil[1]{University of Twente, Biomedical Photonic Imaging, TechMed Institute, P. O. Box 217,
+         7500 AE Enschede, The Netherlands}
         \affil[2]{Imec (Netherlands), Holst Centre (HTC-31), 5656 AE, Eindhoven, The Netherlands}
         \publishers{%
             \normalfont\normalsize%
@@ -58,19 +61,23 @@ latex_elements = {
                 Wavefront shaping (WFS) is a technique for controlling the propagation of light.
                 With applications ranging from microscopy to free-space telecommunication, 
                 this research field is expanding rapidly. 
-                It stands out that many of the important breakthroughs are made by developing better software that
-                incorporates increasingly advanced physical models and algorithms.
-                Typical control software involves individual code for scanning microscopy, image processing, 
-                optimization algorithms, low-level hardware control, calibration and troubleshooting, 
-                and simulations for testing new algorithms. 
+                As the field advances, it stands out that many breakthroughs are driven by the development of better 
+                software that incorporates increasingly advanced physical models and algorithms.
+                
+                Typical WFS software involves a complex combination of low-level hardware control, signal processing, 
+                calibration, troubleshooting, simulation, and the wavefront shaping algorithm itself.
+                This complexity makes it hard to compare different algorithms and to extend existing software with new
+                hardware or algorithms. Moreover, the complexity of the software can be a significant barrier for end
+                users of microscopes to adopt wavefront shaping.
 
-                The complexity of the many different aspects of wavefront shaping software, however, 
-                is becoming a bottleneck for further developments in the field, as well as for end-user adoption.
-                OpenWFS addresses these challenges by providing a Python module that coherently integrates
-                all aspects of wavefront shaping code. The module is designed to be modular and easy to expand.
-                It incorporates elements for hardware control, software simulation, and automated troubleshooting. 
-                Using these elements, the actual wavefront shaping algorithm and its automated tests can be written
-                in just a few lines of code.
+                OpenWFS addresses these challenges by providing a modular Python library that 
+                separates hardware control from the wavefront shaping algorithm itself. 
+                Using these elements, a wavefront shaping algorithm can be written
+                in a minimal amount of code, with OpenWFS taking care of low-level hardware control, synchronization,
+                and troubleshooting. Algorithms can be used on different hardware or in a completely
+                simulated environment without changing the code. Moreover, we provide full integration with
+                the \textmu Manager microscope control software, enabling wavefront shaping experiments to be
+                executed from a user-friendly graphical user interface. 
             }
         }
         \maketitle
@@ -128,11 +135,11 @@ sphinx_gallery_conf = {
 autodoc_mock_imports = ["PyOpenGL", "OpenGL"]
 
 
-## Hide some classes that are not production ready yet
-def skip(app, what, name, obj, skip, options):
-    if name in ("WFSController", "Gain"):
+# Hide some classes that are not production ready yet
+def skip(_app, _what, name, _obj, do_skip, _options):
+    if name in ("Gain"):
         return True
-    return skip
+    return do_skip
 
 
 def visit_citation(self, node):
@@ -141,7 +148,7 @@ def visit_citation(self, node):
     self.add(f'<a name="{id}"></a>')
 
 
-def visit_label(self, node):
+def visit_label(_self, _node):
     """Patch-in function for markdown builder to support citations."""
     pass
 

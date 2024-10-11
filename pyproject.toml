@@ -1,8 +1,8 @@
 [tool.poetry]
 name = "openwfs"
-version = "0.1.0rc3"
+version = "0.1.0rc5"
 description = 'A libary for performing wavefront shaping experiments and simulations'
-authors = ["Ivo Vellekoop <i.m.vellekoop@utwente.nl>", "Daniël Cox", "Jeroen Doornbos"]
+authors = ["Ivo Vellekoop <i.m.vellekoop@utwente.nl>", "Jeroen Doornbos", "Daniël Cox"]
 license = "BSD-3-Clause"
 readme = "README.md"
 repository = "https://github.com/ivovellekoop/openwfs"
@@ -37,15 +37,19 @@ glfw = { version = "^2.5.9", optional = true }
 [tool.poetry.extras]
 # optional dependencies for hardware components
 # these are not required for the core functionality of the library
-# to install, use pip install openwfs[nidaq, genicam]
-# or poetry install --extras "nidaq" --extras "genicam"
+# to install, use pip install openwfs[nidaq, genicam, opengl]
+# or poetry install --extras "nidaq" --extras "genicam" -- extras "opengl"
 nidaq = ["nidaqmx"]
 genicam = ["harvesters"]
 opengl = ["PyOpenGL", "glfw"]
+all = ["nidaqmx", "harvesters", "PyOpenGL", "glfw"]
+
 
 [tool.black]
 line-length = 120
 
+# for the development process, we also want the docs and dev dependencies
+# these can only be installed through poetry using --with dev and --with docs
 
 [tool.poetry.group.dev]
 optional = true
@@ -72,4 +76,5 @@ sphinx-autodoc-typehints = ">=2.2.0"
 sphinxcontrib-bibtex = ">=2.6.0"
 sphinx-markdown-builder = ">=0.6.6"
 sphinx-gallery = ">=0.15.0"
+
 

@@ -3,31 +3,16 @@ from typing import Union, Optional, Sequence
 from weakref import WeakSet
 
 import astropy.units as u
-import glfw
 import numpy as np
 from astropy.units import Quantity
 from numpy.typing import ArrayLike
 
 from .context import Context
+from .. import safe_import
 from ...simulation import PhaseToField
 
-try:
-    import OpenGL.GL as GL
-    from OpenGL.GL import (
-        glViewport,
-        glClearColor,
-        glClear,
-        glGenBuffers,
-        glReadBuffer,
-        glReadPixels,
-        glFinish,
-        glBindBuffer,
-        glBufferData,
-        glBindBufferBase,
-        glBindFramebuffer,
-    )
-except AttributeError:
-    warnings.warn("OpenGL not found, SLM will not work")
+GL = safe_import("OpenGL.GL", "opengl")
+glfw = safe_import("glfw", "opengl")
 from .patch import FrameBufferPatch, Patch, VertexArray
 from ...core import PhaseSLM, Actuator, Device, Detector
 from ...utilities import Transform
@@ -206,7 +191,7 @@ class SLM(Actuator, PhaseSLM):
         """Updates shape and refresh rate to the actual values of the window.
 
         Note that these values are in pixels, which may be different from the window size because the window size is
-        in screen coordinates, which may not always the same as pixels (e. g. on a retina display).
+        in screen coordinates, which may not always the same as pixels (e.g. on a retina display).
 
         For windowed SLMs, the refresh rate property is set to the refresh rate of the primary monitor.
 
@@ -234,7 +219,7 @@ class SLM(Actuator, PhaseSLM):
         # re-use the lookup table if possible, otherwise create a default one ranging from 0 to 2 ** bit_depth-1.
         old_lut = self._frame_buffer.lookup_table if self._frame_buffer is not None else None
         self._frame_buffer = FrameBufferPatch(self, old_lut, current_bit_depth)
-        glViewport(0, 0, self._shape[1], self._shape[0])
+        GL.glViewport(0, 0, self._shape[1], self._shape[0])
         # tell openGL to wait for the vertical retrace when swapping buffers (it appears need to do this
         # after creating the frame buffer)
         glfw.swap_interval(1)
@@ -290,8 +275,8 @@ class SLM(Actuator, PhaseSLM):
             glfw.set_window_pos(self._window, self._position[1], self._position[0])
 
         with self._context:
-            self._globals = glGenBuffers(1)  # create buffer for storing globals
-            glClearColor(0.0, 0.0, 0.0, 1.0)  # set clear color to black
+            self._globals = GL.glGenBuffers(1)  # create buffer for storing globals
+            GL.glClearColor(0.0, 0.0, 0.0, 1.0)  # set clear color to black
             self._on_resize()
 
     @property
@@ -407,20 +392,22 @@ class SLM(Actuator, PhaseSLM):
 
         Note:
             At the moment, :meth:`~.SLM.update` blocks until all OpenGL commands are processed,
-            and a vertical retrace occurs (i. e., the hardware signals the start of a new frame).
+            and a vertical retrace occurs (i.e., the hardware signals the start of a new frame).
             This behavior may change in the future and should not be relied on.
             Instead, use the automatic synchronization mechanism to synchronize detectors with
             the SLM hardware.
         """
         with self._context:
             # first draw all patches into the frame buffer
-            glBindFramebuffer(GL.GL_FRAMEBUFFER, self._frame_buffer._frame_buffer)  # noqa - ok to access 'friend class'
-            glClear(GL.GL_COLOR_BUFFER_BIT)
+            GL.glBindFramebuffer(
+                GL.GL_FRAMEBUFFER, self._frame_buffer._frame_buffer
+            )  # noqa - ok to access 'friend class'
+            GL.glClear(GL.GL_COLOR_BUFFER_BIT)
             for patch in self.patches:
                 patch._draw()  # noqa - ok to access 'friend class'
 
             # then draw the frame buffer to the screen
-            glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
+            GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
             self._frame_buffer._draw()  # noqa - ok to access 'friend class'
 
             glfw.poll_events()  # process window messages
@@ -439,7 +426,7 @@ class SLM(Actuator, PhaseSLM):
 
             # wait for buffer swap to complete (this should be directly after a vsync, so returning from this
             # function _should_ be synced with the vsync)
-            glFinish()
+            GL.glFinish()
 
         # call _start again to update the _end_time_ns property,
         # since some time has passed waiting for the vsync
@@ -531,9 +518,9 @@ class SLM(Actuator, PhaseSLM):
 
         padded = transform.opencl_matrix()
         with self._context:
-            glBindBuffer(GL.GL_UNIFORM_BUFFER, self._globals)
-            glBufferData(GL.GL_UNIFORM_BUFFER, padded.size * 4, padded, GL.GL_STATIC_DRAW)
-            glBindBufferBase(GL.GL_UNIFORM_BUFFER, 1, self._globals)  # connect buffer to binding point 1
+            GL.glBindBuffer(GL.GL_UNIFORM_BUFFER, self._globals)
+            GL.glBufferData(GL.GL_UNIFORM_BUFFER, padded.size * 4, padded, GL.GL_STATIC_DRAW)
+            GL.glBindBufferBase(GL.GL_UNIFORM_BUFFER, 1, self._globals)  # connect buffer to binding point 1
 
     @property
     def lookup_table(self) -> Sequence[int]:
@@ -634,10 +621,10 @@ class FrontBufferReader(Detector):
 
     def _fetch(self, *args, **kwargs) -> np.ndarray:
         with self._context:
-            glReadBuffer(GL.GL_FRONT)
+            GL.glReadBuffer(GL.GL_FRONT)
             shape = self.data_shape
             data = np.empty(shape, dtype="uint8")
-            glReadPixels(0, 0, shape[1], shape[0], GL.GL_RED, GL.GL_UNSIGNED_BYTE, data)
+            GL.glReadPixels(0, 0, shape[1], shape[0], GL.GL_RED, GL.GL_UNSIGNED_BYTE, data)
             # flip data upside down, because the OpenGL convention is to have the origin at the bottom left,
             # but we want it at the top left (like in numpy)
             return data[::-1, :]

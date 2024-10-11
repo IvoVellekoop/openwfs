@@ -2,6 +2,7 @@ import astropy.units as u
 import numpy as np
 import pytest
 
+from . import complex_random
 from .test_simulation import phase_response_test_function, lookup_table_test_function
 from ..openwfs.algorithms import StepwiseSequential
 from ..openwfs.algorithms.troubleshoot import (
@@ -14,8 +15,31 @@ from ..openwfs.algorithms.troubleshoot import (
     measure_modulated_light,
     measure_modulated_light_dual_phase_stepping,
 )
+from ..openwfs.algorithms.utilities import analyze_phase_stepping
 from ..openwfs.processors import SingleRoi
+from ..openwfs.simulation import Camera
 from ..openwfs.simulation import SimulatedWFS, StaticSource, SLM, Microscope
+
+
+@pytest.mark.parametrize("phase_steps", [5, 6, 10, 20])
+@pytest.mark.parametrize("noise", [0.0, 0.5, 1.0, 2.0, 4.0])
+def test_analyze_phase_stepping(phase_steps, noise):
+    """Test the analyze_phase_stepping function"""
+    # TODO: find out why there is a (small) systematic error when the noise is high
+    # Construct a perfect phase stepping signal
+    np.random.seed(123)
+    t = complex_random((10000, 1))
+    ref = np.exp(np.arange(phase_steps) * 2j * np.pi / phase_steps)
+    signal = np.abs(ref + t) ** 2
+    signal += np.random.normal(scale=noise, size=signal.shape)
+    result = analyze_phase_stepping(signal, axis=1)
+    # the signal energy for a signal 2·cos(φ) is 2 P  (with P the number of phase steps), distributed over 2 bins,
+    # giving P per bin.
+    # the noise energy is σ²·P, distributed over P bins, giving σ² per bin.
+    tolerance = 4 / np.sqrt(t.size)
+    theoretical_fidelity = phase_steps / (phase_steps + noise**2)
+    print(f"noise fidelity. theoretical: {theoretical_fidelity}  measured: {result.fidelity_noise}")
+    assert np.isclose(result.fidelity_noise, theoretical_fidelity, rtol=tolerance)
 
 
 def test_signal_std():
@@ -70,7 +94,7 @@ def test_find_pixel_shift():
 
 def test_field_correlation():
     """
-    Test the field correlation, i. e. g_1 normalized first order correlation function.
+    Test the field correlation, i.e. g_1 normalized first order correlation function.
     """
     a = np.zeros(shape=(2, 3))
     a[1, 2] = 2.0
@@ -93,7 +117,7 @@ def test_field_correlation():
 
 def test_frame_correlation():
     """
-    Test the frame correlation, i. e. g_2 normalized second order correlation function.
+    Test the frame correlation, i.e. g_2 normalized second order correlation function.
     Test the following:
         g_2 correlation with self == 1/3 for distribution from `random.rand`
         g_2 correlation with other == 0
@@ -214,7 +238,7 @@ def test_fidelity_phase_calibration_ssa_with_noise(n_y, n_x, phase_steps, gaussi
         aberrations=aberration,
         wavelength=800 * u.nm,
     )
-    cam = sim.get_camera(analog_max=1e4, gaussian_noise_std=gaussian_noise_std)
+    cam = Camera(sim, analog_max=1e4, gaussian_noise_std=gaussian_noise_std)
     roi_detector = SingleRoi(cam, radius=0)  # Only measure that specific point
 
     # Define and run WFS algorithm
@@ -253,7 +277,7 @@ def test_measure_modulated_light_dual_phase_stepping_with_noise(num_blocks, phas
     # Aberration and image source
     img = np.zeros((64, 64), dtype=np.int16)
     img[32, 32] = 100
-    src = StaticSource(img, 200 * u.nm)
+    src = StaticSource(img, pixel_size=200 * u.nm)
 
     # SLM, simulation, camera, ROI detector
     slm = SLM(shape=(100, 100))
@@ -264,7 +288,7 @@ def test_measure_modulated_light_dual_phase_stepping_with_noise(num_blocks, phas
         numerical_aperture=1.0,
         wavelength=800 * u.nm,
     )
-    cam = sim.get_camera(analog_max=1e4, gaussian_noise_std=gaussian_noise_std)
+    cam = Camera(sim, analog_max=1e4, gaussian_noise_std=gaussian_noise_std)
     roi_detector = SingleRoi(cam, radius=0)  # Only measure that specific point
 
     # Measure the amount of modulated light (no non-modulated light present)
@@ -316,7 +340,7 @@ def test_measure_modulated_light_dual_phase_stepping_with_noise(
         non_modulated_field_fraction=non_modulated_field,
     )
     sim = Microscope(source=src, incident_field=slm.field, wavelength=800 * u.nm)
-    cam = sim.get_camera(analog_max=1e3, gaussian_noise_std=gaussian_noise_std)
+    cam = Camera(sim, analog_max=1e3, gaussian_noise_std=gaussian_noise_std)
     roi_detector = SingleRoi(cam, radius=0)  # Only measure that specific point
 
     # Measure the amount of modulated light (no non-modulated light present)

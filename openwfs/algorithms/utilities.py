@@ -12,9 +12,9 @@ class WFSResult:
     Attributes:
         t (ndarray): Measured transmission matrix. If multiple targets were used, the first dimension(s) of `t`
             denote the columns of the transmission matrix (`a` indices), and the last dimensions(s) denote the targets,
-            i. e., the rows of the transmission matrix (`b` indices).
+            i.e., the rows of the transmission matrix (`b` indices).
         axis (int): Number of dimensions used for denoting a single column of the transmission matrix
-            (e. g., 2 dimensions representing the x and y coordinates of the SLM pixels).
+            (e.g., 2 dimensions representing the x and y coordinates of the SLM pixels).
         fidelity_noise (ndarray): The estimated loss in fidelity caused by the limited SNR (for each target).
         fidelity_amplitude (ndarray): Estimated reduction of the fidelity due to phase-only modulation (for each target)
             (≈ π/4 for fully developed speckle).
@@ -42,7 +42,7 @@ class WFSResult:
             t(ndarray): measured transmission matrix.
             axis(int):
                 number of dimensions used for denoting a single columns of the transmission matrix
-                (e. g. 2 dimensions representing the x and y coordinates of the SLM pixels)
+                (e.g. 2 dimensions representing the x and y coordinates of the SLM pixels)
             fidelity_noise(ArrayLike):
                 the estimated loss in fidelity caused by the the limited snr (for each target).
             fidelity_amplitude(ArrayLike):
@@ -82,7 +82,7 @@ class WFSResult:
         noise_warning = "OK" if self.fidelity_noise > 0.5 else "WARNING low signal quality."
         amplitude_warning = "OK" if self.fidelity_amplitude > 0.5 else "WARNING uneven contribution of optical modes."
         calibration_fidelity_warning = (
-            "OK" if self.fidelity_calibration > 0.5 else ("WARNING non-linear phase response, check " "lookup table.")
+            "OK" if self.fidelity_calibration > 0.5 else "WARNING non-linear phase response, check " "lookup table."
         )
         return f"""
         Wavefront shaping results:
@@ -143,8 +143,12 @@ class WFSResult:
             fidelity_calibration=weighted_average("fidelity_calibration"),
         )
 
+    @property
+    def snr(self):
+        return 1.0 / (1.0 / self.fidelity_noise - 1.0)
 
-def analyze_phase_stepping(measurements: np.ndarray, axis: int, A: Optional[float] = None):
+
+def analyze_phase_stepping(measurements: np.ndarray, axis: int):
     """Analyzes the result of phase stepping measurements, returning matrix `t` and noise statistics
 
     This function assumes that all measurements were made using the same reference field `A`
@@ -154,14 +158,11 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int, A: Optional[floa
     Args:
         measurements(ndarray): array of phase stepping measurements.
             The array holds measured intensities
-            with the first one or more dimensions corresponding to the segments(pixels) of the SLM,
+            with the first one or more dimensions (a1, a2, ...) corresponding to the segments of the SLM,
             one dimension corresponding to the phase steps,
-            and the last zero or more dimensions corresponding to the individual targets
+            and the last zero or more dimensions (b1, b2, ...) corresponding to the individual targets
             where the feedback was measured.
         axis(int): indicates which axis holds the phase steps.
-        A(Optional[float]): magnitude of the reference field.
-            This value is used to correctly normalize the returned transmission matrix.
-            When missing, the value of `A` is estimated from the measurements.
 
     With `phase_steps` phase steps, the measurements are given by
 
@@ -175,33 +176,22 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int, A: Optional[floa
 
         \\frac{1}{phase_{steps}} \\sum I_p  \\exp(-i 2\\pi p / phase_{steps}) = A^* B
 
-    The value of A^* B for each set of measurements is stored in the `field` attribute of the return
-    value.
-    Other attributes hold an estimate of the signal-to-noise ratio,
-    and an estimate of the maximum enhancement that can be expected
-    if these measurements are used for wavefront shaping.
+    Returns:
+        WFSResult: The result of the analysis. The attribute `t` holds the complex transmission matrix.
+            Note that the dimensions of t are reversed with respect to the input, so t has shape b1×b2×...×a1×a2×...
+            Other attributes hold fidelity estimates (see WFSResult).
     """
     phase_steps = measurements.shape[axis]
-    n = int(np.prod(measurements.shape[:axis]))
-    # M = np.prod(measurements.shape[axis + 1:])
-    segments = tuple(range(axis))
+    a_count = int(np.prod(measurements.shape[:axis]))
+    a_axes = tuple(range(axis))
 
     # Fourier transform the phase stepping measurements
-    t_f_raw = np.fft.fft(measurements, axis=axis) / phase_steps
-
-    if A is None:  # reference field strength not known: estimate from data
-        t_abs = np.abs(np.take(t_f_raw, 1, axis=axis))
-        offset = np.take(t_f_raw, 0, axis=axis)
-        a_plus_b = np.sqrt(offset + 2.0 * t_abs)
-        a_minus_b = np.sqrt(offset - 2.0 * t_abs)
-        A = 0.5 * np.mean(a_plus_b + a_minus_b)
-
-    t_f = t_f_raw / A
+    t_f = np.fft.fft(measurements, axis=axis) / phase_steps
     t = np.take(t_f, 1, axis=axis)
 
     # compute the effect of amplitude variations.
     # for perfectly developed speckle, and homogeneous illumination, this factor will be pi/4
-    amplitude_factor = np.mean(np.abs(t), segments) ** 2 / np.mean(np.abs(t) ** 2, segments)
+    fidelity_amplitude = np.mean(np.abs(t), a_axes) ** 2 / np.mean(np.abs(t) ** 2, a_axes)
 
     # estimate the calibration error
     # we first construct a matrix that can be used to fit
@@ -215,6 +205,9 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int, A: Optional[floa
         cc = ff_inv @ np.take(t_f, k, axis=axis).ravel()
         signal_energy = signal_energy + np.sum(np.abs(ff @ cc) ** 2)
         c[k] = cc[0]
+    fidelity_calibration = np.abs(c[1]) ** 2 / np.sum(np.abs(c[1:]) ** 2)
+
+    # TODO: use the pinv fit to estimate the signal strength (requires special treatment of offset)
 
     # Estimate the error due to noise
     # The signal consists of the response with incorrect modulation,
@@ -224,113 +217,120 @@ def analyze_phase_stepping(measurements: np.ndarray, axis: int, A: Optional[floa
     # average over all targets to get the most accurate result (assuming all targets are similar)
     axes = tuple([i for i in range(t_f.ndim) if i != axis])
     energies = np.sum(np.abs(t_f) ** 2, axis=axes)
-    offset_energy = energies[0]
     total_energy = np.sum(energies)
+    offset_energy = energies[0]
     signal_energy = energies[1] + energies[-1]
     if phase_steps > 3:
         # estimate the noise energy as the energy that is not explained
         # by the signal or the offset.
         noise_energy = (total_energy - signal_energy - offset_energy) / (phase_steps - 3)
-        noise_factor = np.abs(np.maximum(signal_energy - 2 * noise_energy, 0.0) / signal_energy)
+        fidelity_noise = np.abs(np.maximum(signal_energy - 2 * noise_energy, 0.0) / signal_energy)
     else:
-        noise_factor = 1.0  # cannot estimate reliably
+        fidelity_noise = 1.0  # cannot estimate reliably
 
-    calibration_fidelity = np.abs(c[1]) ** 2 / np.sum(np.abs(c[1:]) ** 2)
+    # convert from t_ab to t_ba form
+    a_destination = np.array(a_axes) + t.ndim - len(a_axes)
+    t = np.moveaxis(t, a_axes, a_destination)
 
     return WFSResult(
         t,
         axis=axis,
-        fidelity_amplitude=amplitude_factor,
-        fidelity_noise=noise_factor,
-        fidelity_calibration=calibration_fidelity,
-        n=n,
+        fidelity_amplitude=fidelity_amplitude,
+        fidelity_noise=fidelity_noise,
+        fidelity_calibration=fidelity_calibration,
+        n=a_count,
     )
 
 
 class WFSController:
     """
-    Controller for Wavefront Shaping (WFS) operations using a specified algorithm in the MicroManager environment.
+    EXPERIMENTAL - Controller for Wavefront Shaping (WFS) operations using a specified algorithm in the Micro-Manager environment.
+
+    Usage:
+
+    .. code-block:: python
+
+        # not wrapped:
+        alg = FourierDualReference(feedback, slm)
+
+        # wrapped
+        alg = WFSController(FourierDualReference, feedback, slm)
+
+    Under the hood, a dynamic class is created that inherits both ``WFSController`` and ``FourierDualReference)``.
+    Effectively this is similar to having ``class WFSController(FourierDualReference)`` inheritance.
+
+    Since Micro-Manager / PyDevice does not yet support buttons to activate actions, a WFS experiment is started by setting
+    the trigger attribute :attr:`wavefront` to the value State.OPTIMIZED
+    It adds attributes for inspecting the statistics of the last WFS optimization.
     Manages the state of the wavefront and executes the algorithm to optimize and apply wavefront corrections, while
     exposing all these parameters to MicroManager.
     """
 
     class State(Enum):
-        FLAT_WAVEFRONT = 0
-        SHAPED_WAVEFRONT = 1
+        FLAT = 0
+        OPTIMIZED = 1
+        REOPTIMIZE = 2
 
-    def __init__(self, algorithm):
+    def __init__(self, _algorithm_class, *args, **kwargs):
         """
         Args:
             algorithm: An instance of a wavefront shaping algorithm.
         """
-        self.algorithm = algorithm
-        self._wavefront = WFSController.State.FLAT_WAVEFRONT
-        self._result = None
-        self._noise_factor = None
-        self._amplitude_factor = None
-        self._estimated_enhancement = None
-        self._calibration_fidelity = None
-        self._estimated_optimized_intensity = None
-        self._snr = None  # Average SNR. Computed when wavefront is computed.
-        self._optimized_wavefront = None
-        self._recompute_wavefront = False
-        self._feedback_enhancement = None
+        super().__init__(*args, **kwargs)
+        self._wavefront = WFSController.State.FLAT
+        self._result: Optional[WFSResult] = None
+        self._feedback_ratio = 0.0
         self._test_wavefront = False  # Trigger to test the optimized wavefront
-        self._run_troubleshooter = False  # Trigger troubleshooter
-        self.dark_frame = None
-        self.before_frame = None
+
+    def __new__(cls, algorithm_class, *args, **kwargs):
+        """Dynamically creates a class of type `class X(WFSController, algorithm_class` and returns an instance of that class"""
+
+        # Dynamically create the class using type()
+        class_name = "WFSController_" + algorithm_class.__name__
+        DynamicClass = type(class_name, (cls, algorithm_class), {})
+        instance = super(WFSController, cls).__new__(DynamicClass)
+        return instance
 
     @property
     def wavefront(self) -> State:
         """
-        Gets the current wavefront state.
-
-        Returns:
-            State: The current state of the wavefront, either FLAT_WAVEFRONT or SHAPED_WAVEFRONT.
+        Enables switching between FLAT or OPTIMIZED wavefront on the SLM.
+        Setting this state to OPTIMIZED causes the algorithm execute if the optimized wavefront is not yet computed.
+        Setting this state to REOPTIMIZE always causes the algorithm to recompute the wavefront. The state switches to OPTIMIZED after executioin of the algorithm.
+        For multi-target optimizations, OPTIMIZED shows the wavefront for the first target.
         """
         return self._wavefront
 
     @wavefront.setter
     def wavefront(self, value):
-        """
-        Sets the wavefront state and applies the corresponding phases to the SLM.
-
-        Args:
-            value (State): The desired state of the wavefront to set.
-        """
-        self._wavefront = value
-        if value == WFSController.State.FLAT_WAVEFRONT:
-            self.algorithm.slm.set_phases(0.0)
-        else:
-            if self._recompute_wavefront or self._optimized_wavefront is None:
-                # select only the wavefront and statistics for the first target
-                result = self.algorithm.execute().select_target(0)
-                self._optimized_wavefront = -np.angle(result.t)
-                self._noise_factor = result.fidelity_noise
-                self._amplitude_factor = result.fidelity_amplitude
-                self._estimated_enhancement = result.estimated_enhancement
-                self._calibration_fidelity = result.fidelity_calibration
-                self._estimated_optimized_intensity = result.estimated_optimized_intensity
-                self._snr = 1.0 / (1.0 / result.fidelity_noise - 1.0)
-                self._result = result
-            self.algorithm.slm.set_phases(self._optimized_wavefront)
+        self._wavefront = WFSController.State(value)
+        if value == WFSController.State.FLAT:
+            self.slm.set_phases(0.0)
+        elif value == WFSController.State.OPTIMIZED:
+            if self._result is None:
+                # run the algorithm
+                self._result = self.execute().select_target(0)
+            self.slm.set_phases(self.optimized_wavefront)
+        else:  # value == WFSController.State.REOPTIMIZE:
+            self._result = None  # remove stored result
+            self.wavefront = WFSController.State.OPTIMIZED  # recompute the wavefront
 
     @property
-    def noise_factor(self) -> float:
+    def fidelity_noise(self) -> float:
         """
         Returns:
-            float: noise factor: the estimated loss in fidelity caused by the limited snr.
+            float: the estimated loss in fidelity caused by the limited snr.
         """
-        return self._noise_factor
+        return self._result.fidelity_noise if self._result is not None else 0.0
 
     @property
-    def amplitude_factor(self) -> float:
+    def fidelity_amplitude(self) -> float:
         """
         Returns:
-            float: amplitude factor: estimated reduction of the fidelity due to phase-only
+            float: estimated reduction of the fidelity due to phase-only
             modulation (≈ π/4 for fully developed speckle)
         """
-        return self._amplitude_factor
+        return self._result.fidelity_amplitude if self._result is not None else 0.0
 
     @property
     def estimated_enhancement(self) -> float:
@@ -339,15 +339,15 @@ class WFSController:
             float: estimated enhancement: estimated ratio <after>/<before>  (with <> denoting
             ensemble average)
         """
-        return self._estimated_enhancement
+        return self._result.estimated_enhancement if self._result is not None else 0.0
 
     @property
-    def calibration_fidelity(self) -> float:
+    def fidelity_calibration(self) -> float:
         """
         Returns:
             float: non-linearity.
         """
-        return self._calibration_fidelity
+        return self._result.fidelity_calibration if self._result is not None else 0.0
 
     @property
     def estimated_optimized_intensity(self) -> float:
@@ -355,52 +355,62 @@ class WFSController:
         Returns:
             float: estimated optimized intensity.
         """
-        return self._estimated_optimized_intensity
+        return self._result.estimated_optimized_intensity.mean() if self._result is not None else 0.0
 
     @property
     def snr(self) -> float:
         """
-        Gets the signal-to-noise ratio (SNR) of the optimized wavefront.
+        Returns:
+            float: The average signal-to-noise ratio (SNR) of the wavefront optimization measurements.
+        """
+        return self._result.snr if self._result is not None else 0.0
+
+    @property
+    def optimized_wavefront(self) -> np.ndarray:
+        return -np.angle(self._result.t) if self._result is not None else 0.0
+
+    @property
+    def feedback_ratio(self) -> float:
+        """The ratio of average feedback signals after and before optimization.
+
+        This value is calculated when the :attr:`test_wavefront` trigger is set to True.
+
+        Note: this is *not* the enhancement factor, because the 'before' signal is not ensemble averaged.
+            Therefore, this value should be used with caution.
 
         Returns:
-            float: The average SNR computed during wavefront optimization.
-        """
-        return self._snr
-
-    @property
-    def recompute_wavefront(self) -> bool:
-        """Returns: bool that indicates whether the wavefront needs to be recomputed."""
-        return self._recompute_wavefront
-
-    @recompute_wavefront.setter
-    def recompute_wavefront(self, value):
-        """Sets the bool that indicates whether the wavefront needs to be recomputed."""
-        self._recompute_wavefront = value
-
-    @property
-    def feedback_enhancement(self) -> float:
-        """Returns: the average enhancement of the feedback, returns none if no such enhancement was measured."""
-        return self._feedback_enhancement
+            float: average enhancement of the feedback, 0.0 none if no such enhancement was measured."""
+        return self._feedback_ratio
 
     @property
     def test_wavefront(self) -> bool:
-        """Returns: bool that indicates whether test_wavefront will be performed if set."""
-        return self._test_wavefront
+        """Trigger to test the wavefront.
+
+        Set this value `True` to measure feedback signals with a flat and an optimized wavefront and compute the :attr:`feedback_ratio`.
+        This value is reset to `False` after the test is performed.
+        """
+        return False
 
     @test_wavefront.setter
     def test_wavefront(self, value):
-        """
-        Calculates the feedback enhancement between the flat and shaped wavefronts by measuring feedback for both
-        cases.
-
-        Args:
-            value (bool): True to enable test mode, False to disable.
-        """
         if value:
-            self.wavefront = WFSController.State.FLAT_WAVEFRONT
-            feedback_flat = self.algorithm.feedback.read().copy()
-            self.wavefront = WFSController.State.SHAPED_WAVEFRONT
-            feedback_shaped = self.algorithm.feedback.read().copy()
-            self._feedback_enhancement = float(feedback_shaped.sum() / feedback_flat.sum())
+            self.wavefront = WFSController.State.FLAT
+            feedback_flat = self.feedback.read().sum()
+            self.wavefront = WFSController.State.OPTIMIZED
+            feedback_shaped = self.feedback.read().sum()
+            self._feedback_ratio = float(feedback_shaped / feedback_flat)
 
-        self._test_wavefront = value
+
+class DummyProgressBar:
+    """Placeholder for a progress bar object.
+
+    Some functions take an optional tdqm-style progress bar as input.
+    This class serves as a placeholder iif no progress bar is given.
+    It does nothing.
+    """
+
+    def __init__(self):
+        self.count = 0
+
+    def update(self):
+        pass

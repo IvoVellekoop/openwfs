@@ -20,7 +20,7 @@ def test_mock_camera_and_single_roi():
     """
     img = np.zeros((1000, 1000), dtype=np.int16)
     img[200, 300] = 39.39  # some random float
-    src = Camera(StaticSource(img, pixel_size=450 * u.nm))
+    src = Camera(StaticSource(img, pixel_size=450 * u.nm), analog_max=None)
     roi_detector = SingleRoi(src, pos=(200, 300), radius=0)  # Only measure that specific point
     assert roi_detector.read() == int(2**16 - 1)  # it should cast the array into some int
 
@@ -34,12 +34,11 @@ def test_microscope_without_magnification(shape):
     # construct input image
     img = np.zeros(shape, dtype=np.int16)
     img[256, 256] = 100
-    src = Camera(StaticSource(img, pixel_size=400 * u.nm))
+    src = Camera(StaticSource(img, pixel_size=400 * u.nm), analog_max=0xFFFF)
 
     # construct microscope
     sim = Microscope(source=src, magnification=1, numerical_aperture=1, wavelength=800 * u.nm)
-
-    cam = sim.get_camera()
+    cam = Camera(sim, analog_max=None)
     img = cam.read()
     assert img[256, 256] == 2**16 - 1
 
@@ -50,7 +49,7 @@ def test_microscope_and_aberration():
     """
     img = np.zeros((1000, 1000), dtype=np.int16)
     img[256, 256] = 100
-    src = Camera(StaticSource(img, pixel_size=400 * u.nm))
+    src = Camera(StaticSource(img, pixel_size=400 * u.nm), analog_max=None)
 
     slm = SLM(shape=(512, 512))
 
@@ -78,7 +77,7 @@ def test_slm_and_aberration():
     """
     img = np.zeros((1000, 1000), dtype=np.int16)
     img[256, 256] = 100
-    src = Camera(StaticSource(img, pixel_size=400 * u.nm))
+    src = Camera(StaticSource(img, pixel_size=400 * u.nm), analog_max=None)
 
     slm = SLM(shape=(512, 512))
 
@@ -117,7 +116,7 @@ def test_slm_tilt():
     img[signal_location] = 100
     pixel_size = 400 * u.nm
     wavelength = 750 * u.nm
-    src = Camera(StaticSource(img, pixel_size=pixel_size))
+    src = Camera(StaticSource(img, pixel_size=pixel_size), analog_max=None)
 
     slm = SLM(shape=(1000, 1000))
 
@@ -138,7 +137,7 @@ def test_slm_tilt():
 
     new_location = signal_location + shift
 
-    cam = sim.get_camera()
+    cam = Camera(sim, analog_max=None)
     img = cam.read(immediate=True)
     max_pos = np.unravel_index(np.argmax(img), img.shape)
     assert np.all(max_pos == new_location)
@@ -172,7 +171,7 @@ def test_microscope_wavefront_shaping(caplog):
         wavelength=800 * u.nm,
     )
 
-    cam = sim.get_camera(analog_max=100)
+    cam = Camera(sim, analog_max=100)
     roi_detector = SingleRoi(cam, pos=signal_location, radius=0)  # Only measure that specific point
 
     alg = StepwiseSequential(feedback=roi_detector, slm=slm, phase_steps=3, n_x=3, n_y=3)
@@ -194,7 +193,7 @@ def inverse_phase_response_test_function(f, b, c, gamma):
 
 def lookup_table_test_function(f, b, c, gamma):
     """
-    Compute the lookup indices (i. e. a lookup table)
+    Compute the lookup indices (i.e. a lookup table)
     for countering the synthetic phase response test function: 2π*(b + c*(phi/2π)^gamma).
     """
     phase = inverse_phase_response_test_function(f, b, c, gamma)

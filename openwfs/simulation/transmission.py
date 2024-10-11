@@ -36,13 +36,14 @@ class SimulatedWFS(Processor):
         Gaussian beam.
 
         Args:
-            t: Transmission matrix.
+            t: Transmission matrix. Must have the form (*feedback_shape, height, width), where feedback_shape
+                is the shape of the feedback signal and may be 0 or more dimensional.
             aberrations: An array containing the aberrations in radians. Can be used instead of a transmission matrix,
-                equivalent to specifying t = np.exp(1j * aberrations) / (aberrations.shape[0] * aberrations.shape[1]).
+                equivalent to specifying ``t = np.exp(1j * aberrations) / (aberrations.shape[0] * aberrations.shape[1])``.
             slm:
             multi_threaded (bool, optional): If True, the simulation will use multiple threads to compute the
                 intensity in the focus. If False, the simulation will use a single thread. Defaults to True.
-            beam_amplitude (ScalarType, optional): The beam profile amplitude. Can be an np.ndarray. Defaults to 1.0.
+            beam_amplitude (ScalarType, optional): The amplitude profile of the incident beam. Defaults to 1.0.
 
         The constructor creates a MockSLM instance based on the shape of the aberrations, calculates the electric
         field at the SLM considering the aberrations and optionally the Gaussian beam profile, and initializes the
@@ -51,7 +52,7 @@ class SimulatedWFS(Processor):
 
         # transmission matrix (normalized so that the maximum transmission is 1)
         self.t = t if t is not None else np.exp(1.0j * aberrations) / (aberrations.shape[0] * aberrations.shape[1])
-        self.slm = slm if slm is not None else SLM(self.t.shape[0:2])
+        self.slm = slm if slm is not None else SLM(self.t.shape[-2:])
 
         super().__init__(self.slm.field, multi_threaded=multi_threaded)
         self.beam_amplitude = beam_amplitude
@@ -71,9 +72,9 @@ class SimulatedWFS(Processor):
             np.ndarray: A numpy array containing the calculated intensity in the focus.
 
         """
-        field = np.tensordot(incident_field * self.beam_amplitude, self.t, 2)
+        field = np.tensordot(self.t, incident_field * self.beam_amplitude, 2)
         return np.abs(field) ** 2
 
     @property
     def data_shape(self):
-        return self.t.shape[2:]
+        return self.t.shape[:-2]

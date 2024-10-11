@@ -1,44 +1,15 @@
-import warnings
 from typing import Sequence, Optional
 
 import numpy as np
 from numpy.typing import ArrayLike
 
 from .context import Context
+from .. import safe_import
 
-try:
-    import OpenGL.GL as GL
-    from OpenGL.GL import (
-        glGenBuffers,
-        glBindBuffer,
-        glBufferData,
-        glDeleteBuffers,
-        glEnable,
-        glBlendFunc,
-        glBlendEquation,
-        glDisable,
-        glUseProgram,
-        glBindVertexBuffer,
-        glDrawElements,
-        glGenFramebuffers,
-        glBindFramebuffer,
-        glFramebufferTexture2D,
-        glCheckFramebufferStatus,
-        glDeleteFramebuffers,
-        glEnableVertexAttribArray,
-        glVertexAttribFormat,
-        glVertexAttribBinding,
-        glEnableVertexAttribArray,
-        glPrimitiveRestartIndex,
-        glActiveTexture,
-        glBindTexture,
-        glGenVertexArrays,
-        glBindVertexArray,
-    )
-
+GL = safe_import("OpenGL.GL", "opengl")
+if GL is not None:
     from OpenGL.GL import shaders
-except AttributeError:
-    warnings.warn("OpenGL not found, SLM will not work")
+
 from .geometry import rectangle, Geometry
 from .shaders import (
     default_vertex_shader,
@@ -96,23 +67,23 @@ class Patch(PhaseSLM):
         if not self.enabled:
             return
 
-        glUseProgram(self._program)
+        GL.glUseProgram(self._program)
 
         if self.additive_blend:
-            glEnable(GL.GL_BLEND)
-            glBlendFunc(GL.GL_ONE, GL.GL_ONE)  # (1 * rgb, 1 * alpha)
-            glBlendEquation(GL.GL_FUNC_ADD)
+            GL.glEnable(GL.GL_BLEND)
+            GL.glBlendFunc(GL.GL_ONE, GL.GL_ONE)  # (1 * rgb, 1 * alpha)
+            GL.glBlendEquation(GL.GL_FUNC_ADD)
         else:
-            glDisable(GL.GL_BLEND)
+            GL.glDisable(GL.GL_BLEND)
 
         for idx, texture in enumerate(self._textures):
             # activate texture as texture unit idx
             texture._bind(idx)  # noqa: ok to use _bind in friend class
 
         # perform the actual drawing
-        glBindBuffer(GL.GL_ELEMENT_ARRAY_BUFFER, self._indices)
-        glBindVertexBuffer(0, self._vertices, 0, 16)
-        glDrawElements(GL.GL_TRIANGLE_STRIP, self._index_count, GL.GL_UNSIGNED_SHORT, None)
+        GL.glBindBuffer(GL.GL_ELEMENT_ARRAY_BUFFER, self._indices)
+        GL.glBindVertexBuffer(0, self._vertices, 0, 16)
+        GL.glDrawElements(GL.GL_TRIANGLE_STRIP, self._index_count, GL.GL_UNSIGNED_SHORT, None)
 
     def set_phases(self, values: ArrayLike, update=True):
         """
@@ -133,7 +104,7 @@ class Patch(PhaseSLM):
     def _delete_buffers(self):
         with self.context as slm:
             if slm:
-                glDeleteBuffers(2, [self._vertices, self._indices])
+                GL.glDeleteBuffers(2, [self._vertices, self._indices])
 
     @property
     def geometry(self):
@@ -151,17 +122,17 @@ class Patch(PhaseSLM):
         # store the data on the GPU
         with self.context:
             self._geometry = value
-            (self._vertices, self._indices) = glGenBuffers(2)
+            (self._vertices, self._indices) = GL.glGenBuffers(2)
             self._index_count = value.indices.size
-            glBindBuffer(GL.GL_ARRAY_BUFFER, self._vertices)
-            glBufferData(
+            GL.glBindBuffer(GL.GL_ARRAY_BUFFER, self._vertices)
+            GL.glBufferData(
                 GL.GL_ARRAY_BUFFER,
                 value.vertices.size * 4,
                 value.vertices,
                 GL.GL_DYNAMIC_DRAW,
             )
-            glBindBuffer(GL.GL_ELEMENT_ARRAY_BUFFER, self._indices)
-            glBufferData(
+            GL.glBindBuffer(GL.GL_ELEMENT_ARRAY_BUFFER, self._indices)
+            GL.glBufferData(
                 GL.GL_ELEMENT_ARRAY_BUFFER,
                 value.indices.size * 2,
                 value.indices,
@@ -185,7 +156,7 @@ class FrameBufferPatch(Patch):
             slm: SLM object that this patch belongs to
             lookup_table: 1-D array of gray values that will be used to map the phase values to the gray-scale output.
                 see :attr:`~SLM.lookup_table` for details.
-            bit_depth: bit depth of the SLM. The maximum value in the lookup table can be 2**bit_depth - 1.
+            bit_depth: The bit depth of the SLM. The maximum value in the lookup table can be 2**bit_depth - 1.
                 Note: this maximum value is mapped to 1.0 in the opengl shader, and converted back to 2**bit_depth by
                 the opengl hardware.
         """
@@ -197,20 +168,20 @@ class FrameBufferPatch(Patch):
         # Create a frame buffer object to render to. The frame buffer holds a texture that is the same size as the
         # window. All patches are first rendered to this texture. The texture
         # is then processed as a whole (applying the software lookup table) and displayed on the screen.
-        self._frame_buffer = glGenFramebuffers(1)
+        self._frame_buffer = GL.glGenFramebuffers(1)
 
         self.set_phases(np.zeros(self.context.slm.shape, dtype=np.float32), update=False)
-        glBindFramebuffer(GL.GL_FRAMEBUFFER, self._frame_buffer)
-        glFramebufferTexture2D(
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self._frame_buffer)
+        GL.glFramebufferTexture2D(
             GL.GL_FRAMEBUFFER,
             GL.GL_COLOR_ATTACHMENT0,
             GL.GL_TEXTURE_2D,
             self._textures[Patch._PHASES_TEXTURE].handle,
             0,
         )
-        if glCheckFramebufferStatus(GL.GL_FRAMEBUFFER) != GL.GL_FRAMEBUFFER_COMPLETE:
+        if GL.glCheckFramebufferStatus(GL.GL_FRAMEBUFFER) != GL.GL_FRAMEBUFFER_COMPLETE:
             raise Exception("Could not construct frame buffer")
-        glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
 
         self._bit_depth = bit_depth
         self._textures.append(Texture(self.context, GL.GL_TEXTURE_1D))  # create texture for lookup table
@@ -221,7 +192,7 @@ class FrameBufferPatch(Patch):
     def __del__(self):
         with self.context as slm:
             if slm:
-                glDeleteFramebuffers(1, [self._frame_buffer])
+                GL.glDeleteFramebuffers(1, [self._frame_buffer])
 
     @property
     def lookup_table(self):
@@ -264,15 +235,17 @@ class VertexArray:
     # Since we have a fixed vertex format, we only need to bind the VertexArray once, and not bother with
     # updating, binding, or even deleting it
     def __init__(self):
-        self._vertex_array = glGenVertexArrays(1)  # no need to destroy explicitly, destroyed when window is destroyed
-        glBindVertexArray(self._vertex_array)
-        glEnableVertexAttribArray(0)
-        glEnableVertexAttribArray(1)
-        glVertexAttribFormat(0, 2, GL.GL_FLOAT, GL.GL_FALSE, 0)  # first two float32 are screen coordinates
-        glVertexAttribFormat(1, 2, GL.GL_FLOAT, GL.GL_FALSE, 8)  # second two are texture coordinates
-        glVertexAttribBinding(0, 0)  # use binding index 0 for both attributes
-        glVertexAttribBinding(1, 0)  # the attribute format can now be used with glBindVertexBuffer
+        self._vertex_array = GL.glGenVertexArrays(
+            1
+        )  # no need to destroy explicitly, destroyed when window is destroyed
+        GL.glBindVertexArray(self._vertex_array)
+        GL.glEnableVertexAttribArray(0)
+        GL.glEnableVertexAttribArray(1)
+        GL.glVertexAttribFormat(0, 2, GL.GL_FLOAT, GL.GL_FALSE, 0)  # first two float32 are screen coordinates
+        GL.glVertexAttribFormat(1, 2, GL.GL_FLOAT, GL.GL_FALSE, 8)  # second two are texture coordinates
+        GL.glVertexAttribBinding(0, 0)  # use binding index 0 for both attributes
+        GL.glVertexAttribBinding(1, 0)  # the attribute format can now be used with glBindVertexBuffer
 
         # enable primitive restart, so that we can draw multiple triangle strips with a single draw call
-        glEnable(GL.GL_PRIMITIVE_RESTART)
-        glPrimitiveRestartIndex(0xFFFF)  # this is the index we use to separate individual triangle strips
+        GL.glEnable(GL.GL_PRIMITIVE_RESTART)
+        GL.glPrimitiveRestartIndex(0xFFFF)  # this is the index we use to separate individual triangle strips

@@ -1,4 +1,4 @@
-version: "2"
+version: 2
 
 build:
   os: "ubuntu-22.04"
@@ -7,9 +7,11 @@ build:
 
   jobs:
     post_create_environment:
+      - pip install --upgrade pip
       - pip install poetry
       - pip install poetry-plugin-export
-      - poetry export -f requirements.txt -o requirements.txt --with docs --without opengl
+      - poetry config warnings.export false
+      - poetry export -f requirements.txt -o requirements.txt --with docs --extras "all"
       - cat requirements.txt
 
 python:

@@ -4,17 +4,11 @@ import astropy.units as u
 import numpy as np
 from astropy.units import Quantity
 
-try:
+from . import safe_import
+
+hc = safe_import("harvesters.core", "genicam")
+if hc is not None:
     from harvesters.core import Harvester
-except ImportError:
-    raise ImportError(
-        """The harvesters package is required for the Camera class. 
-        To install: 
-         ```pip install harvesters```
-         Alternatively, specify the genicam dependency when installing openwfs:
-         ```pip install openwfs[genicam]```
-        """
-    )
 
 from ..core import Detector
 
@@ -32,7 +26,7 @@ class Camera(Detector):
             The node map should not be used to set properties that are available as properties in the Camera object,
             such as `duration` (exposure time), `width`, `height`, `binning`, etc.
 
-            Also, the node map should not be used to set properties while the camera is fetching a frame (i. e.,
+            Also, the node map should not be used to set properties while the camera is fetching a frame (i.e.,
             between `trigger()` and calling `result()` on the returned concurrent.futures.Future object).
 
     Note:
@@ -163,7 +157,7 @@ class Camera(Detector):
         """Returns the exposure time in milliseconds if software triggering is used.
         Returns ∞ if hardware triggering is used.
         TODO: implement hardware triggering."""
-        return self.exposure_time.to(u.ms)
+        return self.exposure.to(u.ms)
 
     @property
     def exposure(self) -> u.Quantity[u.ms]:

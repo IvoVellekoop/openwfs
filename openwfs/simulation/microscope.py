@@ -9,16 +9,8 @@ from scipy.signal import fftconvolve
 
 from ..core import Processor, Detector
 from ..plot_utilities import imshow  # noqa - for debugging
-from ..processors import TransformProcessor
-from ..simulation.mockdevices import XYStage, Camera, StaticSource
-from ..utilities import (
-    project,
-    place,
-    Transform,
-    get_pixel_size,
-    patterns,
-    CoordinateType,
-)
+from ..simulation.mockdevices import XYStage, StaticSource
+from ..utilities import project, place, Transform, get_pixel_size, patterns
 
 
 class Microscope(Processor):
@@ -76,7 +68,7 @@ class Microscope(Processor):
             incident_field: Produces 2-D complex images containing the field output of the SLM.
                 If no `slm_transform` is specified, the `pixel_size` attribute should
                  correspond to normalized pupil coordinates
-                (e. g. with a disk of radius 1.0, i. e. an extent of 2.0, corresponding to an NA of 1.0)
+                (e.g. with a disk of radius 1.0, i.e. an extent of 2.0, corresponding to an NA of 1.0)
             incident_transform (Optional[Transform]):
                 Optional Transform that transforms the phase pattern from the slm object
                 (in slm.pixel_size units) to normalized pupil coordinates.
@@ -91,7 +83,7 @@ class Microscope(Processor):
                 Optional Transform that transforms the phase pattern from the aberration object
                 (in slm.pixel_size units) to normalized pupil coordinates.
                 Typically, the slm image is already in normalized pupil coordinates,
-                but this transform may e. g., be used to scale an aberration pattern
+                but this transform may e.g., be used to scale an aberration pattern
                 from extent 2.0 to 2.0 * NA.
 
         Note:
@@ -251,33 +243,3 @@ class Microscope(Processor):
     def data_shape(self):
         """Returns the shape of the image in the image plane"""
         return self._data_shape
-
-    def get_camera(
-        self,
-        *,
-        transform: Optional[Transform] = None,
-        data_shape: Optional[tuple[int, int]] = None,
-        pixel_size: Optional[CoordinateType] = None,
-        **kwargs
-    ) -> Detector:
-        """
-        Returns a simulated camera that observes the microscope image.
-
-        The camera is a MockCamera object that simulates an AD-converter with optional noise.
-        shot noise and readout noise (see MockCamera for options).
-        In addition to the inputs accepted by the MockCamera constructor (data_shape, analog_max, shot_noise, etc.),
-        it is also possible to specify a transform, to mimic the (mis)alignment of the camera.
-
-        Args:
-            transform ():
-            **kwargs ():
-
-        Returns:
-
-        """
-        if transform is None and data_shape is None and pixel_size is None:
-            src = self
-        else:
-            src = TransformProcessor(self, data_shape=data_shape, pixel_size=pixel_size, transform=transform)
-
-        return Camera(src, **kwargs)

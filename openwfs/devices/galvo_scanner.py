@@ -7,20 +7,13 @@ import numpy as np
 from annotated_types import Ge, Le
 from astropy.units import Quantity
 
-try:
-    import nidaqmx as ni
+from . import safe_import
+
+ni = safe_import("nidaqmx", "nidaq")
+if ni is not None:
     import nidaqmx.system
     from nidaqmx.constants import TerminalConfiguration, DigitalWidthUnits
     from nidaqmx.stream_writers import AnalogMultiChannelWriter
-except ImportError:
-    raise ImportError(
-        """The nidaqmx package is required for the ScanningMicroscope class, even when only using test data. 
-        To install: 
-         ```pip install nidaqmx```
-         Alternatively, specify the genicam dependency when installing openwfs:
-         ```pip install openwfs[nidaq]```
-        """
-    )
 
 from ..core import Detector
 from ..utilities import unitless
@@ -92,18 +85,20 @@ class Axis:
         It is assumed that the mirror accelerates and decelerates at the maximum
         acceleration, and scans with a constant velocity over the linear range.
         There are two limits to the scan speed:
-        * A practical limit: if it takes longer to perform the acceleration + deceleration than
-            it does to traverse the linear range, it does not make sense to set the scan speed so high.
-            The speed at which acceleration + deceleration takes as long as the linear range is the maximum speed.
-        * A hardware limit: when accelerating with the maximum acceleration over a distance
-            0.5 * (V_max-V_min) * (1-linear_range),
-            the mirror will reach the maximum possible speed.
+
+        - A practical limit: if it takes longer to perform the acceleration + deceleration than
+          it does to traverse the linear range, it does not make sense to set the scan speed so high.
+          The speed at which acceleration + deceleration takes as long as the linear range is the maximum speed.
+        - A hardware limit: when accelerating with the maximum acceleration over a distance
+          0.5 · (V_max-V_min) · (1-linear_range),
+          the mirror will reach the maximum possible speed.
 
         Args:
             linear_range (float): fraction of the full range that is used for the linear part of the scan
 
         Returns:
             Quantity[u.V / u.s]: maximum scan speed
+
         """
         # x = 0.5 · a · t² = 0.5 (v_max - v_min) · (1 - linear_range)
         t_accel = np.sqrt((self.v_max - self.v_min) * (1 - linear_range) / self.maximum_acceleration)
@@ -161,7 +156,7 @@ class Axis:
         The launch point and landing point are returned along with the scan sequence.
 
         This function also returns a slice object, which represents the part of the sequence
-        that corresponds to a linear movement from start to stop. `slice.stop - slice.start = sample_count`.
+        that corresponds to a linear movement from start to stop. ``slice.stop - slice.start = sample_count``.
 
         The scan follows the coordinate convention used throughout OpenWFS and Astropy,
         where the coordinates correspond to the centers of the pixels.
@@ -219,7 +214,7 @@ class Axis:
 
         Args:
             optical_deflection (Quantity[u.deg/u.V]):
-                The optical deflection (i. e. twice the mechanical angle) of the mirror
+                The optical deflection (i.e. twice the mechanical angle) of the mirror
                  as a function of applied voltage.
             galvo_to_pupil_magnification (float):
                 The magnification of the relay system between the galvo mirrors and the pupil.
@@ -254,7 +249,7 @@ class Axis:
 
         Args:
             optical_deflection (Quantity[u.deg/u.V]):
-                The optical deflection (i. e. twice the mechanical angle) of the mirror
+                The optical deflection (i.e. twice the mechanical angle) of the mirror
                  as a function of applied voltage.
             torque_constant (Quantity[u.N*u.m/u.A]):
                 The torque constant of the galvo mirror driving coil.
@@ -674,7 +669,7 @@ class ScanningMicroscope(Detector):
     @property
     def duration(self) -> Quantity[u.ms]:
         """Total duration of scanning for one frame."""
-        self._ensure_valid()  # make sure _scan_pattern is up to date
+        self._ensure_valid()  # make sure _scan_pattern is up-to-date
         return (self._scan_pattern.shape[1] / self._sample_rate).to(u.ms)
 
     @property

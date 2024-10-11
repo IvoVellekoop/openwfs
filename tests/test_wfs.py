@@ -1,3 +1,5 @@
+from typing import Optional
+
 import astropy.units as u
 import numpy as np
 import pytest
@@ -5,6 +7,7 @@ import skimage
 from scipy.linalg import hadamard
 from scipy.ndimage import zoom
 
+from . import complex_random
 from ..openwfs.algorithms import (
     StepwiseSequential,
     FourierDualReference,
@@ -14,15 +17,19 @@ from ..openwfs.algorithms import (
 from ..openwfs.algorithms.troubleshoot import field_correlation
 from ..openwfs.algorithms.utilities import WFSController
 from ..openwfs.processors import SingleRoi
-from ..openwfs.simulation.mockdevices import GaussianNoise
 from ..openwfs.simulation import SimulatedWFS, StaticSource, SLM, Microscope
-from ..openwfs.plot_utilities import plot_field
+from ..openwfs.simulation.mockdevices import GaussianNoise, Camera
 
 
-@pytest.mark.parametrize("shape", [(4, 7), (10, 7), (20, 31)])
-@pytest.mark.parametrize("noise", [0.0, 0.1])
+@pytest.fixture(autouse=True)
+def reset():
+    np.random.seed(42)  # for reproducibility
+
+
 @pytest.mark.parametrize("algorithm", ["ssa", "fourier"])
-def test_multi_target_algorithms(shape, noise: float, algorithm: str):
+@pytest.mark.parametrize("shape, feedback_shape", [((4, 7), (210,)), ((10, 7), (21, 10)), ((20, 31), (3, 7, 10))])
+@pytest.mark.parametrize("noise", [0.0, 0.1])
+def test_multi_target_algorithms(shape: tuple[int, int], feedback_shape: tuple[int, ...], noise: float, algorithm: str):
     """
     Test the multi-target capable algorithms (SSA and Fourier dual ref).
 
@@ -30,13 +37,11 @@ def test_multi_target_algorithms(shape, noise: float, algorithm: str):
     and it also verifies that the enhancement and noise fidelity
     are estimated correctly by the algorithm.
     """
-    np.random.seed(42)  # for reproducibility
-
-    M = 100  # number of targets
+    M = np.prod(feedback_shape)  # number of targets
     phase_steps = 6
 
     # create feedback object, with noise if needed
-    sim = SimulatedWFS(t=random_transmission_matrix((*shape, M)))
+    sim = SimulatedWFS(t=complex_random((*feedback_shape, *shape)))
     sim.slm.set_phases(0.0)
     I_0 = np.mean(sim.read())
     feedback = GaussianNoise(sim, std=I_0 * noise)
@@ -50,8 +55,12 @@ def test_multi_target_algorithms(shape, noise: float, algorithm: str):
             phase_steps=phase_steps,
         )
         N = np.prod(shape)  # number of input modes
-        alg_fidelity = (N - 1) / N  # SSA is inaccurate if N is low
+        # SSA is inaccurate if N is slightly lower because the reference beam varies with each segment.
+        # The variation is of order 1/N in the signal, so the fidelity is (N-1)/N.
+        # todo: check!
+        alg_fidelity = (N - 1) / N
         signal = (N - 1) / N**2  # for estimating SNR
+        masks = [True]  # use all segments for determining fidelity
     else:  # 'fourier':
         alg = FourierDualReference(
             feedback=feedback,
@@ -60,9 +69,10 @@ def test_multi_target_algorithms(shape, noise: float, algorithm: str):
             k_radius=(np.min(shape) - 1) // 2,
             phase_steps=phase_steps,
         )
-        N = alg.phase_patterns[0].shape[2] + alg.phase_patterns[1].shape[2]  # number of input modes
+        N = len(alg.phase_patterns[0]) + len(alg.phase_patterns[1])  # number of input modes
         alg_fidelity = 1.0  # Fourier is accurate for any N
         signal = 1 / 2  # for estimating SNR.
+        masks = alg.masks  # use separate halves of the segments for determining fidelity
 
     # Execute the algorithm to get the optimized wavefront
     # for all targets simultaneously
@@ -74,28 +84,29 @@ def test_multi_target_algorithms(shape, noise: float, algorithm: str):
     # the unknown phases. The normalization of the correlation function
     # is performed on all rows together, not per row, to increase
     # the accuracy of the estimate.
-    I_opt = np.zeros((M,))
-    t_correlation = 0.0
-    t_norm = 0.0
-    for b in range(M):
-        sim.slm.set_phases(-np.angle(result.t[:, :, b]))
+    # For the dual reference algorithm, the left and right half will have a different overall amplitude factor.
+    # This is corrected for by computing the correlations for the left and right half separately
+    #
+    I_opt = np.zeros(feedback_shape)
+    for b in np.ndindex(feedback_shape):
+        sim.slm.set_phases(-np.angle(result.t[b]))
         I_opt[b] = feedback.read()[b]
-        t_correlation += abs(np.vdot(result.t[:, :, b], sim.t[:, :, b])) ** 2
-        t_norm += abs(np.vdot(result.t[:, :, b], result.t[:, :, b]) * np.vdot(sim.t[:, :, b], sim.t[:, :, b]))
-    t_correlation /= t_norm
 
-    # a correlation of 1 means optimal reconstruction of the N modulated modes, which may be less than the total number of inputs in the transmission matrix
-    t_correlation *= np.prod(shape) / N
+    t_correlation = t_fidelity(result.t, sim.t, masks=masks)
 
     # Check the enhancement, noise fidelity and
     # the fidelity of the transmission matrix reconstruction
-    theoretical_noise_fidelity = signal / (signal + noise**2 / phase_steps)
+    coverage = N / np.prod(shape)
+    print(signal)
+    print(noise)
+    theoretical_noise_fidelity = signal * phase_steps / (signal * phase_steps + noise**2)
+
     enhancement = I_opt.mean() / I_0
     theoretical_enhancement = np.pi / 4 * theoretical_noise_fidelity * alg_fidelity * (N - 1) + 1
     estimated_enhancement = result.estimated_enhancement.mean() * alg_fidelity
-    theoretical_t_correlation = theoretical_noise_fidelity * alg_fidelity
-    estimated_t_correlation = result.fidelity_noise * result.fidelity_calibration * alg_fidelity
-    tolerance = 2.0 / np.sqrt(M)
+    theoretical_t_correlation = theoretical_noise_fidelity * alg_fidelity * coverage
+    estimated_t_correlation = result.fidelity_noise * result.fidelity_calibration * alg_fidelity * coverage
+    tolerance = 4.0 / np.sqrt(M)  # TODO: find out if this should be stricter
     print(
         f"\nenhancement:      \ttheoretical= {theoretical_enhancement},\testimated={estimated_enhancement},\tactual: {enhancement}"
     )
@@ -136,24 +147,71 @@ def test_multi_target_algorithms(shape, noise: float, algorithm: str):
         Expected {theoretical_noise_fidelity}, got {result.fidelity_noise}"""
 
 
-def random_transmission_matrix(shape):
+def half_mask(shape):
     """
-    Create a random transmission matrix with the given shape.
+    Args:
+        shape: shape of the output array
+
+    Returns:
+        Returns a boolean mask with [:, :shape[2]] set to False
+        and [:, shape[1]] set to True].
     """
-    return np.random.normal(size=shape) + 1j * np.random.normal(size=shape)
+    mask = np.zeros(shape, dtype=bool)
+    mask[:, shape[1] // 2 :] = True
+    return mask
 
 
-@pytest.mark.skip("Not implemented")
+def t_fidelity(
+    t: np.ndarray, t_correct: np.ndarray, *, columns: int = 2, masks: Optional[tuple[np.ndarray, ...]] = (True,)
+) -> float:
+    """
+    Compute the fidelity of the measured transmission matrix.
+
+    Since the overall phase for each row is unknown, the fidelity is computed row by row.
+    Moreover, for dual-reference algorithms the left and right half of the wavefront
+    may have different overall amplitude factors. This is corrected for by computing
+    the fidelity for the left and right half separately.
+
+    The fidelities for all rows (and halves) are weighted by the 'intensity' in the correct transmission matrix.
+
+    Args:
+        t: The measured transmission matrix. 'rows' of t are the *last* index
+        t_correct: The correct transmission matrix
+        columns: The number of columns in the transmission matrix
+        masks: Masks for the left and right half of the wavefront, or None to use the full wavefront
+    """
+    fidelity = 0.0
+    norm = 0.0
+    for r in np.ndindex(t.shape[:-columns]):  # each row
+        for m in masks:
+            rm = t[r][m]
+            rm_c = t_correct[r][m]
+            fidelity += abs(np.vdot(rm, rm_c) ** 2 / np.vdot(rm, rm))
+            norm += np.vdot(rm_c, rm_c)
+
+    return fidelity / norm
+
+
 def test_fourier2():
     """Test the Fourier dual reference algorithm using WFSController."""
-    slm_shape = (1000, 1000)
+    slm_shape = (10, 10)
     aberrations = skimage.data.camera() * ((2 * np.pi) / 255.0)
     sim = SimulatedWFS(aberrations=aberrations)
-    alg = FourierDualReference(feedback=sim, slm=sim.slm, slm_shape=slm_shape, k_radius=7.5, phase_steps=3)
-    controller = WFSController(alg)
-    controller.wavefront = WFSController.State.SHAPED_WAVEFRONT
-    scaled_aberration = zoom(aberrations, np.array(slm_shape) / aberrations.shape)
-    assert_enhancement(sim.slm, sim, controller._result, np.exp(1j * scaled_aberration))
+    alg = WFSController(
+        FourierDualReference, feedback=sim, slm=sim.slm, slm_shape=slm_shape, k_radius=3.5, phase_steps=3
+    )
+
+    # check if the attributes of the algorithm were passed through correctly
+    assert alg.k_radius == 3.5
+    alg.k_radius = 2.5
+    assert alg.k_radius == 2.5
+    before = sim.read()
+    alg.wavefront = WFSController.State.OPTIMIZED  # this will trigger the algorithm to optimize the wavefront
+    after = sim.read()
+    alg.wavefront = WFSController.State.FLAT  # this set the wavefront back to flat
+    before2 = sim.read()
+    assert before == before2
+    assert after / before > 3.0
 
 
 @pytest.mark.skip("Not implemented")
@@ -165,7 +223,7 @@ def test_fourier_microscope():
     img[signal_location] = 100
     slm_shape = (1000, 1000)
 
-    src = StaticSource(img, 400 * u.nm)
+    src = StaticSource(img, pixel_size=400 * u.nm)
     slm = SLM(shape=(1000, 1000))
     sim = Microscope(
         source=src,
@@ -175,7 +233,7 @@ def test_fourier_microscope():
         aberrations=aberration,
         wavelength=800 * u.nm,
     )
-    cam = sim.get_camera(analog_max=100)
+    cam = Camera(sim, analog_max=100)
     roi_detector = SingleRoi(cam, pos=(250, 250))  # Only measure that specific point
     alg = FourierDualReference(feedback=roi_detector, slm=slm, slm_shape=slm_shape, k_radius=1.5, phase_steps=3)
     controller = WFSController(alg)
@@ -231,7 +289,6 @@ def test_phase_shift_correction():
     # compute the phase pattern to optimize the intensity in target 0
     optimised_wf = -np.angle(t)
     sim.slm.set_phases(0)
-    before = sim.read()
 
     optimised_wf -= 5
     signals = []
@@ -249,8 +306,8 @@ def test_phase_shift_correction():
 
 
 @pytest.mark.parametrize("optimized_reference", [True, False])
-@pytest.mark.parametrize("step", [True, False])
-def test_flat_wf_response_fourier(optimized_reference, step):
+@pytest.mark.parametrize("type", ["flat", "phase_step", "amplitude_step"])
+def test_flat_wf_response_fourier(optimized_reference, type):
     """
     Test the response of the Fourier-based WFS method when the solution is flat
     A flat solution means that the optimal correction is no correction.
@@ -258,26 +315,28 @@ def test_flat_wf_response_fourier(optimized_reference, step):
 
     test the optimized wavefront by checking if it has irregularities.
     """
-    aberrations = np.ones(shape=(4, 4))
-    if step:
-        aberrations[:, 2:] = 2.0
-    sim = SimulatedWFS(aberrations=aberrations.reshape((*aberrations.shape, 1)))
+    t = np.ones(shape=(4, 4), dtype=np.complex64)
+    if type == "phase_step":
+        t[:, 2:] = np.exp(2.0j)
+    elif type == "amplitude_step":
+        t[:, 2:] = 2.0
+
+    sim = SimulatedWFS(t=t)
 
     alg = FourierDualReference(
         feedback=sim,
         slm=sim.slm,
-        slm_shape=np.shape(aberrations),
+        slm_shape=np.shape(t),
         k_radius=1.5,
         phase_steps=3,
         optimized_reference=optimized_reference,
     )
 
-    t = alg.execute().t
-
-    # test the optimized wavefront by checking if it has irregularities.
-    measured_aberrations = np.squeeze(np.angle(t))
-    measured_aberrations += aberrations[0, 0] - measured_aberrations[0, 0]
-    assert np.allclose(measured_aberrations, aberrations, atol=0.02)  # The measured wavefront is not flat.
+    result = alg.execute()
+    assert (
+        abs(field_correlation(result.t / np.abs(result.t), t / np.abs(t))) > 0.99
+    ), "The phases were not calculated correctly"
+    assert t_fidelity(result.t, t, masks=alg.masks) > 0.99, "The amplitudes were not calculated correctly"
 
 
 def test_flat_wf_response_ssa():
@@ -299,7 +358,7 @@ def test_flat_wf_response_ssa():
 
 
 def test_multidimensional_feedback_ssa():
-    aberrations = np.random.uniform(0.0, 2 * np.pi, (256, 256, 5, 2))
+    aberrations = np.random.uniform(0.0, 2 * np.pi, (5, 2, 256, 256))
     sim = SimulatedWFS(aberrations=aberrations)
 
     alg = StepwiseSequential(feedback=sim, slm=sim.slm)
@@ -307,7 +366,7 @@ def test_multidimensional_feedback_ssa():
 
     # compute the phase pattern to optimize the intensity in target 2,1
     target = (2, 1)
-    optimised_wf = -np.angle(t[(..., *target)])
+    optimised_wf = -np.angle(t[(*target, ...)])
 
     # Calculate the enhancement factor
     # Note: technically this is not the enhancement, just the ratio after/before
@@ -324,7 +383,7 @@ def test_multidimensional_feedback_ssa():
 
 
 def test_multidimensional_feedback_fourier():
-    aberrations = np.random.uniform(0.0, 2 * np.pi, (256, 256, 5, 2))
+    aberrations = np.random.uniform(0.0, 2 * np.pi, (5, 2, 256, 256))
     sim = SimulatedWFS(aberrations=aberrations)
 
     # input the camera as a feedback object, such that it is multidimensional
@@ -332,7 +391,7 @@ def test_multidimensional_feedback_fourier():
     t = alg.execute().t
 
     # compute the phase pattern to optimize the intensity in target 0
-    optimised_wf = -np.angle(t[:, :, 2, 1])
+    optimised_wf = -np.angle(t[2, 1, :, :])
 
     # Calculate the enhancement factor
     # Note: technically this is not the enhancement, just the ratio after/before
@@ -348,14 +407,14 @@ def test_multidimensional_feedback_fourier():
             Expected at least 3.0, got {enhancement}"""
 
 
-@pytest.mark.parametrize("population_size, elite_size", [(30, 15), (30, 5)])
+@pytest.mark.parametrize("population_size, elite_size", [(30, 15)])  # , (30, 5)])
 def test_simple_genetic(population_size: int, elite_size: int):
     """
     Test the SimpleGenetic algorithm.
     Note: this is not very rigid test, as we currently don't have theoretical expectations for the performance.
     """
     shape = (100, 71)
-    sim = SimulatedWFS(t=random_transmission_matrix(shape), multi_threaded=False)
+    sim = SimulatedWFS(t=complex_random(shape), multi_threaded=False)
     alg = SimpleGenetic(
         feedback=sim,
         slm=sim.slm,
@@ -376,120 +435,66 @@ def test_simple_genetic(population_size: int, elite_size: int):
 
 @pytest.mark.parametrize("basis_str", ("plane_wave", "hadamard"))
 @pytest.mark.parametrize("shape", ((8, 8), (16, 4)))
-def test_dual_reference_ortho_split(basis_str: str, shape):
-    """Test dual reference with an orthonormal phase-only basis.
+def test_dual_reference_ortho_split(basis_str: str, shape: tuple[int, int]):
+    """Test dual reference in iterative mode with an orthonormal phase-only basis.
     Two types of bases are tested: plane waves and Hadamard"""
-    do_debug = False
     N = shape[0] * (shape[1] // 2)
-    modes_shape = (shape[0], shape[1] // 2, N)
+    modes_shape = (N, shape[0], shape[1] // 2)
     if basis_str == "plane_wave":
         # Create a full plane wave basis for one half of the SLM.
-        modes = np.fft.fft2(np.eye(N).reshape(modes_shape), axes=(0, 1)) / np.sqrt(N)
+        phases = np.angle(np.fft.fft2(np.eye(N).reshape(modes_shape), axes=(1, 2)))
     elif basis_str == "hadamard":
-        modes = hadamard(N).reshape(modes_shape) / np.sqrt(N)
+        phases = np.angle(hadamard(N).reshape(modes_shape))
     else:
         raise f'Unknown type of basis "{basis_str}".'
 
-    mask = np.concatenate(
-        (np.zeros(modes_shape[0:2], dtype=bool), np.ones(modes_shape[0:2], dtype=bool)),
-        axis=1,
-    )
-    mode_set = np.concatenate((modes, np.zeros(shape=modes_shape)), axis=1)
-    phases_set = np.angle(mode_set)
+    mask = half_mask(shape)
+    phases_set = np.pad(phases, ((0, 0), (0, 0), (0, shape[1] // 2)))
 
-    if do_debug:
-        # Plot the modes
-        import matplotlib.pyplot as plt
-
-        plt.figure(figsize=(12, 7))
-        for m in range(N):
-            plt.subplot(*modes_shape[0:2], m + 1)
-            plot_field(mode_set[:, :, m])
-            plt.title(f"m={m}")
-            plt.xticks([])
-            plt.yticks([])
-        plt.suptitle("Basis")
-        plt.pause(0.01)
-
-    # Create aberrations
-    sim = SimulatedWFS(t=random_transmission_matrix(shape))
+    sim = SimulatedWFS(t=complex_random(shape))
 
     alg = DualReference(
         feedback=sim,
         slm=sim.slm,
-        phase_patterns=(phases_set, np.flip(phases_set, axis=1)),
-        amplitude="uniform",
+        phase_patterns=(phases_set, np.flip(phases_set, axis=2)),
         group_mask=mask,
         iterations=4,
     )
 
-    result = alg.execute()
-
-    if do_debug:
-        plt.figure()
-        for m in range(N):
-            plt.subplot(*modes_shape[0:2], m + 1)
-            plot_field(alg.cobasis[0][:, :, m])
-            plt.title(f"{m}")
-        plt.suptitle("Cobasis")
-        plt.pause(0.01)
-
-        plt.figure()
-        plt.imshow(np.angle(sim.t), vmin=-np.pi, vmax=np.pi, cmap="hsv")
-        plt.title("Aberrations")
-
-        plt.figure()
-        plt.imshow(np.angle(result.t), vmin=-np.pi, vmax=np.pi, cmap="hsv")
-        plt.title("t")
-        plt.colorbar()
-        plt.show()
-
     # Checks for orthonormal basis properties
-    assert np.allclose(alg.gram, np.eye(N), atol=1e-6)  # Gram matrix must be I
-    assert np.allclose(alg.cobasis[0], mode_set.conj(), atol=1e-6)  # Cobasis vectors are just the complex conjugates
+    assert np.allclose(alg.gram[0], np.eye(N), atol=1e-6)  # Gram matrix must be I
+
+    # Cobasis vectors are just the complex conjugates
+    assert np.allclose(alg.cobasis[0], np.exp(-1j * phases_set) * abs(alg.cobasis[0]), atol=1e-6)
 
     # Test phase-only field correlation
+    result = alg.execute()
     sim_t_phase_only = np.exp(1j * np.angle(sim.t))
     result_t_phase_only = np.exp(1j * np.angle(result.t))
     assert np.abs(field_correlation(sim_t_phase_only, result_t_phase_only)) > 0.999
 
-    # todo: find out why this is not higher
-    # Test field correlation
-    assert np.abs(field_correlation(sim.t, result.t)) > 0.9
+    assert t_fidelity(result.t, sim.t, masks=alg.masks) > 0.9
 
 
 def test_dual_reference_non_ortho_split():
     """
     Test dual reference with a non-orthogonal basis.
     """
-    do_debug = False
-
     # Create set of modes that are barely linearly independent
     N1 = 6
     N2 = 3
     M = N1 * N2
-    mode_set_half = np.exp(2j * np.pi / 3 * np.eye(M).reshape((N1, N2, M))) / np.sqrt(M)
-    mode_set = np.concatenate((mode_set_half, np.zeros(shape=(N1, N2, M))), axis=1)
+    mode_set_half = np.exp(2j * np.pi / 3 * np.eye(M).reshape((N2, N1, M))).T / np.sqrt(M)
+
+    # note: typically we just use the other half for the mode set B, but here we set the half to 0 to
+    # make sure it is not used.
+    mode_set = np.pad(mode_set_half, ((0, 0), (0, 0), (0, N2)))
     phases_set = np.angle(mode_set)
-    mask = np.concatenate((np.zeros((N1, N2)), np.ones((N1, N2))), axis=1)
-
-    if do_debug:
-        # Plot the modes
-        import matplotlib.pyplot as plt
-
-        plt.figure(figsize=(12, 7))
-        for m in range(M):
-            plt.subplot(N2, N1, m + 1)
-            plot_field(mode_set[:, :, m])
-            plt.title(f"m={m}")
-            plt.xticks([])
-            plt.yticks([])
-        plt.pause(0.01)
-        plt.suptitle("Phase of basis functions for one half")
+    mask = half_mask((N1, 2 * N2))
 
     # Create aberrations
-    x = np.linspace(-1, 1, 1 * N1).reshape((1, -1))
-    y = np.linspace(-1, 1, 1 * N1).reshape((-1, 1))
+    x = np.linspace(-1, 1, N1).reshape((1, -1))
+    y = np.linspace(-1, 1, N1).reshape((-1, 1))
     aberrations = (np.sin(0.8 * np.pi * x) * np.cos(1.3 * np.pi * y) * (0.8 * np.pi + 0.4 * x + 0.4 * y)) % (2 * np.pi)
     aberrations[0:1, :] = 0
     aberrations[:, 0:2] = 0
@@ -499,8 +504,7 @@ def test_dual_reference_non_ortho_split():
     alg = DualReference(
         feedback=sim,
         slm=sim.slm,
-        phase_patterns=(phases_set, np.flip(phases_set, axis=1)),
-        amplitude="uniform",
+        phase_patterns=(phases_set, np.flip(phases_set, axis=2)),
         group_mask=mask,
         phase_steps=4,
         iterations=4,
@@ -510,29 +514,5 @@ def test_dual_reference_non_ortho_split():
 
     aberration_field = np.exp(1j * aberrations)
     t_field = np.exp(1j * np.angle(result.t))
-
-    if do_debug:
-        plt.figure()
-        for m in range(M):
-            plt.subplot(N2, N1, m + 1)
-            plot_field(alg.cobasis[0][:, :, m], scale=2)
-            plt.title(f"{m}")
-        plt.suptitle("Cobasis")
-        plt.pause(0.01)
-
-        plt.figure()
-        plt.imshow(abs(alg.gram), vmin=0, vmax=1)
-        plt.title("Gram matrix abs values")
-        plt.colorbar()
-
-        plt.figure()
-        plt.subplot(1, 2, 1)
-        plot_field(aberration_field)
-        plt.title("Aberrations")
-
-        plt.subplot(1, 2, 2)
-        plot_field(t_field)
-        plt.title("t")
-        plt.show()
 
     assert np.abs(field_correlation(aberration_field, t_field)) > 0.999

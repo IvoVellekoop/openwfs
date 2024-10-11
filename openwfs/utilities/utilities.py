@@ -293,15 +293,20 @@ def project(
 
     The input image is scaled so that the pixel sizes match those of the output,
     and cropped/zero-padded so that the data shape matches that of the output.
-    Optionally, an additional transformation can be specified, e. g., to scale or translate the source image.
-    This transformation is specified as a 2x3 transformation matrix in homogeneous coordinates.
+    Optionally, an additional :class:`~Transform` can be specified, e.g., to scale or translate the source image.
 
     Args:
-        source (np.ndarray): input image.
-            Must have the pixel_size set (see set_pixel_size)
-        transform: transformation to appy to the source image before placing it in the output
-        out (np.ndarray): optional array where the output image is stored in.
-            If specified, `out_shape` is ignored.
+        source: input image.
+        source_extent: extent of the source image in some physical unit.
+            If not given (``None``), the extent metadata of the input image is used.
+            see :func:`~get_extent`.
+        transform: optional transformed (rotate, translate, etc.)
+            to appy to the source image before placing it in the output
+        out: optional array where the output image is stored in.
+        out_extent: extent of the output image in some physical unit.
+            If not given, the extent metadata of the out image is used.
+        out_shape: shape of the output image.
+            This value is ignored if `out` is specified.
 
     Returns:
         np.ndarray: the projected image (`out` if specified, otherwise a new array)

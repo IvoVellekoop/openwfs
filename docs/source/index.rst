@@ -9,6 +9,8 @@ OpenWFS - a library for conducting and simulating wavefront shaping experiments
     core
     slms
     simulations
+    troubleshooting
+    micromanager
     development
     api
     auto_examples/index
