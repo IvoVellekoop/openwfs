@@ -1,6 +1,7 @@
 ﻿CoreLogs
 *.log
 *.idea
+.vscode
 venv
 __pycache__
 .ipynb_checkpoints
