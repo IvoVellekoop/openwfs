@@ -78,7 +78,7 @@ latex_elements = {
                 in a minimal amount of code, with OpenWFS taking care of low-level hardware control, synchronization,
                 and troubleshooting. Algorithms can be used on different hardware or in a completely
                 simulated environment without changing the code. Moreover, we provide full integration with
-                the \textmu Manager microscope control software, enabling wavefront shaping experiments to be
+                the Micro-Manager microscope control software, enabling wavefront shaping experiments to be
                 executed from a user-friendly graphical user interface. 
             }
         }

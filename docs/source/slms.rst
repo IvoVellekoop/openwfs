@@ -30,7 +30,7 @@ On top of the basic functionality, the :class:`hardware.SLM` object provides adv
 
 Texture mapping involves two components: a texture and a geometry, which are stored together in a :class:`~.hardware.SLM.Patch` object. The *texture* is a 2-D array holding phase values in radians. Values in the texture are referenced by texture coordinates ranging from 0 to 1. The *geometry* describes a set of triangles that is drawn to the screen, with each triangle holding a 2-D screen coordinate and a 2-D texture coordinate. The screen coordinate determines where the vertex is drawn on the screen, and the texture coordinate determines which pixel in the texture is used to color the vertex. When drawing the triangles, OpenGL automatically interpolates the texture coordinates between the vertices, and looks up the nearest value in the phase texture.
 
-In the simplest form, a square texture is mapped to a square region on the screen. This region is comprised of two triangles, with the screen coordinates corresponding to the vertices of the square. The vertices hold texture coordinates ranging from (0,0) to (1,1). The graphics card then interpolates the texture coordinates between the vertices, and for each screen pixel looks up the nearest value in the texture. This way, the texture is scaled to fit the region, regardless of how many elements the texture map has.
+In the simplest form, a square texture is mapped to a square region on the screen. This region is comprised of two triangles, with the screen coordinates corresponding to the vertices of the square. The vertices hold texture coordinates ranging from (0,0) to (1,1). This way, the graphics hardware automatically scales the texture to fit the region, regardless of how many elements the phase map has.
 
 A more advanced example is shown in :numref:`slmdemo`, where the texture is mapped to a disk. The disk is drawn as a set of triangles, with the screen coordinates corresponding to points on the concentric rings that form the disk. In this example, the texture was a 1 × 18 element array with random values. The texture coordinates were defined such that the elements of this array are mapped to three concentric rings, consisting of 4, 6, and 8 segments, respectively (see :numref:`slmcode`). Such an approach can be useful for equalizing the contribution of different segments on the SLM :cite:`mastiani2021noise`.
 
@@ -46,7 +46,7 @@ The combination of texture mapping and blending allows for a wide range of use c
 
     - Aligning the size and position of a square phase map with the illuminating beam.
     - Correcting phase maps for distortions in the optical system, such as barrel distortion.
-    - Using two parts of the same SLM independently. This feature is possible because each patch object can independently be used as a :class:`~.PhaseSLM` object.
+    - Using two parts of the same SLM independently. This feature is possible because each Patch object can independently be used as a :class:`~.PhaseSLM` object.
     - Blocking part of a wavefront by drawing a different patch on top of it, with :attr:`~.Patch.additive_blend` ``= False``.
     - Modifying an existing wavefront by adding a gradient or defocus pattern.
     - Compensating for curvature in the SLM and other system aberrations by adding an offset layer with :attr:`~.Patch.additive_blend` ``= True`` to compensate for these aberrations.
@@ -55,7 +55,7 @@ All of these corrections can be done in real time using OpenGL acceleration, mak
 
 A final aspect of the SLM that is demonstrated in the example is the use of the :attr:`~.slm.SLM.pixels` attribute. This attribute holds a virtual camera that reads the gray values of the pixels currently displayed on the SLM. This virtual camera implements the :class:`~.Detector` interface, meaning that it can be used just like an actual camera. This feature is useful, e.g., for storing or checking the images displayed on the SLM.
 
-For debugging or demonstration purposes, it is often useful to receive feedback on the image displayed on the SLM. In Windows, this image can be see by hovering over the program icon in the task bar. Alternatively, the combination Ctrl + PrtScn can be used to grab the image on all active monitors. For demonstration purposes, the :func:`~.slm.SLM.clone` function can be used to create a second SLM window (typically placed in a corner of the primary screen), which shows the same image as the original SLM. This technique is used in the ``wfs_demonstration_experimental.py`` code available in the online example gallery :cite:`readthedocsOpenWFS`.
+For debugging or demonstration purposes, it is often useful to receive feedback on the image displayed on the SLM. In Windows, this image can be see by hovering over the program icon in the task bar. Alternatively, the combination Ctrl + PrtScn can be used to grab the image on all active monitors. For demonstration purposes, the :func:`~.slm.SLM.clone` function can be used to create a second SLM window (typically placed in a corner of the primary screen), which shows the same image as the original SLM. This technique is demonstrated in the ``wfs_demonstration_experimental.py`` code available in the online example gallery :cite:`readthedocsOpenWFS`.
 
 
 Lookup table
