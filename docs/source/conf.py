@@ -47,13 +47,15 @@ latex_elements = {
         \AtBeginEnvironment{tabular}{\small}
      """,
     "maketitle": r"""
+        \author[1,2]{Jeroen~H.~Doornbos}
         \author[1]{Daniël~W.~S.~Cox}
         \author[1]{Tom~Knop}
-        \author[1,2]{Harish~Sasikumar}
+        \author[1,3]{Harish~Sasikumar}
         \author[1]{Ivo~M.~Vellekoop} 
         \affil[1]{University of Twente, Biomedical Photonic Imaging, TechMed Institute, P. O. Box 217,
          7500 AE Enschede, The Netherlands}
-        \affil[2]{Imec (Netherlands), Holst Centre (HTC-31), 5656 AE, Eindhoven, The Netherlands}
+        \affil[2]{Currently at: The Netherlands Cancer Institute, Division of Molecular Pathology, 1066 CX Amsterdam, The Netherlands}
+        \affil[3]{Imec (Netherlands), Holst Centre (HTC-31), 5656 AE, Eindhoven, The Netherlands}
         \publishers{%
             \normalfont\normalsize%
             \parbox{0.8\linewidth}{%
@@ -166,6 +168,8 @@ def source_read(app, docname, source):
 
 
 def builder_inited(app):
+    if app.builder.name == 'latex':
+        app.config.author = ''  # Override the author specifically for LaTeX output
     if app.builder.name == "html":
         exclude_patterns.extend(["conclusion.rst", "index_latex.rst", "index_markdown.rst"])
         app.config.master_doc = "index"
