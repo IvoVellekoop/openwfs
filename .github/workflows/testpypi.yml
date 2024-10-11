@@ -2,10 +2,10 @@ name: Publish to TestPyPI using Poetry
 
 on:
   push:
-    branches:
-      - master      # trigger upload on a new push to master
     tags:
-      - 'v*'        # provided it is tagged with a tag starting with 'v'
+      - v*        # trigger when a tag starts with 'v'
+    branches:
+      - master    # only on the master branch
       
 jobs:
   build:
