@@ -2,12 +2,12 @@ name: Publish to TestPyPI using Poetry
 
 on:
   push:
-    branches:
-      - 'master'    # only on the master branch
+    tags:
+      - 'v0*'    # only when the commit was tagged with a tag starting with v0
       
 jobs:
   build:
-    if: startsWith(github.ref, 'refs/tags/v')  # only when the commit was tagged with a tag starting with v
+    if: github.ref_name == 'master'
     runs-on: ubuntu-latest
     
     environment:
