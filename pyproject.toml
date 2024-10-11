@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "openwfs"
-version = "0.1.0rc6"
+version = "0.1.0rc7"
 description = 'A libary for performing wavefront shaping experiments and simulations'
 authors = ["Ivo Vellekoop <i.m.vellekoop@utwente.nl>", "Jeroen Doornbos", "Daniël Cox"]
 license = "BSD-3-Clause"
