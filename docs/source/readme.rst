@@ -69,7 +69,7 @@ This will also install the optional dependencies for OpenWFS:
 
 If these dependencies cannot be installed on your system, the installation will fail. In this case, you can instead install OpenWFS without dependencies by omitting ``[all]`` in the installation command, and manually install only the required dependencies, e.g. ``pip install openwfs[opengl,nidaq]``.
 
-At the time of writing, OpenWFS is at version 0.1.0, and it is tested up to Python version 3.11 on Windows 11 and Manjaro and Ubuntu Linux distributions. Note that the latest versions of the package will be available on the PyPI repository, and the latest documentation and the example code can be found on the `Read the Docs <https://openwfs.readthedocs.io/en/latest/>`_ website :cite:`openwfsdocumentation`. The source code can be found on :cite:`openwfsgithub`.
+At the time of writing, OpenWFS is at version 1.0.0, and it is tested up to Python version 3.11 on Windows 11 and Manjaro and Ubuntu Linux distributions. Note that the latest versions of the package will be available on the PyPI repository, and the latest documentation and the example code can be found on the `Read the Docs <https://openwfs.readthedocs.io/en/latest/>`_ website :cite:`openwfsdocumentation`. The source code can be found on :cite:`openwfsgithub`.
 
 :numref:`hello-wfs` shows an example of how to use OpenWFS to run a simple wavefront shaping experiment. This example illustrates several of the main concepts of OpenWFS. First, the code initializes objects to control a spatial light modulator (SLM) connected to a video port, and a camera that provides feedback to the wavefront shaping algorithm. It then runs a WFS algorithm to focus the light.
 
