@@ -16,7 +16,7 @@ To download the source code, including tests and examples, clone the repository 
 
 The examples are located in the ``examples`` directory. Note that a lot of functionality is also demonstrated in the automatic tests located in the ``tests`` directory. As an alternative to downloading the source code, the samples can also be copied directly from the example gallery on the documentation website :cite:`readthedocsOpenWFS`.
 
-By default, this only installs the dependencies for the basic OpenWFS package. To install the dependencies for the other components (the OpenGL, genicam or nidaq), use ``poetry -E opengl -E genicam -E nidaq install`` or ``poetry -E all`.
+By default, this only installs the dependencies for the basic OpenWFS package. To install the dependencies for the other components (the OpenGL, genicam or nidaq), use ``poetry -E opengl -E genicam -E nidaq install`` or ``poetry -E all``.
 
 Building the documentation
 --------------------------------------------------
@@ -79,7 +79,7 @@ To implement an actuator, the user should subclass the :class:`~Actuator` base c
 Implementing new algorithms
 --------------------------------------------------
 The algorithms that are included in OpenWFS are wrapped in classes with two common attribute: ``slm``, ``feedback``, which respectively hold a :class:`~.PhaseSLM` object to control the SLM and a :class:`~Detector` object that returns the feedback signals used in the optimization. For algorithms that support optimizing multiple targets simulaneously, the ``feedback`` detector may return an array of values.
-In addition, all algorithms have an ``execute()`` method that executes the algoritm and returns the measured transmission matrix, along with statistics about the measurements in a :class:`WFSResults` structure (see :numref:`section-troubleshooting).
+In addition, all algorithms have an ``execute()`` method that executes the algoritm and returns the measured transmission matrix, along with statistics about the measurements in a :class:`WFSResults` structure (see :numref:`section-troubleshooting`).
 When implementing a new algorithm, it is perfectly acceptable to deviate from this convention. However, if an algorithm follows the convention described above, it can directly be wrapped in a `WFSController` so that it can be used in Micro-Manager (see :numref:`section-micromanager`)
 As can be seen in the example in :numref:`hello-wfs`,  OpenWFS abstracts all hardware interactions in the calls to  ``slm.set_phases`` and ``feedback.trigger``.
 

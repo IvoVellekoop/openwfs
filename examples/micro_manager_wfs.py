@@ -1,7 +1,9 @@
 """ Micro-Manager simulated wavefront shaping
 ======================================================================
 This script simulates a full wavefront shaping experiment in the Micro-Manager GUI.
+
 To use it:
+
   * make sure  you have the PyDevice adapter installed in Micro-Manager (install the nightly build if you don't have it).
   * load the micro_manager_wfs.cfg hardware configuration in Micro-Manager,
   * locate the micro_manager_wfs.py in the file open dialog box that popps up.
