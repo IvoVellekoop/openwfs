@@ -73,7 +73,7 @@ sphinx_mdinclude = ">=0.5.0"
 sphinx-rtd-theme = ">=2.0.0"
 sphinx-autodoc-typehints = ">=2.2.0"
 sphinxcontrib-bibtex = ">=2.6.0"
-sphinx-markdown-builder = ">=0.6.6"
+sphinx-markdown-builder = "=0.6.7"
 sphinx-gallery = ">=0.15.0"
 
 

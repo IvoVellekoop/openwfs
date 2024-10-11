@@ -137,20 +137,9 @@ autodoc_mock_imports = ["PyOpenGL", "OpenGL"]
 
 # Hide some classes that are not production ready yet
 def skip(_app, _what, name, _obj, do_skip, _options):
-    if name in ("Gain"):
+    if name in ("Gain",):
         return True
     return do_skip
-
-
-def visit_citation(self, node):
-    """Patch-in function for markdown builder to support citations."""
-    id = node["ids"][0]
-    self.add(f'<a name="{id}"></a>')
-
-
-def visit_label(_self, _node):
-    """Patch-in function for markdown builder to support citations."""
-    pass
 
 
 def setup(app):
@@ -163,8 +152,7 @@ def setup(app):
     # monkey-patch the MarkdownTranslator class to support citations
     # TODO: this should be done in the markdown builder itself
     cls = MarkdownBuilder.default_translator_class
-    cls.visit_citation = visit_citation
-    cls.visit_label = visit_label
+    cls.visit_citation = cls.visit_footnote
 
 
 def source_read(app, docname, source):
