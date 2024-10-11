@@ -1,3 +1,4 @@
+import warnings
 from typing import Optional
 
 import astropy.units as u
@@ -276,8 +277,11 @@ class Camera(Detector):
     @staticmethod
     def enumerate_cameras(cti_file: str):
         with Harvester() as harvester:
-            harvester.add_file(cti_file, check_validity=True)
-            harvester.update()
+            try:
+                harvester.add_file(cti_file, check_validity=True)
+                harvester.update()
+            except (OSError, FileNotFoundError):
+                warnings.warn(f"Failed to load CTI file: {cti_file}")
             return harvester.device_info_list.copy()
 
 
