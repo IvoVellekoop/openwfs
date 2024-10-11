@@ -61,7 +61,23 @@ class Camera(Detector):
                 These arguments are transferred to the node map of the camera.
         """
         self._harvester = Harvester()
-        self._harvester.add_file(cti_file, check_validity=True)
+
+        try:
+            # Try to add the GenTL producer file (cti_file)
+            self._harvester.add_file(cti_file, check_validity=True)
+            print(f"Successfully loaded CTI file: {cti_file}")
+        except Exception as e:
+            # Catch any errors during the file loading process and provide a user-friendly message
+            print(f"Failed to load CTI file: {cti_file}")
+            print(f"Error: {str(e)}")
+            print(
+                "Please ensure that the CTI file exists at the specified location "
+                "and that it is a valid GenTL producer file. You can download or "
+                "locate the file from the camera manufacturer's website or SDK, "
+                "such as the Basler pylon SDK."
+            )
+            raise
+
         self._harvester.update()
 
         # open the camera, use the serial_number to select the camera if it is specified.

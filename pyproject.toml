@@ -30,7 +30,7 @@ annotated-types = "^0.7.0"
 
 # optional dependencies for hardware components
 nidaqmx = { version = "^1.0.1", optional = true }
-harvesters = { version = "^1.4.2", optional = true }
+harvesters = { version = "^1.4.2", optional = true, markers = "python_version < '3.12'" }
 PyOpenGL = { version = "^3.1.7", optional = true }
 glfw = { version = "^2.5.9", optional = true }
 
@@ -42,8 +42,7 @@ glfw = { version = "^2.5.9", optional = true }
 nidaq = ["nidaqmx"]
 genicam = ["harvesters"]
 opengl = ["PyOpenGL", "glfw"]
-all = ["nidaqmx", "harvesters", "PyOpenGL", "glfw"]
-
+all = ["nidaqmx", "harvesters; python_version < '3.12'", "PyOpenGL", "glfw"]
 
 [tool.black]
 line-length = 120
