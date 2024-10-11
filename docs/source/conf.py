@@ -168,6 +168,8 @@ def setup(app):
 
 
 def source_read(app, docname, source):
+    # put the acknowledgements at the end of the introduction or at the end of the conclusion,
+    # depending on the builder
     if docname == "readme" or docname == "conclusion":
         if (app.builder.name == "latex") == (docname == "conclusion"):
             source[0] = source[0].replace("%endmatter%", ".. include:: acknowledgements.rst")

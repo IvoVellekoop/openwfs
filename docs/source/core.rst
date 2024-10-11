@@ -1,4 +1,4 @@
-.. _key_concepts:
+.. _section-key_concepts:
 
 Key concepts
 ==================================================
