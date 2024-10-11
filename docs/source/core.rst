@@ -129,13 +129,13 @@ OpenWFS comes with a number of wavefront shaping algorithms already implemented,
 .. list-table::
    :widths: 30 70
 
-   * - :class:`algorithms.FourierDualReference`
+   * - algorithms.FourierDualReference
      - A dual reference algorithm that uses plane waves from a disk in k-space for wavefront shaping :cite:`Mastiani2022`.
-   * - :class:`algorithms.DualReference`
+   * - algorithms.DualReference
      - A generic dual reference algorithm with a configurable basis set :cite:`Cox2024`.
-   * - :class:`algorithms.SimpleGenetic`
+   * - algorithms.SimpleGenetic
      - A simple genetic algorithm for optimiziang wavefronts :cite:`Piestun2012`.
-   * - :class:`algorithms.StepwiseSequential`
+   * - algorithms.StepwiseSequential
      - A simplified version of the original wavefront shaping algorithm :cite:`Vellekoop2007`, with pre-optimization omitted.
 
 All algorithms are designed to be completely hardware-agnostic, so that the exact same code can be used with any type of feedback signal on real or simulated hardware. All algorithms except the :class:`~.SimpleGenetic` algorithm provide support for optimizing multiple targets simulaneously in a single run of the algorithm.
