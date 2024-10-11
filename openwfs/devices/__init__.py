@@ -5,7 +5,7 @@ import warnings
 def safe_import(module_name: str, extra_name: str):
     try:
         return importlib.import_module(module_name)
-    except ModuleNotFoundError:
+    except (ModuleNotFoundError, AttributeError):
         warnings.warn(
             f"""Could not import {module_name}, because the package is not installed.
             To install, using:
