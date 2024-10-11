@@ -30,8 +30,6 @@ alg = FourierDualReference(feedback=roi_detector, slm=slm, slm_shape=[800, 800],
 
 result = alg.execute()
 print(result)
-print(result.estimated_enhancement)
-print(result.fidelity_noise)
 optimised_wf = -np.angle(result.t)
 before = roi_detector.read()
 slm.set_phases(optimised_wf)
