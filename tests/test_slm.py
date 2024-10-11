@@ -7,8 +7,8 @@ import pytest
 from ..openwfs.devices import safe_import
 
 glfw = safe_import("glfw", "glfw")
-OpenGL = safe_import("OpenGL", "OpenGL")
-if not glfw or not OpenGL:
+GL = safe_import("OpenGL.GL", "OpenGL")
+if not glfw or not GL:
     pytest.skip("GLFW and PyOpenGL are required for the test_slm module", allow_module_level=True)
 
 
