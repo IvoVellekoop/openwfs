@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     
     environment:
-      name: testpypi
+      name: pypi
       url: https://test.pypi.org/p/openwfs
       
     permissions:
@@ -47,10 +47,9 @@ jobs:
         verbose: true
 
     - name: Publish package distributions to the true PyPI
-      if: github.ref matches 'refs/tags/v.*[0-9]$'  # only for release versions: tags not ending in 'rc', 'a', 'b', etc.
+      if: ${{ !contains(github.ref, 'rc')}} # don't publish release candidates to PyPI, use these only for testing
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
-        repository-url: https://test.pypi.org/legacy/
         verbose: true
 
         
