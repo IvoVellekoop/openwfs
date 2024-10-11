@@ -40,8 +40,8 @@ class Geometry:
             vertices (np.ndarray): The vertices of the geometry. See class documentation for details.
             indices (np.ndarray): The indices of the geometry. See class documentation for details.
         """
-        self._vertices = np.array(vertices, dtype=np.float32, copy=False)
-        self._indices = np.array(indices, dtype=np.uint16, copy=False)
+        self._vertices = np.asarray(vertices, dtype=np.float32)
+        self._indices = np.asarray(indices, dtype=np.uint16)
 
         if self._vertices.ndim != 2 or self._vertices.shape[1] != 4:
             raise ValueError("Vertices should be a 2-D array with 4 columns")
