@@ -47,4 +47,6 @@ Common warnings:
   # Properties
 - Document properties in the getter method only, not in the setter method. Also describe what happens if the property is
   set.
-- 
+- Do not use a return type in property getters.
+- Include the type of the property as type hint, not in the docstring.
+- In the property setter, convert the input to the correct type.
