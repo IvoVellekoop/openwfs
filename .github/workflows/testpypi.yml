@@ -3,9 +3,9 @@ name: Publish to TestPyPI using Poetry
 on:
   push:
     tags:
-      - v*        # trigger when a tag starts with 'v'
+      - 'v*'        # trigger when a tag starts with 'v'
     branches:
-      - master    # only on the master branch
+      - 'master'    # only on the master branch
       
 jobs:
   build:
