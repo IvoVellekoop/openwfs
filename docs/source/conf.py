@@ -34,7 +34,7 @@ extensions = [
 # basic project information
 project = "OpenWFS"
 copyright = "2023-, Ivo Vellekoop, Daniël W. S. Cox, and Jeroen H. Doornbos, University of Twente"
-author = "Jeroen H. Doornbos, Daniël W. S. Cox, Tom Knop, Harish Sasikumar, Ivo M. Vellekoop"
+# author = "Jeroen H. Doornbos, Daniël W. S. Cox, Tom Knop, Harish Sasikumar, Ivo M. Vellekoop"
 release = "0.1.0rc2"
 html_title = "OpenWFS - a library for conducting and simulating wavefront shaping experiments"
 #   \renewenvironment{sphinxtheindex}{\setbox0\vbox\bgroup\begin{theindex}}{\end{theindex}}
@@ -99,7 +99,7 @@ latex_documents = [
         "index_latex",
         "OpenWFS.tex",
         "OpenWFS - a  library for conducting and simulating wavefront shaping experiments",
-        "Jeroen H. Doornbos",
+        "",
         "howto",
     )
 ]
@@ -147,7 +147,7 @@ def skip(_app, _what, name, _obj, do_skip, _options):
 def setup(app):
     # register event handlers
     app.connect("autodoc-skip-member", skip)
-    app.connect("build-finished", copy_readme)
+    app.connect("build-finished", build_finished)
     app.connect("builder-inited", builder_inited)
     app.connect("source-read", source_read)
 
@@ -168,8 +168,6 @@ def source_read(app, docname, source):
 
 
 def builder_inited(app):
-    if app.builder.name == 'latex':
-        app.config.author = ''  # Override the author specifically for LaTeX output
     if app.builder.name == "html":
         exclude_patterns.extend(["conclusion.rst", "index_latex.rst", "index_markdown.rst"])
         app.config.master_doc = "index"
@@ -182,9 +180,29 @@ def builder_inited(app):
         app.config.master_doc = "index_markdown"
 
 
-def copy_readme(app, exception):
-    """Copy the readme file to the root of the documentation directory."""
-    if exception is None and app.builder.name == "markdown":
+def build_finished(app, exception):
+    if exception:
+        return
+
+    if app.builder.name == "markdown":
+        # Copy the readme file to the root of the documentation directory.
         source_file = Path(app.outdir) / "readme.md"
         destination_dir = Path(app.confdir).parents[1] / "README.md"
         shutil.copy(source_file, destination_dir)
+
+    elif app.builder.name == "latex":
+        # The latex builder adds an empty author field to the title page.
+        # This code removes it.
+        # Define the path to the .tex file
+        tex_file = Path(app.outdir) / "openwfs.tex"
+
+        # Read the file
+        with open(tex_file, "r") as file:
+            content = file.read()
+
+        # Remove \author{} from the file
+        content = content.replace(r"\author{}", "")
+
+        # Write the modified content back to the file
+        with open(tex_file, "w") as file:
+            file.write(content)
