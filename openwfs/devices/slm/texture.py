@@ -41,7 +41,7 @@ class Texture:
         The texture data is directly copied to the GPU memory,
          so the original data array can be modified or deleted.
         """
-        value = np.array(value, dtype=np.float32, order="C", copy=False)
+        value = np.asarray(value, dtype=np.float32, order="C")
 
         with self.context:
             GL.glBindTexture(self.type, self.handle)
