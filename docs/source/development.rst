@@ -14,9 +14,11 @@ To download the source code, including tests and examples, clone the repository 
     poetry install --with dev --with docs
     poetry run pytest
 
+By default, this only installs the dependencies for the basic OpenWFS package. To install the dependencies for the other components (the OpenGL, genicam or nidaq), use ``poetry -E opengl -E genicam -E nidaq install`` or ``poetry -E all``
+
 The examples are located in the ``examples`` directory. Note that a lot of functionality is also demonstrated in the automatic tests located in the ``tests`` directory. As an alternative to downloading the source code, the samples can also be copied directly from the example gallery on the documentation website :cite:`readthedocsOpenWFS`.
 
-By default, this only installs the dependencies for the basic OpenWFS package. To install the dependencies for the other components (the OpenGL, genicam or nidaq), use ``poetry -E opengl -E genicam -E nidaq install`` or ``poetry -E all``.
+.
 
 Building the documentation
 --------------------------------------------------
@@ -38,10 +40,7 @@ Note that for building the pdf version of the documentation, you need to have ``
     make clean
     make html
     make markdown
-    make latex
-    cd _build/latex
-    xelatex openwfs
-    xelatex openwfs
+    tex
 
 
 Reporting bugs and contributing
@@ -56,7 +55,7 @@ To implement a custom device (actuator, detector, processor), it is important to
     - ``moving = True``. One or more actuators may be busy. No measurements can be made (none of the detectors is busy).
     - ``moving = False`` (the 'measuring' state). One or more detectors may be busy. All actuators must remain static (none of the actuators is busy).
 
-When an actuator is started, or when a detector is triggered, it calls ``self._start`` to request a switch to the correct global state. If a state switch is needed, this function blocks until all devices of the other device type are ready. For example, if an actuator calls ``_start``, the framework waits for all detectors to complete their measurements (up to latency, see :numref:`device-synchronization`) before the switch is made. Note that for  detectors and processors, ``_start`` is called automatically by :meth:`~.Device.trigger()`, so there is never a need to call it explicitly.
+When an actuator is started, or when a detector is triggered, it should call ``self._start`` to request a switch to the correct global state. If a state switch is needed, this function blocks until all devices of the other device type are ready. For example, if an actuator calls ``_start``, the framework waits for all detectors to complete their measurements (up to latency, see :numref:`device-synchronization`) before the switch is made. Note that for  detectors and processors, ``_start`` is already called automatically by :meth:`~.Device.trigger()`, so there is no need to call it explicitly.
 
 
 Implementing a detector
@@ -78,10 +77,9 @@ To implement an actuator, the user should subclass the :class:`~Actuator` base c
 
 Implementing new algorithms
 --------------------------------------------------
-The algorithms that are included in OpenWFS are wrapped in classes with two common attribute: ``slm``, ``feedback``, which respectively hold a :class:`~.PhaseSLM` object to control the SLM and a :class:`~Detector` object that returns the feedback signals used in the optimization. For algorithms that support optimizing multiple targets simulaneously, the ``feedback`` detector may return an array of values.
+The algorithms that are included in OpenWFS are implemented as classes with two common attribute: ``slm`` and ``feedback``, which respectively hold a :class:`~.PhaseSLM` object to control the SLM and a :class:`~Detector` object that returns the feedback signals used in the optimization. For algorithms that support optimizing multiple targets simulaneously, the ``feedback`` detector may return an array of values. As can be seen in the example in :numref:`hello-wfs`,  OpenWFS abstracts all hardware interactions in the calls to  ``slm.set_phases`` and ``feedback.trigger``, so the algorithm does not need to have any information on the nature of SLM or the origin of the feedback signal.
 In addition, all algorithms have an ``execute()`` method that executes the algoritm and returns the measured transmission matrix, along with statistics about the measurements in a :class:`WFSResults` structure (see :numref:`section-troubleshooting`).
-When implementing a new algorithm, it is perfectly acceptable to deviate from this convention. However, if an algorithm follows the convention described above, it can directly be wrapped in a `WFSController` so that it can be used in Micro-Manager (see :numref:`section-micromanager`)
-As can be seen in the example in :numref:`hello-wfs`,  OpenWFS abstracts all hardware interactions in the calls to  ``slm.set_phases`` and ``feedback.trigger``.
+When implementing a new algorithm, it is perfectly acceptable to deviate from this convention. However, if an algorithm follows the convention described above, it can directly be wrapped in a :class:`WFSController` so that it can be used in Micro-Manager (see :numref:`section-micromanager`).
 
 
 

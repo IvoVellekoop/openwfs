@@ -124,7 +124,7 @@ Actuators are devices that *move* things in the setup. This can be literal, such
 
 Algorithms
 ------------
-OpenWFS comes with a number of wavefront shaping algorithms already implemented, as listed in the table below. Although these algorithms could have been implemented as functions, we chose to implement them as objects, so that the parameters of the algorithm can be stored as attributes of the object. This simplifies keeping the parameters together in one place in the code, and also allows the algorithm parameters to be accessible in the Micro-Manager graphical user interface, see :ref:`section-micromanager`.
+OpenWFS comes with a number of wavefront shaping algorithms already implemented, as listed in the table below. Although these algorithms could have been implemented as functions, we chose to implement them as objects, so that the parameters of the algorithm can be stored as attributes of the object. This simplifies keeping the parameters together in one place in the code, and also allows the algorithm parameters to be accessible in the Micro-Manager graphical user interface, see :numref:`section-micromanager`.
 
 .. list-table::
    :widths: 30 70
