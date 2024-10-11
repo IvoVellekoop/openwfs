@@ -2,13 +2,12 @@ name: Publish to TestPyPI using Poetry
 
 on:
   push:
-    tags:
-      - 'v*'        # trigger when a tag starts with 'v'
-    branches-ignore:
-      - '!master'    # only on the master branch
+    branches:
+      - 'master'    # only on the master branch
       
 jobs:
   build:
+    if: startsWith(github.ref, 'refs/tags/')  
     runs-on: ubuntu-latest
     
     environment:
