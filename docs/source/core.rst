@@ -79,11 +79,6 @@ The program does not wait for the data to become available and can directly proc
 
 Note that, except for this asynchronous mechanism for fetching and processing data, OpenWFS is not designed to be thread-safe, and the user is responsible for guaranteeing that devices are only accessed from a single thread at a time.
 
-.. _hellowfsdiagram:
-.. figure:: hellowfsflowchart.png
-    :align: center
-
-    Flowchart of the ``hello_wfs.py`` example.
 
 Processors
 ------------
@@ -111,6 +106,8 @@ Actuators
 
 Actuators are devices that *move* things in the setup. This can be literal, such as moving a translation stage, or a virtual movement, like an SLM that takes time to switch to a different phase pattern. All actuators are derived from the common :class:`.Actuator` base class. Actuators have no additional methods or properties other than those in the :class:`.Device` base class. A list of actuators currently supported by OpenWFS can be found in the table below.
 
+
+
 .. list-table::
   :widths: 27 73
 
@@ -121,6 +118,12 @@ Actuators are devices that *move* things in the setup. This can be literal, such
   * - simulation.XYStage
     - Simulates a translation stage, used in :class:`~Microscope`.
 
+.. _hellowfsdiagram:
+.. figure:: hellowfsflowchart.png
+    :align: center
+
+    Flowchart of the ``hello_wfs.py`` example.
+    
 
 Algorithms
 ------------

@@ -18,8 +18,6 @@ By default, this only installs the dependencies for the basic OpenWFS package. T
 
 The examples are located in the ``examples`` directory. Note that a lot of functionality is also demonstrated in the automatic tests located in the ``tests`` directory. As an alternative to downloading the source code, the samples can also be copied directly from the example gallery on the documentation website :cite:`readthedocsOpenWFS`.
 
-.
-
 Building the documentation
 --------------------------------------------------
 

@@ -51,11 +51,12 @@ latex_elements = {
         \author[1]{Daniël~W.~S.~Cox}
         \author[1]{Tom~Knop}
         \author[1,3]{Harish~Sasikumar}
-        \author[1]{Ivo~M.~Vellekoop} 
+        \author[1*]{Ivo~M.~Vellekoop}
         \affil[1]{University of Twente, Biomedical Photonic Imaging, TechMed Institute, P. O. Box 217,
          7500 AE Enschede, The Netherlands}
         \affil[2]{Currently at: The Netherlands Cancer Institute, Division of Molecular Pathology, 1066 CX Amsterdam, The Netherlands}
         \affil[3]{Imec (Netherlands), Holst Centre (HTC-31), 5656 AE, Eindhoven, The Netherlands}
+        \affil[*]{Corresponding author: i.m.vellekoop@utwente.nl}
         \publishers{%
             \normalfont\normalsize%
             \parbox{0.8\linewidth}{%
@@ -121,7 +122,7 @@ include_patterns = ["**"]
 napoleon_use_rtype = False
 napoleon_use_param = True
 typehints_document_rtype = False
-latex_engine = "xelatex"
+latex_engine = "pdflatex"
 html_theme = "sphinx_rtd_theme"
 add_module_names = False
 autodoc_preserve_defaults = True
