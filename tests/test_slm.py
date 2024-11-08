@@ -297,9 +297,8 @@ def test_slm_lut(slm):
     input_phase_a_256[0:13, 0] = np.asarray([-1, -0.501, -0.499, 0, 1, 64, 255, 255.499, 255.501, 256, 257, 511, 512])
     input_phases_a = input_phase_a_256 * 2 * np.pi / 256
 
-    expected_output_phases_a = np.zeros(slm.shape)
-    expected_output_phases_a_256 = np.asarray([255, 255, 0, 0, 1, 64, 255, 255, 0, 0, 1, 255, 0])
-    expected_output_phases_a[0:13, 0] = expected_output_phases_a_256 * 2 * np.pi / 256
+    expected_output_phases_a_256 = np.zeros(slm.shape)
+    expected_output_phases_a_256[0:13, 0] = np.asarray([255, 255, 0, 0, 1, 64, 255, 255, 0, 0, 1, 255, 0])
 
     slm.set_phases(input_phases_a)
     assert np.all(np.abs(slm.pixels.read() - expected_output_phases_a_256) < 1e-6)
