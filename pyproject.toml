@@ -27,6 +27,7 @@ opencv-python = "^4.9.0.80"
 matplotlib = "^3.7.3"
 scipy = "^1.11.3"
 annotated-types = "^0.7.0"
+torch = "^2.5"
 
 # optional dependencies for hardware components
 nidaqmx = { version = "^1.0.1", optional = true }
