@@ -542,6 +542,13 @@ class SLM(Actuator, PhaseSLM):
     def set_phases(self, values: ArrayLike, update=True):
         self.primary_patch.set_phases(values, update)
 
+    def set_phases_8bit(self, values: ArrayLike, **kwargs):
+        """
+        Pass 8bit unsigned integers [0, 255] as linearly mapped to phase, such that 0 -> 0, 256 -> 2π. Any other
+        keyword arguments will be passed to set_phases.
+        """
+        self.set_phases(values * 2 * np.pi / 256, **kwargs)
+
     @property
     def pixels(self) -> Detector:
         """Returns a 'camera' to monitor the current value of the pixels displayed on  the SLM."""
