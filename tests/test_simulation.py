@@ -206,36 +206,17 @@ def test_mock_slm_lut_and_phase_response():
     """
     # === Test default lookup table and phase response ===
     # Includes edge cases like rounding/wrapping: -0.501 -> 255, -0.499 -> 0
-    input_phases_a = (
-        np.asarray(
-            (
-                -1,
-                -0.501,
-                -0.499,
-                0,
-                1,
-                64,
-                128,
-                192,
-                255,
-                255.499,
-                255.501,
-                256,
-                257,
-                511,
-                512,
-            )
-        )
-        * 2
-        * np.pi
-        / 256
-    )
+    input_phase_a_256 = np.asarray([-1, -0.501, -0.499, 0, 1, 64, 128, 192, 255, 255.499, 255.501, 256, 257, 511, 512])
+    input_phases_a = input_phase_a_256 * 2 * np.pi / 256
     expected_output_phases_a = (
-        np.asarray((255, 255, 0, 0, 1, 64, 128, 192, 255, 255, 0, 0, 1, 255, 0)) * 2 * np.pi / 256
+        np.asarray([255, 255, 0, 0, 1, 64, 128, 192, 255, 255, 0, 0, 1, 255, 0]) * 2 * np.pi / 256
     )
     slm1 = SLM(shape=(3, input_phases_a.shape[0]))
     slm1.set_phases(input_phases_a)
-    assert np.all(np.abs(slm1.phases.read() - expected_output_phases_a) < 1e6)
+    assert np.all(np.abs(slm1.phases.read() - expected_output_phases_a) < 1e-6)
+
+    slm1.set_phases_8bit(input_phase_a_256)
+    assert np.all(np.abs(slm1.phases.read() - expected_output_phases_a) < 1e-6)
 
     # === Test setting custom phase response of SLM ===
     # Construct custom phase response
