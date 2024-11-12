@@ -24,8 +24,8 @@ class FringeAnalysisSLMCalibrator:
         camera: Camera,
         slm: SLM | MockSLM,
         slm_mask: nd = None,
-        camera_mask_modulate: nd = None,
-        camera_mask_reference: nd = None,
+        modulated_slices: tuple[slice, slice] = None,
+        reference_slices: tuple[slice, slice] = None,
         gray_values: ArrayLike = None,
     ):
         """
@@ -34,13 +34,8 @@ class FringeAnalysisSLMCalibrator:
             slm: SLM to be calibrated
             slm_mask: A 2D bool array of that defines the elements used by modulation group with True and elements used
                 by reference group with False, should have shape ``(height, width)``.
-            line_pick_axis: Axis from which to pick a horizontal or vertical line. The other axis will be used to
-                perform Fourier fringe analysis on. E.g. vertical fringes -> choose the vertical axis, as the FFT must
-                be taken along the horizontal axis.
-            line_index_modulate: Frame pixel index to pick a horizontal or vertical line to analyze, for modulation.
-                Default: 0.25 * frame width or height.
-            line_index_reference: Frame pixel index to pick a horizontal or vertical line to analyze, for reference.
-                Default: 0.75 * frame width or height.
+            modulated_slices: Slice objects to crop the frame to the modulated fringes.
+            reference_slices: Slice objects to crop the frame to the reference fringes.
             gray_values: Gray values to calibrate. Default: 0, 1, ..., 255.
         """
         self.slm = slm
@@ -50,6 +45,16 @@ class FringeAnalysisSLMCalibrator:
             self.slm_mask = np.asarray(((True, True), (False, False)))
         else:
             self.slm_mask = slm_mask.astype(bool)
+
+        if modulated_slices is None:
+            self.modulated_slices = (slice(0, self.camera.data_shape[0] // 4), slice(None))
+        else:
+            self.modulated_slices = modulated_slices
+
+        if reference_slices is None:
+            self.reference_slices = (slice(-self.camera.data_shape[0] // 4, None), slice(None))
+        else:
+            self.reference_slices = reference_slices
 
         if gray_values is None:
             self.gray_values = np.arange(0, 255)
@@ -62,16 +67,22 @@ class FringeAnalysisSLMCalibrator:
         # Record a camera frame for every gray value
         for n, gv in enumerate(self.gray_values):
             self.slm.set_phases_8bit(self.slm_mask * gv)
-            frames[:, :, n] = self.camera.trigger(out=frames[n, ...])
+            self.camera.trigger(out=frames[n, ...])
 
         self.camera.wait()
         return self.analyze(frames), frames
 
     def analyze(self, frames):
-        modulated_fringes = np.take(frames, self.line_index_modulate, axis=self.line_pick_axis)
-        reference_fringes = np.take(frames, self.line_index_reference, axis=self.line_pick_axis)
+        modulated_fringes = frames[:, self.modulated_slices[0], self.modulated_slices[1]]
+        reference_fringes = frames[:, self.reference_slices[0], self.reference_slices[1]]
 
-        np.fft.fft2(modulated_fringes, axes=(-2, -1))
-        np.fft.fft2(reference_fringes, axes=(-2, -1))
+        modulated_fft = np.fft.fft2(modulated_fringes, axes=(-2, -1))
+        reference_fft = np.fft.fft2(reference_fringes, axes=(-2, -1))
 
-        return fields
+        modulated_dominant_freq = self.get_dominant_frequency(modulated_fft)
+        reference_dominant_freq = self.get_dominant_frequency(reference_fft)
+
+        relative_field = modulated_dominant_freq / reference_dominant_freq
+
+        return relative_field
+
