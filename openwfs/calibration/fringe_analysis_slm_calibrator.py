@@ -1,3 +1,6 @@
+# Built-in
+from typing import Tuple
+
 # External (3rd party)
 import numpy as np
 from numpy import ndarray as nd
@@ -61,7 +64,7 @@ class FringeAnalysisSLMCalibrator:
         else:
             self.gray_values = gray_values
 
-    def execute(self):
+    def execute(self) -> Tuple[nd, ArrayLike, nd]:
         frames = np.zeros((len(self.gray_values), *self.camera.data_shape))
 
         # Record a camera frame for every gray value
@@ -70,7 +73,7 @@ class FringeAnalysisSLMCalibrator:
             self.camera.trigger(out=frames[n, ...])
 
         self.camera.wait()
-        return self.analyze(frames), frames
+        return self.analyze(frames), self.gray_values, frames
 
     def analyze(self, frames):
         modulated_fringes = frames[:, self.modulated_slices[0], self.modulated_slices[1]]
@@ -86,7 +89,8 @@ class FringeAnalysisSLMCalibrator:
 
         return relative_field
 
-    def get_dominant_frequency(self, fft_data, dc_skip=4):
+    @staticmethod
+    def get_dominant_frequency(fft_data, dc_skip=4) -> nd:
         # Calculate the Nyquist frequencies
         nyquist_y = fft_data.shape[-2] // 2
         nyquist_x = fft_data.shape[-1] // 2
