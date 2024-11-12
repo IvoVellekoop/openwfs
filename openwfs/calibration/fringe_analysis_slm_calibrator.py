@@ -86,3 +86,16 @@ class FringeAnalysisSLMCalibrator:
 
         return relative_field
 
+    def get_dominant_frequency(self, fft_data, dc_skip=4):
+        # Calculate the Nyquist frequencies
+        nyquist_y = fft_data.shape[-2] // 2
+        nyquist_x = fft_data.shape[-1] // 2
+
+        # Input data was real -> we're only interested in one half of the data
+        # Also remove DC peak
+        cropped_fft = fft_data[..., dc_skip + 1 : nyquist_y, dc_skip + 1 : nyquist_x]
+
+        max_idx = np.unravel_index(np.argmax(np.abs(cropped_fft), axis=None), cropped_fft.shape[-2:])
+        dominant_freq = cropped_fft[..., max_idx[0], max_idx[1]]
+
+        return dominant_freq
