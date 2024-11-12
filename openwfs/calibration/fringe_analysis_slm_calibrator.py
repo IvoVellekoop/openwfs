@@ -90,7 +90,7 @@ class FringeAnalysisSLMCalibrator:
         return relative_field
 
     @staticmethod
-    def get_dominant_frequency(fft_data, dc_skip=4) -> nd:
+    def get_dominant_frequency(fft_data, dc_skip=4):
         # Calculate the Nyquist frequencies
         nyquist_y = fft_data.shape[-2] // 2
         nyquist_x = fft_data.shape[-1] // 2
@@ -99,7 +99,24 @@ class FringeAnalysisSLMCalibrator:
         # Also remove DC peak
         cropped_fft = fft_data[..., dc_skip + 1 : nyquist_y, dc_skip + 1 : nyquist_x]
 
-        max_idx = np.unravel_index(np.argmax(np.abs(cropped_fft), axis=None), cropped_fft.shape[-2:])
-        dominant_freq = cropped_fft[..., max_idx[0], max_idx[1]]
+        # Get the shape of the cropped FFT data
+        cropped_shape = cropped_fft.shape
+
+        # Flatten the last two axes (frequency dimensions) into one
+        reshaped_fft = cropped_fft.reshape(cropped_shape[:-2] + (-1,))
+
+        # Find the index of the maximum value along the last axis
+        max_idx_flat = np.argmax(np.abs(reshaped_fft), axis=-1)
+
+        # Convert the flat indices back to 2D indices
+        ny, nx = cropped_shape[-2], cropped_shape[-1]
+        max_idx_2d = np.unravel_index(max_idx_flat, (ny, nx))
+
+        # Prepare indices to select the dominant frequency from the original array
+        # This accounts for any leading dimensions (e.g., frames)
+        indices = tuple(np.indices(cropped_shape[:-2])) + max_idx_2d
+
+        # Retrieve the dominant frequency values
+        dominant_freq = cropped_fft[indices]
 
         return dominant_freq
