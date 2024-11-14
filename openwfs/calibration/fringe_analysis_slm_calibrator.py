@@ -30,7 +30,7 @@ class FringeAnalysisSLMCalibrator:
         modulated_slices: tuple[slice, slice] = None,
         reference_slices: tuple[slice, slice] = None,
         gray_values: ArrayLike = None,
-        dc_skip: int = 4,
+        dc_skip: int = 5,
     ):
         """
         Args:
@@ -42,7 +42,8 @@ class FringeAnalysisSLMCalibrator:
             reference_slices: Slice objects to crop the frame to the reference fringes.
             gray_values: Gray values to calibrate. Default: 0, 1, ..., 255.
             dc_skip: In the Fourier domain, a square region of this size (in Fourier-pixels) will be set to 0 to remove
-                the DC peak, before determining the dominant frequency.
+                the DC peak, before determining the dominant frequency. The image should contain significantly more
+                fringes than this value.
         """
         self.slm = slm
         self.camera = camera
@@ -97,15 +98,16 @@ class FringeAnalysisSLMCalibrator:
 
     @staticmethod
     def get_dominant_frequency(fft_data, dc_skip):
-        fft_data[..., 0:dc_skip, 0:dc_skip] = 0             # Remove DC peak
-        s = fft_data.shape
-        reshaped_fft = fft_data.reshape(s[:-2] + (-1,))     # Flatten the last two axes (frequency dimensions) into one
+        fft_data[..., :dc_skip, :dc_skip] = 0               # Remove DC peak
+        fft_data[..., :dc_skip, -dc_skip:] = 0              # Remove DC peak
+        fft_data[..., -dc_skip:, -dc_skip:] = 0             # Remove DC peak
+        fft_data[..., -dc_skip:, :dc_skip] = 0              # Remove DC peak
 
         # Find the index of the maximum value along the last axis
-        max_idx_flat = np.argmax(np.abs(reshaped_fft), axis=-1)
+        s = fft_data.shape
+        max_idx_flat = np.argmax(np.abs(fft_data[0, ...]))
         max_idx_2d = np.unravel_index(max_idx_flat, (s[-2], s[-1]))
 
         # Compute indices to select the dominant frequency from the original array
         # This accounts for any leading dimensions
-        indices = tuple(np.indices(s[:-2])) + max_idx_2d
-        return fft_data[indices]
+        return fft_data[:, *max_idx_2d]
