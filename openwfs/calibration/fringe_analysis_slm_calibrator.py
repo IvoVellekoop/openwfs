@@ -41,6 +41,8 @@ class FringeAnalysisSLMCalibrator:
             modulated_slices: Slice objects to crop the frame to the modulated fringes.
             reference_slices: Slice objects to crop the frame to the reference fringes.
             gray_values: Gray values to calibrate. Default: 0, 1, ..., 255.
+            dc_skip: In the Fourier domain, a square region of this size (in Fourier-pixels) will be set to 0 to remove
+                the DC peak, before determining the dominant frequency.
         """
         self.slm = slm
         self.camera = camera
@@ -72,7 +74,9 @@ class FringeAnalysisSLMCalibrator:
         # Record a camera frame for every gray value
         for n, gv in enumerate(self.gray_values):
             self.slm.set_phases_8bit(self.slm_mask * gv)
-            self.camera.trigger(out=frames[n, ...])
+            frames[n, ...] = self.camera.read()
+            ### TODO: Can this be done like this? How does the camera behave? Test with real cam.
+            # self.camera.trigger(out=frames[n, ...])
 
         self.camera.wait()
         return self.analyze(frames), self.gray_values, frames
@@ -101,9 +105,7 @@ class FringeAnalysisSLMCalibrator:
         max_idx_flat = np.argmax(np.abs(reshaped_fft), axis=-1)
         max_idx_2d = np.unravel_index(max_idx_flat, (s[-2], s[-1]))
 
-        # Prepare indices to select the dominant frequency from the original array
-        # This accounts for any leading dimensions (e.g., frames)
+        # Compute indices to select the dominant frequency from the original array
+        # This accounts for any leading dimensions
         indices = tuple(np.indices(s[:-2])) + max_idx_2d
-        dominant_freq = fft_data[indices]
-
-        return dominant_freq
+        return fft_data[indices]
