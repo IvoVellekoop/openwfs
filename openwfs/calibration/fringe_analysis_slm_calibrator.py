@@ -30,6 +30,7 @@ class FringeAnalysisSLMCalibrator:
         modulated_slices: tuple[slice, slice] = None,
         reference_slices: tuple[slice, slice] = None,
         gray_values: ArrayLike = None,
+        dc_skip: int = 4,
     ):
         """
         Args:
@@ -43,6 +44,7 @@ class FringeAnalysisSLMCalibrator:
         """
         self.slm = slm
         self.camera = camera
+        self.dc_skip = dc_skip
 
         if slm_mask is None:
             self.slm_mask = np.asarray(((True, True), (False, False)))
@@ -50,12 +52,12 @@ class FringeAnalysisSLMCalibrator:
             self.slm_mask = slm_mask.astype(bool)
 
         if modulated_slices is None:
-            self.modulated_slices = (slice(0, self.camera.data_shape[0] // 4), slice(None))
+            self.modulated_slices = (slice(None), slice(0, self.camera.data_shape[0] // 3))
         else:
             self.modulated_slices = modulated_slices
 
         if reference_slices is None:
-            self.reference_slices = (slice(-self.camera.data_shape[0] // 4, None), slice(None))
+            self.reference_slices = (slice(None), slice(-self.camera.data_shape[0] // 3, None))
         else:
             self.reference_slices = reference_slices
 
@@ -82,41 +84,26 @@ class FringeAnalysisSLMCalibrator:
         modulated_fft = np.fft.fft2(modulated_fringes, axes=(-2, -1))
         reference_fft = np.fft.fft2(reference_fringes, axes=(-2, -1))
 
-        modulated_dominant_freq = self.get_dominant_frequency(modulated_fft)
-        reference_dominant_freq = self.get_dominant_frequency(reference_fft)
+        modulated_dominant_freq = self.get_dominant_frequency(modulated_fft, self.dc_skip)
+        reference_dominant_freq = self.get_dominant_frequency(reference_fft, self.dc_skip)
 
         relative_field = modulated_dominant_freq / reference_dominant_freq
 
         return relative_field
 
     @staticmethod
-    def get_dominant_frequency(fft_data, dc_skip=4):
-        # Calculate the Nyquist frequencies
-        nyquist_y = fft_data.shape[-2] // 2
-        nyquist_x = fft_data.shape[-1] // 2
-
-        # Input data was real -> we're only interested in one half of the data
-        # Also remove DC peak
-        cropped_fft = fft_data[..., dc_skip + 1 : nyquist_y, dc_skip + 1 : nyquist_x]
-
-        # Get the shape of the cropped FFT data
-        cropped_shape = cropped_fft.shape
-
-        # Flatten the last two axes (frequency dimensions) into one
-        reshaped_fft = cropped_fft.reshape(cropped_shape[:-2] + (-1,))
+    def get_dominant_frequency(fft_data, dc_skip):
+        fft_data[..., 0:dc_skip, 0:dc_skip] = 0             # Remove DC peak
+        s = fft_data.shape
+        reshaped_fft = fft_data.reshape(s[:-2] + (-1,))     # Flatten the last two axes (frequency dimensions) into one
 
         # Find the index of the maximum value along the last axis
         max_idx_flat = np.argmax(np.abs(reshaped_fft), axis=-1)
-
-        # Convert the flat indices back to 2D indices
-        ny, nx = cropped_shape[-2], cropped_shape[-1]
-        max_idx_2d = np.unravel_index(max_idx_flat, (ny, nx))
+        max_idx_2d = np.unravel_index(max_idx_flat, (s[-2], s[-1]))
 
         # Prepare indices to select the dominant frequency from the original array
         # This accounts for any leading dimensions (e.g., frames)
-        indices = tuple(np.indices(cropped_shape[:-2])) + max_idx_2d
-
-        # Retrieve the dominant frequency values
-        dominant_freq = cropped_fft[indices]
+        indices = tuple(np.indices(s[:-2])) + max_idx_2d
+        dominant_freq = fft_data[indices]
 
         return dominant_freq
