@@ -65,7 +65,7 @@ class FringeAnalysisSLMCalibrator:
             self.reference_slices = reference_slices
 
         if gray_values is None:
-            self.gray_values = np.arange(0, 255)
+            self.gray_values = np.arange(0, 256)
         else:
             self.gray_values = gray_values
 
@@ -98,10 +98,10 @@ class FringeAnalysisSLMCalibrator:
 
     @staticmethod
     def get_dominant_frequency(fft_data, dc_skip):
-        fft_data[..., :dc_skip, :dc_skip] = 0               # Remove DC peak
-        fft_data[..., :dc_skip, -dc_skip:] = 0              # Remove DC peak
-        fft_data[..., -dc_skip:, -dc_skip:] = 0             # Remove DC peak
-        fft_data[..., -dc_skip:, :dc_skip] = 0              # Remove DC peak
+        fft_data[..., :dc_skip, :dc_skip] = 0  # Remove DC peak
+        fft_data[..., :dc_skip, -dc_skip:] = 0  # Remove DC peak
+        fft_data[..., -dc_skip:, -dc_skip:] = 0  # Remove DC peak
+        fft_data[..., -dc_skip:, :dc_skip] = 0  # Remove DC peak
 
         # Find the index of the maximum value along the last axis
         s = fft_data.shape
