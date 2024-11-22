@@ -70,7 +70,7 @@ class FringeAnalysisSLMCalibrator:
             self.gray_values = gray_values
 
     def execute(self) -> Tuple[nd, ArrayLike, nd]:
-        dtype = self.camera.read().dtype                    # Read one frame to find dtype
+        dtype = self.camera.read().dtype  # Read one frame to find dtype
         frames = np.zeros((len(self.gray_values), *self.camera.data_shape), dtype=dtype)
 
         # Record a camera frame for every gray value
@@ -104,7 +104,7 @@ class FringeAnalysisSLMCalibrator:
             std_factor: Multiplier for the Gaussian window std to suppress edge effects. See gaussian_window
         """
         shape = img_data.shape[-2:]
-        G = self.gaussian_window(shape, std_factor)
+        G = self.blackman_window(shape)
 
         fft_data = np.fft.fft2(G * img_data, axes=(-2, -1))
 
@@ -122,26 +122,21 @@ class FringeAnalysisSLMCalibrator:
         return fft_data[:, *max_idx_2d]
 
     @staticmethod
-    def gaussian_window(shape, std_factor):
+    def blackman_window(shape):
         """
-        Generates a 2D Gaussian window of requested shape.
+        Generates a 2D Blackman window of requested shape.
 
         Args:
-          shape: Shape of the Gaussian window
-          std_factor: Standard deviation multiplier. (1 -> std = window size)
+          shape: Shape of the Blackman window
 
         Returns:
-          2D numpy array of shape (M, N), the Gaussian window
+          2D numpy array of shape (M, N), the Blackman window
         """
         M, N = shape
 
-        # Standard deviations
-        std_x = (N/2) * std_factor
-        std_y = (M/2) * std_factor
+        # Create 1D Blackman windows
+        blackman_x = np.blackman(N)
+        blackman_y = np.blackman(M)
 
-        # Coordinate arrays centered at zero
-        x = np.arange(N).reshape(1, -1) - (N-1)/2
-        y = np.arange(M).reshape(-1, 1) - (M-1)/2
-
-        # Return Gaussian window
-        return np.exp(-((x**2) / (2 * std_x**2) + (y**2) / (2 * std_y**2)))
+        # Create 2D Blackman window by outer product
+        return np.outer(blackman_y, blackman_x)
