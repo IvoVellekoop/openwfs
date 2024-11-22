@@ -70,44 +70,78 @@ class FringeAnalysisSLMCalibrator:
             self.gray_values = gray_values
 
     def execute(self) -> Tuple[nd, ArrayLike, nd]:
-        frames = np.zeros((len(self.gray_values), *self.camera.data_shape))
+        dtype = self.camera.read().dtype                    # Read one frame to find dtype
+        frames = np.zeros((len(self.gray_values), *self.camera.data_shape), dtype=dtype)
 
         # Record a camera frame for every gray value
         for n, gv in enumerate(self.gray_values):
             self.slm.set_phases_8bit(self.slm_mask * gv)
             frames[n, ...] = self.camera.read()
-            ### TODO: Can this be done like this? How does the camera behave? Test with real cam.
+
+            ### TODO: Can reading frames be done like this? How does the camera behave? Test with real cam and slm.
             # self.camera.trigger(out=frames[n, ...])
 
         self.camera.wait()
         return self.analyze(frames), self.gray_values, frames
 
     def analyze(self, frames):
-        modulated_fringes = frames[:, self.modulated_slices[0], self.modulated_slices[1]]
-        reference_fringes = frames[:, self.reference_slices[0], self.reference_slices[1]]
+        modulated_fringes = frames[:, self.modulated_slices[0], self.modulated_slices[1]].astype(np.float32)
+        reference_fringes = frames[:, self.reference_slices[0], self.reference_slices[1]].astype(np.float32)
 
-        modulated_fft = np.fft.fft2(modulated_fringes, axes=(-2, -1))
-        reference_fft = np.fft.fft2(reference_fringes, axes=(-2, -1))
-
-        modulated_dominant_freq = self.get_dominant_frequency(modulated_fft, self.dc_skip)
-        reference_dominant_freq = self.get_dominant_frequency(reference_fft, self.dc_skip)
+        modulated_dominant_freq = self.get_dominant_frequency(modulated_fringes, self.dc_skip)
+        reference_dominant_freq = self.get_dominant_frequency(reference_fringes, self.dc_skip)
 
         relative_field = modulated_dominant_freq / reference_dominant_freq
 
         return relative_field
 
-    @staticmethod
-    def get_dominant_frequency(fft_data, dc_skip):
+    def get_dominant_frequency(self, img_data, dc_skip, std_factor=0.5):
+        """
+        Args:
+            img_data: (Cropped) image data to perform Fourier fringe analysis on.
+            dc_skip: Size in Fourier space pixels of the DC peak and surroundings to set to 0
+                before finding dominant frequency.
+            std_factor: Multiplier for the Gaussian window std to suppress edge effects. See gaussian_window
+        """
+        shape = img_data.shape[-2:]
+        G = self.gaussian_window(shape, std_factor)
+
+        fft_data = np.fft.fft2(G * img_data, axes=(-2, -1))
+
         fft_data[..., :dc_skip, :dc_skip] = 0  # Remove DC peak
         fft_data[..., :dc_skip, -dc_skip:] = 0  # Remove DC peak
         fft_data[..., -dc_skip:, -dc_skip:] = 0  # Remove DC peak
         fft_data[..., -dc_skip:, :dc_skip] = 0  # Remove DC peak
 
         # Find the index of the maximum value along the last axis
-        s = fft_data.shape
         max_idx_flat = np.argmax(np.abs(fft_data[0, ...]))
-        max_idx_2d = np.unravel_index(max_idx_flat, (s[-2], s[-1]))
+        max_idx_2d = np.unravel_index(max_idx_flat, shape)
 
         # Compute indices to select the dominant frequency from the original array
         # This accounts for any leading dimensions
         return fft_data[:, *max_idx_2d]
+
+    @staticmethod
+    def gaussian_window(shape, std_factor):
+        """
+        Generates a 2D Gaussian window of requested shape.
+
+        Args:
+          shape: Shape of the Gaussian window
+          std_factor: Standard deviation multiplier. (1 -> std = window size)
+
+        Returns:
+          2D numpy array of shape (M, N), the Gaussian window
+        """
+        M, N = shape
+
+        # Standard deviations
+        std_x = (N/2) * std_factor
+        std_y = (M/2) * std_factor
+
+        # Coordinate arrays centered at zero
+        x = np.arange(N).reshape(1, -1) - (N-1)/2
+        y = np.arange(M).reshape(-1, 1) - (M-1)/2
+
+        # Return Gaussian window
+        return np.exp(-((x**2) / (2 * std_x**2) + (y**2) / (2 * std_y**2)))
