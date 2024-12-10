@@ -376,7 +376,8 @@ class SLM(Actuator, PhaseSLM):
 
     def __del__(self):
         """Destructor for the SLM object. This function destroys the window and releases all resources."""
-        glfw.destroy_window(self._window)
+        if hasattr(self, "_window"):  # may still be missing if window creation failed
+            glfw.destroy_window(self._window)
 
     def update(self):
         """Sends the new phase pattern to be displayed on the SLM.
