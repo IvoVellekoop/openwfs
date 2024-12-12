@@ -294,8 +294,12 @@ class SLM(Actuator, PhaseSLM):
         shared = other._window if other is not None else None  # noqa: ok to use _window
         SLM._active_slms.add(self)
 
-        self._monitor = glfw.get_monitors()[self._monitor_id - 1] if self._monitor_id != SLM.WINDOWED else None
-        glfw.set_monitor_user_pointer(self._monitor, self._monitor_id)
+        if self._monitor_id == SLM.WINDOWED:
+            self._monitor = None
+        else:
+            self._monitor = glfw.get_monitors()[self._monitor_id - 1]
+            glfw.set_monitor_user_pointer(self._monitor, self._monitor_id)
+
         glfw.window_hint(glfw.REFRESH_RATE, int(self._refresh_rate))
         self._window = glfw.create_window(self._shape[1], self._shape[0], "OpenWFS SLM", self._monitor, shared)
         glfw.set_key_callback(self._window, SLM._key_callback)
