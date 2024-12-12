@@ -42,7 +42,7 @@ def unitless(data: ArrayLike) -> np.ndarray:
 
     Usage:
     >>> data = np.array([1.0, 2.0, 3.0]) * u.m
-    >>> unitless_data = unitless(data)
+    >>> unitless_data = unitless(data / u.mm)
     """
     if isinstance(data, Quantity):
         return data.to_value(u.dimensionless_unscaled)
@@ -71,14 +71,14 @@ class Transform:
             This matrix may include astropy units,
             for instance when converting from normalized SLM coordinates to physical coordinates in micrometers.
             Note:
-                the units of the transform must match the units of the pixel_size of the destination
+                When specified, the units of the transform must match the units of the pixel_size of the destination
                 divided by the pixel size of the source.
         source_origin:
             (y,x) coordinate of the origin in the source image, relative to the center of the image.
             By default, the center of the source image is taken as the origin of the transform,
             meaning that that point is mapped onto the destination_origin.
             Note:
-                the units of source_origin must match the units of the pixel_size of the source.
+                When specified, the units of source_origin must match the units of the pixel_size of the source.
         destination_origin:
             (y,x) coordinate of the origin in the destination image, relative to the center of the image.
             By default, the center of the destination image is taken as the origin of the transform,
@@ -95,13 +95,12 @@ class Transform:
         source_origin: Optional[CoordinateType] = None,
         destination_origin: Optional[CoordinateType] = None,
     ):
-
         self.transform = Quantity(transform if transform is not None else np.eye(2))
         self.source_origin = Quantity(source_origin) if source_origin is not None else None
         self.destination_origin = Quantity(destination_origin) if destination_origin is not None else None
 
         if source_origin is not None:
-            self.destination_unit(self.source_origin.unit)  # check if the units are consistent
+            self.destination_unit(self.source_origin.unit)  # check if the units are compatible
 
     def destination_unit(self, src_unit: u.Unit) -> u.Unit:
         """Computes the unit of the output of the transformation, given the unit of the input.
@@ -126,11 +125,15 @@ class Transform:
         destination_shape: Sequence[int],
         destination_pixel_size: CoordinateType,
     ) -> np.ndarray:
-        """Returns the transformation matrix in the format used by cv2.warpAffine."""
+        """Returns the transformation matrix in the format used by cv2.warpAffine.
 
-        # correct the origin. OpenCV uses the _center_ of the top-left corner as the origin
-        # and openwfs uses the center of the image as the origin, so we need to shift the origin
-        # by half the image size minus half a pixel.
+        This matrix is 2x3, with the last column corresponding to the translation vector.
+
+        Note: OpenCV uses the (x,y) convention, so the matrix is transposed compared to the numpy matrix.
+        Note: OpenCV uses the _center_ of the top-left corner as the origin, whereas OpenWFS uses the centerso the origin is corrected.
+            of the image as the origin. The difference of half the image size minus half the
+            pixel size is corrected in the transformation matrix.
+        """
         if min(source_shape) < 1 or min(destination_shape) < 1:
             raise ValueError("Image size must be positive")
 
@@ -155,12 +158,13 @@ class Transform:
         )
 
         # finally, convert the matrix to the format used by cv2.warpAffine by swapping x and y columns and rows
-        transform_matrix = transform_matrix[[1, 0], :]
-        transform_matrix = transform_matrix[:, [1, 0, 2]]
+        transform_matrix = transform_matrix[[1, 0, 2], 0:3]
+        transform_matrix = transform_matrix[0:2, [1, 0, 2]]  # discard last row
         return transform_matrix
 
     def to_matrix(self, source_pixel_size: CoordinateType, destination_pixel_size: CoordinateType) -> np.ndarray:
-        matrix = np.zeros((2, 3))
+        """Returns a homogeneous transformation matrix that transforms (y,x,1) coordinates to (y', x', 1)."""
+        matrix = np.eye(3)
         matrix[0:2, 0:2] = unitless(self.transform * source_pixel_size / destination_pixel_size)
         if self.destination_origin is not None:
             matrix[0:2, 2] = unitless(self.destination_origin / destination_pixel_size)
@@ -169,22 +173,22 @@ class Transform:
         return matrix
 
     def opencl_matrix(self) -> np.ndarray:
-        # compute the transform for points (0,1), (1,0), and (0, 0)
-        matrix = self.to_matrix((1.0, 1.0), (1.0, 1.0))
+        """Returns the transformation matrix (including translation) in the format used by OpenCL.
 
-        # subtract the offset (transform of 0,0) from the first two points
-        # to construct the homogeneous transformation matrix
-        # convert to opencl format: swap x and y columns (note: the rows were
-        # already swapped in the construction of t2), and flip the sign of the y-axis.
+        The returned matrix is a 3x4 matrix that includes the transformation matrix and the translation vector.
+        The last two columns are for padding only.
+        """
+
+        # Compute the homogeneous transform matrix, and transpose it.
+        # Then, swap x and y rows and columns,
+        # and flip the sign of the y-axis
+        matrix = self.to_matrix((1.0, 1.0), (1.0, 1.0)).transpose()
+
+        # convert to opencl format: swap x and y rows and columns,
+        # and flip the sign of the y-axis output.
         transform = np.eye(3, 4, dtype="float32", order="C")
-        transform[0, 0:3] = matrix[
-            1,
-            [1, 0, 2],
-        ]
-        transform[1, 0:3] = -matrix[
-            0,
-            [1, 0, 2],
-        ]
+        transform[:, 0] = matrix[[1, 0, 2], 1]
+        transform[:, 1] = -matrix[[1, 0, 2], 0]
         return transform
 
     @staticmethod
@@ -240,9 +244,10 @@ class Transform:
             Transform: the composition of the two transformations
         """
         transform = self.transform @ other.transform
-        source_origin = other.source_origin
-        destination_origin = self.apply(other.destination_origin) if other.destination_origin is not None else None
-        return Transform(transform, source_origin, destination_origin)
+        destination_origin = (
+            self.apply(other.destination_origin) if other.destination_origin is not None else self.destination_origin
+        )
+        return Transform(transform, other.source_origin, destination_origin)
 
     def _standard_input(self) -> Quantity:
         """Construct standard input points (1,0), (0,1) and (0,0) with the source unit of this transform."""
