@@ -19,13 +19,13 @@ def test_to_matrix():
     )
 
     # Define the expected output matrix for same input and output pixel sizes
-    expected_matrix = ((1, 2, 1), (3, 4, 1))
+    expected_matrix = ((1, 2, 1), (3, 4, 1), (0, 0, 1))
     result_matrix = transform.to_matrix((1, 2) * u.um, (1, 2) * u.um)
-    assert result_matrix.shape == (2, 3)
+    assert result_matrix.shape == (3, 3)
     assert np.allclose(result_matrix, expected_matrix)
 
     # Repeat for different input and output pixel sizes
-    expected_matrix = ((0.5, 4, 1), (1.5, 8, 1))
+    expected_matrix = ((0.5, 4, 1), (1.5, 8, 1), (0, 0, 1))
     result_matrix = transform.to_matrix((0.5, 4) * u.um, (1, 2) * u.um)
     assert np.allclose(result_matrix, expected_matrix)
 
@@ -54,13 +54,13 @@ def test_to_matrix():
     assert np.allclose(result_matrix @ src_center, dst_center)
 
     # Also check openGL matrix (has y-axis flipped and extra row and column)
-    expected_matrix = ((1, 2, 1), (3, 4, 2))
+    expected_matrix = ((1, 2, 1), (3, 4, 2), (0, 0, 1))
     transform = Transform(transform=((1, 2), (3, 4)), source_origin=(0, 0), destination_origin=(1, 2))
     result_matrix = transform.to_matrix((1, 1), (1, 1))
     assert np.allclose(result_matrix, expected_matrix)
 
     result_matrix = transform.opencl_matrix()
-    expected_matrix = ((4, 3, 2, 0), (-2, -1, -1, 0), (0, 0, 1, 0))
+    expected_matrix = ((4, -2, 0, 0), (3, -1, 0, 0), (2, -1, 1, 0))
     assert np.allclose(result_matrix, expected_matrix)
 
 
