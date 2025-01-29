@@ -334,6 +334,39 @@ class Camera(ADCProcessor):
     def exposure(self) -> Quantity[u.ms]:
         return self.duration
 
+class Stage(Actuator):
+    """
+    Mimics a single-axis stage actuator.
+    """
+    def __init__(self, axis: str, step_size: Quantity[u.um]):
+        """
+        Args:
+            axis (str): The axis of the stage. Suggested usage is single characters (i.e. 'x', 'y', 'z').
+            step_size (Quantity[u.um]): The step size of the stage.
+        """
+        super().__init__(duration=0 * u.ms, latency=0 * u.ms)
+        self._position = 0.0 * u.um
+        self._axis = axis
+        self._step_size = step_size.to(u.um)
+
+    @property
+    def axis(self) -> str:
+        return self._axis
+    
+    @property
+    def step_size(self) -> Quantity[u.um]:
+        return self._step_size
+
+    @property
+    def position(self) -> Quantity[u.um]:
+        return self._position
+
+    @position.setter
+    def position(self, value: Quantity[u.um]):
+        self._position = self.step_size * np.round(value.to(u.um) / self.step_size)
+    
+    def home(self):
+        self._position = 0.0 * u.um
 
 class XYStage(Actuator):
     """
