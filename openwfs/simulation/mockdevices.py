@@ -342,7 +342,7 @@ class Stage(Actuator):
         """
         Args:
             axis (str): The axis of the stage. Suggested usage is single characters (i.e. 'x', 'y', 'z').
-            step_size (Quantity[u.um]): The step size of the stage.
+            step_size (Quantity[u.um]): The step size of the stage along `axis` (in micrometers).
         """
         super().__init__(duration=0 * u.ms, latency=0 * u.ms)
         self._position = 0.0 * u.um
