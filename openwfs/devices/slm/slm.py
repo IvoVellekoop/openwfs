@@ -176,16 +176,15 @@ class SLM(Actuator, PhaseSLM):
         For monitor_id == SLM.WINDOWED (windowed mode SLM), always returns the default window size
         of (300, 300)
         """
+        monitors = glfw.get_monitors()
+        if not monitors:
+            raise RuntimeError("No monitors found")
         if monitor_id == SLM.WINDOWED:
             monitor = glfw.get_primary_monitor()
-            if monitor is None:
-                raise RuntimeError("No primary monitor found")
             mode = glfw.get_video_mode(monitor)
             shape = (300, 300)
         else:
-            monitor = glfw.get_monitors()[monitor_id - 1]
-            if monitor is None:
-                raise RuntimeError("No primary monitor found")
+            monitor = monitors[monitor_id - 1]
             mode = glfw.get_video_mode(monitor)
             shape = (mode.size[1], mode.size[0])
 
