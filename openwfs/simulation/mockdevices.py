@@ -334,10 +334,12 @@ class Camera(ADCProcessor):
     def exposure(self) -> Quantity[u.ms]:
         return self.duration
 
+
 class Stage(Actuator):
     """
     Mimics a single-axis stage actuator.
     """
+
     def __init__(self, axis: str, step_size: Quantity[u.um]):
         """
         Args:
@@ -352,7 +354,7 @@ class Stage(Actuator):
     @property
     def axis(self) -> str:
         return self._axis
-    
+
     @property
     def step_size(self) -> Quantity[u.um]:
         return self._step_size
@@ -364,9 +366,10 @@ class Stage(Actuator):
     @position.setter
     def position(self, value: Quantity[u.um]):
         self._position = self.step_size * np.round(value.to(u.um) / self.step_size)
-    
+
     def home(self):
         self._position = 0.0 * u.um
+
 
 class XYStage(Actuator):
     """
@@ -413,6 +416,37 @@ class XYStage(Actuator):
     def home(self):
         self._x = 0.0 * u.um
         self._y = 0.0 * u.um
+
+
+class LinearStage(Actuator):
+    """
+    Mimics a linear translation stage
+    """
+
+    def __init__(self, step_size: Quantity[u.um]):
+        """
+
+        Args:
+            step_size (Quantity[u.um]): The step size of the stage.
+        """
+        super().__init__(duration=0 * u.ms, latency=0 * u.ms)
+        self._step_size = step_size.to(u.um)
+        self._position = 0.0 * u.um
+
+    @property
+    def step_size(self) -> Quantity[u.um]:
+        return self._step_size
+
+    @property
+    def position(self) -> Quantity[u.um]:
+        return self._position
+
+    @position.setter
+    def position(self, value: Quantity[u.um]):
+        self._position = self._step_size * np.round(value.to(u.um) / self._step_size)
+
+    def home(self):
+        self._position = 0.0 * u.um
 
 
 class Shutter(Processor):

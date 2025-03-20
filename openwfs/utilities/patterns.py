@@ -23,14 +23,12 @@ By default, the returned pattern is assumed to cover a -1,1 x -1,1 square,
 which corresponds to a default `extent` parameter of (2.0, 2.0).
 In this case, the coordinates range from -1+dx/2 to 1-dx/2, where dx=2.0/shape is the pixel size.
 
-Optionally, a different `extent` can be specified to scale the coordinates.
-This is especially useful when working with anisotropic pixels or rectangular patterns.
-For example, a square pattern with anisotropic may be described by shape=(80,100) and extent(2,2)
+Exptent and shape may be specified individually to work with anisotropic pixels or rectangular patterns.
+For example, a square pattern with anisotropic pixels may be described by shape=(80,100) and extent(2,2)
 whereas shape=(80,100) and extent(8,10) describes square pixels that form a rectangle.
 
-In a pupil-conjugate configuration, the transformation matrix of the SLM should be set such that
-SLM coordinates correspond to normalized pupil coordinates.
-In this case, a disk of extent=(NA, NA) exactly covers the back pupil of the microscope objective.
+In a pupil-conjugate configuration, a disk of extent=(NA, NA) exactly covers the back pupil of the microscope objective.
+The transformation matrix of the SLM should be set such that SLM coordinates correspond to normalized pupil coordinates.
 
 The extent may have a unit of measure. In this case, other parameters (such as `radius`) may need to have
 an according unit of measure.
@@ -93,17 +91,20 @@ def tilt(
     extent: ExtentType = (2.0, 2.0),
     phase_offset: float = 0.0,
 ):
-    """Constructs a linear gradient pattern φ=2 g·r
+    """Constructs a linear gradient pattern φ=2g·r
+
+    Note, these are the Zernike tilt modes (modes 2 and 3 in the Noll index convention) with normalization
+    so that :math:`\frac{\int_0^{2\pi} \int_0^1 |Z(\rho, \phi)|^2 \rho d\rho d\phi}{\int_0^{2\pi} \int_0^1 \rho d\rho d\phi} = 1`.
 
     Args:
         shape: see module documentation
         g(tuple of two floats): gradient vector.
           This has the unit: 1 / extent.unit.
           For the default extent of (2.0, 2.0), a value of g=(1,0)
-          corresponds to having a ramp from -2 to +2 over the height of the pattern
-          When this pattern is used as a phase in a pupil-conjugate configuration,
-          this corresponds to a displacement of -2/π times the Abbe diffraction limit
-          (e.g. a positive x-gradient g causes the focal point to move in the _negative_ x-direction)
+          corresponds to having a ramp from -2 to +2 over the height of the pattern.
+          With an extent of (2.0, 2.0) covering the full NA,
+          this pattern causes a displacement of -2/π times the Abbe diffraction limit
+          (Note: a positive x-gradient g causes the focal point to move in the _negative_ x-direction)
         extent: see module documentation
         phase_offset: optional additional phase offset to be added to the pattern
     """
@@ -129,10 +130,9 @@ def lens(shape: ShapeType, f: ScalarType, wavelength: ScalarType, extent: Extent
 def propagation(
     shape: ShapeType,
     distance: ScalarType,
-    numerical_aperture: ScalarType,
-    refractive_index: ScalarType,
     wavelength: ScalarType,
-    extent: ExtentType = (2.0, 2.0),
+    extent: ExtentType,
+    refractive_index: ScalarType = 1.0,
 ):
     """Computes a wavefront that corresponds to digitally propagating the field in the object plane.
 
@@ -142,19 +142,16 @@ def propagation(
     Args:
           shape: see module documentation
           distance (ScalarType): physical distance to propagate axially.
-          numerical_aperture (Scalar):
           refractive_index (Scalar):
           wavelength (Scalar):
             the numerical aperture, refractive index and wavelength are used
             to convert the `extent` from pupil coordinates to k-space (unit radians/meter),
-          extent: extent of the returned image, in pupil coordinates
-            (a disk of radius 1.0 corresponds to the full NA)
+          extent: extent of the returned image, in NA units. To cover the full NA with a square, use (2*NA, 2*NA)
     """
     # convert pupil coordinates to absolute k_x, k_y coordinates
-    k_0 = 2.0 * np.pi / wavelength
-    extent_k = Quantity(extent) * numerical_aperture * k_0
-    k_z = np.sqrt(np.maximum((refractive_index * k_0) ** 2 - r2_range(shape, extent_k), 0.0))
-    return unitless(k_z * distance)
+    n_p2 = r2_range(shape, Quantity(extent))
+    n_z = np.sqrt(np.maximum(refractive_index**2 - n_p2, 0.0))
+    return unitless(2.0 * np.pi / wavelength * distance * n_z)
 
 
 def disk(shape: ShapeType, radius: ScalarType = 1.0, extent: ExtentType = (2.0, 2.0)):

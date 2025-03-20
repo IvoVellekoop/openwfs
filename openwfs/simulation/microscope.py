@@ -9,8 +9,9 @@ from scipy.signal import fftconvolve
 
 from ..core import Processor, Detector
 from ..plot_utilities import imshow  # noqa - for debugging
-from ..simulation.mockdevices import XYStage, StaticSource
+from ..simulation.mockdevices import XYStage, LinearStage, StaticSource
 from ..utilities import project, place, Transform, get_pixel_size, patterns
+from ..utilities.patterns import propagation
 
 
 class Microscope(Processor):
@@ -108,7 +109,7 @@ class Microscope(Processor):
         self.wavelength = wavelength.to(u.nm)
         self.oversampling_factor = 2.0
         self.xy_stage = xy_stage or XYStage(0.1 * u.um, 0.1 * u.um)
-        self.z_stage = z_stage  # or MockStage()
+        self.z_stage = z_stage or LinearStage(0.1 * u.um)
         self._psf = None
 
     def _fetch(
@@ -181,16 +182,10 @@ class Microscope(Processor):
 
         # Add defocus from z-stage
         if self.z_stage is not None:
-            x = np.linspace(-1, 1, pupil_shape[1])  # normalized coordinates from -1 to 1
-            y = np.linspace(-1, 1, pupil_shape[0])
-            X, Y = np.meshgrid(x, y)
-            R2 = X**2 + Y**2  # now R2 = 1 at unit circle
-            k = 2 * np.pi / self.wavelength.to(u.um).value
-            # Only calculate sqrt for points within the NA (where R2 <= 1)
-            defocus = np.zeros_like(R2)
-            valid_points = R2 <= 1
-            defocus[valid_points] = np.sqrt(1 - R2[valid_points])
-            pupil_field = pupil_field * np.exp(1j * k * self.z_stage.position.to(u.um).value * defocus)
+            phase = propagation(
+                pupil_shape, distance=self.z_stage.position, wavelength=self.wavelength, extent=pupil_extent
+            )
+            pupil_field = pupil_field * np.exp(1j * phase)
 
         # Project aberrations
         if aberrations is not None:
