@@ -7,6 +7,7 @@ from .microscope import Microscope
 from .mockdevices import (
     Stage,
     XYStage,
+    LinearStage,
     StaticSource,
     Camera,
     ADCProcessor,
