@@ -41,8 +41,6 @@ cam = Camera(
     analog_max=None,
     shot_noise=True,
     digital_max=255,
-    data_shape=camera_resolution,
-    pixel_size=camera_pixel_size,
 )
 devices = {"camera": cam, "stage": mic.xy_stage}
 
@@ -57,7 +55,7 @@ if __name__ == "__main__":
     ax = None
     for p in range(p_limit):
         mic.xy_stage.x = p * 1 * u.um
-        mic.numerical_aperture = 1.0 * (p + 1) / p_limit  # NA increases to 1.0
+        mic.z_stage.position = p * 0.1 * u.um  # slowly drift out of focus
         ax = grab_and_show(cam, ax)
-        plt.title(f"NA: {mic.numerical_aperture}, δ: {mic.abbe_limit.to_value(u.um):2.2} μm")
+        plt.title(f"defocus: {mic.z_stage.position}")
         plt.pause(0.2)

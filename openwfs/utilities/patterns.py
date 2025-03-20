@@ -130,9 +130,9 @@ def lens(shape: ShapeType, f: ScalarType, wavelength: ScalarType, extent: Extent
 def propagation(
     shape: ShapeType,
     distance: ScalarType,
-    refractive_index: ScalarType,
     wavelength: ScalarType,
     extent: ExtentType,
+    refractive_index: ScalarType = 1.0,
 ):
     """Computes a wavefront that corresponds to digitally propagating the field in the object plane.
 
@@ -150,7 +150,7 @@ def propagation(
     """
     # convert pupil coordinates to absolute k_x, k_y coordinates
     n_p2 = r2_range(shape, Quantity(extent))
-    n_z = np.sqrt(np.maximum(refractive_index**2 - n_p2), 0.0)
+    n_z = np.sqrt(np.maximum(refractive_index**2 - n_p2, 0.0))
     return unitless(2.0 * np.pi / wavelength * distance * n_z)
 
 
