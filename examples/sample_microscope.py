@@ -1,4 +1,4 @@
-""" Sample microscope
+"""Sample microscope
 =======================
 This script simulates a microscopic imaging system, generating a random noise image as a mock source and capturing it
 through a microscope with adjustable magnification, numerical aperture, and wavelength. It visualizes the original and

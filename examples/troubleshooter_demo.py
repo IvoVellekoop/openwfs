@@ -1,4 +1,4 @@
-""" Τroubleshooter demo
+"""Τroubleshooter demo
 =====================
 This script demonstrates how to use the troubleshooter to diagnose
 problems in a wavefront shaping experiment.
