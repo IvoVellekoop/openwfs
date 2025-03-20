@@ -179,6 +179,19 @@ class Microscope(Processor):
         pupil_field = patterns.disk(pupil_shape, radius=self.numerical_aperture, extent=pupil_extent)
         pupil_area = np.sum(pupil_field)  # TODO (efficiency): compute area directly from radius
 
+        # Add defocus from z-stage
+        if self.z_stage is not None:
+            x = np.linspace(-1, 1, pupil_shape[1])  # normalized coordinates from -1 to 1
+            y = np.linspace(-1, 1, pupil_shape[0])
+            X, Y = np.meshgrid(x, y)
+            R2 = X**2 + Y**2  # now R2 = 1 at unit circle
+            k = 2 * np.pi / self.wavelength.to(u.um).value
+            # Only calculate sqrt for points within the NA (where R2 <= 1)
+            defocus = np.zeros_like(R2)
+            valid_points = R2 <= 1
+            defocus[valid_points] = np.sqrt(1 - R2[valid_points])
+            pupil_field = pupil_field * np.exp(1j * k * self.z_stage.position.to(u.um).value * defocus)
+
         # Project aberrations
         if aberrations is not None:
             # use default of 2.0 * NA for the extent of the aberration map if no pixel size is provided
