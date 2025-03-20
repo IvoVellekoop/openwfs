@@ -59,7 +59,7 @@ To use OpenWFS, Python 3.9 or later is required. Since it is available on the Py
 
     pip install openwfs[all]
 
-This will also install the optional dependencies for OpenWFS:
+It is advised to make a new environment for OpenWFS, such as with conda, poetry, or Python's venv. This will also install the optional dependencies for OpenWFS:
 
 *opengl* For the OpenGL-accelerated SLM control, the ``PyOpenGL`` package is installed. In order for this package to work, an OpenGL-compatible graphics card and driver is required.
 

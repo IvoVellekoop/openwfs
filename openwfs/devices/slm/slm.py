@@ -1,3 +1,5 @@
+import os
+import signal
 import warnings
 from typing import Union, Optional, Sequence
 from weakref import WeakSet
@@ -39,6 +41,7 @@ class SLM(Actuator, PhaseSLM):
         "_window",
         "_globals",
         "_frame_buffer",
+        "_monitor",
         "patches",
         "primary_patch",
         "_coordinate_system",
@@ -103,17 +106,18 @@ class SLM(Actuator, PhaseSLM):
         # construct window for displaying the SLM pattern
         SLM._init_glfw()
         self._assert_window_available(monitor_id)
-        self._monitor_id = monitor_id
         self._position = pos
-        (default_shape, default_rate, _) = SLM._current_mode(monitor_id)
+        self._monitor_id = monitor_id
+        (default_shape, default_rate, _) = SLM._current_mode(self._monitor_id)
         self._shape = default_shape if shape is None else shape
         self._refresh_rate = default_rate if refresh_rate is None else refresh_rate.to_value(u.Hz)
         self._frame_buffer = None
+        self._monitor = None
         self._window = None
         self._globals = -1
         self.patches = []
         self._context = None
-        self._create_window()  # sets self._context, self._window and self._globals and self._frame_patch
+        self._create_window()  # sets self._context, self._window and self._globals and self._frame_patch, self._monitor
         self._coordinate_system = coordinate_system
         self.transform = Transform() if transform is None else transform
         self._vertex_array = VertexArray()
@@ -255,6 +259,31 @@ class SLM(Actuator, PhaseSLM):
         glfw.window_hint(glfw.BLUE_BITS, 8)
         glfw.window_hint(glfw.COCOA_RETINA_FRAMEBUFFER, glfw.FALSE)  # disable retina multisampling on Mac (untested)
         glfw.window_hint(glfw.SAMPLES, 0)  # disable multisampling
+        glfw.set_monitor_callback(SLM._monitor_callback)
+
+    @staticmethod
+    def _monitor_callback(monitor, event):
+        """Callback function that is called when a monitor is connected or disconnected.
+
+        If a monitor is disconnencted while an SLM window is being shown on it, the window is closed, causing all
+        subsequent access to it to fail.
+        """
+        print("Monitor event", monitor, event)
+        if event == glfw.DISCONNECTED:
+            monitor_id = glfw.get_monitor_user_pointer(monitor)
+            for slm in SLM._active_slms:
+                if slm.monitor_id == monitor_id:
+                    glfw.set_window_should_close(slm._window, 1)
+
+    @staticmethod
+    def _key_callback(window, key, scancode, action, mods):
+        """Callback function that is called when a key is pressed or released.
+
+        This callback responds to Ctrl-C by terminating the program.
+        """
+        if key == glfw.KEY_C and action == glfw.PRESS and mods == glfw.MOD_CONTROL:
+            print("Ctrl + C pressed, terminating program")
+            os.kill(os.getpid(), signal.SIGINT)
 
     def _create_window(self):
         """Constructs a new window and associated OpenGL context. Called by SLM.__init__()"""
@@ -265,12 +294,18 @@ class SLM(Actuator, PhaseSLM):
         shared = other._window if other is not None else None  # noqa: ok to use _window
         SLM._active_slms.add(self)
 
-        monitor = glfw.get_monitors()[self._monitor_id - 1] if self._monitor_id != SLM.WINDOWED else None
+        if self._monitor_id == SLM.WINDOWED:
+            self._monitor = None
+        else:
+            self._monitor = glfw.get_monitors()[self._monitor_id - 1]
+            glfw.set_monitor_user_pointer(self._monitor, self._monitor_id)
+
         glfw.window_hint(glfw.REFRESH_RATE, int(self._refresh_rate))
-        self._window = glfw.create_window(self._shape[1], self._shape[0], "OpenWFS SLM", monitor, shared)
+        self._window = glfw.create_window(self._shape[1], self._shape[0], "OpenWFS SLM", self._monitor, shared)
+        glfw.set_key_callback(self._window, SLM._key_callback)
         glfw.set_input_mode(self._window, glfw.CURSOR, glfw.CURSOR_HIDDEN)  # disable cursor
-        if monitor:  # full screen mode
-            glfw.set_gamma(monitor, 1.0)
+        if self._monitor:  # full screen mode
+            glfw.set_gamma(self._monitor, 1.0)
         else:  # windowed mode
             glfw.set_window_pos(self._window, self._position[1], self._position[0])
 
@@ -360,12 +395,12 @@ class SLM(Actuator, PhaseSLM):
         self._assert_window_available(value)
         self._monitor_id = value
         (self._shape, self._refresh_rate, _) = SLM._current_mode(value)
-        monitor = glfw.get_monitors()[value - 1] if value != SLM.WINDOWED else None
+        self._monitor = glfw.get_monitors()[value - 1] if value != SLM.WINDOWED else None
 
         # move window to new monitor
         glfw.set_window_monitor(
             self._window,
-            monitor,
+            self._monitor,
             self._position[1],
             self._position[0],
             self._shape[1],
@@ -376,7 +411,8 @@ class SLM(Actuator, PhaseSLM):
 
     def __del__(self):
         """Destructor for the SLM object. This function destroys the window and releases all resources."""
-        glfw.destroy_window(self._window)
+        if hasattr(self, "_window") and self._window is not None:  # may still be missing if window creation failed
+            glfw.destroy_window(self._window)
 
     def update(self):
         """Sends the new phase pattern to be displayed on the SLM.
@@ -411,6 +447,10 @@ class SLM(Actuator, PhaseSLM):
             self._frame_buffer._draw()  # noqa - ok to access 'friend class'
 
             glfw.poll_events()  # process window messages
+            if glfw.window_should_close(self._window):
+                glfw.destroy_window(self._window)
+                self._window = None
+                raise RuntimeError("SLM window was closed")
 
             if len(self._clones) > 0:
                 self._context.__exit__(None, None, None)  # release context before updating clones

@@ -55,7 +55,7 @@ latex_elements = {
         \affil[1]{University of Twente, Biomedical Photonic Imaging, TechMed Institute, P. O. Box 217,
          7500 AE Enschede, The Netherlands}
         \affil[2]{Currently at: The Netherlands Cancer Institute, Division of Molecular Pathology, 1066 CX Amsterdam, The Netherlands}
-        \affil[3]{Imec (Netherlands), Holst Centre (HTC-31), 5656 AE, Eindhoven, The Netherlands}
+        \affil[3]{Currently at: Imec (Netherlands), Holst Centre (HTC-31), 5656 AE, Eindhoven, The Netherlands}
         \affil[*]{Corresponding author: i.m.vellekoop@utwente.nl}
         \publishers{%
             \normalfont\normalsize%
@@ -122,7 +122,7 @@ include_patterns = ["**"]
 napoleon_use_rtype = False
 napoleon_use_param = True
 typehints_document_rtype = False
-latex_engine = "pdflatex"
+latex_engine = "xelatex"
 html_theme = "sphinx_rtd_theme"
 add_module_names = False
 autodoc_preserve_defaults = True
@@ -155,7 +155,7 @@ def setup(app):
     # monkey-patch the MarkdownTranslator class to support citations
     # TODO: this should be done in the markdown builder itself
     cls = MarkdownBuilder.default_translator_class
-    cls.visit_citation = cls.visit_footnote
+    # cls.visit_citation = cls.visit_footnote
 
 
 def source_read(app, docname, source):

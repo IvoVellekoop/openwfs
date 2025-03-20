@@ -5,6 +5,7 @@ from . import transmission
 
 from .microscope import Microscope
 from .mockdevices import (
+    Stage,
     XYStage,
     StaticSource,
     Camera,
