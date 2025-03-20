@@ -59,7 +59,7 @@ optional = true
 scikit-image = ">=0.21.0"
 pytest = ">=7.0.0"
 nidaqmx = "^1.0.1" # we can test without the hardware, but still need the package
-black = ">=24.0.0" # code formatter
+black = ">=25.1.0" # code formatter
 poetry = ">=1.2.0" # package manager
 
 [tool.poetry.group.docs]

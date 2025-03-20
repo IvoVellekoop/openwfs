@@ -1,4 +1,4 @@
-""" Micro-Manager simulated scanning microscope
+"""Micro-Manager simulated scanning microscope
 ======================================================================
 This script simulates a scanning microscope with a pre-set image as a mock specimen.
 

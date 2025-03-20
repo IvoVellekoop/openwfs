@@ -1,4 +1,4 @@
-""" Micro-Manager simulated microscope
+"""Micro-Manager simulated microscope
 ======================================================================
 This script simulates a microscope with a random noise image as a mock specimen.
 The numerical aperture, stage position, and other parameters can be modified through the Micro-Manager GUI.

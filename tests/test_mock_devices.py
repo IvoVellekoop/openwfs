@@ -1,9 +1,9 @@
-import numpy as np
 import astropy.units as u
+import numpy as np
+from astropy.units import Quantity
 
 from ..openwfs.simulation import SLM
 from ..openwfs.simulation import Stage
-from astropy.units import Quantity
 
 
 def test_mock_slm():
@@ -28,6 +28,7 @@ def test_mock_slm():
     slm.update()
     scaled_pattern = np.repeat(np.repeat(pattern, 10, axis=0), 10, axis=1)
     assert np.allclose(slm.phases.read(), scaled_pattern, atol=1.0 * np.pi / 256)
+
 
 def test_single_stage():
     stage = Stage("x", Quantity(10, u.um))

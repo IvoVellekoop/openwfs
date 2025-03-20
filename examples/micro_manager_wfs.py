@@ -1,4 +1,4 @@
-""" Micro-Manager simulated wavefront shaping
+"""Micro-Manager simulated wavefront shaping
 ======================================================================
 This script simulates a full wavefront shaping experiment in the Micro-Manager GUI.
 

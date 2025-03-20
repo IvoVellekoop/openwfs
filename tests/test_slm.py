@@ -10,6 +10,9 @@ glfw = safe_import("glfw", "glfw")
 GL = safe_import("OpenGL.GL", "OpenGL")
 if not glfw or not GL:
     pytest.skip("GLFW and PyOpenGL are required for the test_slm module", allow_module_level=True)
+glfw.init()
+if not glfw.get_monitors():
+    pytest.skip("No monitors found", allow_module_level=True)
 
 
 import numpy as np  # for debugging
