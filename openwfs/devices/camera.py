@@ -85,44 +85,38 @@ class Camera(Detector):
         search_key = {"serial_number": serial_number} if serial_number is not None else None
         self._camera = self._harvester.create(search_key=search_key)
         nodes = self._camera.remote_device.node_map
+        self._nodes = nodes
 
         # print(dir(nodes))  # for debugging, should go in a separate function
 
         # set triggering to 'Software', so that we can trigger the camera by calling `trigger`.
         # turn off auto exposure so that `duration` accurately reflects the required measurement time.
-        nodes.TriggerMode.value = "On"
-        nodes.TriggerSource.value = "Software"
-        nodes.ExposureMode.value = "Timed"
-        nodes.ExposureAuto.value = "Off"
-        nodes.BinningHorizontal.value = 1
-        nodes.BinningVertical.value = 1
-        nodes.OffsetX.value = 0
-        nodes.OffsetY.value = 0
-        nodes.Width.value = nodes.Width.max
-        nodes.Height.value = nodes.Height.max
-        self._nodes = nodes
+        settings = {
+            "TriggerMode": "On",
+            "TriggerSource": "Software",
+            "ExposureMode": "Timed",
+            "ExposureAuto": "Off",
+            "BinningHorizontal": 1,
+            "BinningVertical": 1,
+            "OffsetX": 0,
+            "OffsetY": 0,
+            "Width": nodes.Width.max,
+            "Height": nodes.Height.max,
+        }
+
+        # set additional properties specified in the kwargs
+        settings.update(kwargs)
+
+        for key, value in kwargs.items():
+            try:
+                getattr(nodes, key).value = value
+            except AttributeError:
+                print(f"Warning: could not set camera property {key} to {value}")
 
         #  Todo:
         #         automatically expose a selection of properties in the node map as
         #         properties of the Camera object.
         #
-        # assign a dynamic class, so that we can add properties to the Camera object
-        # class DynamicClass(self.__class__):
-        #     pass
-        # self.__class__ = DynamicClass
-        #
-        # for key, value in kwargs.items():
-        #     getter = lambda self: self.__dict__.get(key)
-        #     setter = lambda self, val: self.__dict__.__setitem__(key, val)
-        #     setattr(self.__class__, key, property(getter, setter))
-        #     setattr(self, key, value)
-
-        # set additional properties specified in the kwargs
-        for key, value in kwargs.items():
-            try:
-                setattr(nodes, key, value)
-            except AttributeError:
-                print(f"Warning: could not set camera property {key} to {value}")
 
         try:
             pixel_size = [
