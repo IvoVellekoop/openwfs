@@ -1,4 +1,5 @@
 from . import processors
+from .hdrcamera import HDRCamera
 from .processors import (
     CropProcessor,
     SingleRoi,
