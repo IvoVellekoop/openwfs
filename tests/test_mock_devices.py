@@ -2,8 +2,8 @@ import astropy.units as u
 import numpy as np
 from astropy.units import Quantity
 
-from ..openwfs.simulation import SLM
-from ..openwfs.simulation import Stage
+from ..openwfs.processors import HDRCamera
+from ..openwfs.simulation import StaticSource, SLM, Stage, Camera
 
 
 def test_mock_slm():
@@ -46,3 +46,40 @@ def test_single_stage():
 
     stage.position = Quantity(-15, u.um)
     assert stage.position == Quantity(-20, u.um)
+
+
+def test_mock_camera():
+    """Tests a simulated camera and HDR processing"""
+
+    # create a mock camera object with a static image
+    img = np.random.uniform(0, 2.0, size=(48, 64))
+    img[0, 0] = 0.9813272622363753
+    src = StaticSource(img, pixel_size=50 * u.nm)
+    cam = Camera(
+        src,
+        digital_max=0xFF,
+        analog_max=3.0,
+        amplifier_bias=10,
+        shot_noise=False,
+        gaussian_noise_std=0.0,
+        exposure=0.1 * u.ms,
+    )
+
+    # read the image from the camera, there should be an offset and small quantization error
+    assert np.allclose(cam.read(), (255 / 3.0) * img + 10, atol=0.5)
+
+    # change the exposure time and read again.
+    # the image should be the same, but the exposure time should be different, and some pixels saturated
+    cam.exposure = cam.exposure * 10
+    assert np.allclose(cam.read(), np.minimum((255 / 3.0 * 10) * img + 10, 0xFF), atol=0.5)
+
+    # perform HDR imaging with the camera, this should return the image without saturation
+    # start with a trivial test, only one exposure, no background subtraction
+    hdr = HDRCamera(cam, exposure_factors=(1.0,), background=0, saturation_threshold=255)
+    assert np.allclose(hdr.read(), cam.read())
+
+    hdr = HDRCamera(cam, exposure_factors=(1.0, 0.1, 0.01), background=10, saturation_threshold=250)
+    frame = hdr.read()
+
+    atol = (3 * 0.5) / 1.11 * 10  # worst case rounding error
+    assert np.allclose(frame, (255 / 3.0 * 10) * img, atol=atol)

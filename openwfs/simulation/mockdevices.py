@@ -135,6 +135,7 @@ class ADCProcessor(Processor):
         source: Detector,
         analog_max: Optional[float],
         digital_max: int = 0xFFFF,
+        amplifier_bias: float = 0.0,
         shot_noise: bool = False,
         gaussian_noise_std: float = 0.0,
         multi_threaded: bool = True,
@@ -153,6 +154,10 @@ class ADCProcessor(Processor):
             digital_max:
                 The maximum digital value that the ADC can output, default is unsigned 16-bit maximum.
 
+            amplifier_bias:
+                The bias value to add to the data before digitization. This bias is applied after scaling
+                from analog to digital values, and after adding the noise, but before rounding and cropping.
+
             shot_noise:
                 Flag to determine if Poisson noise should be applied instead of rounding.
                 Useful for realistically simulating detectors.
@@ -163,6 +168,7 @@ class ADCProcessor(Processor):
         super().__init__(source, multi_threaded=multi_threaded)
         self._analog_max = None
         self._digital_max = None
+        self._amplifier_bias = amplifier_bias
         self._shot_noise = False
         self._gaussian_noise_std = 0.0
         self._rng = generator if generator is not None else np.random.default_rng()
@@ -170,6 +176,7 @@ class ADCProcessor(Processor):
         self.shot_noise = shot_noise
         self.analog_max = analog_max  # check value
         self.digital_max = digital_max  # check value
+        self._scale = 1.0  # additional scaling factor for the data, used in the _fetch method
 
     def _fetch(self, data) -> np.ndarray:  # noqa
         """Clips the data to the range of the ADC, and digitizes the values."""
@@ -177,15 +184,18 @@ class ADCProcessor(Processor):
         if self.analog_max is None:  # auto scaling
             max_value = np.max(data)
             if max_value > 0.0:
-                data = data * (self.digital_max / max_value)  # auto-scale to maximum value
+                data = data * (self.digital_max / max_value * self._scale)  # auto-scale to maximum value
         else:
-            data = data * (self.digital_max / self.analog_max)
+            data = data * (self.digital_max / self.analog_max * self._scale)
 
         if self._shot_noise:
             data = self._rng.poisson(data)
 
         if self._gaussian_noise_std > 0.0:
             data = data + self._rng.normal(scale=self._gaussian_noise_std, size=data.shape)
+
+        if self._amplifier_bias != 0.0:
+            data = data + self._amplifier_bias
 
         return np.clip(np.rint(data), 0, self.digital_max).astype("uint16")
 
@@ -250,6 +260,8 @@ class ADCProcessor(Processor):
 class Camera(ADCProcessor):
     """Wraps any 2-D image source as a camera.
 
+    The camera adds shot noise,
+
     To implement the camera interface, in addition to the Detector interface,
     we must implement left,right,top, and bottom.
     In addition, the data should be returned as uint16.
@@ -261,6 +273,7 @@ class Camera(ADCProcessor):
         source: Detector,
         shape: Optional[Sequence[int]] = None,
         pos: Optional[Sequence[int]] = None,
+        exposure: Quantity[u.ms] = 1 * u.ms,
         **kwargs,
     ):
         """
@@ -268,6 +281,8 @@ class Camera(ADCProcessor):
             source (Detector): The source detector to be wrapped.
             shape (Optional[Sequence[int]]): The shape of the image data to be captured.
             pos (Optional[Sequence[int]]): The position on the source from where the image is captured.
+            exposure (Quantity[u.ms]): The simulated exposure time. If the exposure time is changed later,
+                the source data is scaled accordingly.
             **kwargs: Additional keyword arguments to be passed to the Detector base class.
 
             TODO: move left-right-top-bottom to CropProcessor.
@@ -275,6 +290,8 @@ class Camera(ADCProcessor):
         """
         self._crop = CropProcessor(source, shape=shape, pos=pos)
         super().__init__(source=self._crop, **kwargs)
+        self._base_exposure = exposure
+        self._exposure = exposure
 
     @property
     def left(self) -> int:
@@ -332,7 +349,14 @@ class Camera(ADCProcessor):
 
     @property
     def exposure(self) -> Quantity[u.ms]:
-        return self.duration
+        return self._exposure
+
+    @exposure.setter
+    def exposure(self, value: Quantity[u.ms]):
+        if value < 0.0:
+            raise ValueError("Exposure time must be non-negative")
+        self._exposure = value.to(u.ms)
+        self._scale = self._exposure / self._base_exposure
 
 
 class Stage(Actuator):
