@@ -1,5 +1,5 @@
 from concurrent.futures import Future
-from typing import Sequence
+from typing import Sequence, Union
 
 import numpy as np
 
@@ -26,7 +26,7 @@ class HDRCamera(Detector):
     def __init__(
         self,
         camera,
-        background: Sequence[float] | float,
+        background: Union[Sequence[float], float],
         saturation_threshold: int,
         exposure_factors: Sequence[float] = (1.0, 0.1, 0.01),
     ):
