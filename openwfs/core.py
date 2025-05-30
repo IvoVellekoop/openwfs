@@ -15,10 +15,12 @@ from .utilities import set_pixel_size
 
 
 class Device(ABC):
-    """Base class for detectors and actuators
+    """Base class for detectors and actuators.
+
+    This is the abstract base class for all devices in the openwfs framework,
+    including both detectors and actuators.
 
     See :ref:`key_concepts` for more information.
-
     """
 
     __slots__ = (
@@ -37,7 +39,14 @@ class Device(ABC):
     _devices: "Set[Device]" = WeakSet()
 
     def __init__(self, *, duration: Quantity[u.ms], latency: Quantity[u.ms]):
-        """Constructs a new Device object"""
+        """Constructs a new Device object.
+
+        Args:
+            duration: Maximum amount of time it takes to perform the measurement or for the
+                actuator to stabilize. This value does not include the latency.
+            latency: Minimum amount of time between sending a command or trigger to the device
+                and the moment the device starts responding.
+        """
         self._latency = latency
         self._duration = duration
         self._end_time_ns = 0
@@ -49,7 +58,7 @@ class Device(ABC):
     @property
     @abstractmethod
     def _is_actuator(self):
-        """True for actuators, False for detectors"""
+        """Indicates whether the device is an actuator (True) or a detector (False)."""
         ...
 
     def _start(self):
@@ -98,7 +107,7 @@ class Device(ABC):
 
     @property
     def latency(self) -> Quantity[u.ms]:
-        """latency (Quantity[u.ms]): minimum amount of time between sending a command or trigger to the device and the
+        """Minimum amount of time between sending a command or trigger to the device and the
         moment the device starts responding.
 
         The default value is 0.0 ms.
@@ -122,24 +131,27 @@ class Device(ABC):
 
     @property
     def duration(self) -> Quantity[u.ms]:
-        """duration (Quantity[u.ms]): maximum amount of time it takes to perform the measurement or for the
+        """Maximum amount of time it takes to perform the measurement or for the
         actuator to stabilize.
+
         This value *does not* include the latency.
 
         For a detector, this is the maximum amount of time that elapses between returning from `trigger()` and the
         end of the measurement.
-        For an actuator, this is the maximum amount of time that elapses from returning from a command like `update(
-        )` and the stabilization of the device.
+        For an actuator, this is the maximum amount of time that elapses from returning from a command like `update()`
+        and the stabilization of the device.
 
         If the duration of an operation is not known in advance,
         (e.g., when waiting for a hardware trigger), this function should return `np.inf * u.ms`.
 
-        Note: A device may update the duration dynamically.
-        For example, a stage may compute the required time to
-        move to the target position and update the duration accordingly.
+        Note:
+            A device may update the duration dynamically.
+            For example, a stage may compute the required time to
+            move to the target position and update the duration accordingly.
 
-        Note: If `latency` is a (lower) estimate, the duration should be high enough to guarantee that `latency +
-        duration` is at least as large as the time between starting the operation and finishing it.
+        Note:
+            If `latency` is a (lower) estimate, the duration should be high enough to guarantee that `latency +
+            duration` is at least as large as the time between starting the operation and finishing it.
         """
         return self._duration
 
@@ -219,7 +231,12 @@ class Device(ABC):
 
 
 class Actuator(Device, ABC):
-    """Base class for all actuators"""
+    """Base class for all actuators.
+
+    Actuators are devices that can modify the state of the system, such as
+    spatial light modulators, stages, or other control devices. This class
+    extends the Device base class and sets the _is_actuator property to True.
+    """
 
     __slots__ = ()
 
@@ -231,7 +248,11 @@ class Actuator(Device, ABC):
 class Detector(Device, ABC):
     """Base class for all detectors, cameras and other data sources with possible dynamic behavior.
 
-    See :numref:`Detectors` in the documentation for more information.
+    Detectors are devices that can measure or acquire data from the system, such as
+    cameras, sensors, or other measurement devices. This class extends the Device
+    base class and sets the _is_actuator property to False.
+
+    See :ref:`Detectors` in the documentation for more information.
     """
 
     __slots__ = (
@@ -532,8 +553,8 @@ class Processor(Detector, ABC):
 
     Args:
         multi_threaded: If True, `_fetch` is called from a worker thread. Otherwise, `_fetch` is called
-                directly from `trigger`. If the device is not thread-safe, or threading provides no benefit,
-                or for easy debugging, set this to False.
+            directly from `trigger`. If the device is not thread-safe, or threading provides no benefit,
+            or for easy debugging, set this to False.
     """
 
     def __init__(self, *args, multi_threaded: bool):
@@ -594,7 +615,12 @@ class Processor(Detector, ABC):
 
 
 class PhaseSLM(ABC):
-    """Base class for phase-only SLMs"""
+    """Base class for phase-only Spatial Light Modulators (SLMs).
+
+    This abstract base class defines the interface for phase-only spatial light modulators,
+    which are devices that can modulate the phase of light. Implementations of this class
+    should provide methods to set phase patterns and update the display.
+    """
 
     __slots__ = ()
 
