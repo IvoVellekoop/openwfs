@@ -154,3 +154,69 @@ def test_inverse():
     assert np.allclose(vector, transformed_back)
     assert np.allclose(inverse @ transform @ vector, vector)
     assert np.allclose(transform @ inverse @ vector, vector)
+
+
+def test_find_shift():
+    im = np.zeros((8, 8))
+    im[2, 3] = 1  
+    assert find_shift(im, im) == (0, 0) # no shift 
+
+    im2 = np.zeros((8, 8))
+    im2[3, 5] = 1  # shift by (1,2)
+    assert find_shift(im, im2) == (1, 2)    
+
+    im3 = np.zeros((8, 8))
+    im3[1, 1] = 1  # shift by (-1,-2)
+    assert find_shift(im, im3) == (-1, -2)  
+
+    im1 = np.zeros((8, 8, 8))   
+    im1[1, 1, 1] = 1
+    im2 = np.zeros((8, 8, 8))
+    im2[2, 3, 0] = 1  # shift by (1,2,-1)
+    assert find_shift(im1, im2) == (1, 2, -1)
+
+    im1 = np.zeros((1,7))
+    im1[0, 0] = 1
+    im2 = np.zeros((1,7))
+    im2[0, 3] = 1  # shift by (0,3)
+    assert find_shift(im1, im2) == (0, 3)
+
+    im1 = np.zeros((1,7))
+    im1[0, 0] = 1
+    im2 = np.zeros((1,7))
+    im2[0, 4] = 1  # shift by (0,4) but should be interpreted as (-0,-3) due to periodic boundaries
+    assert find_shift(im1, im2) == (0, -3)
+
+
+def test_cross_correlation_mean_corrected():
+    im1 = np.zeros((8, 8))
+    im1[0, 0] = 1    
+    im1[1, 1] = -1   
+    im2 = np.zeros((8, 8))
+    im2[0, 0] = 2      
+    im2[1, 1] = -1
+    im2[7, 7] = -1
+    assert np.allclose(cross_correlation_mean_corrected(im1, im1), im2) 
+
+    im1 = np.zeros((8, 8))
+    with pytest.raises(ValueError, match="After mean correction, one of the arrays is all zeros"):
+        cross_correlation_mean_corrected(im1, im1)
+
+
+def test_Transformation_Matrix_SLM_to_World_Coordinates():
+    data = np.zeros((100, 100, 8))  # Example data
+    data[0,0,0] = 1  # Example modification to data
+    data[0,10,1] = 1  # Example modification to data
+    data[0,0,2] = 1  # Example modification to data
+    data[20,0,3] = 1  # Example modification to data
+    data[0,0,4] = 1  # Example modification to data
+    data[0,5,5] = 1  # Example modification to data
+    data[0,0,6] = 1  # Example modification to data
+    data[3,0,7] = 1  # Example modification to data
+    M , G = Transformation_Matrix_SLM_to_World_Coordinates(data)
+
+    M_expected = np.array([[10, 0], [0, 20]])
+    G_expected = np.array([[5, 0], [0, 3]])
+
+    assert np.allclose(M, M_expected)
+    assert np.allclose(G, G_expected)

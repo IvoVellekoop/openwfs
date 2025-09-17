@@ -12,4 +12,7 @@ from .utilities import (
     place,
     set_extent,
     get_extent,
+    find_shift,
+    cross_correlation_mean_corrected,
+    Transformation_Matrix_SLM_and_stage_to_World_Coordinates
 )
