@@ -179,7 +179,9 @@ class SLM(PhaseSLM, Actuator):
             shape: The 2D shape of the SLM.
             field_amplitude: Field amplitude of the modulated light.
             non_modulated_field_fraction (float): fraction of the field that is not modulated,
-                typically due to reflection at the front surface of the SLM.
+                typically due to reflection at the front surface of the SLM. This fraction of 
+                of the input field is added to the modulated field, i.e. the returned field is 
+                amplitude*exp(1j*phase) + non_modulated_field_fraction.
             shape: The shape (height, width) of the SLM in pixels
             latency: The latency that the OpenWFS framework uses for synchronization.
             duration: The duration that the OpenWFS framework uses for synchronization.
