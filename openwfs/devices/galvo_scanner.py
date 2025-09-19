@@ -272,7 +272,7 @@ class Axis:
                 as a function of applied voltage.
             torque_constant: The torque constant of the galvo mirror driving coil.
                 May also be given in the equivalent unit of dyne·cm/A.
-            rotor_inertia: The moment of inertia of the rotor. 
+            rotor_inertia: The moment of inertia of the rotor.
                 May also be given in the equivalent unit of g·cm².
             maximum_current: The maximum current that can be applied to the galvo mirror.
 
