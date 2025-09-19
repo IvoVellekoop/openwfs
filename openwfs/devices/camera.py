@@ -22,10 +22,10 @@ class Camera(Detector):
             This map can be used to access camera properties,
             see the `GenICam/GenAPI documentation <https://www.emva.org/standards-technology/genicam/>`_
             and the `Standard Features Naming Convention
-            <https://www.emva.org/wp-content/uploads/GenICam_SFNC_2_3.pdf>` for more details.
+            <https://www.emva.org/wp-content/uploads/GenICam_SFNC_2_3.pdf>`_ for more details.
 
             The node map should not be used to set properties that are available as properties in the Camera object,
-            such as ``exposure``, ``width`, ``height``, ``binning``, etc.
+            such as ``exposure``, ``width``, ``height``, ``binning``, etc.
 
             Also, the node map should not be used to set properties while the camera is fetching a frame (i.e.,
             between ``trigger()`` and calling ``result()`` on the returned concurrent.futures.Future object).
@@ -143,6 +143,10 @@ class Camera(Detector):
             self._harvester.reset()
 
     def _do_trigger(self):
+        """Executes the software trigger command on the camera.
+
+        This method is called by the trigger() method to initiate image acquisition.
+        """
         self._nodes.TriggerSoftware.execute()
 
     def paused(self):
@@ -155,6 +159,16 @@ class Camera(Detector):
         return _CameraPause(self._camera)
 
     def _fetch(self, *args, **kwargs) -> np.ndarray:
+        """Fetches a frame from the camera.
+
+        This method is called by the trigger() method (typically on a worker thread)
+        to retrieve the image data after the camera has been triggered.
+        Returns:
+            np.ndarray: The image data from the camera.
+
+        Raises:
+            Exception: If the camera returns an empty frame.
+        """
         buffer = self._camera.fetch()
         frame = buffer.payload.components[0].data.reshape(self.data_shape)
         if frame.size == 0:
@@ -183,7 +197,7 @@ class Camera(Detector):
 
     @property
     def binning(self) -> int:
-        """Pixel binning factor
+        """Pixel binning factor.
 
         Note:
             setting horizontal and vertical binning separately is not supported.
@@ -200,10 +214,10 @@ class Camera(Detector):
 
     @property
     def top(self) -> int:
-        """
-        The vertical start position of the region of interest (in pixels).
+        """The vertical start position of the region of interest (in pixels).
 
-        Note: the camera may round up this value to multiples of some power of 2.
+        Note:
+            The camera may round up this value to multiples of some power of 2.
         """
         return self._nodes.OffsetY.value
 
@@ -213,10 +227,10 @@ class Camera(Detector):
 
     @property
     def left(self) -> int:
-        """
-        The horizontal start position of the region of interest (in pixels).
+        """The horizontal start position of the region of interest (in pixels).
 
-        Note: the camera may round up this value to multiples of some power of 2.
+        Note:
+            The camera may round up this value to multiples of some power of 2.
         """
         return self._nodes.OffsetX.value
 
@@ -225,7 +239,12 @@ class Camera(Detector):
         self._set_round_up(self._nodes.OffsetX, value)
 
     def _set_round_up(self, node, value):
-        """Sets the value of a property, rounding up to the next multiple of the increment."""
+        """Sets the value of a property, rounding up to the next multiple of the increment.
+
+        Args:
+            node: The camera node to set the value for.
+            value: The desired value, which will be rounded up to the next multiple of the node's increment.
+        """
         inc = node.inc
         with self.paused():
             # round up value to the next multiple of inc
@@ -233,10 +252,10 @@ class Camera(Detector):
 
     @property
     def width(self) -> int:
-        """
-        Width of the camera frame, in pixels.
+        """Width of the camera frame, in pixels.
 
-        Note: the camera may round up this value to multiples of some power of 2.
+        Note:
+            The camera may round up this value to multiples of some power of 2.
         """
         return self._nodes.Width.value
 
@@ -246,10 +265,10 @@ class Camera(Detector):
 
     @property
     def height(self) -> int:
-        """
-        Height of the camera frame, in pixels.
+        """Height of the camera frame, in pixels.
 
-        Note: the camera may round up this value to multiples of some power of 2.
+        Note:
+            The camera may round up this value to multiples of some power of 2.
         """
         return self._nodes.Height.value
 
@@ -259,17 +278,27 @@ class Camera(Detector):
 
     @property
     def pixel_size(self) -> Optional[Quantity[u.um]]:
-        """
-        Physical pixel size of the camera sensor.
-        """
+        """Physical pixel size of the camera sensor."""
         return self._pixel_size
 
     @property
     def data_shape(self):
+        """Shape (height, width) of the data array returned by the camera."""
         return self.height, self.width
 
     @staticmethod
     def enumerate_cameras(cti_file: str):
+        """Enumerates all cameras available through the specified GenTL producer.
+
+        Args:
+            cti_file: The path to the GenTL producer file.
+
+        Returns:
+            list: A list of device information dictionaries for all available cameras.
+
+        Warns:
+            UserWarning: If the CTI file cannot be loaded.
+        """
         with Harvester() as harvester:
             try:
                 harvester.add_file(cti_file, check_validity=True)
