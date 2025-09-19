@@ -18,7 +18,7 @@ class HDRCamera(Detector):
     Args:
         camera: The camera object to wrap.
         background: The background value to subtract from each image before scaling.
-            If a sequence is passed, each value corresponds to the background for a differeent exposure factor.
+            If a sequence is passed, each value corresponds to the background for a different exposure factor.
         saturation_threshold: The threshold value to consider a pixel saturated, in which case it will not be taken into account in the computation of the result.
         exposure_factors: A sequence of exposure factors to use for HDR imaging.
     """
@@ -88,9 +88,33 @@ class HDRCamera(Detector):
         return result
 
     def _fetch(self, *args, **kwargs) -> np.ndarray:
+        """Fetch method required by the Detector interface.
+
+        This method is not implemented for HDRCamera because the trigger method
+        directly returns the result without using the fetch mechanism.
+
+        Args:
+            *args: Variable length argument list.
+            **kwargs: Arbitrary keyword arguments.
+
+        Raises:
+            NotImplementedError: Always raised because this method is not implemented.
+        """
         raise NotImplementedError("Fetch is not implemented for HDRCamera")
 
     def __getattr__(self, name):
+        """Forward attribute access to the wrapped camera object.
+
+        This method is called when an attribute is not found in the HDRCamera instance.
+        It forwards the attribute access to the wrapped camera object, except for
+        attributes starting with an underscore.
+
+        Args:
+            name: The name of the attribute to access.
+
+        Returns:
+            The attribute value from the wrapped camera object.
+        """
         # Forward attribute access to the target
         if name.startswith("_"):
             return super().__getattr__(name)
@@ -98,6 +122,16 @@ class HDRCamera(Detector):
             return getattr(self._camera, name)
 
     def __setattr__(self, name, value):
+        """Forward attribute setting to the wrapped camera object.
+
+        This method is called when an attribute is set on the HDRCamera instance.
+        It forwards the attribute setting to the wrapped camera object, except for
+        attributes starting with an underscore.
+
+        Args:
+            name: The name of the attribute to set.
+            value: The value to set the attribute to.
+        """
         # Forward attribute setting to the target
         if name.startswith("_"):
             return super().__setattr__(name, value)

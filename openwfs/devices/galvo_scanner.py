@@ -69,18 +69,31 @@ class Axis:
     terminal_configuration: TerminalConfiguration = TerminalConfiguration.DEFAULT
 
     def to_volt(self, pos: Union[np.ndarray, float]) -> Quantity[u.V]:
-        """Converts relative position [0.0 ... 1.0] to voltage [V_min ... V_max]
+        """Converts relative position [0.0 ... 1.0] to voltage [V_min ... V_max].
 
         Currently, this is just a linear conversion, but a lookup table may be used in the future.
+
+        Args:
+            pos: Relative position value(s) between 0.0 and 1.0.
+
+        Returns:
+            Quantity[u.V]: Voltage value(s) between V_min and V_max.
         """
         return self.v_min + np.clip(pos, 0.0, 1.0) * (self.v_max - self.v_min)
 
     def to_pos(self, volt: Quantity[u.V]) -> np.ndarray:
-        """Converts voltage [V_min .. V_max] to relative position [0.0 .. 1.0]"""
+        """Converts voltage [V_min .. V_max] to relative position [0.0 .. 1.0].
+
+        Args:
+            volt: Voltage value(s) to convert.
+
+        Returns:
+            np.ndarray: Relative position value(s) between 0.0 and 1.0.
+        """
         return unitless((volt - self.v_min) / (self.v_max - self.v_min))
 
-    def maximum_scan_speed(self, linear_range: float):
-        """Computes the maximum scan speed in V per sample
+    def maximum_scan_speed(self, linear_range: float) -> Quantity[u.V / u.s]:
+        """Computes the maximum scan speed in V per sample.
 
         It is assumed that the mirror accelerates and decelerates at the maximum
         acceleration, and scans with a constant velocity over the linear range.
@@ -94,11 +107,10 @@ class Axis:
           the mirror will reach the maximum possible speed.
 
         Args:
-            linear_range (float): fraction of the full range that is used for the linear part of the scan
+            linear_range: Fraction of the full range that is used for the linear part of the scan.
 
         Returns:
-            Quantity[u.V / u.s]: maximum scan speed
-
+            Quantity[u.V / u.s]: Maximum scan speed.
         """
         # x = 0.5 · a · t² = 0.5 (v_max - v_min) · (1 - linear_range)
         t_accel = np.sqrt((self.v_max - self.v_min) * (1 - linear_range) / self.maximum_acceleration)
@@ -111,9 +123,7 @@ class Axis:
         return np.minimum(hardware_limit, practical_limit)
 
     def step(self, start: float, stop: float, sample_rate: Quantity[u.Hz]) -> Quantity[u.V]:
-        """
-        Generate a voltage sequence to move from `start` to `stop` in
-        the fastest way possible.
+        """Generate a voltage sequence to move from `start` to `stop` in the fastest way possible.
 
         This function assumes that the mirror is standing still at v_start,
         and generates a voltage ramp to move the mirror and stop it exactly at v_end,
@@ -126,8 +136,13 @@ class Axis:
         using continuity at t=t_total/2, we can solve this equation to get:
         t_total = 2·sqrt((v_end - v_start) / a)
 
+        Args:
+            start: Starting position in relative coordinates (0.0 to 1.0).
+            stop: Ending position in relative coordinates (0.0 to 1.0).
+            sample_rate: The sampling rate of the voltage sequence.
+
         Returns:
-            Quantity[u.V]: voltage sequence
+            Quantity[u.V]: Voltage sequence for the movement.
         """
         v_start = self.to_volt(start)
         if start == stop:
@@ -144,9 +159,8 @@ class Axis:
         v_decel[-1] = v_end  # fix last point because t may be > t_total due to rounding
         return np.clip(np.concatenate((v_accel, v_decel)), self.v_min, self.v_max)  # noqa ignore incorrect type warning
 
-    def scan(self, start: float, stop: float, sample_count: int, sample_rate: Quantity[u.Hz]):
-        """
-        Generate a voltage sequence to scan with a constant velocity from start to stop,
+    def scan(self, start: float, stop: float, sample_count: int, sample_rate: Quantity[u.Hz]) -> tuple:
+        """Generate a voltage sequence to scan with a constant velocity from start to stop,
         including acceleration and deceleration.
 
         Before starting this sequence, the mirror is assumed to be standing still at the launch point,
@@ -165,8 +179,18 @@ class Axis:
         so the sample at slice.start lies half a pixel _after_ start,
         and the sample at slice.stop - 1 lies half a pixel _before_ stop.
 
+        Args:
+            start: Starting position in relative coordinates (0.0 to 1.0).
+            stop: Ending position in relative coordinates (0.0 to 1.0).
+            sample_count: Number of samples in the linear part of the scan.
+            sample_rate: The sampling rate of the voltage sequence.
+
         Returns:
-            (Quantity[u.V], float, float, slice): voltage sequence, launch point, landing point, slice object
+            tuple: A tuple containing:
+                - Quantity[u.V]: Voltage sequence for the entire scan.
+                - float: Launch point in relative coordinates.
+                - float: Landing point in relative coordinates.
+                - slice: Slice object indicating the linear part of the scan.
         """
         v_start = self.to_volt(start)
         if start == stop:  # todo: tolerance?
@@ -213,15 +237,11 @@ class Axis:
         """Computes the conversion factor between voltage and displacement in the object plane.
 
         Args:
-            optical_deflection (Quantity[u.deg/u.V]):
-                The optical deflection (i.e. twice the mechanical angle) of the mirror
-                 as a function of applied voltage.
-            galvo_to_pupil_magnification (float):
-                The magnification of the relay system between the galvo mirrors and the pupil.
-            objective_magnification (Quantity[u.mm]):
-                The magnification of the microscope objective.
-            reference_tube_lens (Quantity[u.mm]):
-                The tube lens focal length on which the objective magnification is based.
+            optical_deflection: The optical deflection (i.e. twice the mechanical angle) of the mirror
+                as a function of applied voltage.
+            galvo_to_pupil_magnification: The magnification of the relay system between the galvo mirrors and the pupil.
+            objective_magnification: The magnification of the microscope objective.
+            reference_tube_lens: The tube lens focal length on which the objective magnification is based.
                 This value is manufacturer-specific. Typical values are:
                 - 200 mm for Thorlabs, Nikon, Leica, and Mitutoyo
                 - 180 mm for Olympus/Evident
@@ -244,20 +264,20 @@ class Axis:
     ) -> Quantity[u.V / u.s**2]:
         """Computes the angular acceleration of the focus of the galvo mirror.
 
-         The result is returned in the unit V / second²,
-         where the voltage can be converted to displacement using the scale factor.
+        The result is returned in the unit V / second²,
+        where the voltage can be converted to displacement using the scale factor.
 
         Args:
-            optical_deflection (Quantity[u.deg/u.V]):
-                The optical deflection (i.e. twice the mechanical angle) of the mirror
-                 as a function of applied voltage.
-            torque_constant (Quantity[u.N*u.m/u.A]):
-                The torque constant of the galvo mirror driving coil.
+            optical_deflection: The optical deflection (i.e. twice the mechanical angle) of the mirror
+                as a function of applied voltage.
+            torque_constant: The torque constant of the galvo mirror driving coil.
                 May also be given in the equivalent unit of dyne·cm/A.
-            rotor_inertia (Quantity[u.kg*u.m**2]):
-                The moment of inertia of the rotor. May also be given in the equivalent unit of g·cm².
-            maximum_current (Quantity[u.A]):
-                The maximum current that can be applied to the galvo mirror.
+            rotor_inertia: The moment of inertia of the rotor. 
+                May also be given in the equivalent unit of g·cm².
+            maximum_current: The maximum current that can be applied to the galvo mirror.
+
+        Returns:
+            Quantity[u.V / u.s**2]: The maximum acceleration of the galvo mirror in voltage per second squared.
         """
         angular_acceleration = (torque_constant * maximum_current / rotor_inertia).to(u.s**-2) * u.rad
         return (angular_acceleration / optical_deflection).to(u.V / u.s**2)
@@ -570,6 +590,15 @@ class ScanningMicroscope(Detector):
         Because the scanner can return both signed and unsigned integers, both cases are accounted for.
         This function crops the data if padding was added, and it
         flips the even rows back if scanned in bidirectional mode.
+
+        Args:
+            raw: The raw 1D array of data from the scanner.
+
+        Returns:
+            np.ndarray: A 2D image with the correct dimensions and orientation.
+
+        Raises:
+            ValueError: If the data type is not int16 or uint16.
         """
         # convert data to 2-d, discard padding
         cropped = raw.reshape(-1, self._n_cols)[: self._data_shape[0], self._mask]
@@ -594,7 +623,18 @@ class ScanningMicroscope(Detector):
         return cropped
 
     def _fetch(self) -> np.ndarray:  # noqa
-        """Reads the acquired data from the input task."""
+        """Reads the acquired data from the input task.
+
+        This method retrieves the data from the NI-DAQ input task, processes it according to the
+        test pattern settings, and applies any preprocessing function if specified.
+
+        Returns:
+            np.ndarray: The processed image data from the scanning microscope.
+
+        Raises:
+            ValueError: If an invalid test pattern is specified or if no test image was provided
+                when using the 'image' test pattern.
+        """
         if self._test_pattern is TestPatternType.NONE:
             raw = self._read_task.in_stream.read()
             self._read_task.stop()
@@ -630,37 +670,72 @@ class ScanningMicroscope(Detector):
         return self._raw_to_cropped(preprocessed_raw)
 
     def close(self):
-        """Close connection to the NI-DAQ."""
+        """Close connection to the NI-DAQ.
+
+        This method closes both the read and write tasks, releasing the hardware resources.
+        It should be called when the scanning microscope is no longer needed.
+        """
         self._read_task.close()
         self._write_task.close()
 
     @property
     def test_pattern(self) -> TestPatternType:
+        """Get the current test pattern type.
+
+        Returns:
+            TestPatternType: The current test pattern setting.
+        """
         return self._test_pattern
 
     @test_pattern.setter
     def test_pattern(self, value: TestPatternType):
+        """Set the test pattern type.
+
+        Args:
+            value: The test pattern to use. Can be one of the TestPatternType enum values
+                or a string ('none', 'horizontal', 'vertical', 'image').
+        """
         self._test_pattern = TestPatternType(value)
 
     @property
-    def preprocessor(self):
+    def preprocessor(self) -> Optional[callable]:
         """An optional function to preprocess raw data before cropping.
 
         The function takes a linear array of raw data as required arguments,
-         and a list of keyword arguments. Currently, the following arguments are passed:
-            - sample_rate (Quantity[u.MHz]): the sample rate of the NI-DAQ input channel
+        and a list of keyword arguments. Currently, the following arguments are passed:
+            - data: The raw data array from the scanner.
+            - sample_rate (Quantity[u.MHz]): The sample rate of the NI-DAQ input channel.
+
+        Returns:
+            Optional[callable]: The current preprocessor function or None if not set.
         """
         return self._preprocessor
 
     @preprocessor.setter
     def preprocessor(self, value: Optional[callable]):
+        """Set the preprocessor function.
+
+        Args:
+            value: A callable function that takes raw data and sample_rate as arguments,
+                or None to disable preprocessing.
+
+        Raises:
+            TypeError: If the value is not callable and not None.
+        """
         if not callable(value) and value is not None:
             raise TypeError(f"Invalid type for {self._preprocessor}. Should be callable or None.")
         self._preprocessor = value
 
     @property
     def pixel_size(self) -> Quantity:
-        """The size of a pixel in the object plane."""
+        """The size of a pixel in the object plane.
+
+        This property calculates the physical size of each pixel based on the voltage range,
+        scale factors of the axes, zoom settings, and resolution.
+
+        Returns:
+            Quantity: The physical size of each pixel in the object plane, as a 2D quantity (y, x).
+        """
         # TODO: make extent a read-only attribute of Axis
         extent_y = (self._y_axis.v_max - self._y_axis.v_min) * self._y_axis.scale
         extent_x = (self._x_axis.v_max - self._x_axis.v_min) * self._x_axis.scale
@@ -668,37 +743,74 @@ class ScanningMicroscope(Detector):
 
     @property
     def duration(self) -> Quantity[u.ms]:
-        """Total duration of scanning for one frame."""
+        """Total duration of scanning for one frame.
+
+        This property calculates the time required to complete a full scan based on
+        the scan pattern length and the sample rate.
+
+        Returns:
+            Quantity[u.ms]: The total time required to complete one frame.
+        """
         self._ensure_valid()  # make sure _scan_pattern is up-to-date
         return (self._scan_pattern.shape[1] / self._sample_rate).to(u.ms)
 
     @property
     def left(self) -> int:
-        """The leftmost pixel of the Region of Interest (ROI) in the scan range."""
+        """The leftmost pixel of the Region of Interest (ROI) in the scan range.
+
+        Returns:
+            int: The x-coordinate of the left edge of the ROI in pixels.
+        """
         return self._roi_left
 
     @left.setter
     def left(self, value: int):
+        """Set the leftmost pixel of the ROI.
+
+        Args:
+            value: The x-coordinate of the left edge of the ROI in pixels.
+        """
         self._roi_left = int(value)
         self._valid = False
 
     @property
     def top(self) -> int:
-        """The topmost pixel of the ROI in the scan range."""
+        """The topmost pixel of the ROI in the scan range.
+
+        Returns:
+            int: The y-coordinate of the top edge of the ROI in pixels.
+        """
         return self._roi_top
 
     @top.setter
     def top(self, value: int):
+        """Set the topmost pixel of the ROI.
+
+        Args:
+            value: The y-coordinate of the top edge of the ROI in pixels.
+        """
         self._roi_top = int(value)
         self._valid = False
 
     @property
     def height(self) -> int:
-        """The number of pixels in the vertical dimension of the ROI."""
+        """The number of pixels in the vertical dimension of the ROI.
+
+        Returns:
+            int: The height of the ROI in pixels.
+        """
         return self._data_shape[0]
 
     @height.setter
-    def height(self, value):
+    def height(self, value: int):
+        """Set the height of the ROI.
+
+        Args:
+            value: The height of the ROI in pixels.
+
+        Raises:
+            ValueError: If the value is less than 1 or greater than the resolution.
+        """
         if value < 1 or value > self._resolution:
             raise ValueError(f"Height must be between 1 and {self._resolution}")
         self._data_shape = (int(value), int(self.data_shape[1]))
@@ -712,20 +824,35 @@ class ScanningMicroscope(Detector):
         acquire multiple data points along a scan line, and return the
         averaged value.
         A value of 1 is treated as a special case,
-        where the beam does not move horizontally.at all
+        where the beam does not move horizontally at all
         (i.e. it does not scan back and forth over the size of this single pixel).
+
+        Returns:
+            int: The width of the ROI in pixels.
         """
         return self.data_shape[1]
 
     @width.setter
-    def width(self, value):
+    def width(self, value: int):
+        """Set the width of the ROI.
+
+        Args:
+            value: The width of the ROI in pixels.
+
+        Raises:
+            ValueError: If the value is less than 1 or greater than the resolution.
+        """
         if value < 1 or value > self._resolution:
             raise ValueError(f"Width must be between 1 and {self._resolution}")
         self._data_shape = (self.data_shape[0], int(value))
         self._valid = False
 
     def reset_roi(self):
-        """Reset the ROI to span the original left, top, width and height."""
+        """Reset the ROI to span the original left, top, width and height.
+
+        This method resets the Region of Interest to cover the full scan area,
+        setting left and top to 0, and width and height to the full resolution.
+        """
         self.left = 0
         self.top = 0
         self.width = self._resolution
@@ -733,45 +860,93 @@ class ScanningMicroscope(Detector):
 
     @property
     def dwell_time(self) -> Quantity[u.us]:
-        """The time spent on each pixel during scanning."""
+        """The time spent on each pixel during scanning.
+
+        This property calculates the dwell time based on the oversampling factor
+        and the sample rate of the scanner.
+
+        Returns:
+            Quantity[u.us]: The time spent on each pixel during scanning.
+        """
         return (self._oversampling / self._sample_rate).to(u.us)
 
     @property
     def delay(self) -> Quantity[u.us]:
-        """Delay between the control signal to the mirrors and the start of data acquisition."""
-        return self._delay  # add unit
+        """Delay between the control signal to the mirrors and the start of data acquisition.
+
+        This property controls the synchronization between the mirror movement and data acquisition.
+        Adjusting this value can help correct for timing mismatches that cause image tearing.
+
+        Returns:
+            Quantity[u.us]: The current delay setting.
+        """
+        return self._delay
 
     @delay.setter
     def delay(self, value: Quantity[u.us]):
+        """Set the delay between mirror control and data acquisition.
+
+        Args:
+            value: The delay time to set, in microseconds.
+        """
         self._delay = value
         self._valid = False
 
     @property
     def exposure(self) -> Quantity[u.ms]:
-        """The required time to scan a frame."""
+        """The required time to scan a frame.
+
+        This is an alias for the duration property, provided for compatibility with
+        the camera interface.
+
+        Returns:
+            Quantity[u.ms]: The total time required to complete one frame.
+        """
         return self.duration
 
     @property
     def bidirectional(self) -> bool:
-        """Whether scanning is bidirectional along the fast axis."""
+        """Whether scanning is bidirectional along the fast axis.
+
+        When enabled, the scanner acquires data in both directions along the fast axis,
+        which reduces the total scan time but may require more precise timing adjustments.
+
+        Returns:
+            bool: True if bidirectional scanning is enabled, False otherwise.
+        """
         return self._bidirectional
 
     @bidirectional.setter
     def bidirectional(self, value: bool):
+        """Set the bidirectional scanning mode.
+
+        Args:
+            value: True to enable bidirectional scanning, False to use unidirectional scanning.
+        """
         self._bidirectional = value
         self._valid = False
 
     @property
     def zoom(self) -> float:
-        """Zoom factor.
+        """Zoom factor for the scanning microscope.
+
         The zoom factor determines the pixel size relative to the original pixel size.
         When zooming in or out, the center of the region of interest is kept constant.
-        Note that this may cause the field of view to get extended to outside the original FOV
+        Note that this may cause the field of view to get extended to outside the original FOV.
+
+        Returns:
+            float: The current zoom factor.
         """
         return self._zoom
 
     @zoom.setter
     def zoom(self, value: float):
+        """Set the zoom factor.
+
+        Args:
+            value: The new zoom factor to set. Higher values result in smaller field of view
+                and higher resolution.
+        """
         # compute how far the roi center is away from the _center_x before the zoom
         roi_scale = 1.0 / (self._reference_zoom * self._zoom) / self._resolution
         center_y_before = (self._roi_top + 0.5 * self._data_shape[0]) * roi_scale
@@ -878,6 +1053,13 @@ class ScanningMicroscope(Detector):
         self._scan_speed_factor = np.clip(float(value), 0.05, 1.0)
 
     @staticmethod
-    def list_devices():
-        """Returns a list of all nidaq devices available on the system."""
+    def list_devices() -> list:
+        """Returns a list of all NI-DAQ devices available on the system.
+
+        This method queries the system for all National Instruments data acquisition devices
+        that are currently connected and available.
+
+        Returns:
+            list: A list of device names (strings) that can be used in the channel specifications.
+        """
         return [d.name for d in nidaqmx.system.System().devices]
