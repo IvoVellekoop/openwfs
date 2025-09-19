@@ -1,6 +1,6 @@
 BSD 3-Clause License
 
-Copyright (c) 2023, Ivo Vellekoop, Jeroen Doornbos, Daniël Cox, University of Twente
+Copyright (c) 2023, Ivo Vellekoop, Jeroen Doornbos, Daniël Cox, Arnon A.B., University of Twente
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without 

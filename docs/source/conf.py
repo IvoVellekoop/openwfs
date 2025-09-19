@@ -33,7 +33,7 @@ extensions = [
 
 # basic project information
 project = "OpenWFS"
-copyright = "2023-, Ivo Vellekoop, Daniël W. S. Cox, and Jeroen H. Doornbos, University of Twente"
+copyright = "2025 -Jeroen H. Doornbos, Aron A. B., Daniël W. S. Cox, and , and  Ivo M. Vellekoop, University of Twente"
 # author = "Jeroen H. Doornbos, Daniël W. S. Cox, Tom Knop, Harish Sasikumar, Ivo M. Vellekoop"
 release = "0.1.0rc2"
 html_title = "OpenWFS - a library for conducting and simulating wavefront shaping experiments"
