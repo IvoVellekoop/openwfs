@@ -52,6 +52,11 @@ class Roi:
 
     @property
     def pos(self) -> tuple[int, int]:
+        """Get the position of the ROI center.
+
+        Returns:
+            tuple[int, int]: y,x coordinates of the center of the ROI, measured in pixels from the top-left corner.
+        """
         return self._pos
 
     @pos.setter
@@ -79,6 +84,7 @@ class Roi:
 
     @property
     def radius(self) -> float:
+        """Radius of the ROI in pixels."""
         return self._radius
 
     @radius.setter
@@ -88,6 +94,7 @@ class Roi:
 
     @property
     def waist(self) -> float:
+        """Width of the Gaussian distribution in pixels."""
         return self._waist
 
     @waist.setter
@@ -97,10 +104,14 @@ class Roi:
 
     @property
     def mask_type(self) -> str:
+        """The type of mask used for the ROI.
+
+        Must be one of 'disk', 'gaussian', or 'square'.
+        """
         return self._mask_type
 
-    @waist.setter
-    def waist(self, value: str):
+    @mask_type.setter
+    def mask_type(self, value: str):
         if value not in ["disk", "gaussian", "square"]:
             raise ValueError("mask_type must be 'disk', 'gaussian', or 'square'")
         self._mask_type = value
@@ -195,6 +206,7 @@ class MultipleRoi(Processor):
 
     @property
     def data_shape(self):
+        """The shape of the data array returned by this processor."""
         return self._rois.shape
 
     @property
@@ -204,6 +216,12 @@ class MultipleRoi(Processor):
 
 
 class SingleRoi(MultipleRoi):
+    """Processor that averages a signal over a single region of interest (ROI).
+
+    This is a specialized version of MultipleRoi that works with a single ROI.
+    It provides direct access to the ROI properties (pos, radius, mask_type, waist).
+    """
+
     def __init__(
         self,
         source,
@@ -275,6 +293,7 @@ class CropProcessor(Processor):
 
     @property
     def data_shape(self) -> tuple:
+        """Size of the cropped data"""
         return self._data_shape
 
     @data_shape.setter
@@ -306,8 +325,20 @@ class CropProcessor(Processor):
 
 
 def select_roi(source: Detector, mask_type: str):
-    """
-    Opens a window that allows the user to select a region of interest.
+    """Opens a window that allows the user to select a region of interest.
+
+    This function displays an image from the source detector and allows the user
+    to interactively select a region of interest by clicking and dragging.
+
+    Args:
+        source: The detector to read the image from.
+        mask_type: Type of the mask to create. Options are 'disk', 'gaussian', or 'square'.
+
+    Returns:
+        Roi: A Roi object representing the selected region, or None if the selection was cancelled.
+
+    Raises:
+        ValueError: If the mask_type is not one of the supported types.
     """
     if mask_type not in ["disk", "gaussian", "square"]:
         raise ValueError("mask_type must be 'disk', 'gaussian', or 'square'")
