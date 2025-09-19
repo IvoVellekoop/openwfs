@@ -118,24 +118,23 @@ class Microscope(Processor):
         aberrations: np.ndarray,  # noqa
         incident_field: np.ndarray,
     ) -> np.ndarray:
-        """
-        Updates the image on the camera sensor
+        """Updates the image on the camera sensor.
 
         To compute the image:
         * First trigger the source, slm, and aberration sources
         * Then read the corresponding images.
         * Combines the slm and aberration images to compute the PSF
-        * Crop the source image (not implemented yet) and upsample if needed (not implemented yet)
+        * Crop the source image and upsample if needed
         * Convolve the source image with the PSF.
         * Compute the magnified and cropped image on the camera.
 
         Args:
-            source:
-            aberrations:
-            incident_field:
+            source: The source image (specimen) to be imaged.
+            aberrations: The aberration pattern in the pupil plane.
+            incident_field: The field from the SLM in the pupil plane.
 
         Returns:
-
+            np.ndarray: The resulting image as it would appear on a camera sensor.
         """
 
         # First crop and downscale the source image to have the same size as the output
@@ -224,11 +223,13 @@ class Microscope(Processor):
 
     @property
     def magnification(self) -> float:
-        """
-        Magnification from object plane to image plane.
+        """Magnification from object plane to image plane.
 
         Note that, as in a real microscope, the magnification does not affect the effective resolution of the image.
         The resolution is determined by the Abbe diffraction limit λ/2NA.
+
+        Returns:
+            float: The current magnification factor.
         """
         return self._magnification
 
@@ -238,16 +239,31 @@ class Microscope(Processor):
 
     @property
     def abbe_limit(self) -> Quantity:
-        """Returns the Abbe diffraction limit: λ/(2 NA)"""
+        """Returns the Abbe diffraction limit: λ/(2 NA).
+
+        This is the theoretical resolution limit of the microscope due to diffraction.
+
+        Returns:
+            Quantity: The Abbe diffraction limit in length units.
+        """
         return 0.5 * self.wavelength / self.numerical_aperture
 
     @property
     def pixel_size(self) -> Quantity:
-        """Returns the pixel size in the image plane
-        This value is always equal to `source.pixel_size * magnification`"""
+        """Returns the pixel size in the image plane.
+
+        This value is always equal to `source.pixel_size * magnification`.
+
+        Returns:
+            Quantity: The physical size of each pixel in the image plane.
+        """
         return self._sources[0].pixel_size * self.magnification
 
     @property
-    def data_shape(self):
-        """Returns the shape of the image in the image plane"""
+    def data_shape(self) -> tuple:
+        """Returns the shape of the image in the image plane.
+
+        Returns:
+            tuple: The dimensions of the output image (height, width).
+        """
         return self._data_shape

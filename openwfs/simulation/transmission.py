@@ -76,5 +76,10 @@ class SimulatedWFS(Processor):
         return np.abs(field) ** 2
 
     @property
-    def data_shape(self):
+    def data_shape(self) -> tuple:
+        """Returns the shape of the output data.
+
+        Returns:
+            tuple: The shape of the feedback signal, excluding the spatial dimensions.
+        """
         return self.t.shape[:-2]
