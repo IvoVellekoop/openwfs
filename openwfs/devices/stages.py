@@ -17,7 +17,7 @@ class SerialPortBase:
 
     _connections = weakref.WeakValueDictionary()  # port -> connection (weakref to allow auto-cleanup)
 
-    def __init__(self, protocol: str = "ascii"):
+    def __init__(self, port: str, protocol: str = "ascii"):
         """
         Args:
             protocol (str): "ascii" or "binary" (default "ascii")
@@ -31,29 +31,27 @@ class SerialPortBase:
             raise ValueError("protocol must be 'ascii' or 'binary'")
 
         self._closed = False  # prevents double-close per object
-        self.port = None  # to be set by subclasses
+        self._port = port  # to be set by subclasses
 
-    def open_connection(self, port: str):
+    def open_connection(self):
         """
         Open a serial port connection with the chosen protocol, or reuse an existing one.
         Returns the connection object.
         """
 
-        conn = SerialPortBase._connections.get(port)
+        conn = SerialPortBase._connections.get(self._port)
         if conn is not None:
             # reuse existing connection
             self._connection = conn
-            self._port = port
             return conn
 
         # Open new connection
-        conn = self.ConnectionClass.open_serial_port(port)
-        SerialPortBase._connections[port] = conn
+        conn = self.ConnectionClass.open_serial_port(self._port)
+        SerialPortBase._connections[self._port] = conn
 
         # add to weak dict (auto-removed when no strong refs left)
-        SerialPortBase._connections[port] = conn
+        SerialPortBase._connections[self._port] = conn
         self._connection = conn
-        self._port = port
 
         # register finalizer: close when GC runs out of refs
         weakref.finalize(conn, conn.close)
@@ -141,7 +139,7 @@ class SerialPortBase:
             print(f"Port: {port}, Ref count: {count}, Connection: {conn}")
 
 
-class ZaberXYStage(Actuator, SerialPortBase):
+class ZaberXYStage(Actuator):
     """
     Wraps two Zaber stages (x and y axes) so they look like an XYStage.
     Handles connection setup given one or two COM ports.
@@ -199,7 +197,6 @@ class ZaberXYStage(Actuator, SerialPortBase):
 
         self.port_x = port_x  # save ports
         self.port_y = port_y
-        self._owned_ports = [self.port_x, self.port_y]
 
         self.stage_x = ZaberLinearStage(port_x, device=device_x, protocol=protocol)
         self.stage_y = ZaberLinearStage(
@@ -241,8 +238,12 @@ class ZaberXYStage(Actuator, SerialPortBase):
         self.stage_x.close()
         self.stage_y.close()
 
+    @staticmethod
+    def list_all_devices():
+        return SerialPortBase.list_all_devices()
 
-class ZaberLinearStage(Actuator, SerialPortBase):
+
+class ZaberLinearStage(Actuator):
     """
     Wraps a single Zaber stage so it looks like a Linear stage.
     Handles connection setup given a COM port.
@@ -273,14 +274,14 @@ class ZaberLinearStage(Actuator, SerialPortBase):
 
     def __init__(self, port: str, device: int = 0, protocol: str = "ascii"):
         # Initialize base classes
-        SerialPortBase.__init__(self, protocol)
-        Actuator.__init__(self, duration=0 * u.ms, latency=0 * u.ms)
+        # SerialPortBase.__init__(self, protocol)
+        # Actuator.__init__(self, duration=0 * u.ms, latency=0 * u.ms)
 
-        self.port = port  # save port
-        self._owned_ports = [self.port]
+        self.port = SerialPortBase(port, protocol)
+        super().__init__(duration=0 * u.ms, latency=0 * u.ms)
 
         # Open connection using base class helper
-        self.connection = self.open_connection(port)
+        self.connection = self.port.open_connection()
 
         # Detect devices
         devices = self.connection.detect_devices()
@@ -300,3 +301,12 @@ class ZaberLinearStage(Actuator, SerialPortBase):
     def home(self):
         self.stage.home()
         return self.x
+    
+    def close(self):
+        self.port.close()
+    
+    @staticmethod
+    def list_all_devices():
+        return SerialPortBase.list_all_devices()
+    
+
