@@ -25,3 +25,4 @@ while True:
     plt.title(f"frame: {frame}")
     plt.show(block=False)
     plt.pause(0.001)
+    frame += 1
