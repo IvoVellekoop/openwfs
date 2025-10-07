@@ -30,12 +30,12 @@ settle_time = 2
 # we are using a setup with an SLM that produces 2pi phase shift
 # at a gray value of 142. With proper calibration, this is usually 256.
 two_pi_gray_value = 142
-centering = Transform(source_origin=(0, 0), destination_origin=(0.0, 0.15))
+centering = Transform(source_origin=(0, 0), destination_origin=(0.0, 0.05))
 
 
 # This script shows how a wavefront shaping experiment can be performed from Python
 cam = Camera(camera_driver_path)
-cam.exposure_time = 16.666 * u.ms
+cam.exposure = 16.666 * u.ms
 roi_detector = SingleRoi(cam, radius=2)
 
 # constructs the actual slm for wavefront shaping, and a monitor window to display the current phase pattern

@@ -36,9 +36,11 @@ class Camera(Detector):
 
     Example:
         >>> camera = Camera(cti_file=R"C:\\Program Files\\Basler\\pylon 7\\Runtime\\x64\\ProducerU3V.cti")
-        >>> camera.exposure_time = 10 * u.ms
+        >>> camera.exposure = 10 * u.ms
         >>> frame = camera.read()
     """
+
+    __slots__ = ("_harvester", "_camera", "_nodes")
 
     def __init__(
         self,
