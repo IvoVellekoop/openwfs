@@ -109,7 +109,7 @@ class Camera(Detector):
         # set additional properties specified in the kwargs
         settings.update(kwargs)
 
-        for key, value in kwargs.items():
+        for key, value in settings.items():
             try:
                 getattr(nodes, key).value = value
             except AttributeError:
