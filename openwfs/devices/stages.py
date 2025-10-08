@@ -5,23 +5,35 @@ from zaber_motion import ascii, binary
 import serial.tools.list_ports
 from ..core import Actuator
 import weakref
+import threading
 
 
 class SerialPortBase:
     """
     Base class for devices connected via serial ports, handles protocol selection,
     connection setup, device detection, and shared connections.
+
+    Design:
+      - Strong dict: port -> connection
+      - WeakSet of owners per port
+      - Finalizer on each owner to release ownership automatically
+      - Single lock protects shared maps (thread-safe)
+
+    General idea:
+        Make sure that multiple objects using the same port share a single connection,
+        and that the connection is closed automatically when the last object is deleted.
+        If an object is overwritten or goes out of scope, the connection is closed if no other
+        objects are using it.
+
+    Uses some specifics of Zaber Motion Library connections and devices.
+    Could possibly be adapted in the future for general serial devices.
     """
 
-    # Class-level caches for connections (keeping track of all connected devices, only close port if all devices connected that port are closed)
+    _connections = {}  # {port: connection} strong refs
+    _owners = {}  # {port: weakref.WeakSet[SerialPortBase]}
+    _lock = threading.RLock()
 
-    _connections = weakref.WeakValueDictionary()  # port -> connection (weakref to allow auto-cleanup)
-
-    def __init__(self, port: str, protocol: str = "ascii"):
-        """
-        Args:
-            protocol (str): "ascii" or "binary" (default "ascii")
-        """
+    def __init__(self, port: str, device_number: int = 0, protocol: str = "ascii"):
         self.protocol = protocol.lower()
         if self.protocol == "ascii":
             self.ConnectionClass = ascii.Connection
@@ -30,49 +42,123 @@ class SerialPortBase:
         else:
             raise ValueError("protocol must be 'ascii' or 'binary'")
 
-        self._closed = False  # prevents double-close per object
-        self._port = port  # to be set by subclasses
+        self.port = port
 
-    def open_connection(self):
+        # Open/reuse connection and register ownership under the lock.
+        with SerialPortBase._lock:
+            conn = SerialPortBase._connections.get(port)
+            if conn is None:
+                conn = self.ConnectionClass.open_serial_port(port)
+                SerialPortBase._connections[port] = conn
+                SerialPortBase._owners[port] = weakref.WeakSet()
+
+            # Track this owner (weakly to allow GC)
+            SerialPortBase._owners[port].add(self)
+
+            # Finalizer on the OWNER, not the connection; don't capture conn.
+            self._owner_finalizer = weakref.finalize(
+                self,
+                SerialPortBase._release_owner,
+                port,
+                weakref.ref(self),
+            )
+            self.connection = conn
+
+        # Detect devices (slow operations outside the lock)
+        try:
+            devices = self.connection.detect_devices()
+            if not devices:
+                raise RuntimeError(f"No Zaber devices found on port {port} using {protocol} protocol.")
+            self.device = devices[device_number]
+        except Exception:
+            # Undo ownership if init fails, for example if device_number is out of range
+            self._safe_release_owner()
+            raise
+
+    @staticmethod
+    def _release_owner(port: str, self_ref: "weakref.ReferenceType"):
         """
-        Open a serial port connection with the chosen protocol, or reuse an existing one.
-        Returns the connection object.
+        Called when an owner is GC'ed.
+        Removes the owner; if no *live* owners remain, closes and removes the connection.
         """
+        with SerialPortBase._lock:
+            owners = SerialPortBase._owners.get(port)
+            if owners is None:
+                return  # Already cleaned
 
-        conn = SerialPortBase._connections.get(self._port)
-        if conn is not None:
-            # reuse existing connection
-            self._connection = conn
-            return conn
+            # Try to remove this specific owner if still alive
+            obj = self_ref()
+            if obj is not None:
+                owners.discard(obj)
 
-        # Open new connection
-        conn = self.ConnectionClass.open_serial_port(self._port)
-        SerialPortBase._connections[self._port] = conn
+            # IMPORTANT: Force WeakSet to clean up dead refs before deciding
+            has_live_owner = False
+            for _ in owners:  # iteration triggers internal cleanup of dead weakrefs
+                has_live_owner = True
+                break
 
-        # add to weak dict (auto-removed when no strong refs left)
-        SerialPortBase._connections[self._port] = conn
-        self._connection = conn
-
-        # register finalizer: close when GC runs out of refs
-        weakref.finalize(conn, conn.close)
-        return conn
-
-    def close(self):
-        """Explicitly close this object’s connection and remove from cache."""
-        if self._connection:
-            try:
-                self._connection.close()
-            except Exception as e:
-                print(f"[WARN] Error closing {self._port}: {e}")
-            finally:
-                # Remove from the WeakValueDictionary immediately
-                if self._port in SerialPortBase._connections:
+            if not has_live_owner:
+                # Last live owner gone -> close and cleanup
+                conn = SerialPortBase._connections.pop(port, None)
+                SerialPortBase._owners.pop(port, None)
+                if conn is not None:
                     try:
-                        del SerialPortBase._connections[self._port]
-                    except KeyError:
-                        pass
-                self._connection = None
-            self._port = None
+                        print(f"[AUTO-CLOSE] Last owner gone for {port} — closing.")
+                        conn.close()
+                    except Exception as e:
+                        print(f"[WARN] Auto-close failed for {port}: {e}")
+
+    def _safe_release_owner(self):
+        """Invoke the owner finalizer exactly once."""
+        fin = getattr(self, "_owner_finalizer", None)
+        if fin and fin.alive:
+            fin()
+
+    # ToDo: decide if we want a manual close() method
+    # A starts has been made below, but there are some bugs (ports stay open if finalizer already ran)
+
+    # def close(self):
+    #     """
+    #     Manual close: release this owner.
+    #     The port is closed automatically when the last owner releases.
+    #     """
+    #     self._safe_release_owner()
+    #     self.connection = None
+
+    # def close(self):
+    #     """
+    #     Manual close: release this owner; closes the port when the last owner releases.
+    #     Works even if the finalizer already ran or wasn't registered yet.
+    #     """
+    #     # Preferred path: run the finalizer (idempotent; runs at most once)
+    #     fin = getattr(self, "_owner_finalizer", None)
+    #     if fin and fin.alive:
+    #         fin()  # calls _release_owner under the class lock
+    #     else:
+    #         # Fallback: ensure we are removed from owners and close if last
+    #         with SerialPortBase._lock:
+    #             owners = SerialPortBase._owners.get(self.port)
+    #             if owners is not None:
+    #                 owners.discard(self)
+
+    #                 # Purge and check for live owners
+    #                 has_live_owner = False
+    #                 for _ in owners:
+    #                     has_live_owner = True
+    #                     break
+
+    #                 if not has_live_owner:
+    #                     conn = SerialPortBase._connections.pop(self.port, None)
+    #                     SerialPortBase._owners.pop(self.port, None)
+    #                     if conn is not None:
+    #                         try:
+    #                             print(f"[CLOSE] Last owner gone for {self.port} — closing.")
+    #                             conn.close()
+    #                         except Exception as e:
+    #                             print(f"[WARN] Error closing {self.port}: {e}")
+
+    #     # Clear instance handle to avoid accidental reuse
+    #     self.connection = None
 
     @staticmethod
     def list_all_devices():
@@ -80,7 +166,7 @@ class SerialPortBase:
         List all COM ports and devices connected to them using both ASCII and Binary protocols.
         Works even if some ports are already open by objects.
 
-        Returns a dict: { "COMx": [{"protocol": "ascii", "devices": [...]}, {"protocol": "binary", "devices": [...]}], ... }
+        Returns: dict { "COMx": [{"protocol": "ascii"|"binary", "devices": [...] }], ... }
         """
         devices_found = {}
         ports = serial.tools.list_ports.comports()
@@ -88,35 +174,41 @@ class SerialPortBase:
         for port in ports:
             port_info = []
 
-            # First check if we already have this port open
-            if port.device in SerialPortBase._connections:
-                conn = SerialPortBase._connections[port.device]
+            # If port is already open, query via existing connection (no lock during I/O)
+            with SerialPortBase._lock:
+                conn = SerialPortBase._connections.get(port.device)
+
+            if conn is not None:
                 try:
                     devices = conn.detect_devices()
                     if devices:
-                        # we don't know protocol directly, so infer from conn class
                         proto_name = "ascii" if isinstance(conn, ascii.Connection) else "binary"
                         port_info.append({"protocol": proto_name, "devices": devices})
                 except Exception as e:
                     print(f"[WARN] Could not query existing connection {port.device}: {e}")
-
             else:
-                # Otherwise, try opening fresh with both protocols
+                # Probe with temporary connections; close them immediately.
                 for proto_name, ConnectionClass in [("ascii", ascii.Connection), ("binary", binary.Connection)]:
                     try:
-                        with ConnectionClass.open_serial_port(port.device) as conn:
-                            devices = conn.detect_devices()
+                        tmp = ConnectionClass.open_serial_port(port.device)
+                        try:
+                            devices = tmp.detect_devices()
                             if devices:
                                 port_info.append({"protocol": proto_name, "devices": devices})
+                        finally:
+                            try:
+                                tmp.close()
+                            except Exception:
+                                pass
                     except Exception:
                         continue
 
             if port_info:
                 devices_found[port.device] = port_info
 
-        # Print nicely
-        for port, info_list in devices_found.items():
-            print(f"Port: {port}")
+        # Pretty-print
+        for p, info_list in devices_found.items():
+            print(f"Port: {p}")
             for info in info_list:
                 proto = info["protocol"]
                 devs = info["devices"]
@@ -126,82 +218,132 @@ class SerialPortBase:
 
         return devices_found
 
-    @classmethod
-    def _print_counters(cls):
-        """Print all active connection counters."""
-        print("\n=== Connection counters ===")
-        if not cls._connections:
-            print("No open connections.")
-            return
+    @staticmethod
+    def list_open_ports():
+        with SerialPortBase._lock:
+            return list(SerialPortBase._connections.keys())
 
-        for port, conn in cls._connections.items():
-            count = 31415  # cls._ref_counts.get(port, 0)
-            print(f"Port: {port}, Ref count: {count}, Connection: {conn}")
+    # --- Debug helpers -------------------------------------------------------
+
+    @classmethod
+    def debug_owner_details(cls) -> dict:
+        """
+        Snapshot with lightweight owner details. Structure:
+        {
+            "COM4": {
+                "count": 2,
+                "owner_ids": ["0x108f8c2a0", "0x108f8d1e0"],
+                "owner_types": ["SerialPortBase", "SerialPortBase"],
+                "connection": "repr-of-connection"
+            },
+            ...
+        }
+        Note: only returns strings/ints (no strong refs to owners).
+        """
+        out = {}
+        with cls._lock:
+            for port, conn in cls._connections.items():
+                owners = cls._owners.get(port)
+                if owners is None:
+                    out[port] = {
+                        "count": 0,
+                        "owner_ids": [],
+                        "owner_types": [],
+                        "connection": repr(conn),
+                    }
+                    continue
+
+                ids = []
+                types = []
+                # Create a temporary list to avoid set-size changes during iteration
+                for o in list(owners):
+                    if o is None:
+                        continue
+                    ids.append(hex(id(o)))
+                    types.append(type(o).__name__)
+
+                out[port] = {
+                    "count": len(ids),
+                    "owner_ids": ids,
+                    "owner_types": types,
+                    "connection": repr(conn),
+                }
+        return out
+
+    @classmethod
+    def debug_print_state(cls, include_owner_ids: bool = False, include_conn_repr: bool = False):
+        """
+        Pretty-print current connection pool and owners.
+        """
+        with cls._lock:
+            if not cls._connections:
+                print("No open connections.")
+                return
+
+            print("=== SerialPortBase debug state ===")
+            for port, conn in cls._connections.items():
+                owners = cls._owners.get(port)
+                count = len(owners) if owners is not None else 0
+                print(f"Port {port}: owners={count}")
+                if include_conn_repr:
+                    print(f"  conn={conn!r}")
+                if include_owner_ids and owners:
+                    for o in list(owners):
+                        if o is None:
+                            continue
+                        print(f"   - owner id={hex(id(o))}, type={type(o).__name__}")
+            print("=== end ===")
 
 
 class ZaberXYStage(Actuator):
     """
-    Wraps two Zaber stages (x and y axes) so they look like an XYStage.
-    Handles connection setup given one or two COM ports.
+    Wrapper for a pair of Zaber linear stages connected via serial ports, controlling X and Y axes.
 
     Args:
-        port_x (str): COM port name for the x-axis stage (e.g. "COM3").
-        port_y (str | None): COM port name for the y-axis stage (e.g. "COM4").
-                             If None, assume both axes are connected on port_x.
-        device_x (int): Index of the x stage on the port (default 0).
-        device_y (int): Index of the y stage on the port (default 1 if sharing, else 0).
-        protocol (str): "ascii" or "binary" (default "ascii").
+        port_x: COM port string for X axis, e.g. "COM3"
+        port_y: COM port string for Y axis, e.g. "COM4". If None, uses port_x.
+        device_number_x: index of the device on the X axis port (0-based)
+        device_number_y: index of the device on the Y axis port (0-based). If None and port_y==port_x, assumes second device (1), else 0.
+        protocol: "ascii" or "binary"
 
-    Example usage:
-    See openwfs\\examples\\Zaber translation stage control.ipynb for
-    more elaborate example usage.
+    Example:
+        stage = ZaberXYStage(port_x="COM3", port_y="COM4", device_number_x=0, device_number_y=0, protocol="ascii")
+        stage.x = 5000 * u.um  # move X to 5000 micrometers
+        stage.y = 2 * u.mm  # move Y to 2 millimeters
+        print(stage.x, stage.y)  # get current positions
+        stage.home()  # home both axes
 
-    # Both stages on same COM port
-    stage_xy = ZaberXYStage("COM3")
-
-    # Stages on different COM ports
-    stage_xy = ZaberXYStage("COM3", "COM4")
-
-    # Explicit device indices (if multiple devices per port)
-    stage_xy = ZaberXYStage("COM3", device_x=0, device_y=1)
-
-    # Move X and Y axes
-    print("Current positions:", stage_xy.x, stage_xy.y)
-    stage_xy.x = 5000 * u.um
-    stage_xy.y = 3000 * u.um
-    print("New positions:", stage_xy.x, stage_xy.y)
-
-    # Home both axes
-    stage_xy.home()
-    print("Homed positions:", stage_xy.x, stage_xy.y)
-
-    # Clean up / close connections
-    stage_xy.close()
+    ToDo: Currently both axis move after each other, need to implement parallel movement.
     """
 
     def __init__(
         self,
         port_x: str,
         port_y: str | None = None,
-        device_x: int = 0,
-        device_y: int | None = None,
+        device_number_x: int = 0,
+        device_number_y: int | None = None,
         protocol: str = "ascii",
     ):
-        # Initialize base classes
-        # SerialPortBase.__init__(self, protocol)
-        # Actuator.__init__(self, duration=0 * u.ms, latency=0 * u.ms)
+        # Initialize base class
+        Actuator.__init__(self, duration=0 * u.ms, latency=0 * u.ms)
 
         # If only one port is given, use it for both axes
         if port_y is None:
             port_y = port_x
 
+        # If only one port is given and device_number_y is not specified, assume second device on same port and set device_number_y=1,
+        # otherwise set device_number_y=0
+        if device_number_y is None and port_y == port_x:
+            device_number_y = 1  # second device on same port
+        elif device_number_y is None:
+            device_number_y = 0  # second device on different port
+
         self.port_x = port_x  # save ports
         self.port_y = port_y
 
-        self.stage_x = ZaberLinearStage(port_x, device=device_x, protocol=protocol)
-        self.stage_y = ZaberLinearStage(
-            port_y, device=device_y if device_y is not None else (1 if port_y == port_x else 0), protocol=protocol
-        )
+        # Create stage objects
+        self.stage_x = ZaberLinearStage(port_x, device_number=device_number_x, protocol=protocol)
+        self.stage_y = ZaberLinearStage(port_y, device_number=device_number_y, protocol=protocol)
 
     @property
     def x(self) -> Quantity[u.um]:
@@ -234,60 +376,32 @@ class ZaberXYStage(Actuator):
         self.stage_y.home()
         return self.y
 
-    def close(self):
-        self.stage_x.close()
-        self.stage_y.close()
-
-    @staticmethod
     def list_all_devices():
         return SerialPortBase.list_all_devices()
 
 
 class ZaberLinearStage(Actuator):
     """
-    Wraps a single Zaber stage so it looks like a Linear stage.
-    Handles connection setup given a COM port.
+    Wrapper for a single Zaber linear stage connected via serial port.
 
     Args:
-        port (str): COM port name for the stage (e.g. "COM3").
-        device (int): Index of the stage on the port (default 0).
+        port: COM port string, e.g. "COM3"
+        device_number: index of the device on the port (0-based)
+        protocol: "ascii" or "binary"
 
-    Example usage:
-    See openwfs\\examples\\Zaber translation stage control.ipynb for
-    more elaborate example usage.
-
-    # Create a linear stage on COM3, first device in chain
-    stage_lin = ZaberLinearStage("COM3")
-
-    # If multiple devices on COM3, pick the second one
-    stage_lin = ZaberLinearStage("COM3", device=1)
-
-    # Move and home
-    print("Current pos:", stage_lin.x)
-    stage_lin.x = 5000 * u.um
-    print("New pos:", stage_lin.x)
-    stage_lin.home()
-
-    # Clean up
-    stage_lin.close()
+    Example:
+        stage = ZaberLinearStage(port="COM3", device_number=0, protocol="ascii")
+        stage.x = 5000 * u.um  # move to 5000 micrometers
+        print(stage.x)  # get current position
+        stage.home()  # home the stage
     """
 
-    def __init__(self, port: str, device: int = 0, protocol: str = "ascii"):
-        # Initialize base classes
-        # SerialPortBase.__init__(self, protocol)
-        # Actuator.__init__(self, duration=0 * u.ms, latency=0 * u.ms)
-
-        self.port = SerialPortBase(port, protocol)
-        super().__init__(duration=0 * u.ms, latency=0 * u.ms)
-
-        # Open connection using base class helper
-        self.connection = self.port.open_connection()
-
-        # Detect devices
-        devices = self.connection.detect_devices()
-
-        # Pick the device
-        self.stage = devices[device]
+    def __init__(self, port: str, device_number: int = 0, protocol: str = "ascii"):
+        # Initialize base class
+        Actuator.__init__(self, duration=0 * u.ms, latency=0 * u.ms)
+        self.serial_port = SerialPortBase(port, device_number=device_number, protocol=protocol)
+        self.stage = self.serial_port.device  # the Zaber device object
+        self.device_number = device_number  # save device number
 
     @property
     def x(self) -> Quantity[u.um]:
@@ -295,18 +409,12 @@ class ZaberLinearStage(Actuator):
 
     @x.setter
     def x(self, value: Quantity[u.um]):
-        self.stage.move_absolute(value, Units.LENGTH_MICROMETRES)
+        self.stage.move_absolute(value.to(u.um).value, Units.LENGTH_MICROMETRES)
         return self.x
 
     def home(self):
         self.stage.home()
         return self.x
-    
-    def close(self):
-        self.port.close()
-    
-    @staticmethod
+
     def list_all_devices():
         return SerialPortBase.list_all_devices()
-    
-
