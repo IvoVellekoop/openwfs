@@ -70,7 +70,7 @@ class ZaberConnection:
         self.device_number = device_number
 
         # Detect devices (slow operations outside the lock)
-        devices = self.connection.connection.detect_devices()
+        devices = self.connection.connections.detect_devices()
         if not devices:
             raise RuntimeError(f"No Zaber devices found on port {port} using {protocol} protocol.")
         self.device = devices[device_number]
@@ -91,8 +91,8 @@ class ZaberConnection:
             port_info = []
 
             # If port is already open, query via existing connection (no lock during I/O)
-            with SerialPortBase._lock:
-                conn = SerialPortBase._connections.get(port.device)
+            with SerialPortConnection._lock:
+                conn = SerialPortConnection._ports.get(port.device)
 
             if conn is not None:
                 try:
