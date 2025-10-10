@@ -134,81 +134,81 @@ class ZaberConnection:
 
         return devices_found
 
-    @staticmethod
-    def list_open_ports():
-        with SerialPortBase._lock:
-            return list(SerialPortBase._connections.keys())
+    # @staticmethod
+    # def list_open_ports():
+    #     with SerialPortBase._lock:
+    #         return list(SerialPortBase._connections.keys())
 
     # --- Debug helpers -------------------------------------------------------
 
-    @classmethod
-    def debug_owner_details(cls) -> dict:
-        """
-        Snapshot with lightweight owner details. Structure:
-        {
-            "COM4": {
-                "count": 2,
-                "owner_ids": ["0x108f8c2a0", "0x108f8d1e0"],
-                "owner_types": ["SerialPortBase", "SerialPortBase"],
-                "connection": "repr-of-connection"
-            },
-            ...
-        }
-        Note: only returns strings/ints (no strong refs to owners).
-        """
-        out = {}
-        with cls._lock:
-            for port, conn in cls._connections.items():
-                owners = cls._owners.get(port)
-                if owners is None:
-                    out[port] = {
-                        "count": 0,
-                        "owner_ids": [],
-                        "owner_types": [],
-                        "connection": repr(conn),
-                    }
-                    continue
+    # @classmethod
+    # def debug_owner_details(cls) -> dict:
+    #     """
+    #     Snapshot with lightweight owner details. Structure:
+    #     {
+    #         "COM4": {
+    #             "count": 2,
+    #             "owner_ids": ["0x108f8c2a0", "0x108f8d1e0"],
+    #             "owner_types": ["SerialPortBase", "SerialPortBase"],
+    #             "connection": "repr-of-connection"
+    #         },
+    #         ...
+    #     }
+    #     Note: only returns strings/ints (no strong refs to owners).
+    #     """
+    #     out = {}
+    #     with cls._lock:
+    #         for port, conn in cls._connections.items():
+    #             owners = cls._owners.get(port)
+    #             if owners is None:
+    #                 out[port] = {
+    #                     "count": 0,
+    #                     "owner_ids": [],
+    #                     "owner_types": [],
+    #                     "connection": repr(conn),
+    #                 }
+    #                 continue
 
-                ids = []
-                types = []
-                # Create a temporary list to avoid set-size changes during iteration
-                for o in list(owners):
-                    if o is None:
-                        continue
-                    ids.append(hex(id(o)))
-                    types.append(type(o).__name__)
+    #             ids = []
+    #             types = []
+    #             # Create a temporary list to avoid set-size changes during iteration
+    #             for o in list(owners):
+    #                 if o is None:
+    #                     continue
+    #                 ids.append(hex(id(o)))
+    #                 types.append(type(o).__name__)
 
-                out[port] = {
-                    "count": len(ids),
-                    "owner_ids": ids,
-                    "owner_types": types,
-                    "connection": repr(conn),
-                }
-        return out
+    #             out[port] = {
+    #                 "count": len(ids),
+    #                 "owner_ids": ids,
+    #                 "owner_types": types,
+    #                 "connection": repr(conn),
+    #             }
+    #     return out
 
-    @classmethod
-    def debug_print_state(cls, include_owner_ids: bool = False, include_conn_repr: bool = False):
-        """
-        Pretty-print current connection pool and owners.
-        """
-        with cls._lock:
-            if not cls._connections:
-                print("No open connections.")
-                return
+    # @classmethod
+    # def debug_print_state(cls, include_owner_ids: bool = False, include_conn_repr: bool = False):
+    #     """
+    #     Pretty-print current connection pool and owners.
+    #     """
+    #     with cls._lock:
+    #         if not cls._connections:
+    #             print("No open connections.")
+    #             return
 
-            print("=== SerialPortBase debug state ===")
-            for port, conn in cls._connections.items():
-                owners = cls._owners.get(port)
-                count = len(owners) if owners is not None else 0
-                print(f"Port {port}: owners={count}")
-                if include_conn_repr:
-                    print(f"  conn={conn!r}")
-                if include_owner_ids and owners:
-                    for o in list(owners):
-                        if o is None:
-                            continue
-                        print(f"   - owner id={hex(id(o))}, type={type(o).__name__}")
-            print("=== end ===")
+    #         print("=== SerialPortBase debug state ===")
+    #         for port, conn in cls._connections.items():
+    #             owners = cls._owners.get(port)
+    #             count = len(owners) if owners is not None else 0
+    #             print(f"Port {port}: owners={count}")
+    #             if include_conn_repr:
+    #                 print(f"  conn={conn!r}")
+    #             if include_owner_ids and owners:
+    #                 for o in list(owners):
+    #                     if o is None:
+    #                         continue
+    #                     print(f"   - owner id={hex(id(o))}, type={type(o).__name__}")
+    #         print("=== end ===")
 
 
 class ZaberXYStage(Actuator):
