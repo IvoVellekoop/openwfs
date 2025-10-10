@@ -293,7 +293,7 @@ class ZaberXYStage(Actuator):
         return self.y
 
     def list_all_devices():
-        return SerialPortBase.list_all_devices()
+        return ZaberConnection.list_all_devices()
 
 
 class ZaberLinearStage(Actuator):
@@ -333,4 +333,4 @@ class ZaberLinearStage(Actuator):
         return self.x
 
     def list_all_devices():
-        return SerialPortBase.list_all_devices()
+        return ZaberConnection.list_all_devices()
