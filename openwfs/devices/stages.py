@@ -1,15 +1,43 @@
+import threading
+import weakref
+
 import astropy.units as u
+import serial.tools.list_ports
 from astropy.units import Quantity
 from zaber_motion import Units, Library
 from zaber_motion import ascii, binary
-import serial.tools.list_ports
+
 from ..core import Actuator
-import weakref
-import threading
 
 
-class SerialPortBase:
+class SerialPortConnection:
+    def __init__(self, connection_class, port):
+        self.connection_class = connection_class
+        self.connections = connection_class.open_serial_port(port)
+
+    def __del__(self):
+        self.connections.close()
+
+    _ports = weakref.WeakValueDictionary()  # {port: connection} strong refs
+    _lock = threading.RLock()
+
+    @staticmethod
+    def open(connection_class, port: str) -> "SerialPortConnection":
+        with SerialPortConnection._lock:
+            conn = SerialPortConnection._ports.get(port)
+            if conn is not None:
+                if conn.connection_class != connection_class:
+                    raise RuntimeError(f"Port {port} is already open with a different connection class.")
+            else:
+                conn = SerialPortConnection(connection_class, port)
+                SerialPortConnection._ports[port] = conn
+
+            return conn
+
+
+class ZaberConnection:
     """
+    Serial port + device number
     Base class for devices connected via serial ports, handles protocol selection,
     connection setup, device detection, and shared connections.
 
@@ -29,136 +57,24 @@ class SerialPortBase:
     Could possibly be adapted in the future for general serial devices.
     """
 
-    _connections = {}  # {port: connection} strong refs
-    _owners = {}  # {port: weakref.WeakSet[SerialPortBase]}
-    _lock = threading.RLock()
-
     def __init__(self, port: str, device_number: int = 0, protocol: str = "ascii"):
         self.protocol = protocol.lower()
         if self.protocol == "ascii":
-            self.ConnectionClass = ascii.Connection
+            ConnectionClass = ascii.Connection
         elif self.protocol == "binary":
-            self.ConnectionClass = binary.Connection
+            ConnectionClass = binary.Connection
         else:
             raise ValueError("protocol must be 'ascii' or 'binary'")
 
-        self.port = port
-
-        # Open/reuse connection and register ownership under the lock.
-        with SerialPortBase._lock:
-            conn = SerialPortBase._connections.get(port)
-            if conn is None:
-                conn = self.ConnectionClass.open_serial_port(port)
-                SerialPortBase._connections[port] = conn
-                SerialPortBase._owners[port] = weakref.WeakSet()
-
-            # Track this owner (weakly to allow GC)
-            SerialPortBase._owners[port].add(self)
-
-            # Finalizer on the OWNER, not the connection; don't capture conn.
-            self._owner_finalizer = weakref.finalize(
-                self,
-                SerialPortBase._release_owner,
-                port,
-                weakref.ref(self),
-            )
-            self.connection = conn
+        self.connection = SerialPortConnection.open(ConnectionClass, port)
+        self.device_number = device_number
 
         # Detect devices (slow operations outside the lock)
-        try:
-            devices = self.connection.detect_devices()
-            if not devices:
-                raise RuntimeError(f"No Zaber devices found on port {port} using {protocol} protocol.")
-            self.device = devices[device_number]
-        except Exception:
-            # Undo ownership if init fails, for example if device_number is out of range
-            self._safe_release_owner()
-            raise
+        devices = self.connection.connection.detect_devices()
+        if not devices:
+            raise RuntimeError(f"No Zaber devices found on port {port} using {protocol} protocol.")
+        self.device = devices[device_number]
 
-    @staticmethod
-    def _release_owner(port: str, self_ref: "weakref.ReferenceType"):
-        """
-        Called when an owner is GC'ed.
-        Removes the owner; if no *live* owners remain, closes and removes the connection.
-        """
-        with SerialPortBase._lock:
-            owners = SerialPortBase._owners.get(port)
-            if owners is None:
-                return  # Already cleaned
-
-            # Try to remove this specific owner if still alive
-            obj = self_ref()
-            if obj is not None:
-                owners.discard(obj)
-
-            # IMPORTANT: Force WeakSet to clean up dead refs before deciding
-            has_live_owner = False
-            for _ in owners:  # iteration triggers internal cleanup of dead weakrefs
-                has_live_owner = True
-                break
-
-            if not has_live_owner:
-                # Last live owner gone -> close and cleanup
-                conn = SerialPortBase._connections.pop(port, None)
-                SerialPortBase._owners.pop(port, None)
-                if conn is not None:
-                    try:
-                        print(f"[AUTO-CLOSE] Last owner gone for {port} — closing.")
-                        conn.close()
-                    except Exception as e:
-                        print(f"[WARN] Auto-close failed for {port}: {e}")
-
-    def _safe_release_owner(self):
-        """Invoke the owner finalizer exactly once."""
-        fin = getattr(self, "_owner_finalizer", None)
-        if fin and fin.alive:
-            fin()
-
-    # ToDo: decide if we want a manual close() method
-    # A starts has been made below, but there are some bugs (ports stay open if finalizer already ran)
-
-    # def close(self):
-    #     """
-    #     Manual close: release this owner.
-    #     The port is closed automatically when the last owner releases.
-    #     """
-    #     self._safe_release_owner()
-    #     self.connection = None
-
-    # def close(self):
-    #     """
-    #     Manual close: release this owner; closes the port when the last owner releases.
-    #     Works even if the finalizer already ran or wasn't registered yet.
-    #     """
-    #     # Preferred path: run the finalizer (idempotent; runs at most once)
-    #     fin = getattr(self, "_owner_finalizer", None)
-    #     if fin and fin.alive:
-    #         fin()  # calls _release_owner under the class lock
-    #     else:
-    #         # Fallback: ensure we are removed from owners and close if last
-    #         with SerialPortBase._lock:
-    #             owners = SerialPortBase._owners.get(self.port)
-    #             if owners is not None:
-    #                 owners.discard(self)
-
-    #                 # Purge and check for live owners
-    #                 has_live_owner = False
-    #                 for _ in owners:
-    #                     has_live_owner = True
-    #                     break
-
-    #                 if not has_live_owner:
-    #                     conn = SerialPortBase._connections.pop(self.port, None)
-    #                     SerialPortBase._owners.pop(self.port, None)
-    #                     if conn is not None:
-    #                         try:
-    #                             print(f"[CLOSE] Last owner gone for {self.port} — closing.")
-    #                             conn.close()
-    #                         except Exception as e:
-    #                             print(f"[WARN] Error closing {self.port}: {e}")
-
-    #     # Clear instance handle to avoid accidental reuse
-    #     self.connection = None
 
     @staticmethod
     def list_all_devices():
@@ -399,7 +315,7 @@ class ZaberLinearStage(Actuator):
     def __init__(self, port: str, device_number: int = 0, protocol: str = "ascii"):
         # Initialize base class
         Actuator.__init__(self, duration=0 * u.ms, latency=0 * u.ms)
-        self.serial_port = SerialPortBase(port, device_number=device_number, protocol=protocol)
+        self.serial_port = ZaberConnection(port, device_number=device_number, protocol=protocol)
         self.stage = self.serial_port.device  # the Zaber device object
         self.device_number = device_number  # save device number
 
