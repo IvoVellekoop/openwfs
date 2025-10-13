@@ -22,6 +22,7 @@ class _SerialPortConnection:
         self.connections = connection_class.open_serial_port(port)
 
     def __del__(self):
+        print(f"Closing serial port connection {self.connections}")
         self.connections.close()
 
     _ports = weakref.WeakValueDictionary()
@@ -116,6 +117,15 @@ class _ZaberConnection:
 
             if port_info:
                 devices_found[port.device] = port_info
+        
+        for p, info_list in devices_found.items():
+                print(f"Port: {p}")
+                for info in info_list:
+                    proto = info["protocol"]
+                    devs = info["devices"]
+                    print(f"  Protocol: {proto}")
+                    for i, d in enumerate(devs):
+                        print(f"    Device {i}: {d}")
 
         return devices_found
 
