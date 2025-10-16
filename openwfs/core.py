@@ -44,6 +44,9 @@ class Device(ABC):
         Args:
             duration: Maximum amount of time it takes to perform the measurement or for the
                 actuator to stabilize. This value does not include the latency.
+                If the duration of an operation is not known in advance,
+                (e.g., when waiting for a hardware trigger), value should be `np.inf * u.ms`.
+                If the duration is variable, it is possible to override the `duration` property.
             latency: Minimum amount of time between sending a command or trigger to the device
                 and the moment the device starts responding.
         """
