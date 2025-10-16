@@ -2,24 +2,21 @@ import time
 
 import astropy.units as u
 import cv2
+import glfw
+import numpy as np  # for debugging
 import pytest
 
-from ..openwfs.devices import safe_import
+from ..openwfs.devices import is_loaded
+from ..openwfs.devices.slm import SLM, Patch, geometry
+from ..openwfs.utilities import Transform
 
-glfw = safe_import("glfw", "glfw")
-GL = safe_import("OpenGL.GL", "OpenGL")
-if not glfw or not GL:
-    pytest.skip("GLFW and PyOpenGL are required for the test_slm module", allow_module_level=True)
+if not is_loaded(glfw):
+    pytest.skip(glfw.message, allow_module_level=True)
+
 glfw.init()
 if not glfw.get_monitors():
     pytest.skip("No monitors found", allow_module_level=True)
 
-
-import numpy as np  # for debugging
-
-
-from ..openwfs.devices.slm import SLM, Patch, geometry
-from ..openwfs.utilities import Transform
 
 # just some values for testing different gray value levels
 GVAL1 = 173

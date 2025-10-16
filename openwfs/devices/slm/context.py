@@ -1,9 +1,7 @@
 import threading
 import weakref
 
-from .. import safe_import
-
-glfw = safe_import("glfw", "opengl")
+import glfw
 
 SLM = "slm.SLM"
 

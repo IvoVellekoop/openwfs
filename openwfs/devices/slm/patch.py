@@ -1,15 +1,11 @@
 from typing import Sequence, Optional
 
+import OpenGL.GL as GL
 import numpy as np
+from OpenGL.GL import shaders
 from numpy.typing import ArrayLike
 
 from .context import Context
-from .. import safe_import
-
-GL = safe_import("OpenGL.GL", "opengl")
-if GL is not None:
-    from OpenGL.GL import shaders
-
 from .geometry import rectangle, Geometry
 from .shaders import (
     default_vertex_shader,
