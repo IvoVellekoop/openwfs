@@ -1,11 +1,8 @@
 import time
 
 import astropy.units as u
+import nidaqmx as ni
 from astropy.units import Quantity
-
-from . import safe_import
-
-ni = safe_import("nidaqmx", "nidaq")
 
 
 class Gain:

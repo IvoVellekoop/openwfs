@@ -4,12 +4,7 @@ from typing import Optional
 import astropy.units as u
 import numpy as np
 from astropy.units import Quantity
-
-from . import safe_import
-
-hc = safe_import("harvesters.core", "genicam")
-if hc is not None:
-    from harvesters.core import Harvester
+from harvesters.core import Harvester
 
 from ..core import Detector
 

@@ -1,14 +1,12 @@
 import astropy.units as u
+import harvesters
 import pytest
 
-from ..openwfs.devices import Camera, safe_import
+from ..openwfs.devices import Camera, is_loaded
 from ..openwfs.processors import HDRCamera
 
-harvesters = safe_import("harvesters", "harvesters")
-if not harvesters:
-    pytest.skip(
-        "harvesters is required for the Camera module, install with pip install harvesters", allow_module_level=True
-    )
+if not is_loaded(harvesters):
+    pytest.skip(harvesters.message, allow_module_level=True)
 
 
 cti_path = R"C:\Program Files\Basler\pylon 7\Runtime\x64\ProducerU3V.cti"

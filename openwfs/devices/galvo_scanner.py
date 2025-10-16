@@ -3,17 +3,12 @@ from enum import Enum
 from typing import Optional, Annotated, Union
 
 import astropy.units as u
+import nidaqmx.system
 import numpy as np
 from annotated_types import Ge, Le
 from astropy.units import Quantity
-
-from . import safe_import
-
-ni = safe_import("nidaqmx", "nidaq")
-if ni is not None:
-    import nidaqmx.system
-    from nidaqmx.constants import TerminalConfiguration, DigitalWidthUnits
-    from nidaqmx.stream_writers import AnalogMultiChannelWriter
+from nidaqmx.constants import TerminalConfiguration, DigitalWidthUnits
+from nidaqmx.stream_writers import AnalogMultiChannelWriter
 
 from ..core import Detector
 from ..utilities import unitless

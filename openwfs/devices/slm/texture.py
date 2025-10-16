@@ -1,9 +1,7 @@
+import OpenGL.GL as GL
 import numpy as np
 
 from .context import Context
-from .. import safe_import
-
-GL = safe_import("OpenGL.GL", "opengl")
 
 
 class Texture:
