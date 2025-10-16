@@ -161,9 +161,6 @@ class ZaberXYStage(Actuator):
         if device_number_y is None:
             device_number_y = 1 if port_y == port_x else 0
 
-        self.port_x = port_x  # save ports
-        self.port_y = port_y
-
         # Create stage objects
         self.stage_x = ZaberLinearStage(port_x, device_number=device_number_x, protocol=protocol)
         self.stage_y = ZaberLinearStage(port_y, device_number=device_number_y, protocol=protocol)
@@ -221,13 +218,13 @@ class ZaberLinearStage(Actuator):
     def __init__(self, port: str, device_number: int = 0, protocol: str = "ascii"):
         # Initialize base class
         Actuator.__init__(self, duration=0 * u.ms, latency=0 * u.ms)
-        self.serial_port = _ZaberConnection(port, device_number=device_number, protocol=protocol)
-        self.stage = self.serial_port.device  # the Zaber device object
-        self.stage_is_moving = False
+        self._serial_port = _ZaberConnection(port, device_number=device_number, protocol=protocol)
+        self._stage = self._serial_port.device  # the Zaber device object
+        self._stage_is_moving = False
 
     @property
     def position(self) -> Quantity[u.um]:
-        return self.stage.get_position(unit=Units.LENGTH_MICROMETRES) * u.um
+        return self._stage.get_position(unit=Units.LENGTH_MICROMETRES) * u.um
 
     @position.setter
     def position(self, value: Quantity[u.um]):
@@ -236,17 +233,17 @@ class ZaberLinearStage(Actuator):
         # moved completely. This should be changed so that 'busy' checks
         # if the movement has finished, but this behavior is not easily supported by
         # the binary Zaber API, which is needed for older stages.
-        self.stage_is_moving = True
+        self._stage_is_moving = True
         try:
-            self.stage.move_absolute(value.to_value(u.um), Units.LENGTH_MICROMETRES)
+            self._stage.move_absolute(value.to_value(u.um), Units.LENGTH_MICROMETRES)
         finally:
-            self.stage_is_moving = False
+            self._stage_is_moving = False
 
     def busy(self) -> bool:
-        return self.stage_is_moving
+        return self._stage_is_moving
 
     def home(self):
-        self.stage.home()
+        self._stage.home()
 
     @staticmethod
     def list_all_devices():
