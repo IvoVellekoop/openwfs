@@ -5,7 +5,7 @@ import astropy.units as u
 import numpy as np
 import serial.tools.list_ports
 from astropy.units import Quantity
-from zaber_motion import Units, Library, ascii, binary
+from zaber_motion import Units, ascii, binary
 
 from ..core import Actuator
 
@@ -165,32 +165,29 @@ class ZaberXYStage(Actuator):
 
     @property
     def x(self) -> Quantity[u.um]:
-        return self.stage_x.x
+        return self.stage_x.position
 
     @x.setter
     def x(self, value: Quantity[u.um]):
-        self.stage_x.x = value
+        self.stage_x.position = value
 
     @property
     def y(self) -> Quantity[u.um]:
-        return self.stage_y.x
+        return self.stage_y.position
 
     @y.setter
     def y(self, value: Quantity[u.um]):
-        self.stage_y.x = value
+        self.stage_y.position = value
 
     def home(self):
         self.stage_x.home()
         self.stage_y.home()
-        return self.x, self.y
 
     def x_home(self):
         self.stage_x.home()
-        return self.x
 
     def y_home(self):
         self.stage_y.home()
-        return self.y
 
     @staticmethod
     def list_all_devices():
@@ -218,19 +215,17 @@ class ZaberLinearStage(Actuator):
         Actuator.__init__(self, duration=0 * u.ms, latency=0 * u.ms)
         self.serial_port = _ZaberConnection(port, device_number=device_number, protocol=protocol)
         self.stage = self.serial_port.device  # the Zaber device object
-        self.device_number = device_number  # save device number
 
     @property
-    def x(self) -> Quantity[u.um]:
+    def position(self) -> Quantity[u.um]:
         return self.stage.get_position(unit=Units.LENGTH_MICROMETRES) * u.um
 
-    @x.setter
-    def x(self, value: Quantity[u.um]):
-        self.stage.move_absolute(value.to(u.um).value, Units.LENGTH_MICROMETRES)
+    @position.setter
+    def position(self, value: Quantity[u.um]):
+        self.stage.move_absolute(value.to_value(u.um), Units.LENGTH_MICROMETRES)
 
     def home(self):
         self.stage.home()
-        return self.x
 
     @staticmethod
     def list_all_devices():
