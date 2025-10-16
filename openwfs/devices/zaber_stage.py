@@ -198,6 +198,9 @@ class ZaberLinearStage(Actuator):
     """
     Wrapper for a single Zaber linear stage connected via serial port.
 
+    todo: asynchroneous behavior (now setting the position blocks until the stage has moved completely)
+    todo: add a `settle_time` parameter to tell openwfs how long to wait after a move before starting a measurement.
+
     Args:
         port: COM port string, e.g. "COM3"
         device_number: index of the device on the port (0-based)
@@ -215,6 +218,7 @@ class ZaberLinearStage(Actuator):
         Actuator.__init__(self, duration=0 * u.ms, latency=0 * u.ms)
         self.serial_port = _ZaberConnection(port, device_number=device_number, protocol=protocol)
         self.stage = self.serial_port.device  # the Zaber device object
+        self.stage_is_moving = False
 
     @property
     def position(self) -> Quantity[u.um]:
@@ -222,7 +226,19 @@ class ZaberLinearStage(Actuator):
 
     @position.setter
     def position(self, value: Quantity[u.um]):
-        self.stage.move_absolute(value.to_value(u.um), Units.LENGTH_MICROMETRES)
+        super()._start()  # wait for all previous commands to finish
+        # Note: at the moment setting the stage position blocks until the stage has
+        # moved completely. This should be changed so that 'busy' checks
+        # if the movement has finished, but this behavior is not easily supported by
+        # the binary Zaber API, which is needed for older stages.
+        self.stage_is_moving = True
+        try:
+            self.stage.move_absolute(value.to_value(u.um), Units.LENGTH_MICROMETRES)
+        finally:
+            self.stage_is_moving = False
+
+    def busy(self) -> bool:
+        return self.stage_is_moving
 
     def home(self):
         self.stage.home()
