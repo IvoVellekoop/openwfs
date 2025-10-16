@@ -3,17 +3,22 @@ import weakref
 
 import astropy.units as u
 import numpy as np
-import serial.tools.list_ports
 from astropy.units import Quantity
+from serial.tools import list_ports
 from zaber_motion import Units, ascii, binary
 
 from ..core import Actuator
 
 
 class _SerialPortConnection:
-    """
-    Manages a single serial port connection shared among multiple users.
-    Uses weak references to automatically close the connection when no users remain.
+    """Wrapper for a serial port connection managed by the zaber_motion library.
+
+    This wrapper automatically closes the connection when it is deleted.
+    Note: this may not be needed if Zaber already does this automatically,
+    but that behavior is not documented.
+    Note: do not instantiate this class directly.
+    Instead use `_SerialPortConnection.open` to open a connection,
+    and re-use an existing connection if possible.
     """
 
     def __init__(self, port: str, protocol: str):
@@ -99,8 +104,8 @@ class _ZaberConnection:
         Returns: dict { "COMx": [{"protocol": "ascii"|"binary", "devices": [...] }], ... }
         """
         all_devices = {}
-        for port in serial.tools.list_ports.comports():
-            connection = _SerialPortConnection.open(port)
+        for port in list_ports.comports():
+            connection = _SerialPortConnection.open(port.device)
             print(f"Port: {port}")
             try:
                 devices = connection.connection.detect_devices()
@@ -145,7 +150,7 @@ class ZaberXYStage(Actuator):
         protocol: str = "ascii",
     ):
         # Initialize base class
-        super().__init__(self, duration=np.inf * u.ms, latency=0 * u.ms)
+        super().__init__(duration=np.inf * u.ms, latency=0 * u.ms)
 
         # If only one port is given, use it for both axes
         if port_y is None:
