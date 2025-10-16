@@ -4,19 +4,17 @@ import warnings
 from typing import Union, Optional, Sequence
 from weakref import WeakSet
 
+import OpenGL.GL as GL
 import astropy.units as u
+import glfw
 import numpy as np
 from astropy.units import Quantity
 from numpy.typing import ArrayLike
 
 from .context import Context
-from .. import safe_import
-from ...simulation import PhaseToField
-
-GL = safe_import("OpenGL.GL", "opengl")
-glfw = safe_import("glfw", "opengl")
 from .patch import FrameBufferPatch, Patch, VertexArray
 from ...core import PhaseSLM, Actuator, Device, Detector
+from ...simulation import PhaseToField
 from ...utilities import Transform
 
 TimeType = Union[Quantity[u.ms], int]

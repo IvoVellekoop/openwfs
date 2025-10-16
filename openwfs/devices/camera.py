@@ -4,12 +4,7 @@ from typing import Optional
 import astropy.units as u
 import numpy as np
 from astropy.units import Quantity
-
-from . import safe_import
-
-hc = safe_import("harvesters.core", "genicam")
-if hc is not None:
-    from harvesters.core import Harvester
+from harvesters.core import Harvester
 
 from ..core import Detector
 
@@ -36,9 +31,11 @@ class Camera(Detector):
 
     Example:
         >>> camera = Camera(cti_file=R"C:\\Program Files\\Basler\\pylon 7\\Runtime\\x64\\ProducerU3V.cti")
-        >>> camera.exposure_time = 10 * u.ms
+        >>> camera.exposure = 10 * u.ms
         >>> frame = camera.read()
     """
+
+    __slots__ = ("_harvester", "_camera", "_nodes")
 
     def __init__(
         self,
@@ -50,6 +47,11 @@ class Camera(Detector):
         """
         Initialize the Camera object.
 
+        By default, the camera is configured to use the highest monochromatic bitdepth available.
+        The trigger mode is set to `Software`, and `ExposureMode` to `Timed` (`ExposureAuto` is `Off`).
+        The ROI is reset to the full sensor.
+        To change any of these options, pass them as keyword arguments to the constructor, e. g. `PixelFormat='RGB16'`
+
         Args:
             cti_file: The path to the GenTL producer file.
                 This path depends on where the driver for the camera is installed.
@@ -59,7 +61,7 @@ class Camera(Detector):
             serial_number: The serial number of the camera.
                 When omitted, the first camera found is selected.
             **kwargs: Additional keyword arguments.
-                These arguments are transferred to the node map of the camera.
+                These arguments are transferred to the node map of the camera. They must follow the `genicam` standard.
         """
         self._harvester = Harvester()
 
@@ -91,6 +93,7 @@ class Camera(Detector):
 
         # set triggering to 'Software', so that we can trigger the camera by calling `trigger`.
         # turn off auto exposure so that `duration` accurately reflects the required measurement time.
+        # note: these default settings can be overridden by the kwargs.
         settings = {
             "TriggerMode": "On",
             "TriggerSource": "Software",
@@ -104,10 +107,19 @@ class Camera(Detector):
             "Height": nodes.Height.max,
         }
 
+        # by default use the highest bitdepth
+        if not "PixelFormat" in kwargs.keys():
+            for mode in ["Mono16", "Mono12Packed", "Mono12", "Mono8"]:
+                try:
+                    nodes.PixelFormat.value = mode
+                    break
+                except Exception as e:
+                    continue
+
         # set additional properties specified in the kwargs
         settings.update(kwargs)
 
-        for key, value in kwargs.items():
+        for key, value in settings.items():
             try:
                 getattr(nodes, key).value = value
             except AttributeError:
