@@ -222,15 +222,20 @@ class ZaberLinearStage(Actuator):
         """
         all_devices = {}
         for port in list_ports.comports():
-            serial_port = _SerialPortConnection.open(port.device)
-            print(f"Port: {port}")
-            try:
-                devices = serial_port.connection.detect_devices()
-                all_devices[port] = {"protocol": serial_port.protocol, "devices": devices}
-                print(f"  Protocol: {serial_port.protocol}")
-                for i, d in enumerate(devices):
-                    print(f"    Device {i}: {d}")
-            except Exception as e:
-                print(f"[WARN] Could not query existing connection {port.device}: {e}")
+            for protocol in ["ascii", "binary"]:
+                try:
+                    serial_port = _SerialPortConnection.open(port.device, protocol)
+                except RuntimeError:
+                    continue  # happens if the port is currently open using a different protocol.
+                print(f"Port: {port}")
+                try:
+                    devices = serial_port.connection.detect_devices()
+                    all_devices[port] = {"protocol": protocol, "devices": devices}
+                    print(f"  Protocol: {protocol}")
+                    for i, d in enumerate(devices):
+                        print(f"    Device {i}: {d}")
+                except Exception as e:
+                    print(f"[WARN] Could not query existing connection {port.device}: {e}")
+                serial_port = None  # closes the port
 
         return all_devices
