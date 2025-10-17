@@ -69,56 +69,6 @@ class _SerialPortConnection:
             return connection
 
 
-class _ZaberConnection:
-    """
-    Base class for Zaber devices connected via serial ports, handles protocol selection and connection setup.
-
-    A _ZaberConnection object holds a connection to a serial port,
-    as well as a device number to identify which device on the port to control
-    (since there may be multiple devices on the same port).
-
-    Args:
-        port: COM port string, e.g. "COM3"
-        device_number: index of the device on the port (0-based)
-        protocol: "ascii" or "binary"
-
-    Example:
-        conn = _ZaberConnection(port="COM3", device_number=0, protocol="ascii
-    """
-
-    def __init__(self, port: str, device_number: int = 0, protocol: str = "ascii"):
-        # open an ascii or binary connection to the port
-        self.connection = _SerialPortConnection.open(port, protocol)
-        self.device_number = device_number
-        try:
-            self.device = self.connection.connection.detect_devices()[device_number]
-        except IndexError:
-            raise RuntimeError(f"No Zaber devices found on port {port} using {protocol} protocol.")
-
-    @staticmethod
-    def list_all_devices():
-        """
-        List all COM ports and devices connected to them using both ASCII and Binary protocols.
-        Works even if some ports are already open by objects.
-
-        Returns: dict { "COMx": [{"protocol": "ascii"|"binary", "devices": [...] }], ... }
-        """
-        all_devices = {}
-        for port in list_ports.comports():
-            connection = _SerialPortConnection.open(port.device)
-            print(f"Port: {port}")
-            try:
-                devices = connection.connection.detect_devices()
-                all_devices[port] = {"protocol": connection.protocol, "devices": devices}
-                print(f"  Protocol: {connection.protocol}")
-                for i, d in enumerate(devices):
-                    print(f"    Device {i}: {d}")
-            except Exception as e:
-                print(f"[WARN] Could not query existing connection {port.device}: {e}")
-
-        return all_devices
-
-
 class ZaberXYStage(Actuator):
     """
     Wrapper for a pair of Zaber linear stages connected via serial ports, controlling X and Y axes.
@@ -193,7 +143,13 @@ class ZaberXYStage(Actuator):
 
     @staticmethod
     def list_all_devices():
-        return _ZaberConnection.list_all_devices()
+        """
+        List all COM ports and devices connected to them using both ASCII and Binary protocols.
+        Works even if some ports are already open by objects.
+
+        Returns: dict { "COMx": [{"protocol": "ascii"|"binary", "devices": [...] }], ... }
+        """
+        return ZaberLinearStage.list_all_devices()
 
 
 class ZaberLinearStage(Actuator):
@@ -218,8 +174,12 @@ class ZaberLinearStage(Actuator):
     def __init__(self, port: str, device_number: int = 0, protocol: str = "ascii"):
         # Initialize base class
         Actuator.__init__(self, duration=0 * u.ms, latency=0 * u.ms)
-        self._serial_port = _ZaberConnection(port, device_number=device_number, protocol=protocol)
-        self._stage = self._serial_port.device  # the Zaber device object
+        self._serial_port = _SerialPortConnection.open(port, protocol)  # need to store to keep object alive
+        self._device_number = device_number  # for debugging only
+        try:
+            self._stage = self._serial_port.connection.detect_devices()[device_number]
+        except IndexError:
+            raise RuntimeError(f"No Zaber devices found on port {port} using {protocol} protocol.")
         self._stage_is_moving = False
 
     @property
@@ -247,4 +207,23 @@ class ZaberLinearStage(Actuator):
 
     @staticmethod
     def list_all_devices():
-        return _ZaberConnection.list_all_devices()
+        """
+        List all COM ports and devices connected to them using both ASCII and Binary protocols.
+        Works even if some ports are already open by objects.
+
+        Returns: dict { "COMx": [{"protocol": "ascii"|"binary", "devices": [...] }], ... }
+        """
+        all_devices = {}
+        for port in list_ports.comports():
+            serial_port = _SerialPortConnection.open(port.device)
+            print(f"Port: {port}")
+            try:
+                devices = serial_port.connection.detect_devices()
+                all_devices[port] = {"protocol": serial_port.protocol, "devices": devices}
+                print(f"  Protocol: {serial_port.protocol}")
+                for i, d in enumerate(devices):
+                    print(f"    Device {i}: {d}")
+            except Exception as e:
+                print(f"[WARN] Could not query existing connection {port.device}: {e}")
+
+        return all_devices
