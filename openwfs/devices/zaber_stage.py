@@ -1,4 +1,5 @@
 import threading
+import time
 import weakref
 
 import astropy.units as u
@@ -15,10 +16,10 @@ class _SerialPortConnection:
 
     This wrapper automatically closes the connection when it is deleted.
     Note: this may not be needed if Zaber already does this automatically,
-    but that behavior is not documented.
+        but that behavior is not documented.
     Note: do not instantiate this class directly.
-    Instead use `_SerialPortConnection.open` to open a connection,
-    and re-use an existing connection if possible.
+        Instead use `_SerialPortConnection.open` to open a connection,
+        and re-use an existing connection if possible.
     """
 
     def __init__(self, port: str, protocol: str):
@@ -85,10 +86,10 @@ class ZaberXYStage(Actuator):
 
     Example:
         stage = ZaberXYStage(port_x="COM3", port_y="COM4", device_number_x=0, device_number_y=0, protocol="ascii")
+        stage.home()  # home both axes
         stage.x = 5000 * u.um  # move X to 5000 micrometers
         stage.y = 2 * u.mm  # move Y to 2 millimeters
         print(stage.x, stage.y)  # get current positions
-        stage.home()  # home both axes
     """
 
     def __init__(
@@ -158,6 +159,8 @@ class ZaberLinearStage(Actuator):
 
     todo: asynchroneous behavior (now setting the position blocks until the stage has moved completely)
     todo: add a `settle_time` parameter to tell openwfs how long to wait after a move before starting a measurement.
+    todo: at the moment it is possible to construct two stage objects referring to the same device. This condition
+        should be checked and result in an error being raised.
 
     Args:
         port: COM port string, e.g. "COM3"
@@ -172,15 +175,19 @@ class ZaberLinearStage(Actuator):
     """
 
     def __init__(self, port: str, device_number: int = 0, protocol: str = "ascii"):
-        # Initialize base class
         Actuator.__init__(self, duration=0 * u.ms, latency=0 * u.ms)
-        self._serial_port = _SerialPortConnection.open(port, protocol)  # need to store to keep object alive
-        self._device_number = device_number  # for debugging only
+
+        # open a serial port connection and store the object to keep the connection alive
+        self._serial_port = _SerialPortConnection.open(port, protocol)
+
+        # store device number (for debugging only), and obtain an object for controlling the device
+        self._device_number = device_number
         try:
             self._stage = self._serial_port.connection.detect_devices()[device_number]
         except IndexError:
-            raise RuntimeError(f"No Zaber devices found on port {port} using {protocol} protocol.")
-        self._stage_is_moving = False
+            raise RuntimeError(
+                f"No Zaber device found on port {port} at position {device_number} using {protocol} protocol."
+            )
 
     @property
     def position(self) -> Quantity[u.um]:
@@ -193,14 +200,14 @@ class ZaberLinearStage(Actuator):
         # moved completely. This should be changed so that 'busy' checks
         # if the movement has finished, but this behavior is not easily supported by
         # the binary Zaber API, which is needed for older stages.
-        self._stage_is_moving = True
         try:
             self._stage.move_absolute(value.to_value(u.um), Units.LENGTH_MICROMETRES)
         finally:
-            self._stage_is_moving = False
-
-    def busy(self) -> bool:
-        return self._stage_is_moving
+            # Set the end time to *now*. This tells the framework that it can start using
+            # cameras and other detectors.
+            # todo: here we should add a stabilization time to take into account
+            #   vibrations after the motor stops.
+            self._end_time_ns = time.time_ns()
 
     def home(self):
         self._stage.home()
