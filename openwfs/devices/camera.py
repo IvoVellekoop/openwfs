@@ -109,7 +109,18 @@ class Camera(Detector):
 
         # by default use the highest bitdepth
         if not "PixelFormat" in kwargs.keys():
-            for mode in ["Mono16", "Mono12Packed", "Mono12", "Mono8"]:
+            for mode in [
+                "Mono16",
+                "Mono14p",  # Mono14Packed does not exist
+                "Mono14",
+                "Mono12Packed",
+                "Mono12p",
+                "Mono12",
+                "Mono10Packed",
+                "Mono10p",
+                "Mono10",
+                "Mono8",
+            ]:
                 try:
                     nodes.PixelFormat.value = mode
                     break
