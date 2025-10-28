@@ -235,7 +235,7 @@ class ZaberLinearStage(Actuator):
                     for i, d in enumerate(devices):
                         print(f"    Device {i}: {d}")
                 except Exception as e:
-                    print(f"[WARN] Could not query existing connection {port.device}: {e}")
+                    pass
                 serial_port = None  # closes the port
 
         return all_devices
