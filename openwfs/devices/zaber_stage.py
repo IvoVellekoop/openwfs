@@ -234,7 +234,7 @@ class ZaberLinearStage(Actuator):
                     print(f"  Protocol: {protocol}")
                     for i, d in enumerate(devices):
                         print(f"    Device {i}: {d}")
-                except Exception as e:
+                except Exception:
                     pass
                 serial_port = None  # closes the port
 
