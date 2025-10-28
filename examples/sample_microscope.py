@@ -54,7 +54,7 @@ if __name__ == "__main__":
     plt.title("Scanned image")
     ax = None
     for p in range(p_limit):
-        mic.xy_stage.x = p * 1 * u.um
+        mic.xy_stage.position = p * 1 * u.um
         mic.z_stage.position = p * 0.1 * u.um  # slowly drift out of focus
         ax = grab_and_show(cam, ax)
         plt.title(f"defocus: {mic.z_stage.position}")

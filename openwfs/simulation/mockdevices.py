@@ -7,7 +7,7 @@ from astropy.units import Quantity
 
 from ..core import Detector, Processor, Actuator
 from ..processors import CropProcessor
-from ..utilities import ExtentType, get_pixel_size, set_pixel_size
+from ..utilities import ExtentType, get_pixel_size, set_pixel_size, unitless
 
 
 class StaticSource(Detector):
@@ -467,7 +467,7 @@ class LinearStage(Actuator):
 
     @position.setter
     def position(self, value: Quantity[u.um]):
-        self._position = self._step_size * np.round(value.to(u.um) / self._step_size)
+        self._position = self._step_size * np.round(unitless(value / self._step_size))
 
     def home(self):
         self._position = 0.0 * u.um
