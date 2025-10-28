@@ -22,7 +22,7 @@ build-backend = "poetry.core.masonry.api"
 # required dependencies
 python = ">=3.10,<4.0"
 numpy = ">=1.25.2"  # also allow numpy 2.x.y
-astropy = ">=5.1.0" # assuming the astropy.units is stable
+astropy = ">=7.1.1" # assuming the astropy.units is stable
 opencv-python = "^4.9.0.80"
 matplotlib = "^3.7.3"
 scipy = "^1.11.3"
