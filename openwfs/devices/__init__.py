@@ -61,9 +61,12 @@ safe_import("harvesters.core", "genicam")
 safe_import("nidaqmx", "nidaq")
 safe_import("OpenGL", "opengl")
 safe_import("glfw", "opengl")
+safe_import("zaber_motion", "zaber")
+safe_import("serial", "zaber")
 
 from .camera import Camera
 from .galvo_scanner import ScanningMicroscope, Axis
 from .nidaq_gain import Gain
 from . import slm
 from .slm import SLM
+from .zaber_stage import ZaberXYStage, ZaberLinearStage
