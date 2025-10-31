@@ -34,7 +34,7 @@ centering = Transform(source_origin=(0, 0), destination_origin=(0.0, 0.3))
 
 
 # This script shows how a wavefront shaping experiment can be performed from Python
-cam = Camera(camera_driver_path)
+cam = Camera(camera_driver_path, PixelFormat="Mono10p")
 cam.exposure = 16.666 * u.ms
 roi_detector = SingleRoi(cam, radius=2)
 
@@ -43,7 +43,7 @@ slm = SLM(monitor_id=monitor_id, duration=settle_time, transform=centering)
 monitor = slm.clone(monitor_id=0, pos=(0, 0), shape=(slm.shape[0] // 3, slm.shape[1] // 3))
 
 slm.lookup_table = range(two_pi_gray_value)
-alg = FourierDualReference(feedback=roi_detector, slm=slm, slm_shape=[800, 800], k_radius=7)
+alg = FourierDualReference(feedback=roi_detector, slm=slm, slm_shape=[800, 800], k_radius=9)
 
 result = alg.execute()
 print(result)
