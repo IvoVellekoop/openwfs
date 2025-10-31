@@ -191,7 +191,7 @@ class Device(ABC):
             raise e
 
         # If duration = ∞, poll busy until it returns False or a timeout occurs.
-        if np.isfinite(self._end_time_ns):
+        if not np.isfinite(self._end_time_ns):
             start = time.time_ns()
             timeout = self.timeout.to_value(u.ns)
             while self.busy():
