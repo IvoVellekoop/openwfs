@@ -9,7 +9,7 @@ An example of this integration can be found in the online example ``micro_manage
 
 
 .. _micromanagerconnection:
-.. figure:: MMexample.PNG
+.. figure:: mm_example.png
     :align: center
 
     The OpenWFS microscope object loaded into Micro-Manager.
