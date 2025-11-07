@@ -2,8 +2,8 @@ import astropy.units as u
 import harvesters
 import pytest
 
-from ..openwfs.devices import Camera, is_loaded
-from ..openwfs.processors import HDRCamera
+from openwfs.devices import Camera, is_loaded
+from openwfs.processors import HDRCamera
 
 if not is_loaded(harvesters):
     pytest.skip(harvesters.message, allow_module_level=True)

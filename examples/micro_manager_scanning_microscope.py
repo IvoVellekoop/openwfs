@@ -14,9 +14,6 @@ To use it:
 import astropy.units as u
 import skimage
 
-# add 'openwfs' to the search path. This is only needed when developing openwfs
-# otherwise it is just installed as a package
-import set_path  # noqa
 from openwfs.devices import ScanningMicroscope, Axis
 from openwfs.devices.galvo_scanner import InputChannel
 

@@ -2,8 +2,8 @@ import astropy.units as u
 import numpy as np
 from astropy.units import Quantity
 
-from ..openwfs.processors import HDRCamera
-from ..openwfs.simulation import StaticSource, SLM, Stage, Camera
+from openwfs.processors import HDRCamera
+from openwfs.simulation import StaticSource, SLM, Stage, Camera
 
 
 def test_mock_slm():

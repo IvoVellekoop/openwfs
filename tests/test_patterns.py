@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-from ..openwfs.utilities.patterns import tilt
+from openwfs.utilities.patterns import tilt
 
 
 @pytest.mark.parametrize("shape", [10, (7, 10)])

@@ -6,7 +6,7 @@
       [![Black Code Style Status](https://github.com/IvoVellekoop/openwfs/actions/workflows/black.yml/badge.svg)](https://github.com/IvoVellekoop/openwfs/actions/workflows/black.yml)</p>
 
 ..
-   NOTE: README.MD IS AUTO-GENERATED FROM DOCS/SOURCE/README.RST. DO NOT EDIT README.MD DIRECTLY. 
+   NOTE: README.MD IS AUTO-GENERATED FROM DOCS/SOURCE/README.RST. DO NOT EDIT README.MD DIRECTLY. Instead, edit readme.rst and generate README.md by running the command `./make.bat markdown` from the `docs/source` folder.
     
 ..
       
@@ -42,8 +42,6 @@ OpenWFS is a Python package that is primarily designed for performing and for si
 * **Micro-Manager compatibility**. Micro-Manager :cite:`MMoverview` is a widely used open-source microscopy control platform. The devices in OpenWFS, such as GenICam camera's, or the scanning microscope, as well as all algorithms, can be controlled from Micro-Manager using the recently developed :cite:`PyDevice` adapter that imports Python scripts into Micro-Manager
 
 * **Automated troubleshooting**. OpenWFS provides tools for automated troubleshooting of wavefront shaping experiments. This includes tools for measuring the performance of wavefront shaping algorithms, and for identifying common problems such as incorrect SLM calibration, drift, measurement noise, and other experimental imperfections.
-
-
 
 .. only:: latex
 
@@ -82,6 +80,11 @@ This example uses the :class:`~.StepwiseSequential` wavefront shaping algorithm 
 
 This code illustrates how OpenWFS separates the concerns of the hardware control (:class:`~.SLM` and :class:`~.Camera`), signal processing (:class:`~.SingleRoi`) and the algorithm itself (:class:`~.StepwiseSequential`). A large variety of wavefront shaping experiments can be performed by using different types of feedback signals (such as optimizing multiple foci simultaneously using a :class:`~.MultiRoi` object), using different algorithms, or different image sources, such as a :class:`~.ScanningMicroscope`. Notably, these objects can be replaced by *mock* objects, that simulate the hardware and allow for rapid prototyping and testing of new algorithms without direct access to wavefront shaping hardware (see :numref:`section-simulations`).
 
+.. only:: markdown
+
+Developing OpenWFS
+----------------------
+Read `docs\development.rst` for more information on how to install a development version of OpenWFS, and how to write your own extensions.
 
 %endmatter%
 

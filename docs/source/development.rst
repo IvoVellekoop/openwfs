@@ -5,16 +5,39 @@ OpenWFS Development
 
 Running the tests and examples
 --------------------------------------------------
-To download the source code, including tests and examples, clone the repository from GitHub :cite:`openwfsgithub`. OpenWFS uses ``poetry`` :cite:`Poetry` for package management, so you have to download and install Poetry first. Then, navigate to the location where you want to store the source code, and execute the following commands to clone the repository, set up the poetry environment, and run the tests.
+To download the source code, including tests and examples, clone the repository from GitHub :cite:`openwfsgithub` and use any PEP 621-compatible package manater to create a virtual environment and install all dependencies. The examples below also install the package in editable mode, so that the tests and examples use the current version of the code rather than a version installed from PyPi.
+
+For `poetry` use
 
 .. code-block:: shell
 
     git clone https://github.com/IvoVellekoop/openwfs/
     cd openwfs
-    poetry install --with dev --with docs
-    poetry run pytest
+    poetry config --local virtualenvs.in-project true
+    poetry sync --all-extras
+    poetry run pytest tests
 
-By default, this only installs the dependencies for the basic OpenWFS package. To install the dependencies for the other components (the OpenGL, genicam or nidaq), use ``poetry -E opengl -E genicam -E nidaq install`` or ``poetry -E all``
+Where the `poetry config` is not strictly required, but it tells Poetry to create the virtual environment in a `.venv` subfolder of the project, making it easier to find.
+
+For `uv`
+
+.. code-block:: shell
+    git clone https://github.com/IvoVellekoop/openwfs/
+    cd openwfs
+    uv venv
+    uv sync --all-extras
+    uv run pytest tests
+
+In PyCharm, open the project. You should have openwfs as root, and examples, openwfs, etc. as subfolders.
+Select `Add new interpreter...` --> `Add local interpreter...`-->Generate New, `Type: poetry`.
+
+.. code-block:: shell
+
+    git clone https://github.com/IvoVellekoop/openwfs/
+    cd openws
+    poetry install --all-extras
+    poetry run pip install -e .
+    poetry run pytest tests
 
 The examples are located in the ``examples`` directory. Note that a lot of functionality is also demonstrated in the automatic tests located in the ``tests`` directory. As an alternative to downloading the source code, the samples can also be copied directly from the example gallery on the documentation website :cite:`readthedocsOpenWFS`.
 

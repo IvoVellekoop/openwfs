@@ -8,17 +8,17 @@ from scipy.linalg import hadamard
 from scipy.ndimage import zoom
 
 from . import complex_random
-from ..openwfs.algorithms import (
+from openwfs.algorithms import (
     StepwiseSequential,
     FourierDualReference,
     DualReference,
     SimpleGenetic,
 )
-from ..openwfs.algorithms.troubleshoot import field_correlation
-from ..openwfs.algorithms.utilities import WFSController
-from ..openwfs.processors import SingleRoi
-from ..openwfs.simulation import SimulatedWFS, StaticSource, SLM, Microscope
-from ..openwfs.simulation.mockdevices import GaussianNoise, Camera
+from openwfs.algorithms.troubleshoot import field_correlation
+from openwfs.algorithms.utilities import WFSController
+from openwfs.processors import SingleRoi
+from openwfs.simulation import SimulatedWFS, StaticSource, SLM, Microscope
+from openwfs.simulation.mockdevices import GaussianNoise, Camera
 
 
 @pytest.fixture(autouse=True)

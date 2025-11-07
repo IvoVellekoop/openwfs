@@ -4,8 +4,8 @@ import pytest
 
 from . import complex_random
 from .test_simulation import phase_response_test_function, lookup_table_test_function
-from ..openwfs.algorithms import StepwiseSequential
-from ..openwfs.algorithms.troubleshoot import (
+from openwfs.algorithms import StepwiseSequential
+from openwfs.algorithms.troubleshoot import (
     cnr,
     signal_std,
     find_pixel_shift,
@@ -15,10 +15,10 @@ from ..openwfs.algorithms.troubleshoot import (
     measure_modulated_light,
     measure_modulated_light_dual_phase_stepping,
 )
-from ..openwfs.algorithms.utilities import analyze_phase_stepping
-from ..openwfs.processors import SingleRoi
-from ..openwfs.simulation import Camera
-from ..openwfs.simulation import SimulatedWFS, StaticSource, SLM, Microscope
+from openwfs.algorithms.utilities import analyze_phase_stepping
+from openwfs.processors import SingleRoi
+from openwfs.simulation import Camera
+from openwfs.simulation import SimulatedWFS, StaticSource, SLM, Microscope
 
 
 @pytest.mark.parametrize("phase_steps", [5, 6, 10, 20])
