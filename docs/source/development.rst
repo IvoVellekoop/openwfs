@@ -17,7 +17,9 @@ For `poetry` use
     poetry sync --all-extras
     poetry run pytest tests
 
+Important: this requires both `poetry` and `python` to be on the system path. If you get error messages in the process, first verify that you can run both programs from the command line.
 Where the `poetry config` is not strictly required, but it tells Poetry to create the virtual environment in a `.venv` subfolder of the project, making it easier to find.
+Instead of `--all-extras`, you can also pick the extras you need. The options are `--extras opengl`, `--extras nidaq`, `--extras genicam`, `--extras zaber`, `--extras doc` and `--extras dev`. For development and testing, you require at least `--extras dev`.
 
 For `uv`
 
@@ -28,16 +30,10 @@ For `uv`
     uv sync --all-extras
     uv run pytest tests
 
-In PyCharm, open the project. You should have openwfs as root, and examples, openwfs, etc. as subfolders.
+Both Poetry and uv install the `openwfs` package in editable mode. This means that changes in the source code of the package are automatically seen by the tests and the examples. However, in this mode the package metadata is not updated automatically. If you change `pyproject.toml`, make sure to run `poetry install` or `uv sync --inexact` to update the metadata.
+In PyCharm, open the project. You should have openwfs as root, and `examples, tests, openwfs`, etc. as subfolders.
 Select `Add new interpreter...` --> `Add local interpreter...`-->Generate New, `Type: poetry`.
 
-.. code-block:: shell
-
-    git clone https://github.com/IvoVellekoop/openwfs/
-    cd openws
-    poetry install --all-extras
-    poetry run pip install -e .
-    poetry run pytest tests
 
 The examples are located in the ``examples`` directory. Note that a lot of functionality is also demonstrated in the automatic tests located in the ``tests`` directory. As an alternative to downloading the source code, the samples can also be copied directly from the example gallery on the documentation website :cite:`readthedocsOpenWFS`.
 
