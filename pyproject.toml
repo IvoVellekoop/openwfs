@@ -8,7 +8,7 @@ name = "openwfs"
 version = "1.1.0"
 description = "A library for performing wavefront shaping experiments and simulations"
 readme = "README.md"
-license = { text = "BSD-3-Clause" }
+license = "BSD-3-Clause"
 authors = [
     { name = "Jeroen Doornbos" },
     { name = "Daniël Cox" },
@@ -21,7 +21,6 @@ keywords = ["wavefront", "optics", "simulation", "microscopy", "hardware"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Development Status :: 4 - Beta",
-    "License :: OSI Approved :: BSD License",
     "Operating System :: OS Independent",
 ]
 
@@ -82,5 +81,6 @@ in-project = true
 
 [build-system]
 requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
+build-backend = "build_backend"
+backend-path = ["openwfs"]
 

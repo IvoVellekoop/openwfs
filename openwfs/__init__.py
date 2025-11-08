@@ -5,4 +5,13 @@ from . import processors
 from . import simulation
 from . import utilities
 from .core import Detector, Device, Actuator, Processor, PhaseSLM
+from ._version import __version__, __git_revision__
 
+def version():
+    """Return the version string of the installed OpenWFS package.
+
+    This includes __version__ and __git_revision__.
+    __version__ is the version of the installed package, as reported by the package metadata.
+    __git_revision__ is a string composed of the latest tag found in the code branch + the number of commits since that tag + the hash of the current commit.
+    """
+    return f"OpenWFS {__version__} ({__git_revision__})"
