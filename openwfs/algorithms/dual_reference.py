@@ -46,7 +46,7 @@ class DualReference:
         amplitude: nd = 1.0,
         phase_steps: int = 4,
         iterations: int = 2,
-        optimized_reference: Optional[bool] = None
+        optimized_reference: Optional[bool] = None,
     ):
         """
         Args:

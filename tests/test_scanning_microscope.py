@@ -3,14 +3,14 @@ import nidaqmx
 import numpy as np
 import pytest
 
-from ..openwfs.devices import is_loaded
+from openwfs.devices import is_loaded
 
 if not is_loaded(nidaqmx):
     pytest.skip(nidaqmx.messagea, allow_module_level=True)
 
-from ..openwfs.devices import ScanningMicroscope, Axis
-from ..openwfs.devices.galvo_scanner import InputChannel
-from ..openwfs.utilities import coordinate_range
+from openwfs.devices import ScanningMicroscope, Axis
+from openwfs.devices.galvo_scanner import InputChannel
+from openwfs.utilities import coordinate_range
 
 
 @pytest.mark.parametrize("start, stop", [(0.0, 1.0), (1.0, 0.0)])

@@ -7,8 +7,6 @@ processed images dynamically, demonstrating how changes in optical parameters af
 
 import astropy.units as u
 import numpy as np
-
-import set_path  # noqa - needed for setting the module search path to find openwfs
 from openwfs.plot_utilities import grab_and_show, imshow
 from openwfs.simulation import Microscope, StaticSource, Camera
 

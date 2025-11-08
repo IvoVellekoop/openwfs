@@ -6,9 +6,9 @@ import glfw
 import numpy as np  # for debugging
 import pytest
 
-from ..openwfs.devices import is_loaded
-from ..openwfs.devices.slm import SLM, Patch, geometry
-from ..openwfs.utilities import Transform
+from openwfs.devices import is_loaded
+from openwfs.devices.slm import SLM, Patch, geometry
+from openwfs.utilities import Transform
 
 if not is_loaded(glfw):
     pytest.skip(glfw.message, allow_module_level=True)

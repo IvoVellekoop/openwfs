@@ -1,82 +1,86 @@
-[tool.poetry]
+# Note: when developing openwfs, install the package as editable (this is done automatically by uv and poetry)
+# This will create a special WHEEL that redirects all calls to the code files in the project.
+# Changes in pyproject.toml, however, are not reflected in the project METADATA file.
+# To make sure these changes are visible, use `uv sync --inexact` or `poetry install`.
+# (note: your IDE may do this automatically for you already)
+[project]
 name = "openwfs"
-version = "1.0.0"
-description = 'A libary for performing wavefront shaping experiments and simulations'
-authors = ["Ivo Vellekoop <i.m.vellekoop@utwente.nl>", "Jeroen Doornbos", "Daniël Cox"]
-license = "BSD-3-Clause"
+version = "1.1.0"
+description = "A library for performing wavefront shaping experiments and simulations"
 readme = "README.md"
-repository = "https://github.com/ivovellekoop/openwfs"
-documentation = "https://openwfs.readthedocs.io/en/latest/"
+license = "BSD-3-Clause"
+authors = [
+    { name = "Jeroen Doornbos" },
+    { name = "Daniël Cox" },
+    { name = "Arnon A. B."},
+    { name = "Swapnil Mache"},
+    { name = "Ivo Vellekoop", email = "i.m.vellekoop@utwente.nl" },
+]
+requires-python = ">=3.10,<4.0"
+keywords = ["wavefront", "optics", "simulation", "microscopy", "hardware"]
 classifiers = [
-    'Programming Language :: Python :: 3',
-    'Development Status :: 4 - Beta',
-    'License :: OSI Approved :: BSD License',
-    'Operating System :: OS Independent',
+    "Programming Language :: Python :: 3",
+    "Development Status :: 4 - Beta",
+    "Operating System :: OS Independent",
 ]
 
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+dependencies = [
+    "numpy>=1.25.2",
+    "astropy>=6.0.0",
+    "opencv-python>=4.9.0.80",
+    "matplotlib>=3.7.3",
+    "scipy>=1.11.3",
+    "annotated-types>=0.7.0",
+]
 
-[tool.poetry.dependencies]
-# required dependencies
-python = ">=3.10,<4.0"
-numpy = ">=1.25.2"  # also allow numpy 2.x.y
-astropy = ">=6.0.0" # assuming the astropy.units is stable
-opencv-python = "^4.9.0.80"
-matplotlib = "^3.7.3"
-scipy = "^1.11.3"
-annotated-types = "^0.7.0"
+[project.optional-dependencies]
+# Hardware-related extras
+nidaq = ["nidaqmx>=1.0.1"]
+genicam = ["harvesters>=1.4.2; python_version < '3.12'"]
+opengl = ["PyOpenGL>=3.1.7", "glfw>=2.5.9"]
+zaber = ["zaber-motion>=4.0.0", "pyserial>=3.5"]
+all = [
+    "nidaqmx>=1.0.1",
+    "harvesters>=1.4.2; python_version < '3.12'",
+    "PyOpenGL>=3.1.7",
+    "glfw>=2.5.9",
+    "zaber-motion>=4.0.0",
+    "pyserial>=3.5",
+]
 
-# optional dependencies for hardware components
-nidaqmx = { version = "^1.0.1", optional = true }
-harvesters = { version = "^1.4.2", optional = true, markers = "python_version < '3.12'" }
-PyOpenGL = { version = "^3.1.7", optional = true }
-glfw = { version = "^2.5.9", optional = true }
-zaber-motion = { version = "^4.0.0", optional = true } # assuming zaber-motion is stable
-pyserial = { version = "^3.5", optional = true } # assuming it is stable 
+# Development & documentation groups
+dev = [
+    "scikit-image>=0.21.0",
+    "pytest>=7.0.0",
+    "nidaqmx>=1.0.1",
+    "black>=25.1.0",
+    "poetry>=1.2.0",
+]
+docs = [
+    "sphinx>=4.1.2",
+    "sphinx_mdinclude>=0.5.0",
+    "sphinx-rtd-theme>=2.0.0",
+    "sphinx-autodoc-typehints>=2.2.0",
+    "sphinxcontrib-bibtex>=2.6.0",
+    "sphinx-markdown-builder==0.6.7",
+    "sphinx-gallery>=0.15.0",
+]
 
-[tool.poetry.extras]
-# optional dependencies for hardware components
-# these are not required for the core functionality of the library
-# to install, use pip install openwfs[nidaq, genicam, opengl]
-# or poetry install --extras "nidaq" --extras "genicam" -- extras "opengl"
-nidaq = ["nidaqmx"]
-genicam = ["harvesters"]
-opengl = ["PyOpenGL", "glfw"]
-zaber = ["zaber-motion", "pyserial"]
-all = ["nidaqmx", "harvesters", "PyOpenGL", "glfw", "zaber-motion", "pyserial"]
+[project.urls]
+Homepage = "https://github.com/ivovellekoop/openwfs"
+Documentation = "https://openwfs.readthedocs.io/en/latest/"
+Repository = "https://github.com/ivovellekoop/openwfs"
+Issues = "https://github.com/ivovellekoop/openwfs/issues"
 
 [tool.black]
 line-length = 120
 
-# for the development process, we also want the docs and dev dependencies
-# these can only be installed through poetry using --with dev and --with docs
+[virtualenvs]
+create = true
+in-project = true
 
-[tool.poetry.group.dev]
-optional = true
-
-[tool.poetry.group.dev.dependencies]
-# development dependencies, used for testing only, not needed for normal use
-# to install, use pip install openwfs[dev]
-scikit-image = ">=0.21.0"
-pytest = ">=7.0.0"
-nidaqmx = "^1.0.1" # we can test without the hardware, but still need the package
-black = ">=25.1.0" # code formatter
-poetry = ">=1.2.0" # package manager
-
-[tool.poetry.group.docs]
-optional = true
-
-[tool.poetry.group.docs.dependencies]
-# documentation dependencies, used for building the sphinx documentation only
-# to install, use pip install openwfs[docs]
-sphinx = ">=4.1.2"
-sphinx_mdinclude = ">=0.5.0"
-sphinx-rtd-theme = ">=2.0.0"
-sphinx-autodoc-typehints = ">=2.2.0"
-sphinxcontrib-bibtex = ">=2.6.0"
-sphinx-markdown-builder = "=0.6.7"
-sphinx-gallery = ">=0.15.0"
-
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "build_backend"
+backend-path = ["openwfs"]
 

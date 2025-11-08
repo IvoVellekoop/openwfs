@@ -25,7 +25,7 @@ class SimulatedWFS(Processor):
         aberrations: Optional[np.ndarray] = None,
         slm=None,
         multi_threaded=True,
-        beam_amplitude: ScalarType = 1.0
+        beam_amplitude: ScalarType = 1.0,
     ):
         """
         Initializes the optical system with specified aberrations and optionally a Gaussian beam profile.

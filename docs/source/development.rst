@@ -5,16 +5,35 @@ OpenWFS Development
 
 Running the tests and examples
 --------------------------------------------------
-To download the source code, including tests and examples, clone the repository from GitHub :cite:`openwfsgithub`. OpenWFS uses ``poetry`` :cite:`Poetry` for package management, so you have to download and install Poetry first. Then, navigate to the location where you want to store the source code, and execute the following commands to clone the repository, set up the poetry environment, and run the tests.
+To download the source code, including tests and examples, clone the repository from GitHub :cite:`openwfsgithub` and use any PEP 621-compatible package manater to create a virtual environment and install all dependencies. The examples below also install the package in editable mode, so that the tests and examples use the current version of the code rather than a version installed from PyPi.
+
+For `poetry` use
 
 .. code-block:: shell
 
     git clone https://github.com/IvoVellekoop/openwfs/
     cd openwfs
-    poetry install --with dev --with docs
-    poetry run pytest
+    poetry config --local virtualenvs.in-project true
+    poetry sync --all-extras
+    poetry run pytest tests
 
-By default, this only installs the dependencies for the basic OpenWFS package. To install the dependencies for the other components (the OpenGL, genicam or nidaq), use ``poetry -E opengl -E genicam -E nidaq install`` or ``poetry -E all``
+Important: this requires both `poetry` and `python` to be on the system path. If you get error messages in the process, first verify that you can run both programs from the command line.
+Where the `poetry config` is not strictly required, but it tells Poetry to create the virtual environment in a `.venv` subfolder of the project, making it easier to find.
+Instead of `--all-extras`, you can also pick the extras you need. The options are `--extras opengl`, `--extras nidaq`, `--extras genicam`, `--extras zaber`, `--extras doc` and `--extras dev`. For development and testing, you require at least `--extras dev`.
+
+For `uv`
+
+.. code-block:: shell
+    git clone https://github.com/IvoVellekoop/openwfs/
+    cd openwfs
+    uv venv
+    uv sync --all-extras
+    uv run pytest tests
+
+Both Poetry and uv install the `openwfs` package in editable mode. This means that changes in the source code of the package are automatically seen by the tests and the examples. However, in this mode the package metadata is not updated automatically. If you change `pyproject.toml`, make sure to run `poetry install` or `uv sync --inexact` to update the metadata.
+In PyCharm, open the project. You should have openwfs as root, and `examples, tests, openwfs`, etc. as subfolders.
+Select `Add new interpreter...` --> `Add local interpreter...`-->Generate New, `Type: poetry`.
+
 
 The examples are located in the ``examples`` directory. Note that a lot of functionality is also demonstrated in the automatic tests located in the ``tests`` directory. As an alternative to downloading the source code, the samples can also be copied directly from the example gallery on the documentation website :cite:`readthedocsOpenWFS`.
 

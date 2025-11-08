@@ -5,9 +5,9 @@ import astropy.units as u
 import numpy as np
 import pytest
 
-from ..openwfs.processors import CropProcessor
-from ..openwfs.simulation import StaticSource, NoiseSource, SLM
-from ..openwfs.utilities import set_pixel_size, get_pixel_size
+from openwfs.processors import CropProcessor
+from openwfs.simulation import StaticSource, NoiseSource, SLM
+from openwfs.utilities import set_pixel_size, get_pixel_size
 
 
 def test_set_pixel_size():

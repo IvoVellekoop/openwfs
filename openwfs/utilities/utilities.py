@@ -292,7 +292,7 @@ def project(
     transform: Optional[Transform] = None,
     out: Optional[np.ndarray] = None,
     out_extent: Optional[ExtentType] = None,
-    out_shape: Optional[tuple[int, ...]] = None
+    out_shape: Optional[tuple[int, ...]] = None,
 ) -> np.ndarray:
     """Projects the input image onto an array with specified shape and resolution.
 

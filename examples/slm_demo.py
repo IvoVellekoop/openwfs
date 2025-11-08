@@ -13,7 +13,6 @@ import astropy.units as u
 import numpy as np
 from skimage import data
 
-import set_path  # noqa - needed for setting the module search path to find openwfs
 from openwfs.devices.slm import SLM, Patch, geometry
 from openwfs.utilities import patterns
 

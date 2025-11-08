@@ -1,7 +1,7 @@
 import astropy.units as u
 import numpy as np
 
-from ..openwfs.utilities import (
+from openwfs.utilities import (
     set_pixel_size,
     get_pixel_size,
     place,

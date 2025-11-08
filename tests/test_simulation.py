@@ -5,10 +5,10 @@ import numpy as np
 import pytest
 import skimage
 
-from ..openwfs.algorithms import StepwiseSequential
-from ..openwfs.processors import SingleRoi
-from ..openwfs.simulation import Microscope, Camera, StaticSource, SLM
-from ..openwfs.utilities.patterns import tilt
+from openwfs.algorithms import StepwiseSequential
+from openwfs.processors import SingleRoi
+from openwfs.simulation import Microscope, Camera, StaticSource, SLM
+from openwfs.utilities.patterns import tilt
 
 
 def test_mock_camera_and_single_roi():

@@ -26,7 +26,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          poetry sync --all-extras --with dev
+          poetry sync --all-extras
+          poetry build
 
       - name: Run tests
         run: |

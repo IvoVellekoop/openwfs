@@ -45,7 +45,7 @@ class Microscope(Processor):
         incident_transform: Optional[Transform] = None,
         aberrations: Union[Detector, np.ndarray, None] = None,
         aberration_transform: Optional[Transform] = None,
-        multi_threaded: bool = True
+        multi_threaded: bool = True,
     ):
         """
         Args:
