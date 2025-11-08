@@ -1,16 +1,23 @@
+# Note: when developing openwfs, install the package as editable (this is done automatically by uv and poetry)
+# This will create a special WHEEL that redirects all calls to the code files in the project.
+# Changes in pyproject.toml, however, are not reflected in the project METADATA file.
+# To make sure these changes are visible, use `uv sync --inexact` or `poetry install`.
+# (note: your IDE may do this automatically for you already)
 [project]
 name = "openwfs"
-version = "1.0.0"
+version = "1.1.0"
 description = "A library for performing wavefront shaping experiments and simulations"
 readme = "README.md"
 license = { text = "BSD-3-Clause" }
 authors = [
-    { name = "Ivo Vellekoop", email = "i.m.vellekoop@utwente.nl" },
     { name = "Jeroen Doornbos" },
     { name = "Daniël Cox" },
+    { name = "Arnon A. B."},
+    { name = "Swapnil Mache"},
+    { name = "Ivo Vellekoop", email = "i.m.vellekoop@utwente.nl" },
 ]
 requires-python = ">=3.10,<4.0"
-keywords = ["wavefront", "optics", "simulation", "microscopy"]
+keywords = ["wavefront", "optics", "simulation", "microscopy", "hardware"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Development Status :: 4 - Beta",
