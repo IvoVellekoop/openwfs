@@ -1,5 +1,5 @@
 name: Publish to (Test)PyPi using Poetry
-# This workflow is started automatically when a tag of the form v1.1.0 or v.1.2.0rc is pushed to the master branch.
+# This workflow is started automatically when using GitHub's release workflow.
 # The tag must be a semantic version, optionally ending with 'rc'
 # The package is built and deployed to PyPi and TestPyPi automatically.
 # If the tag ends with 'rc', the package is deployed to TestPyPi only
