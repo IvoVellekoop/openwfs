@@ -29,8 +29,10 @@ changes based on the Git history since tag `v1.0.0`.
     - Full-screen SLM windows now close automatically when the monitor is disconnected (instead of taking over the
       primary monitor!); improved error handling (96484e4, 498e822, 2024-12-10)
 - Packaging and dependencies
+    - The version of OpenWFS can now be queried using `openwfs.__version__`, which returns the package version, or `openwfs.version()` which also includes the commit hash if commits were made after the version release tag.
     - Astropy requirement adjustments: raised then reduced due to Python 3.10 compatibility with astropy 7 (e4c0928 →
       964e6c9, 2025-10-28)
 - Documentation & README
     - Various documentation updates
     - Added CHANGELOG
+    - Added a deployment checklist
