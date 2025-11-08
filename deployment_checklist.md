@@ -1,0 +1,11 @@
+- Update CHANGELOG.md.  Use `git log v1.1.0..HEAD --oneline` (replacing the tag by the version of the last release)
+- Update the version number in `pypoetry.toml`
+- Merge all to master on GitHub
+- Check that the tests pass
+- Check if the documentation on `openwfs.readthedocs.io` is up to date
+- Create a new release on GitHub (on the main page of the repository, click on "Releases" in the right-hand-side bar and then "Draft a new release"). 
+  - Copy the relevant section from CHANGELOG.md
+  - Create a new tag and verify that it matches the tag in `pypoetry.toml` with a `rc` suffix (e.g. 1.1.0rc)
+  - Select the "prerelease" option
+  - Verify that the package is deployed to test.pypi.org. If not, check if the pypi.yaml GitHub action succeeded. 
+- If all works well, publish the real release. On GitHub, click on "Releases" and repeat the steps above. Leave out the "rc" suffix and the "prerelease" option.
