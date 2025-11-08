@@ -5,11 +5,8 @@ name: Publish to (Test)PyPi using Poetry
 # If the tag ends with 'rc', the package is deployed to TestPyPi only
 
 on:
-  push:
-    tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+(rc)?' 
-    branches:
-      - master
+  release:
+    types: [released]
   workflow_dispatch:
     
 jobs:
