@@ -272,7 +272,7 @@ class Detector(Device, ABC):
         pixel_size: Optional[Quantity],
         duration: Optional[Quantity[u.ms]],
         latency: Optional[Quantity[u.ms]],
-        multi_threaded: bool = True
+        multi_threaded: bool = True,
     ):
         """
         Constructor for the Detector class.

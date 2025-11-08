@@ -37,7 +37,7 @@ class FourierDualReference(DualReference):
         k_step: float = 1.0,
         iterations: int = 2,
         amplitude: np.ndarray = 1.0,
-        optimized_reference: Optional[bool] = None
+        optimized_reference: Optional[bool] = None,
     ):
         """
         Args:

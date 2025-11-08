@@ -14,7 +14,7 @@ For `poetry` use
     git clone https://github.com/IvoVellekoop/openwfs/
     cd openwfs
     poetry config --local virtualenvs.in-project true
-    poetry sync --all-extras --with dev --with docs
+    poetry sync --all-extras
     poetry run pytest tests
 
 Important: this requires both `poetry` and `python` to be on the system path. If you get error messages in the process, first verify that you can run both programs from the command line.

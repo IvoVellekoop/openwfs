@@ -7,6 +7,7 @@ from . import utilities
 from .core import Detector, Device, Actuator, Processor, PhaseSLM
 from ._version import __version__, __git_revision__
 
+
 def version():
     """Return the version string of the installed OpenWFS package.
 
