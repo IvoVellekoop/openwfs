@@ -6,6 +6,7 @@
 - `uv build` the project, check if there are any warnings or errors
 - Open or create a new virtual environment with no packages installed at all. Add openwfs to it from the file system (e.g. `uv add c:\git\openwfs`), check if there are any warnings or errors.
 - In the new virtual environment, `import openwfs` and check if there are any warnings or errors.
+- Check if the virtual environment is running the correct version by running `openwfs.version()`
 - Create a new release on GitHub (on the main page of the repository, click on "Releases" in the right-hand-side bar and then "Draft a new release"). 
   - Copy the relevant section from CHANGELOG.md
   - Create a new tag and verify that it matches the tag in `pypoetry.toml` with a `rc` suffix (e.g. 1.1.0rc)
