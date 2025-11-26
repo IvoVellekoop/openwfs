@@ -91,7 +91,7 @@ def tilt(
     extent: ExtentType = (2.0, 2.0),
     phase_offset: float = 0.0,
 ):
-    """Constructs a linear gradient pattern φ=2g·r
+    r"""Constructs a linear gradient pattern φ=2g·r
 
     Note, these are the Zernike tilt modes (modes 2 and 3 in the Noll index convention) with normalization
     so that :math:`\frac{\int_0^{2\pi} \int_0^1 |Z(\rho, \phi)|^2 \rho d\rho d\phi}{\int_0^{2\pi} \int_0^1 \rho d\rho d\phi} = 1`.
