@@ -59,10 +59,15 @@ def safe_import(module_name: str, extra_name: str):
 safe_import("harvesters", "genicam")
 safe_import("harvesters.core", "genicam")
 safe_import("nidaqmx", "nidaq")
+safe_import("nidaqmx.system", "nidaq")
+safe_import("nidaqmx.constants", "nidaq")
+safe_import("nidaqmx.stream_writers", "nidaq")
 safe_import("OpenGL", "opengl")
+safe_import("OpenGL.GL", "opengl")
 safe_import("glfw", "opengl")
 safe_import("zaber_motion", "zaber")
 safe_import("serial", "zaber")
+safe_import("serial.tools", "zaber")
 
 from .camera import Camera
 from .galvo_scanner import ScanningMicroscope, Axis
