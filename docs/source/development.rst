@@ -37,6 +37,12 @@ Select `Add new interpreter...` --> `Add local interpreter...`-->Generate New, `
 
 The examples are located in the ``examples`` directory. Note that a lot of functionality is also demonstrated in the automatic tests located in the ``tests`` directory. As an alternative to downloading the source code, the samples can also be copied directly from the example gallery on the documentation website :cite:`readthedocsOpenWFS`.
 
+Advanced setup for development
+---------------------------------------------------
+We define git pre-commit hooks to automatically check the code formatting and build the README.md file before each commit. The `pre-commit` package is installed with the `dev` extra or `--all-extras` automatically. To configure it, run `pre-commit install` from the terminal.
+... code-block:: shell
+   uv run pre-commit install
+
 Building the documentation
 --------------------------------------------------
 
