@@ -1,11 +1,10 @@
-# Note: when developing openwfs, install the package as editable (this is done automatically by uv and poetry)
+# Note: when developing openwfs, install the package as editable (this is done automatically by uv)
 # This will create a special WHEEL that redirects all calls to the code files in the project.
 # Changes in pyproject.toml, however, are not reflected in the project METADATA file.
-# To make sure these changes are visible, use `uv sync --inexact` or `poetry install`.
-# (note: your IDE may do this automatically for you already)
+# To make sure these changes are visible, use `uv build`.
 [project]
 name = "openwfs"
-version = "1.1.0"
+dynamic = ["version"] # auto-filled by scm-setuptools
 description = "A library for performing wavefront shaping experiments and simulations"
 readme = "README.md"
 license = "BSD-3-Clause"
@@ -50,11 +49,12 @@ all = [
 
 # Development & documentation groups
 dev = [
+    "pre-commit>=2.20.0",
     "scikit-image>=0.21.0",
     "pytest>=7.0.0",
     "nidaqmx>=1.0.1",
     "black>=25.1.0",
-    "poetry>=1.2.0",
+    "uv>=0.9.0",
 ]
 docs = [
     "sphinx>=4.1.2",
@@ -80,7 +80,8 @@ create = true
 in-project = true
 
 [build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "build_backend"
-backend-path = ["openwfs"]
+requires = ["setuptools>=80", "setuptools-scm>=8"]
+build-backend = "setuptools.build_meta"
 
+[tool.setuptools_scm]
+version_file = "openwfs/_version.py"

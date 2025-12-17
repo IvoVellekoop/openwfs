@@ -1,0 +1,15 @@
+repos:
+  - repo: https://github.com/psf/black
+    rev: 24.3.0
+    hooks:
+      - id: black
+
+  - repo: local
+    hooks:
+      - id: rebuild-readme
+        name: Rebuild README.md if source file readme.rst changes
+        entry: cmd
+        language: system
+        args: ["/c", "docs\\make.bat markdown"]
+        language: system
+        files: '^docs/source/readme\.rst$'

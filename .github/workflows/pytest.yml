@@ -19,16 +19,19 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install Poetry
+         # Install uv
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          # Install a specific version of uv.
+          version: "0.9.18"
+          
+      # Install dependencies and build the project
+      - name: Install dependencies and build package
         run: |
-          python -m pip install --upgrade pip
-          pip install poetry
-
-      - name: Install dependencies
-        run: |
-          poetry sync --all-extras
-          poetry build
+          uv sync --all-extras
+          uv build
 
       - name: Run tests
         run: |
-          poetry run pytest
+          uv run pytest

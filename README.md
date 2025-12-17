@@ -29,19 +29,25 @@ OpenWFS is a Python package that is primarily designed for performing and for si
 
 # Getting started
 
-To use OpenWFS, Python 3.9 or later is required. Since it is available on the PyPI repository, OpenWFS can be installed using `pip`:
+To use OpenWFS, Python 3.10 or later is required. Since it is available on the PyPI repository, OpenWFS can be installed using `pip`:
 
 ```bash
 pip install openwfs[all]
 ```
 
-It is advised to make a new environment for OpenWFS, such as with conda, poetry, or Python’s venv. This will also install the optional dependencies for OpenWFS:
+This will install all optional dependencies too (see list below). For a minimal install, use `pip install openwfs`, or select the packages you need (e.g. `pip install openwfs[genicam,opengl]`).
 
 *opengl* For the OpenGL-accelerated SLM control, the `PyOpenGL` package is installed. In order for this package to work, an OpenGL-compatible graphics card and driver is required.
 
 *genicam* For the GenICam camera support, the `harvesters` package is installed, which, in turn, needs the  `genicam` package. At the time of writing, this package is only available for Python versions up to 3.11. To use the GenICam camera support, you also need a compatible camera with driver installed.
 
 *nidaq* For the scanning microscope, the `nidaqmx` package is installed, which requires a National Instruments data acquisition card with corresponding drivers to be installed on your system.
+
+*zaber* For controlling Zaber linear stages.
+
+*dev* Packages used for unit testing and development only.
+
+*doc* Packages for generating the documentation only.
 
 If these dependencies cannot be installed on your system, the installation will fail. In this case, you can instead install OpenWFS without dependencies by omitting `[all]` in the installation command, and manually install only the required dependencies, e.g. `pip install openwfs[opengl,nidaq]`.
 
@@ -92,7 +98,7 @@ This code illustrates how OpenWFS separates the concerns of the hardware control
 
 # Developing OpenWFS
 
-Read docsdevelopment.rst for more information on how to install a development version of OpenWFS, and how to write your own extensions.
+Read docsdevelopment.rst for more information on how to install a development version of OpenWFS, how to write your own extensions, and how to set up the development environment.
 
 # Acknowledgements
 

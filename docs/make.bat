@@ -9,6 +9,7 @@ if "%SPHINXBUILD%" == "" (
 )
 set SOURCEDIR=source
 set BUILDDIR=_build
+call ..\.venv\Scripts\activate.bat
 
 %SPHINXBUILD% >NUL 2>NUL
 if errorlevel 9009 (

@@ -7,20 +7,6 @@ Running the tests and examples
 --------------------------------------------------
 To download the source code, including tests and examples, clone the repository from GitHub :cite:`openwfsgithub` and use any PEP 621-compatible package manater to create a virtual environment and install all dependencies. The examples below also install the package in editable mode, so that the tests and examples use the current version of the code rather than a version installed from PyPi.
 
-For `poetry` use
-
-.. code-block:: shell
-
-    git clone https://github.com/IvoVellekoop/openwfs/
-    cd openwfs
-    poetry config --local virtualenvs.in-project true
-    poetry sync --all-extras
-    poetry run pytest tests
-
-Important: this requires both `poetry` and `python` to be on the system path. If you get error messages in the process, first verify that you can run both programs from the command line.
-Where the `poetry config` is not strictly required, but it tells Poetry to create the virtual environment in a `.venv` subfolder of the project, making it easier to find.
-Instead of `--all-extras`, you can also pick the extras you need. The options are `--extras opengl`, `--extras nidaq`, `--extras genicam`, `--extras zaber`, `--extras doc` and `--extras dev`. For development and testing, you require at least `--extras dev`.
-
 For `uv`
 
 .. code-block:: shell
@@ -30,12 +16,18 @@ For `uv`
     uv sync --all-extras
     uv run pytest tests
 
-Both Poetry and uv install the `openwfs` package in editable mode. This means that changes in the source code of the package are automatically seen by the tests and the examples. However, in this mode the package metadata is not updated automatically. If you change `pyproject.toml`, make sure to run `poetry install` or `uv sync --inexact` to update the metadata.
+uv installs the `openwfs` package in editable mode. This means that changes in the source code of the package are automatically seen by the tests and the examples. However, in this mode the package metadata is not updated automatically. If you change `pyproject.toml`, make sure to run `uv build` to update the metadata.
 In PyCharm, open the project. You should have openwfs as root, and `examples, tests, openwfs`, etc. as subfolders.
-Select `Add new interpreter...` --> `Add local interpreter...`-->Generate New, `Type: poetry`.
+Select `Add new interpreter...` --> `Add local interpreter...`-->Generate New, `Type: uv`.
 
 
 The examples are located in the ``examples`` directory. Note that a lot of functionality is also demonstrated in the automatic tests located in the ``tests`` directory. As an alternative to downloading the source code, the samples can also be copied directly from the example gallery on the documentation website :cite:`readthedocsOpenWFS`.
+
+Advanced setup for development
+---------------------------------------------------
+We define git pre-commit hooks to automatically check the code formatting and build the README.md file before each commit. The `pre-commit` package is installed with the `dev` extra or `--all-extras` automatically. To configure it, run `pre-commit install` from the terminal.
+... code-block:: shell
+   uv run pre-commit install
 
 Building the documentation
 --------------------------------------------------
@@ -52,7 +44,7 @@ Note that for building the pdf version of the documentation, you need to have ``
 
 .. code-block:: shell
 
-    poetry shell
+    .venv\Scripts\activate
     cd docs
     make clean
     make html

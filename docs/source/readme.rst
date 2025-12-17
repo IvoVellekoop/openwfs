@@ -84,7 +84,9 @@ This code illustrates how OpenWFS separates the concerns of the hardware control
 
 Developing OpenWFS
 ----------------------
-Read `docs\development.rst` for more information on how to install a development version of OpenWFS, and how to write your own extensions.
+Read `docs\development.rst` for more information on how to install a development version of OpenWFS, how to write your own extensions, and how to set up the development environment.
+
+
 
 %endmatter%
 
