@@ -10,6 +10,7 @@ To download the source code, including tests and examples, clone the repository 
 For `uv`
 
 .. code-block:: shell
+
     git clone https://github.com/IvoVellekoop/openwfs/
     cd openwfs
     uv venv
@@ -26,7 +27,9 @@ The examples are located in the ``examples`` directory. Note that a lot of funct
 Advanced setup for development
 ---------------------------------------------------
 We define git pre-commit hooks to automatically check the code formatting and build the README.md file before each commit. The `pre-commit` package is installed with the `dev` extra or `--all-extras` automatically. To configure it, run `pre-commit install` from the terminal.
-... code-block:: shell
+
+.. code-block:: shell
+
    uv run pre-commit install
 
 Building the documentation
