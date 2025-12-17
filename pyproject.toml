@@ -50,6 +50,7 @@ all = [
 
 # Development & documentation groups
 dev = [
+    "pre-commit>=2.20.0",
     "scikit-image>=0.21.0",
     "pytest>=7.0.0",
     "nidaqmx>=1.0.1",
