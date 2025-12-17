@@ -6,6 +6,7 @@ from . import simulation
 from . import utilities
 from .core import Detector, Device, Actuator, Processor, PhaseSLM
 
+
 def _get_git_revision():
     """Check the current git revision of the code.
     Returns None if the git revision cannot be determined."""
