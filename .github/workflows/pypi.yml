@@ -1,4 +1,4 @@
-name: Publish to (Test)PyPi using Poetry
+name: Publish to (Test)PyPi using uv
 # This workflow is started automatically when using GitHub's release workflow.
 # The tag must be a semantic version, optionally ending with 'rc'
 # The package is built and deployed to PyPi and TestPyPi automatically.
@@ -31,17 +31,18 @@ jobs:
       with:
         python-version: '3.9'
 
-    # Install Poetry
-    - name: Install Poetry
-      uses: abatilo/actions-poetry@v2
+    # Install uv
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
       with:
-        version: '1.8.3'
+        # Install a specific version of uv.
+        version: "0.9.18"
         
     # Install dependencies and build the project
     - name: Install dependencies and build package
       run: |
-        poetry install
-        poetry build
+        uv sync --all-extras
+        uv build
 
     - name: Publish package distributions to TestPyPI
       uses: pypa/gh-action-pypi-publish@release/v1

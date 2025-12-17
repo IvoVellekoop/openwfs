@@ -6,17 +6,9 @@ build:
     python: "3.11"
 
   jobs:
-    post_create_environment:
-      - pip install --upgrade pip
-      - pip install poetry
-      - pip install poetry-plugin-export
-      - poetry config warnings.export false
-      - poetry export -f requirements.txt -o requirements.txt --with docs --extras "all"
-      - cat requirements.txt
-
-python:
-  install:
-    - requirements: requirements.txt
-
+    post_install:
+      - pip install uv
+      - UV_PROJECT_ENVIRONMENT=$READTHEDOCS_VIRTUALENV_PATH uv sync --all-extras --group docs --link-mode=copy
+    
 sphinx:
   configuration: docs/source/conf.py
