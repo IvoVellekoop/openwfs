@@ -19,9 +19,13 @@ def test_tilt(shape):
     assert np.allclose(t[-1, -1] - t[-1, 0], phase_diff1)
 
 
-shape = (101, 101)
-offset = (0.2, 0.2)
+shape = (101, 66)
+offset = (0.2, 0.3)
 waist = 0.25
-g = gaussian((101, 101), waist=0.25, offset=(0.2, 0.3))
+g = gaussian(shape, waist=0.25, offset=offset)
 argmax = np.unravel_index(np.argmax(g), g.shape)
-print(argmax)
+
+# assumes default extent of (2.0, 2.0)
+expected = np.round((-np.array(offset) + 1) * np.array(shape) / 2.0) 
+assert np.allclose(expected, argmax)
+
