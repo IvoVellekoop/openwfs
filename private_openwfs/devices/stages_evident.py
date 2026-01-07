@@ -5,11 +5,8 @@ from astropy.units import Quantity
 from openwfs.core import Actuator, Processor, Detector
 import numpy as np
 import time
-from openwfs.devices import safe_import
 import javabridge
 import bioformats
-# safe_import("javabridge", "python-javabridge")
-# safe_import("bioformats", "python-bioformats")
 
 # ToDo
 # add property to get pixel size and data_shape from microscope, currently hardcoded to the values 100 nm and (1024, 1024)
