@@ -154,7 +154,12 @@ def propagation(
     return unitless(2.0 * np.pi / wavelength * distance * n_z)
 
 
-def disk(shape: ShapeType, radius: ScalarType = 1.0, extent: ExtentType = (2.0, 2.0), offset: Optional[CoordinateType] = None):
+def disk(
+    shape: ShapeType,
+    radius: ScalarType = 1.0,
+    extent: ExtentType = (2.0, 2.0),
+    offset: Optional[CoordinateType] = None,
+):
     """Constructs an image of a centered (ellipsoid) disk.
 
     (x / rx)^2 + (y / ry)^2 <= 1.0
