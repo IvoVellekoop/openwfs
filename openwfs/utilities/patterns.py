@@ -77,11 +77,11 @@ def coordinate_range(
     )
 
 
-def r2_range(shape: ShapeType, extent: ExtentType):
+def r2_range(shape: ShapeType, extent: ExtentType, offset: Optional[CoordinateType] = None):
     """Convenience function to return square distance to the origin
     Equivalent to computing cx^2 + cy^2
     """
-    c0, c1 = coordinate_range(shape, extent)
+    c0, c1 = coordinate_range(shape, extent, offset)
     return c0**2 + c1**2
 
 
@@ -146,7 +146,7 @@ def propagation(
           wavelength (Scalar):
             the numerical aperture, refractive index and wavelength are used
             to convert the `extent` from pupil coordinates to k-space (unit radians/meter),
-          extent: extent of the returned image, in NA units. To cover the full NA with a square, use (2*NA, 2*NA)
+          extent: extent of the returned image,r2_range in NA units. To cover the full NA with a square, use (2*NA, 2*NA)
     """
     # convert pupil coordinates to absolute k_x, k_y coordinates
     n_p2 = r2_range(shape, Quantity(extent))
@@ -154,7 +154,12 @@ def propagation(
     return unitless(2.0 * np.pi / wavelength * distance * n_z)
 
 
-def disk(shape: ShapeType, radius: ScalarType = 1.0, extent: ExtentType = (2.0, 2.0)):
+def disk(
+    shape: ShapeType,
+    radius: ScalarType = 1.0,
+    extent: ExtentType = (2.0, 2.0),
+    offset: Optional[CoordinateType] = None,
+):
     """Constructs an image of a centered (ellipsoid) disk.
 
     (x / rx)^2 + (y / ry)^2 <= 1.0
@@ -163,8 +168,15 @@ def disk(shape: ShapeType, radius: ScalarType = 1.0, extent: ExtentType = (2.0, 
           shape: see module documentation
           radius (ScalarType): radius of the disk, should have the same unit as `extent`.
           extent: see module documentation
+          offset: offsets the centre of the disk by offset
     """
-    return 1.0 * (r2_range(shape, extent) < radius**2)
+
+    if offset is not None:
+        inv_offset = np.multiply(offset, -1.0)
+    else:
+        inv_offset = None
+
+    return 1.0 * (r2_range(shape, extent, inv_offset) < radius**2)
 
 
 def gaussian(
@@ -172,6 +184,7 @@ def gaussian(
     waist: ScalarType,
     truncation_radius: ScalarType = None,
     extent: ExtentType = (2.0, 2.0),
+    offset: Optional[CoordinateType] = None,
 ):
     """Constructs an image of a centered Gaussian
 
@@ -184,11 +197,17 @@ def gaussian(
         truncation_radius (ScalarType): when not None, specifies the radius of a disk that is used to truncate the
             Gaussian. All values outside the disk are set to 0.
         extent: see module documentation
+        offset: offsets the centre of the Gaussian. The centre of the disk is also offsetted by this amount.
 
     """
-    r_sqr = r2_range(shape, extent)
+    if offset is not None:
+        inv_offset = np.multiply(offset, -1.0)
+    else:
+        inv_offset = None
+
+    r_sqr = r2_range(shape, extent, inv_offset)
     w2inv = -1.0 / waist**2
     gauss = np.exp(unitless(r_sqr * w2inv))
     if truncation_radius is not None:
-        gauss = gauss * disk(shape, truncation_radius, extent=extent)
+        gauss = gauss * disk(shape, truncation_radius, extent=extent, offset=offset)
     return unitless(gauss)
