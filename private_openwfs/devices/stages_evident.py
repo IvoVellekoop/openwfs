@@ -7,6 +7,7 @@ import numpy as np
 import time
 import javabridge
 import bioformats
+from private_openwfs.utilities.utilities import set_metadata
 
 # ToDo
 # add property to get pixel size and data_shape from microscope, currently hardcoded to the values 100 nm and (1024, 1024)
@@ -192,7 +193,8 @@ class EvidentCamera(Detector):
                         img = reader.read(c=c, z=z, t=t, rescale=False)
                         image_stack[:, :, z, t, c] = img
 
-        return image_stack, meta_data
+        image_stack = set_metadata(image_stack, meta_data)
+        return image_stack
     
 
     def busy(self) -> bool:
