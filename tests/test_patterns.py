@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 from openwfs.utilities.patterns import tilt
-from openwfs.utilities.patterns import gaussian
+from openwfs.utilities.patterns import gaussian, disk
 
 
 @pytest.mark.parametrize("shape", [10, (7, 10)])
@@ -26,6 +26,12 @@ g = gaussian(shape, waist=0.25, offset=offset)
 argmax = np.unravel_index(np.argmax(g), g.shape)
 
 # assumes default extent of (2.0, 2.0)
-expected = np.round((-np.array(offset) + 1) * np.array(shape) / 2.0) 
+expected = np.round((np.array(offset) + 1) * (np.array(shape) - 1) / 2.0) 
 assert np.allclose(expected, argmax)
+
+shape = (101, 101)
+d = disk(shape, 2/101, offset=offset)
+arg_center = np.argwhere(d > 0.5)[0]
+expected = (np.array(offset) + 1) * (np.array(shape) - 1) / 2.0
+assert np.allclose(expected, arg_center)
 

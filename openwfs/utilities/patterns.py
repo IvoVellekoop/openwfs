@@ -163,9 +163,15 @@ def disk(shape: ShapeType, radius: ScalarType = 1.0, extent: ExtentType = (2.0, 
           shape: see module documentation
           radius (ScalarType): radius of the disk, should have the same unit as `extent`.
           extent: see module documentation
-          offset: offsets the centre of the disk
+          offset: offsets the centre of the disk by offset
     """
-    return 1.0 * (r2_range(shape, extent) < radius**2)
+
+    if offset is not None:
+        inv_offset = np.multiply(offset, -1.0)
+    else:
+        inv_offset = None
+
+    return 1.0 * (r2_range(shape, extent, inv_offset) < radius**2)
 
 
 def gaussian(
@@ -186,12 +192,17 @@ def gaussian(
         truncation_radius (ScalarType): when not None, specifies the radius of a disk that is used to truncate the
             Gaussian. All values outside the disk are set to 0.
         extent: see module documentation
-        offset: offsets the centre of the Gaussian. The centre of the disk is also offseted by this amount.
+        offset: offsets the centre of the Gaussian. The centre of the disk is also offsetted by this amount.
 
     """
-    r_sqr = r2_range(shape, extent, offset)
+    if offset is not None:
+        inv_offset = np.multiply(offset, -1.0)
+    else:
+        inv_offset = None
+
+    r_sqr = r2_range(shape, extent, inv_offset)
     w2inv = -1.0 / waist**2
     gauss = np.exp(unitless(r_sqr * w2inv))
     if truncation_radius is not None:
-        gauss = gauss * disk(shape, truncation_radius, extent=extent)
+        gauss = gauss * disk(shape, truncation_radius, extent=extent, offset=offset)
     return unitless(gauss)
