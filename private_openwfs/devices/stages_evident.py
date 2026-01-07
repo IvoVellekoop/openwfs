@@ -6,9 +6,10 @@ from openwfs.core import Actuator, Processor, Detector
 import numpy as np
 import time
 from openwfs.devices import safe_import
-
-safe_import("javabridge", "python-javabridge")
-safe_import("bioformats", "python-bioformats")
+import javabridge
+import bioformats
+# safe_import("javabridge", "python-javabridge")
+# safe_import("bioformats", "python-bioformats")
 
 # ToDo
 # add property to get pixel size and data_shape from microscope, currently hardcoded to the values 100 nm and (1024, 1024)
@@ -102,8 +103,8 @@ class EvidentCamera(Detector):
         """
         Fetch the acquired image from the camera and convert to numpy array.
         """      
-        if not javabridge.get_env():
-            raise RuntimeError("JVM is not running. Please start it before calling this function.")
+        # if not javabridge.get_env():
+        #     raise RuntimeError("JVM is not running. Please start it before calling this function.")
         
         file_path = self._most_recent_file_path
         
@@ -119,6 +120,7 @@ class EvidentCamera(Detector):
                 # print("waiting for imaging to complete...")
                 time.sleep(0.2)
 
+        image_stack, _ = self.read_evident_image(file_path)
         # self.wait() # waiting for imaging to complete - \this function is not working, it waits for fetch to finish according to the base class implementation, and since fetch is called within read, it causes a loop of waiting.
 
         # time.sleep(2)  # wait for file to be fully written, Find better solution later
@@ -126,6 +128,50 @@ class EvidentCamera(Detector):
      
         # reader = bioformats.ImageReader(file_path)
         
+        # metadata = bioformats.get_omexml_metadata(file_path)
+        # meta_data = bioformats.OMEXML(
+        #     metadata
+        # )  # takes that raw XML string and parses it into a Python object that’s easier to work with. The OMEXML class understands the OME-XML schema and gives you structured access.
+
+        # # Extract dimensions
+        # size_x = meta_data.image().Pixels.SizeX
+        # size_y = meta_data.image().Pixels.SizeY
+        # size_z = meta_data.image().Pixels.SizeZ
+        # size_c = meta_data.image().Pixels.SizeC
+        # size_t = meta_data.image().Pixels.SizeT
+
+        # # Initialize array in (x, y, z, time, channel) order
+        # image_stack = np.zeros((size_x, size_y, size_z, size_t, size_c), dtype=np.uint16)
+
+        # with bioformats.ImageReader(file_path) as reader:
+        #     # Read and fill the array
+        #     for t in range(size_t):
+        #         for c in range(size_c):
+        #             for z in range(size_z):
+        #                 img = reader.read(c=c, z=z, t=t, rescale=False)
+        #                 image_stack[:, :, z, t, c] = img
+
+        return image_stack
+
+    @staticmethod
+    def read_evident_image(file_path) -> EvidentMicroscopyImage:
+        """
+        Static method to read an Evident image file and return the image data and metadata.
+
+        Args:
+            file_path (str): Path to the Evident image file.
+        Returns:
+            EvidentMicroscopyImage: Acquired image data and metadata.
+        """
+    
+        if not javabridge.get_env():
+            print("Starting JVM...")
+            javabridge.start_vm(class_path=bioformats.JARS)
+            javabridge.attach()
+        
+        if not javabridge.get_env():
+            raise RuntimeError("JVM is not running. Please start it before calling this function.")
+               
         metadata = bioformats.get_omexml_metadata(file_path)
         meta_data = bioformats.OMEXML(
             metadata
@@ -149,7 +195,8 @@ class EvidentCamera(Detector):
                         img = reader.read(c=c, z=z, t=t, rescale=False)
                         image_stack[:, :, z, t, c] = img
 
-        return image_stack
+        return image_stack, meta_data
+    
 
     def busy(self) -> bool:
         """
