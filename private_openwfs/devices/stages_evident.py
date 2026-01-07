@@ -2,12 +2,12 @@ from csv import reader
 from ssl import Purpose
 import astropy.units as u
 from astropy.units import Quantity
-import javabridge
 from openwfs.core import Actuator, Processor, Detector
 import numpy as np
 import time
 from openwfs.devices import safe_import
 
+safe_import("javabridge", "python-javabridge")
 safe_import("bioformats", "python-bioformats")
 
 # ToDo
