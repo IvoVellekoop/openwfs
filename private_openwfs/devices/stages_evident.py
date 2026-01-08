@@ -16,14 +16,15 @@ from private_openwfs.utilities.utilities import set_metadata
 # TODO:
 # all MATL functions from the evident manual
 
-class EvidentMicroscopyImage:
-    def __init__(self, image_stack, metadata):
-        self.img = image_stack  # NumPy array (x, y, z, t, c)
-        self.metadata = metadata  # Parsed OMEXML metadata object
+# Delete this class after testing. 
+# class EvidentMicroscopyImage:
+#     def __init__(self, image_stack, metadata):
+#         self.img = image_stack  # NumPy array (x, y, z, t, c)
+#         self.metadata = metadata  # Parsed OMEXML metadata object
 
-    @property
-    def shape(self):
-        return self.img.shape
+#     @property
+#     def shape(self):
+#         return self.img.shape
     
 
 class EvidentCamera(Detector):
@@ -75,26 +76,28 @@ class EvidentCamera(Detector):
 
         print("In _fetch: Acquired image saved at:", file_path)  # for debugging purposes
 
-    def read(self) -> np.ndarray:
-        """
-        Read the acquired image and metadata from the camera.
+
+ # After testing, this function can be removed since the read of the detector is used and ths was a workaround for metadata reading.
+    # def read(self) -> np.ndarray:
+    #     """
+    #     Read the acquired image and metadata from the camera.
         
-        Returns:
-            EvidentMicroscopyImage: Acquired image data and metadata.
-        """
-        img = super().read()
-        file_path = self._most_recent_file_path
+    #     Returns:
+    #         EvidentMicroscopyImage: Acquired image data and metadata.
+    #     """
+    #     img = super().read()
+    #     file_path = self._most_recent_file_path
 
-        print("in read Acquired image saved at:", file_path)  # for debugging purposes
+    #     print("in read Acquired image saved at:", file_path)  # for debugging purposes
 
-        if not javabridge.get_env():
-            raise RuntimeError("JVM is not running. Please start it before calling this function.")
+    #     if not javabridge.get_env():
+    #         raise RuntimeError("JVM is not running. Please start it before calling this function.")
 
-        metadata_xml_format = bioformats.get_omexml_metadata(file_path)
-        meta_data = bioformats.OMEXML(
-            metadata_xml_format
-        )  # takes that raw XML string and parses it into a Python object that’s easier to work with. The OMEXML class understands the OME-XML schema and gives you structured access.
-        return EvidentMicroscopyImage(img, meta_data)
+    #     metadata_xml_format = bioformats.get_omexml_metadata(file_path)
+    #     meta_data = bioformats.OMEXML(
+    #         metadata_xml_format
+    #     )  # takes that raw XML string and parses it into a Python object that’s easier to work with. The OMEXML class understands the OME-XML schema and gives you structured access.
+    #     return EvidentMicroscopyImage(img, meta_data)
     
     
     def _fetch(self) -> np.ndarray:
@@ -152,14 +155,14 @@ class EvidentCamera(Detector):
         return image_stack
 
     @staticmethod
-    def read_evident_image(file_path) -> EvidentMicroscopyImage:
+    def read_evident_image(file_path) -> np.ndarray:
         """
         Static method to read an Evident image file and return the image data and metadata.
 
         Args:
             file_path (str): Path to the Evident image file.
         Returns:
-            EvidentMicroscopyImage: Acquired image data and metadata.
+            image (np.ndarray): Acquired image data.
         """
     
         if not javabridge.get_env():
