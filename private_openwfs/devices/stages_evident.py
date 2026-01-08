@@ -35,6 +35,7 @@ class EvidentCamera(Detector):
 
     Arg:
         proxy: xmlrpc client proxy to communicate with Evident microscope
+        saving_folder: folder to save raw OIR files, if None, raw files are not copied and stay where the microscope saves them.
 
     Returns:
         EvidentCamera object
@@ -43,7 +44,7 @@ class EvidentCamera(Detector):
         cam = EvidentCamera(proxy)
     """
 
-    def __init__(self, proxy, saving_folder = r'.'):
+    def __init__(self, proxy, saving_folder = None):
         Detector.__init__(
             self, duration=np.inf * u.s, latency=0 * u.ms, data_shape=None, pixel_size=None
         )  # duration and pixel_size is set after triggering the camera (see _do_trigger)
@@ -121,12 +122,13 @@ class EvidentCamera(Detector):
                 # print("waiting for imaging to complete...")
                 time.sleep(0.2)
 
-        # copy raw OIR files to predefined saving folder
-        if not os.path.isdir(self._saving_folder):
-            raise FileNotFoundError(f"Saving folder does not exist: {self._saving_folder}")
+        if _saving_folder is not None
+            # copy raw OIR files to predefined saving folder
+            if not os.path.isdir(self._saving_folder):
+                raise FileNotFoundError(f"Saving folder does not exist: {self._saving_folder}")
 
-        destination = os.path.join(self._saving_folder, os.path.basename(file_path))
-        shutil.copy2(file_path, destination)
+            destination = os.path.join(self._saving_folder, os.path.basename(file_path))
+            shutil.copy2(file_path, destination)
 
 
         image_stack = self.read_evident_image(file_path)
@@ -340,6 +342,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
 
     Arg:
         proxy: xmlrpc client proxy to communicate with Evident microscope
+        saving_folder: folder to save raw OIR files, if None, raw files are not copied and stay where the microscope saves them.
 
     Returns:
         EvidentMicroscope object with .camera and .stage properties.
@@ -350,7 +353,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         stage = mic.stage
     """
 
-    def __init__(self, proxy, saving_folder = r'.'):
+    def __init__(self, proxy, saving_folder = None):
         self._proxy = proxy
         self.cam = EvidentCamera(proxy, saving_folder)
         self.stage_xy = EvidentXYStage(proxy)
