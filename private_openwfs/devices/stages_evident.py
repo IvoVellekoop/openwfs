@@ -7,7 +7,9 @@ import numpy as np
 import time
 import javabridge
 import bioformats
-from private_openwfs.utilities.utilities import set_metadata
+from ..utilities.utilities import set_metadata
+import shutil
+import os
 
 # ToDo
 # add property to get pixel size and data_shape from microscope, currently hardcoded to the values 100 nm and (1024, 1024)
@@ -41,12 +43,13 @@ class EvidentCamera(Detector):
         cam = EvidentCamera(proxy)
     """
 
-    def __init__(self, proxy):
+    def __init__(self, proxy, saving_folder = r'.'):
         Detector.__init__(
             self, duration=np.inf * u.s, latency=0 * u.ms, data_shape=None, pixel_size=None
         )  # duration and pixel_size is set after triggering the camera (see _do_trigger)
         self._proxy = proxy
         self._most_recent_file_path = None  # to store the path of the most recently acquired image file
+        self._saving_folder = saving_folder
 
         if not javabridge.get_env():
             javabridge.start_vm(class_path=bioformats.JARS)
@@ -118,7 +121,16 @@ class EvidentCamera(Detector):
                 # print("waiting for imaging to complete...")
                 time.sleep(0.2)
 
+        # copy raw OIR files to predefined saving folder
+        if not os.path.isdir(self._saving_folder):
+            raise FileNotFoundError(f"Saving folder does not exist: {self._saving_folder}")
+
+        destination = os.path.join(self._saving_folder, os.path.basename(file_path))
+        shutil.copy2(file_path, destination)
+
+
         image_stack = self.read_evident_image(file_path)
+
         # self.wait() # waiting for imaging to complete - \this function is not working, it waits for fetch to finish according to the base class implementation, and since fetch is called within read, it causes a loop of waiting.
 
         # time.sleep(2)  # wait for file to be fully written, Find better solution later
@@ -338,9 +350,9 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         stage = mic.stage
     """
 
-    def __init__(self, proxy):
+    def __init__(self, proxy, saving_folder = r'.'):
         self._proxy = proxy
-        self.cam = EvidentCamera(proxy)
+        self.cam = EvidentCamera(proxy, saving_folder)
         self.stage_xy = EvidentXYStage(proxy)
         # super().__init__(self.cam, self.stage_xy)
 
