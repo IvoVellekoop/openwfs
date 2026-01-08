@@ -122,7 +122,7 @@ class EvidentCamera(Detector):
                 # print("waiting for imaging to complete...")
                 time.sleep(0.2)
 
-        if _saving_folder is not None
+        if _saving_folder is not None:
             # copy raw OIR files to predefined saving folder
             if not os.path.isdir(self._saving_folder):
                 raise FileNotFoundError(f"Saving folder does not exist: {self._saving_folder}")
