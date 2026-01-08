@@ -121,7 +121,7 @@ class EvidentCamera(Detector):
                 # print("waiting for imaging to complete...")
                 time.sleep(0.2)
 
-        image_stack, _ = self.read_evident_image(file_path)
+        image_stack = self.read_evident_image(file_path)
         # self.wait() # waiting for imaging to complete - \this function is not working, it waits for fetch to finish according to the base class implementation, and since fetch is called within read, it causes a loop of waiting.
 
         # time.sleep(2)  # wait for file to be fully written, Find better solution later
