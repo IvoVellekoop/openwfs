@@ -106,8 +106,6 @@ def test_place():
     assert np.allclose(dst_resample, src_resample)
 
 
-
-
 def test_transform():
     ps1 = (0.5, 2) * u.um
     src = set_pixel_size(np.random.uniform(size=(7, 8)), ps1)
