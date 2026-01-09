@@ -74,6 +74,12 @@ def test_place():
     assert np.allclose(src, dst_trivial)
     assert np.all(get_pixel_size(dst_trivial) == ps1)
 
+    ps1 = (0.5, 2) * u.um
+    ps2 = (3.0, 1.0) * u.um
+    src = set_pixel_size(np.zeros((7, 8)), ps1)
+    src2 = set_pixel_size(src, ps2)
+    assert np.all(get_pixel_size(src2) == ps2)
+
     # place image in output with larger extent and same pixel size.
     # the source will be padded with zeros (exactly one row and two columns on all sides)
     dst_pad = place((9, 12), ps1, src)
