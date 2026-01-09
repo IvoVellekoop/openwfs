@@ -143,6 +143,13 @@ class EvidentCamera(Detector):
     def read_evident_image(file_path) -> np.ndarray:
         """
         Static method to read an Evident image file and return the image data and metadata.
+        The metadata is stored in the dtype and can be found using the get_metadata function.
+
+        Example usage:
+        from private_openwfs.devices.stages_evident import EvidentCamera as EvidentPrivate
+        img = EvidentPrivate.read_evident_image(file_path)
+        from private_openwfs.utilities.utilities import get_metadata
+        meta_data = get_metadata(img)
 
         Args:
             file_path (str): Path to the Evident image file.
