@@ -44,7 +44,7 @@ class EvidentCamera(Detector):
         cam = EvidentCamera(proxy)
     """
 
-    def __init__(self, proxy, saving_folder = None):
+    def __init__(self, proxy, saving_folder=None):
         Detector.__init__(
             self, duration=np.inf * u.s, latency=0 * u.ms, data_shape=None, pixel_size=None
         )  # duration and pixel_size is set after triggering the camera (see _do_trigger)
@@ -105,7 +105,7 @@ class EvidentCamera(Detector):
     def _fetch(self) -> np.ndarray:
         """
         Fetch the acquired image from the camera and convert to numpy array.
-        """      
+        """
         file_path = self._most_recent_file_path
 
         ######## temporary solution to access network path ########
@@ -127,7 +127,6 @@ class EvidentCamera(Detector):
 
             destination = os.path.join(self._saving_folder, os.path.basename(file_path))
             shutil.copy2(file_path, destination)
-
 
         image_stack = self.read_evident_image(file_path)
 
@@ -356,7 +355,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         stage = mic.stage
     """
 
-    def __init__(self, proxy, saving_folder = None):
+    def __init__(self, proxy, saving_folder=None):
         self._proxy = proxy
         self.cam = EvidentCamera(proxy, saving_folder)
         self.stage_xy = EvidentXYStage(proxy)
