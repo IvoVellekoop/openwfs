@@ -18,7 +18,7 @@ import os
 # TODO:
 # all MATL functions from the evident manual
 
-# Delete this class after testing. 
+# Delete this class after testing.
 # class EvidentMicroscopyImage:
 #     def __init__(self, image_stack, metadata):
 #         self.img = image_stack  # NumPy array (x, y, z, t, c)
@@ -27,7 +27,7 @@ import os
 #     @property
 #     def shape(self):
 #         return self.img.shape
-    
+
 
 class EvidentCamera(Detector):
     """
@@ -80,12 +80,11 @@ class EvidentCamera(Detector):
 
         print("In _fetch: Acquired image saved at:", file_path)  # for debugging purposes
 
-
- # After testing, this function can be removed since the read of the detector is used and ths was a workaround for metadata reading.
+    # After testing, this function can be removed since the read of the detector is used and ths was a workaround for metadata reading.
     # def read(self) -> np.ndarray:
     #     """
     #     Read the acquired image and metadata from the camera.
-        
+
     #     Returns:
     #         EvidentMicroscopyImage: Acquired image data and metadata.
     #     """
@@ -102,14 +101,13 @@ class EvidentCamera(Detector):
     #         metadata_xml_format
     #     )  # takes that raw XML string and parses it into a Python object that’s easier to work with. The OMEXML class understands the OME-XML schema and gives you structured access.
     #     return EvidentMicroscopyImage(img, meta_data)
-    
-    
+
     def _fetch(self) -> np.ndarray:
         """
         Fetch the acquired image from the camera and convert to numpy array.
         """      
         file_path = self._most_recent_file_path
-        
+
         ######## temporary solution to access network path ########
         # Normalize slashes so replacement works
         # normalized_path = file_path.replace("/", "\\")  # convert forward to backslashes
@@ -119,8 +117,8 @@ class EvidentCamera(Detector):
         #####################################################################
 
         while self.busy():
-                # print("waiting for imaging to complete...")
-                time.sleep(0.2)
+            # print("waiting for imaging to complete...")
+            time.sleep(0.2)
 
         if _saving_folder is not None:
             # copy raw OIR files to predefined saving folder
@@ -156,15 +154,15 @@ class EvidentCamera(Detector):
         Returns:
             image (np.ndarray): Acquired image data.
         """
-    
+
         if not javabridge.get_env():
             print("Starting JVM...")
             javabridge.start_vm(class_path=bioformats.JARS)
             javabridge.attach()
-        
+
         if not javabridge.get_env():
             raise RuntimeError("JVM is not running. Please start it before calling this function.")
-               
+
         metadata = bioformats.get_omexml_metadata(file_path)
         meta_data = bioformats.OMEXML(
             metadata
@@ -190,7 +188,6 @@ class EvidentCamera(Detector):
 
         image_stack = set_metadata(image_stack, meta_data)
         return image_stack
-    
 
     def busy(self) -> bool:
         """
@@ -278,7 +275,7 @@ class EvidentXYStage(Actuator):
         )  # duration is infinite since we don't know when the stage will reach the target position, busy() method will handle that.
         self._proxy = proxy
         self._target_xy = None  # target position to move to (used in busy() method), in nm as int
-        self._step = 100 * u.nm     # rounding resolution
+        self._step = 100 * u.nm  # rounding resolution
 
     @staticmethod
     def round_quantity(q, step):
@@ -288,7 +285,6 @@ class EvidentXYStage(Actuator):
         rounded_value = np.round(q_in_step.value / step.value) * step.value
         # return Quantity with correct unit
         return rounded_value * step.unit
-
 
     def busy(self) -> bool:
         """
@@ -366,8 +362,6 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         self.stage_xy = EvidentXYStage(proxy)
         # super().__init__(self.cam, self.stage_xy)
 
-
-
     @property
     def version(self) -> str:
         """
@@ -378,8 +372,6 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         """
         inputVal = {"settingId": "LSM_MICROSCOPE_VERSION_SETTING"}
         return self._proxy.Parameter.getParameter(inputVal)["version"]
-
-
 
     @property
     def t_stack_enabled(self) -> bool:
@@ -416,7 +408,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
 
         Args:
             file_path (str): File path to the target image for loading.
-        
+
         Returns:
             dict: file ID.
 
@@ -426,9 +418,6 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         if result["result"] != "OK":
             raise RuntimeError("Failed to load image. Result code: {}".format(result["result"]))
 
-    
-
-    
     def get_channel_list(self) -> list[str]:
         """
         Get the list of available channels.
@@ -438,8 +427,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         """
         inputVal = {"settingId": "LSM_CHANNEL_LIST_SETTING"}
         return self._proxy.Parameter.getParameter(inputVal)["channelList"]
-    
-    
+
     def get_channel_enabled(self, channel_id: str) -> bool:
         """
         Get Enable/Disable of Channel
@@ -453,7 +441,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         inputVal = {"settingId": "LSM_CHANNEL_ENABLE_SETTING", "channelId": channel_id}
         result = self._proxy.Parameter.getParameter(inputVal)
         return result["enable"]
-    
+
     def set_channel_enabled(self, channel_id: str, enable: bool):
         """
         Set Enable/Disable of Channel
@@ -471,9 +459,6 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         if result["result"] != "OK":
             raise RuntimeError("Failed to set channel enable status. Result code: {}".format(result["result"]))
 
-
-    
-
     def get_channel_hv(self, channel_id: str) -> int:
         """
         Get HV of Channel
@@ -487,7 +472,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         inputVal = {"settingId": "LSM_CHANNEL_HV_SETTING", "channelId": channel_id}
         result = self._proxy.Parameter.getParameter(inputVal)
         return result["hv"]
-    
+
     def set_channel_hv(self, channel_id: str, hv: int):
         """
         Set HV of Channel
@@ -504,9 +489,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
 
         if result["result"] != "OK":
             raise RuntimeError("Failed to set channel HV. Result code: {}".format(result["result"]))
-        
 
-       
     def get_channel_gain(self, channel_id: str) -> float:
         """
         Get Gain of Channel
@@ -521,7 +504,6 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         result = self._proxy.Parameter.getParameter(inputVal)
         print(result)
         return result["gain"]
-
 
     def set_channel_gain(self, channel_id: str, gain: float):
         """
@@ -539,8 +521,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
 
         if result["result"] != "OK":
             raise RuntimeError("Failed to set channel Gain. Result code: {}".format(result["result"]))
-        
-  
+
     def get_channel_offset(self, channel_id: str) -> int:
         """
         Get Offset of Channel
@@ -554,8 +535,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         inputVal = {"settingId": "LSM_CHANNEL_OFFSET_SETTING", "channelId": channel_id}
         result = self._proxy.Parameter.getParameter(inputVal)
         return result["offset"]
-    
-  
+
     def set_channel_offset(self, channel_id: str, offset: int):
         """
         Set Offset of Channel
@@ -572,7 +552,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
 
         if result["result"] != "OK":
             raise RuntimeError("Failed to set channel Offset. Result code: {}".format(result["result"]))
-        
+
     def get_laser_list_settings(self) -> list[str]:
         """
         Get the list of available lasers.
@@ -590,7 +570,6 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         inputVal = {"settingId": "LSM_LASER_LIST_SETTING"}
         return self._proxy.Parameter.getParameter(inputVal)["laserList"]
 
-
     def get_channel_laser(self, channel_id: str) -> list[str]:
         """
         Get the Laser set to Channel
@@ -603,7 +582,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         """
         inputVal = {"settingId": "LSM_CHANNEL_LASER_SETTING", "channelId": channel_id}
         return self._proxy.Parameter.getParameter(inputVal)["laser"]["laserId"]
-    
+
     def set_channel_laser(self, channel_id: str, laser_settings: list[dict]):
         """
         Set the Laser to Channel
@@ -623,9 +602,8 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         result = self._proxy.Parameter.setParameter(inputVal)
 
         if result["result"] != "OK":
-            raise RuntimeError("Failed to set channel Laser. Result code: {}".format(result["result"])) 
-        
-      
+            raise RuntimeError("Failed to set channel Laser. Result code: {}".format(result["result"]))
+
     def get_laser_enabled(self, laser_id: str) -> bool:
         """
         Get Enable/Disable of Laser
@@ -639,8 +617,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         inputVal = {"settingId": "LSM_LASER_ENABLE_SETTING", "laserId": laser_id}
         result = self._proxy.Parameter.getParameter(inputVal)
         print(result)
-        return result["enable"]     
-       
+        return result["enable"]
 
     def set_laser_enabled(self, laser_id: str, enable: bool):
         """
@@ -658,7 +635,6 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
 
         if result["result"] != "OK":
             raise RuntimeError("Failed to set laser enable status. Result code: {}".format(result["result"]))
-        
 
     def get_laser_intensity(self, laser_id: str) -> float:
         """
@@ -673,7 +649,6 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         inputVal = {"settingId": "LSM_LASER_INTENSITY_SETTING", "laserId": laser_id}
         result = self._proxy.Parameter.getParameter(inputVal)
         return result["laserIntensity"]
-
 
     def set_laser_intensity(self, laser_id: str, intensity: float):
         """
@@ -746,7 +721,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         """
         z = int(z.to(u.nm).value)
         inputVal = {"settingId": "Z_STAGE_POSITION_SETTING", "stagePosition": z}
-        self._proxy.Parameter.setParameter(inputVal)    
+        self._proxy.Parameter.setParameter(inputVal)
 
     @property
     def z_stack_enabled(self) -> bool:
@@ -805,7 +780,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         if result["result"] != "OK":
             raise RuntimeError("Failed to set Z stack slice number. Result code: {}".format(result["result"]))
 
-    @property    
+    @property
     def z_stack_step_size(self) -> int:
         """
         Get the step size of Z stack.
@@ -815,10 +790,10 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         """
         inputVal = {"settingId": "LSM_Z_COORDINATE_STEP_SIZE_SETTING"}
         result = self._proxy.Parameter.getParameter(inputVal)
-        return result["stepSize"]* u.nm
+        return result["stepSize"] * u.nm
 
     @z_stack_step_size.setter
-    def z_stack_step_size(self, step_size: int):    
+    def z_stack_step_size(self, step_size: int):
         """
         Set the step size of Z stack.
 
@@ -833,4 +808,3 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
 
         if result["result"] != "OK":
             raise RuntimeError("Failed to set Z stack step size. Result code: {}".format(result["result"]))
-        
