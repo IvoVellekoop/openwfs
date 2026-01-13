@@ -68,6 +68,7 @@ safe_import("glfw", "opengl")
 safe_import("zaber_motion", "zaber")
 safe_import("serial", "zaber")
 safe_import("serial.tools", "zaber")
+safe_import("clr", "clr")
 
 from .camera import Camera
 from .galvo_scanner import ScanningMicroscope, Axis
