@@ -1,52 +1,67 @@
 from ..core import Actuator
 import numpy as np
 import astropy.units as u
+from . import _MockModule
 import time
+import clr
+import os
 
-try:
-    clr.AddReference(r"C:\Program Files\Thorlabs\Kinesis\Thorlabs.MotionControl.DeviceManagerCLI.dll")
-    clr.AddReference(r"C:\Program Files\Thorlabs\Kinesis\Thorlabs.MotionControl.GenericMotorCLI.dll")
-    clr.AddReference(r"C:\Program Files\Thorlabs\Kinesis\Thorlabs.MotionControl.KCube.InertialMotorCLI.dll")
-    import Thorlabs.MotionControl.DeviceManagerCLI as th_dev
-    import Thorlabs.MotionControl.GenericMotorCLI as th_gen
-    import Thorlabs.MotionControl.KCube.InertialMotorCLI as th_iner
-except ImportError:
-    th_lib_found = False
-except Exception as e:
-    print(f"Error importing Thorlabs Kinesis libraries: {e}")
-    th_lib_found = False
+clr_loaded = type(clr) is not _MockModule
+
+if clr_loaded:
+    th_ine_files = [
+        r"C:\Program Files\Thorlabs\Kinesis\Thorlabs.MotionControl.DeviceManagerCLI.dll",
+        r"C:\Program Files\Thorlabs\Kinesis\Thorlabs.MotionControl.GenericMotorCLI.dll",
+        r"C:\Program Files\Thorlabs\Kinesis\Thorlabs.MotionControl.KCube.InertialMotorCLI.dll"
+    ]
+    th_ine_lib_found = all(map(os.path.isfile, th_ine_files))
+    if th_ine_lib_found:
+        for f in th_ine_files:
+            clr.AddReference(f)
+
+        from Thorlabs.MotionControl.DeviceManagerCLI import (
+            DeviceManagerCLI,
+            SimulationManager
+        )
+        from Thorlabs.MotionControl.KCube.InertialMotorCLI import (
+                KCubeInertialMotor,
+                ThorlabsInertialMotorSettings,
+                InertialMotorStatus
+        )
+        from System import Int32, UInt32
 
 
+class KCubeInertial(Actuator):
 
-
-class KCubeInertialMotor(Actuator):
-
-    def __init__(self, serial_number: str, num_channels: int = 1, mock: bool = False):
+    def __init__(self, serial_number: str, mock: bool = False, channels = np.arange(1), pair_channels: bool = False):
         super().__init__(duration = np.inf * u.ms, latency = 0 * u.ms)
 
-        if not th_lib_found:
+        if not th_ine_lib_found:
+            if not clr_loaded:
+                raise ImportError("pythonnet (clr) is not installed. Please install pythonnet to use Thorlabs Kinesis libraries.")
             raise ImportError("Thorlabs Kinesis libraries not found. Please install Thorlabs Kinesis software.")
 
         if mock:
-           th_dev.SimulationManager.Instance.InitializeSimulations()
+            SimulationManager.Instance.InitializeSimulations()
+            print("Initialized Thorlabs Kinesis simulations.")
 
 
-        th_dev.BuildDeviceList()
-        serial_number_list = th_dev.GetDeviceList(th_iner.DevicePrefix_KIM101);
+        DeviceManagerCLI.BuildDeviceList()
 
+        serial_number_list = list(map(str, DeviceManagerCLI.GetDeviceList(Int32(97))))
 
-        if serial_number not in serial_number_list:
+        if serial_number not in serial_number_list and not mock:
             raise ValueError(f"Device with serial number {serial_number} not found. Available devices: {serial_number_list}")
 
         # create new device
         self.serial_number = str(serial_number)  # Serial number of device
-        self.device = th_iner.KCubeInertialMotor.CreateKCubeInertialMotor(self.serial_number)
-        self.last_movement = (0,0,0,0)
-        self.current_position = (0,0,0,0)
+        self.device = KCubeInertialMotor.CreateKCubeInertialMotor(self.serial_number)
         self.steprate = 500
         self.timeout = 100*u.s
         # Connect
         self.device.Connect(self.serial_number)
+        assert self.device.IsConnected
+
         time.sleep(0.25)
         
         # Ensure that the device settings have been initialized
@@ -62,73 +77,85 @@ class KCubeInertialMotor(Actuator):
 
         # Load any configuration settings needed by the controller/stage
         config = self.device.GetInertialMotorConfiguration(self.serial_number)
-        settings = th_iner.ThorlabsInertialMotorSettings.GetSettings(config)
+        settings = ThorlabsInertialMotorSettings.GetSettings(config)
 
-        for i in np.arange(num_channels):
-            name = f"chan{i}"
-            th_name = f"Channel{i+1}"
-            setattr(self, name, getattr(th_iner.InertialMotorStatus.MotorChannels, th_name))
-            channel = self.device.GetChannel(i)
-            channel.LoadMotorConfiguration(settings.MotorConfiguration)
-            settings.Drive.Channel(i).StepRate = self.steprate
-            settings.Drive.Channel(i).StepAcceleration = 100000
+        channels_array = []
+        for ch_i in channels:
+            th_name = f"Channel{ch_i + 1}"
+            th_ch_i = getattr(InertialMotorStatus.MotorChannels, th_name)
+            channels_array.append(th_ch_i)
+            settings.Drive.Channel(th_ch_i).StepRate = self.steprate
+            settings.Drive.Channel(th_ch_i).StepAcceleration = 1000
 
+        self.channels_array = np.array(channels_array)
         self.device.SetSettings(settings, True, True)
-
-        for i in np.arange(num_channels):
-            channel = getattr(self.device, f"chan{i}")
-            channel.device.SetPositionAs(channel, 0)
-
-
-        def __del__(self):
-            self.device.StopPolling()
-            self.device.Disconnect()
-
-        def is_moving(self, axis: int) -> bool:
-            chan = getattr(self.device, f"chan{axis}")
-            return chan.IsMoving(chan)
-
-        @property
-        def position(self):
-            out = np.zeros(self.num_channels, dtype=int)
-            for i in np.arange(self.num_channels):
-                chan = getattr(self.device, f"chan{i}")
-                out[i] = chan.GetPosition(chan)
-            return out
-
-        @position.setter
-        def position(self, arr):
-            super()._start()
-            assert arr.len == self.num_channels
-            for i in np.arange(self.num_channels):
-                chan = getattr(self.device, f"chan{i}")
-                self.device.MoveTo(chan, arr[i], 0)
-
-        def move_by(self, deltas: np.ndarray):
-            super()._start()
-            assert deltas.len == self.num_channels
-            for i in np.arange(self.num_channels):
-                chan = getattr(self.device, f"chan{i}")
-                self.device.MoveBy(chan, deltas[i], 0)
-
-        def busy(self):
-            moving = False
-            for i in np.arange(self.num_channels):
-                moving = moving or self.is_moving(i)
-            return moving
+        self.pair_channels(pair_channels)
+        self.position_goal = self.position
+        self.deviced_was_stoped = True
 
 
+    def __del__(self):
+        self.device.StopPolling()
+        self.device.Disconnect()
+
+    def pair_channels(self, val):
+        self.device.SetDualChannelMode(val)
+
+    @property
+    def position(self):
+        out = np.zeros(self.channels_array.size, dtype=np.int32)
+        for i, ch_i in enumerate(self.channels_array):
+            out[i] = self.device.GetPosition(ch_i)
+
+        self.deviced_was_stoped = False
+        return out
 
 
+        
+    def throw_error_if_moving(self):
+        assert not self.busy(), "Device is busy. Use self.wait() to wait for the device to finish moving or use self.stop() to stop the device before starting a new movement."
+
+    @position.setter
+    def position(self, arr):
+        super()._start()
+        assert arr.size == self.channels_array.size
+        self.throw_error_if_moving()
+
+        for ch_i in self.channels_array:
+            self.device.Stop(ch_i)
+
+        for i, ch_i in enumerate(self.channels_array):
+            self.device.MoveTo(ch_i, Int32(int(arr[i])), 0)
 
 
-
-
-
-
-
-
-
+        self.deviced_was_stoped = False
+        self.position_goal = arr
     
+    def move_by(self, deltas: np.ndarray):
+        super()._start()
+        assert deltas.size == self.channels_array.size
+        self.throw_error_if_moving()
 
+        p_initial = self.position
+        for i,ch_i in enumerate(self.channels_array):
+            self.device.MoveBy(ch_i, Int32(int(deltas[i])), 0)
+
+        self.position_goal = p_initial + deltas
+
+    def stop(self):
+        for ch_i in self.channels_array:
+            self.device.Stop(ch_i)
+        self.deviced_was_stoped = True
+
+    def busy(self):
+        for i in self.channels_array:
+            if self.device.ChannelStatus(i).IsMoving:
+                return True
+    
+        # Ignores the goal position check if the device was forced to stop using the stop() method
+        if not self.deviced_was_stoped:
+            # Needs this line to avoid issues because the device doesn't move immediately
+            # after the command move_to is send.
+            return not np.allclose(self.position, self.position_goal)
+        return False
 
