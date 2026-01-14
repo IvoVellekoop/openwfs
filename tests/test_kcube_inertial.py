@@ -1,19 +1,25 @@
 import openwfs.devices as ow_d
 import numpy as np
+import time
 
-stage = ow_d.KCubeInertial(serial_number="97251304", channels = [2, 3], pair_channels=True)
+stage = ow_d.KCubeInertial(serial_number="97251304", pair_channels=True)
 
-p_i = np.zeros(2)
-stage.position = np.zeros(2)
+p_i = np.ones(4) * 10
+stage.position = np.zeros(4) * 10
+# stage.position = np.ones(4) * 10 # Should through an error
 stage.wait()
+stage.position = np.ones(4) * 10
+stage.wait()
+print(stage.position)
 assert np.allclose(stage.position, p_i)
 
-p_f = np.array([10, 10])
+p_f = np.array([10, 10, 10, 10]) * 10
 stage.position = p_f
 stage.wait()
+print(stage.position)
 assert np.allclose(stage.position, p_f)
 
-delta = np.array([5, -3])
+delta = np.array([10, -10, 10, -10])
 stage.move_by(delta)
 stage.wait()
 assert np.allclose(stage.position, p_f + delta)
@@ -21,3 +27,27 @@ assert np.allclose(stage.position, p_f + delta)
 del stage
 # stage = 3
 # stage.shutdown()
+
+from concurrent.futures import Future, ThreadPoolExecutor
+#
+# class Dummy:
+#     def __init__(self):
+#         self._workers = ThreadPoolExecutor(max_workers=1)
+#         self.value = None
+#
+#     def compute_value(self, *args_, **kwargs_):
+#         print(self.value)
+#         assert 1== 2
+#         return args_[0] * args_[0]
+#
+#     def set_value(self, v):
+#         self._future = self._workers.submit(self.compute_value, v, 2 * v)
+#
+#     def get_value(self):
+#         print(self._future.done())
+#         return self._future.result()
+#
+# d = Dummy()
+# d.set_value(5)
+# d._future.done()
+# print(d.get_value\:0
