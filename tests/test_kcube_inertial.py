@@ -2,33 +2,35 @@ import openwfs.devices as ow_d
 import numpy as np
 import time
 
-stage = ow_d.KCubeInertial(serial_number="97251304", pair_channels=True)
+stage = ow_d.KCubeInertial(serial_number="97251304")
 
-p_i = np.ones(4) * 10
-stage.position = np.zeros(4) * 10
-# stage.position = np.ones(4) * 10 # Should through an error
-stage.wait()
-stage.position = np.ones(4) * 10
-stage.wait()
-print(stage.position)
-assert np.allclose(stage.position, p_i)
+for i in [True, False]:
+    stage.pair_channels = i
 
-p_f = np.array([10, 10, 10, 10]) * 10
-stage.position = p_f
-stage.wait()
-print(stage.position)
-assert np.allclose(stage.position, p_f)
-
-delta = np.array([10, -10, 10, -10])
-stage.move_by(delta)
-stage.wait()
-assert np.allclose(stage.position, p_f + delta)
+    p_i = np.ones(4) * 10
+    stage.position = np.zeros(4) * 10
+    stage.stop()
+    # stage.position = np.ones(4) * 10 # Should through an error
+    stage.wait()
+    stage.position = np.ones(4) * 10
+    stage.wait()
+    # print(stage.position)
+    assert np.allclose(stage.position, p_i)
+    
+    p_f = np.array([10, 10, 10, 10]) * 10
+    stage.position = p_f
+    stage.wait()
+    assert np.allclose(stage.position, p_f)
+    
+    delta = np.array([10, -10, 10, -10])
+    stage.move_by(delta)
+    stage.wait()
+    assert np.allclose(stage.position, p_f + delta)
 
 del stage
 # stage = 3
 # stage.shutdown()
 
-from concurrent.futures import Future, ThreadPoolExecutor
 #
 # class Dummy:
 #     def __init__(self):

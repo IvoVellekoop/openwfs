@@ -70,6 +70,9 @@ class KCubeInertial(Actuator):
             self.device.WaitForSettingsInitialized(10000)  # 10 second timeout
             assert self.device.IsSettingsInitialized() is True
 
+        self._worker = ThreadPoolExecutor(max_workers=1)
+        self._future = self._worker.submit(lambda: None)
+
         # Start polling and enable channel
         self.device.StartPolling(250)  # 250ms polling rate
         time.sleep(0.25)
@@ -90,35 +93,43 @@ class KCubeInertial(Actuator):
 
         self.channels_array = np.array(channels_array)
         self.device.SetSettings(settings, True, True)
-        self.pair_channels(pair_channels)
-        self.deviced_was_stoped = True
-        self._worker = ThreadPoolExecutor(max_workers=1)
-        self._future = self._worker.submit(lambda: None)
+        self.pair_channels = pair_channels
 
     def __del__(self):
         self.device.StopPolling()
         self.device.Disconnect()
+    
+    @property
+    def pair_channels(self):
+        self.throw_error_if_moving()
+        return self.device.IsDualChannelMode()
 
+
+    @pair_channels.setter
     def pair_channels(self, val):
+        self.throw_error_if_moving()
         self.device.SetDualChannelMode(val)
+        time.sleep(0.2)
 
     @property
     def position(self):
+        self.throw_error_if_moving()
         out = np.zeros(self.channels_array.size, dtype=np.int32)
         for i, ch_i in enumerate(self.channels_array):
             out[i] = self.device.GetPosition(ch_i)
 
-        self.deviced_was_stoped = False
         return out
 
     def throw_error_if_moving(self):
-        assert not self.busy(), "Device is busy. Use self.wait() to wait for the device to finish moving or use self.stop() to stop the device before starting a new movement."
+        assert not self.busy(), "Device is busy. Use self.wait() to wait for the device to finish moving or use self.stop() to stop the device."
     
     def _move_to(self, *args_, **kwargs_):
         arr = args_[0]
-        dists = np.abs(self.position - arr)
+        position = args_[1]
+        dists = np.abs(position - arr)
+        pair_channels = args_[2]
 
-        if self.pair_channels:
+        if pair_channels:
             for i in np.array([0, 2]):
                 if dists[i] > dists[i+1]:
                     i_long, i_short = i, i + 1
@@ -130,17 +141,20 @@ class KCubeInertial(Actuator):
 
                 if dists[i_long] != 0:
                     self.device.MoveTo(self.channels_array[i_long], Int32(int(arr[i_long])), int(self.timeout.to(u.ms).value))
-                time.sleep(0.2)
+                    time.sleep(0.2) # Need this, not sure why. Errors on position set otherwise
         else:
             for i, ch_i in enumerate(self.channels_array):
-                self.device.MoveTo(ch_i, Int32(int(arr[i])), self.timeout.to(u.ms).value)
+                if dists[i] != 0:
+                    self.device.MoveTo(ch_i, Int32(int(arr[i])), int(self.timeout.to(u.ms).value))
+                    time.sleep(0.2)
 
 
     def _move_by(self, *args_, **kwargs_):
         arr = args_[0]
         dists = np.abs(arr)
+        pair_channels = args_[1]
 
-        if self.pair_channels:
+        if pair_channels:
             for i in np.array([0, 2]):
                 if dists[i] > dists[i+1]:
                     i_long, i_short = i, i + 1
@@ -152,26 +166,29 @@ class KCubeInertial(Actuator):
 
                 if dists[i_long] != 0:
                     self.device.MoveBy(self.channels_array[i_long], Int32(int(arr[i_long])), int(self.timeout.to(u.ms).value))
-                time.sleep(0.2) # Need this, not sure why. Errors on position set otherwise
+                    time.sleep(0.2) # Need this, not sure why. Errors on position set otherwise
         else:
             for i, ch_i in enumerate(self.channels_array):
-                self.device.MoveBy(ch_i, Int32(int(arr[i])), self.timeout.to(u.ms).value)
+                if dists[i] != 0:
+                    self.device.MoveBy(ch_i, Int32(int(arr[i])), int(self.timeout.to(u.ms).value))
+                    time.sleep(0.2)
 
     @position.setter
     def position(self, arr):
         super()._start()
         assert arr.size == self.channels_array.size
         self.throw_error_if_moving()
-        self._future = self._worker.submit(self._move_to, arr)
-        print("Submitted move_to task")
+        self._future = self._worker.submit(self._move_to, arr, self.position, self.pair_channels)
     
     def move_by(self, deltas: np.ndarray):
         super()._start()
         assert deltas.size == self.channels_array.size
         self.throw_error_if_moving()
-        self._future = self._worker.submit(self._move_by, deltas)
+        self._future = self._worker.submit(self._move_by, deltas, self.pair_channels)
 
     def stop(self): 
+        # Avoid using this because it can stop a thread in the middle of a device command
+        self._future.cancel()
         # Not sure that this can be done safely because device is used in another thread
         for ch_i in self.channels_array:
             self.device.Stop(ch_i)
