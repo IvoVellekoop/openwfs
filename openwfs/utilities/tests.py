@@ -2,7 +2,7 @@ import numpy as np
 import astropy.units as u
 
 
-def get_microscope_setup():
+def get_test_microscope():
     """
     Convenience function returning a basic microscope (simulation) setup for testing purposes. The microscope has a static source representing a point source, and an SLM as incident field. The microscope parameters are:
     - Specimen resolution: (512, 512) pixels
