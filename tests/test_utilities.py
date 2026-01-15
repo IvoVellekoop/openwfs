@@ -8,6 +8,8 @@ from openwfs.utilities import (
     Transform,
     project,
 )
+import openwfs.utilities as owf_u
+import openwfs.simulation as owf_s
 
 
 def test_to_matrix():
@@ -154,3 +156,13 @@ def test_inverse():
     assert np.allclose(vector, transformed_back)
     assert np.allclose(inverse @ transform @ vector, vector)
     assert np.allclose(transform @ inverse @ vector, vector)
+
+def test_utilities_microscope():
+    mic, slm, src = owf_u.tests.get_microscope_setup()
+    assert type(mic) == owfu_s.Microscope
+    assert type(slm) == owfu_s.SLM
+    assert type(src) == owfu_s.StaticSource
+    
+
+import openwfs.utilities as owfu
+
