@@ -78,9 +78,8 @@ def test_place():
     ps1 = (0.5, 2) * u.um
     ps2 = (3.0, 1.0) * u.um
     src = set_pixel_size(np.zeros((7, 8)), ps1)
-    src2 = set_pixel_size(src, ps2)
     with pytest.raises(NotImplementedError):
-        get_pixel_size(src2)
+        set_pixel_size(src, ps2)
 
     # place image in output with larger extent and same pixel size.
     # the source will be padded with zeros (exactly one row and two columns on all sides)
