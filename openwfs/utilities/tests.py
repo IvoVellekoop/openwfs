@@ -1,22 +1,23 @@
 import numpy as np
 import astropy.units as u
 
+
 def get_microscope_setup():
     """
-        Convenience function returning a basic microscope (simulation) setup for testing purposes. The microscope has a static source representing a point source, and an SLM as incident field. The microscope parameters are:
-        - Specimen resolution: (512, 512) pixels
-        - Specimen pixel size: 100 nm
-        - Numerical aperture: 0.85
-        - Wavelength: 532.8 nm
-        - Incident field: SLM with shape (512, 512).
+    Convenience function returning a basic microscope (simulation) setup for testing purposes. The microscope has a static source representing a point source, and an SLM as incident field. The microscope parameters are:
+    - Specimen resolution: (512, 512) pixels
+    - Specimen pixel size: 100 nm
+    - Numerical aperture: 0.85
+    - Wavelength: 532.8 nm
+    - Incident field: SLM with shape (512, 512).
 
-        Returns:
-            mic: Microscope
-                The microscope object.
-            slm: SLM
-                The SLM object used as incident field.
-            src: StaticSource
-                The static source object representing the specimen.
+    Returns:
+        mic: Microscope
+            The microscope object.
+        slm: SLM
+            The SLM object used as incident field.
+        src: StaticSource
+            The static source object representing the specimen.
     """
     import openwfs.simulation as owf_s
 
@@ -42,4 +43,3 @@ def get_microscope_setup():
         incident_field=slm.field,
     )
     return mic, slm, src
-
