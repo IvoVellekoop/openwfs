@@ -7,6 +7,19 @@ import clr
 import os
 from concurrent.futures import Future, ThreadPoolExecutor
 
+# This code using the DotNET interface from Thorlabs Kinesis to control
+# the KCube KIM001 and KIM101. The code follows the OpenWFS interface to
+# use the KCube with OpenWFS. Unfortunately, the code uses different processes
+# in order to correctly synchronise the movement. The code works by:
+# using a separate process (thread) which starts the movement of the 
+# stage using MoveTo or MoveBy (from Kinesis). This thread will be busy
+# until the stage finishes the movement. Consequently, the busy function 
+# of OpenWFS can be defined as if the thread has or not finish. A consequence
+# of the use of a separate thread to comunicate with the device is the main 
+# process cannot try to communicate with the device while the move thread
+# is communicating with the device. For this, function communicating with the 
+# device use the function throw_error_if_moving()
+
 clr_loaded = type(clr) is not _MockModule
 
 if clr_loaded:
@@ -33,19 +46,24 @@ if clr_loaded:
 
 
 class KCubeInertial(Actuator):
+    """
+    Class to control KCube KIM001 and KIM101. 
 
-    def __init__(self, serial_number: str, mock: bool = False, pair_channels: bool = False, timeout: u.Quantity = 20*u.s):
+    Arguments:
+        pair_channels: bool defining if the motor 1 and 2, and 3 and 4 should be paired 
+            (i.e. moving simultaneously). Only important for KIM101.
+        timeout: Quantity [u.s] - Defines the timeout time for the stage when performing 
+            movement 
+    """
+
+
+    def __init__(self, serial_number: str, pair_channels: bool = False, timeout: u.Quantity = 20*u.s):
         super().__init__(duration = np.inf * u.ms, latency = 0 * u.ms)
 
         if not th_ine_lib_found:
             if not clr_loaded:
                 raise ImportError("pythonnet (clr) is not installed. Please install pythonnet to use Thorlabs Kinesis libraries.")
             raise ImportError("Thorlabs Kinesis libraries not found. Please install Thorlabs Kinesis software.")
-
-        if mock:
-            SimulationManager.Instance.InitializeSimulations()
-            print("Initialized Thorlabs Kinesis simulations.")
-
 
         DeviceManagerCLI.BuildDeviceList()
 
