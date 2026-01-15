@@ -7,11 +7,11 @@ import clr
 import os
 from concurrent.futures import Future, ThreadPoolExecutor
 
-# This code using the DotNET interface from Thorlabs Kinesis to control
+# This code uses the DotNET interface from Thorlabs Kinesis to control
 # the KCube KIM001 and KIM101. The code follows the OpenWFS interface to
-# use the KCube with OpenWFS. Unfortunately, the code uses different processes
-# in order to correctly synchronise the movement. The code works by:
-# using a separate process (thread) which starts the movement of the 
+# use the KCube with OpenWFS. The code uses different processes
+# in order to correctly synchronise the movement:
+# a separate process (thread) starts the movement of the 
 # stage using MoveTo or MoveBy (from Kinesis). This thread will be busy
 # until the stage finishes the movement. Consequently, the busy function 
 # of OpenWFS can be defined as if the thread has or not finish. A consequence
@@ -98,8 +98,6 @@ class KCubeInertial(Actuator):
 
         num_channel = 1 if stage.device.IsSingleChannelDevice() else 4
 
-        print(self.device.GetDeviceName())
-
         # Load any configuration settings needed by the controller/stage
         config = self.device.GetInertialMotorConfiguration(self.serial_number)
         settings = ThorlabsInertialMotorSettings.GetSettings(config)
@@ -149,6 +147,9 @@ class KCubeInertial(Actuator):
         pair_channels = args_[2]
 
         if pair_channels:
+            # If the channels are paired, the code finds the motor from the paired channels travels 
+            # further. It starts the movement of that channel last to ensure that when then movement 
+            # finishes the other motor already finished.
             for i in np.array([0, 2]):
                 if dists[i] > dists[i+1]:
                     i_long, i_short = i, i + 1
@@ -174,6 +175,9 @@ class KCubeInertial(Actuator):
         pair_channels = args_[1]
 
         if pair_channels:
+            # If the channels are paired, the code finds the motor from the paired channels travels 
+            # further. It starts the movement of that channel last to ensure that when then movement 
+            # finishes the other motor already finished.
             for i in np.array([0, 2]):
                 if dists[i] > dists[i+1]:
                     i_long, i_short = i, i + 1
