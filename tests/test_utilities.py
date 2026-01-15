@@ -1,5 +1,6 @@
 import astropy.units as u
 import numpy as np
+import pytest
 
 from openwfs.utilities import (
     set_pixel_size,
@@ -78,7 +79,8 @@ def test_place():
     ps2 = (3.0, 1.0) * u.um
     src = set_pixel_size(np.zeros((7, 8)), ps1)
     src2 = set_pixel_size(src, ps2)
-    assert np.all(get_pixel_size(src2) == ps2)
+    with pytest.raises(NotImplementedError):
+        get_pixel_size(src2)
 
     # place image in output with larger extent and same pixel size.
     # the source will be padded with zeros (exactly one row and two columns on all sides)

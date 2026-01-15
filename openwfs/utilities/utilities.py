@@ -396,7 +396,10 @@ def set_pixel_size(data: ArrayLike, pixel_size: Optional[Quantity]) -> np.ndarra
     if pixel_size is not None and pixel_size.size == 1:
         pixel_size = pixel_size * np.ones(data.ndim)
 
-    data.dtype = np.dtype(data.dtype.str, metadata={"pixel_size": pixel_size})
+    if get_pixel_size(data) is not None:
+        raise NotImplementedError("Overwritting the value of pixel size is currently not possible.")
+
+    data.dtype = np.dtype(data.dtype, metadata={"pixel_size": pixel_size})
     return data
 
 
