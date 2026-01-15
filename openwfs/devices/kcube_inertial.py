@@ -57,7 +57,6 @@ class KCubeInertial(Actuator):
         # create new device
         self.serial_number = str(serial_number)  # Serial number of device
         self.device = KCubeInertialMotor.CreateKCubeInertialMotor(self.serial_number)
-        self.steprate = 500
         self.timeout = timeout
         # Connect
         self.device.Connect(self.serial_number)
@@ -79,17 +78,19 @@ class KCubeInertial(Actuator):
         self.device.EnableDevice()
         time.sleep(0.25)  # Wait for device to enable
 
+        num_channel = 1 if stage.device.IsSingleChannelDevice() else 4
+
+        print(self.device.GetDeviceName())
+
         # Load any configuration settings needed by the controller/stage
         config = self.device.GetInertialMotorConfiguration(self.serial_number)
         settings = ThorlabsInertialMotorSettings.GetSettings(config)
 
         channels_array = []
-        for ch_i in np.arange(4):
+        for ch_i in np.arange(num_channel):
             th_name = f"Channel{ch_i + 1}"
             th_ch_i = getattr(InertialMotorStatus.MotorChannels, th_name)
             channels_array.append(th_ch_i)
-            settings.Drive.Channel(th_ch_i).StepRate = self.steprate
-            settings.Drive.Channel(th_ch_i).StepAcceleration = 1000
 
         self.channels_array = np.array(channels_array)
         self.device.SetSettings(settings, True, True)
