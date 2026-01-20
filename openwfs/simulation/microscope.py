@@ -10,7 +10,7 @@ from scipy.signal import fftconvolve
 from ..core import Processor, Detector
 from ..plot_utilities import imshow  # noqa - for debugging
 from ..simulation.mockdevices import XYStage, LinearStage, StaticSource
-from ..utilities import project, place, Transform, get_pixel_size, patterns
+from ..utilities import project, place, Transform, get_pixel_size, patterns, unitless
 from ..utilities.patterns import propagation
 
 
@@ -169,7 +169,17 @@ class Microscope(Processor):
         # TODO: think about what happens when the slm is smaller than the pupil
 
         # condition 1. Extent of pupil in pupil coordinates: Abbe limit should give pixel_size resolution
-        pupil_extent = self.wavelength / target_pixel_size
+        pupil_extent = unitless(self.wavelength / target_pixel_size)
+
+        # If the pupil extent is smaller than 2.0 * NA, warn the user
+        if pupil_extent / 2 < self.numerical_aperture:
+            warnings.warn(
+                f"The given grid does not support the spatial frequency components required for the given numerical aperture. \n"
+                f"Currently, the maximum supported NA is {pupil_extent / 2:.2f} for the current settings. \n"
+                f"Either decrease the magnification, decrease the wavelength or increase the pixel size of the source",
+                UserWarning,
+            )
+
 
         # condition 2. Minimum number of pixels in x and y should be data_shape
         pupil_shape = self.data_shape
