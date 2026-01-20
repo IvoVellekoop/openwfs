@@ -437,6 +437,17 @@ class XYStage(Actuator):
     def y(self, value: Quantity[u.um]):
         self._y = self.step_size_y * np.round(value.to(u.um) / self.step_size_y)
 
+    @property
+    def xy(self) -> tuple[Quantity, Quantity]:
+        # get current xy stage position
+        return self._x, self._y
+
+    @xy.setter
+    def xy(self, value: tuple[Quantity, Quantity]):
+        self._x = self.step_size_x * np.round(value[0].to(u.um) / self.step_size_x)
+        self._y = self.step_size_y * np.round(value[1].to(u.um) / self.step_size_y)
+
+
     def home(self):
         self._x = 0.0 * u.um
         self._y = 0.0 * u.um
