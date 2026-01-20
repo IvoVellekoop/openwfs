@@ -1,11 +1,20 @@
 import openwfs.devices as ow_d
+import astropy.units as u
 import numpy as np
 import time
 
-stage = ow_d.KCubeInertial(serial_number="97251304")
+stage = ow_d.KCubeInertial()
 
 for i in [True, False]:
     stage.pair_channels = i
+
+    acc = 20000/u.s**2 * np.ones(4)
+    vel = 500/u.s * np.ones(4)
+    stage.acceleration = acc
+    stage.velocity = vel
+
+    assert np.allclose(stage.velocity, vel)
+    assert np.allclose(stage.acceleration, acc)
 
     p_i = np.ones(4) * 10
     stage.position = np.zeros(4) * 10
