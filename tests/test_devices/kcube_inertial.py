@@ -8,8 +8,8 @@ stage = ow_d.KCubeInertial()
 for i in [True, False]:
     stage.pair_channels = i
 
-    acc = 20000/u.s**2 * np.ones(4)
-    vel = 500/u.s * np.ones(4)
+    acc = 20000 / u.s**2 * np.ones(4)
+    vel = 500 / u.s * np.ones(4)
     stage.acceleration = acc
     stage.velocity = vel
 
@@ -25,12 +25,12 @@ for i in [True, False]:
     stage.wait()
     # print(stage.position)
     assert np.allclose(stage.position, p_i)
-    
+
     p_f = np.array([10, 10, 10, 10]) * 10
     stage.position = p_f
     stage.wait()
     assert np.allclose(stage.position, p_f)
-    
+
     delta = np.array([10, -10, 10, -10])
     stage.move_by(delta)
     stage.wait()
