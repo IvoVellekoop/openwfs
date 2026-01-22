@@ -3,6 +3,8 @@ import astropy.units as u
 import numpy as np
 import time
 
+# Test KCubeInertial stage. Requires a physical device KIM101 to be connected.
+
 stage = ow_d.KCubeInertial()
 
 for i in [True, False]:
