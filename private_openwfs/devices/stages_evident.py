@@ -1,12 +1,8 @@
-from csv import reader
-from ssl import Purpose
 import astropy.units as u
 from astropy.units import Quantity
-from openwfs.core import Actuator, Processor, Detector
+from openwfs.core import Actuator, Detector
 import numpy as np
 import time
-import javabridge
-import bioformats
 from ..utilities.utilities import set_metadata
 import shutil
 import os
@@ -27,6 +23,30 @@ import os
 #     @property
 #     def shape(self):
 #         return self.img.shape
+
+
+def is_error(result):
+    """
+    Check the result from Evident Microscope API call and raise an error if not OK.
+    Args:
+        result (str): Result string from Evident Microscope API call.
+    """
+    if result != "OK":
+        dict_error = {
+            "OK": "Success",
+            "ERROR": "Failure",
+            "UNAVAILABLE": "Unavailable state",
+            "OUT_OF_MEMORY": "Insufficient memory",
+            "INVALID_PARAMETERS": "Invalid parameters",
+            "NO_FRAME": "The specified image was not found",
+            "UNSUPPORTED_IMAGE": "Unsupported image",
+            "UNSUPPORTED_PARAMETERS": "Unsupported parameters",
+            "FILE_NOT_FOUND": "File not found",
+            "UNSUPPORTED_FILE_VERSION": "Unsupported file version",
+        }
+        return True, RuntimeError(f"Evident Microscope returned error: {dict_error[result]}")
+    else:
+        return False, None
 
 
 class EvidentCamera(Detector):
@@ -52,16 +72,6 @@ class EvidentCamera(Detector):
         self._most_recent_file_path = None  # to store the path of the most recently acquired image file
         self._saving_folder = saving_folder
 
-        if not javabridge.get_env():
-            javabridge.start_vm(class_path=bioformats.JARS)
-            javabridge.attach()
-
-        # Set logging level to WARN (or ERROR)
-        javabridge.run_script("""
-        var DebugTools = Packages.loci.common.DebugTools;
-        DebugTools.setRootLevel("WARN");
-        """)
-
     def _do_trigger(self):
         """
         Trigger the camera to acquire an image.
@@ -78,28 +88,6 @@ class EvidentCamera(Detector):
 
         print("In _fetch: Acquired image saved at:", file_path)  # for debugging purposes
 
-    # After testing, this function can be removed since the read of the detector is used and ths was a workaround for metadata reading.
-    # def read(self) -> np.ndarray:
-    #     """
-    #     Read the acquired image and metadata from the camera.
-
-    #     Returns:
-    #         EvidentMicroscopyImage: Acquired image data and metadata.
-    #     """
-    #     img = super().read()
-    #     file_path = self._most_recent_file_path
-
-    #     print("in read Acquired image saved at:", file_path)  # for debugging purposes
-
-    #     if not javabridge.get_env():
-    #         raise RuntimeError("JVM is not running. Please start it before calling this function.")
-
-    #     metadata_xml_format = bioformats.get_omexml_metadata(file_path)
-    #     meta_data = bioformats.OMEXML(
-    #         metadata_xml_format
-    #     )  # takes that raw XML string and parses it into a Python object that’s easier to work with. The OMEXML class understands the OME-XML schema and gives you structured access.
-    #     return EvidentMicroscopyImage(img, meta_data)
-
     def _fetch(self) -> np.ndarray:
         """
         Fetch the acquired image from the camera and convert to numpy array.
@@ -115,7 +103,7 @@ class EvidentCamera(Detector):
         #####################################################################
 
         while self.busy():
-            # print("waiting for imaging to complete...")
+            print("waiting for imaging to complete...")
             time.sleep(0.2)
 
         if self._saving_folder is not None:
@@ -135,6 +123,134 @@ class EvidentCamera(Detector):
         return image_stack
 
     @staticmethod
+    def get_image_size(proxy, image_id):
+        inputVal = {"imageId": image_id}
+        result = proxy.IDA.getImageSize(inputVal)
+        err = is_error(result["result"])
+        if err[0]:
+            return err
+        width = result["width"]
+        height = result["height"]
+        return False, width, height
+
+    @staticmethod
+    def get_image_data(proxy, image_id):
+        sizes = get_image_size(proxy, image_id)
+        if sizes[0]:
+            return sizes
+        width = sizes[1]
+        height = sizes[2]
+        rect = {"x": 0, "y": 0, "width": width, "height": height}
+        inputVal = {"imageId": image_id, "rect": rect, "compressType": "NONE"}
+        result = proxy.IDA.getImageBody(inputVal)
+        err = is_error(result["result"])
+        if err[0]:
+            return err
+        image = result["data"].data
+        while result["continue"]:
+            inputVal = {"imageId": image_id}
+            result = proxy.IDA.getNextImageBody(inputVal)
+            err = is_error(result["result"])
+            if err[0]:
+                return err
+            image = image + result["data"].data
+        return False, np.frombuffer(image, dtype=np.uint16).reshape((height, width))
+
+    @staticmethod
+    def get_axes_on_image(proxy, areaId, labels_axes):
+        assert labels_axes.shape == (3,)
+        inputVal = {"areadId": areaId, "key": "Axes"}
+        result = proxy.IDA.getProperty(inputVal)
+        err = is_error(result["result"])
+        if err[0]:
+            return err
+        out = np.array([0, 0, 0], dtype=bool)
+        axes = result["value"]
+        for i in np.arange(3):
+            if labels_axes[i] in axes:
+                out[i] = True
+
+        return False, out
+
+    @staticmethod
+    def get_image_id(proxy, area_id, bool_axes, labels_axes, index_axes, channel_list):
+        axis_info = []
+        assert bool_axes.shape == index_axes.shape
+        for exists, index, label in zip(bool_axes, index_axes, labels_axes):
+            if exists:
+                axis_info.append({"axisName": label, "index": index})
+        inputVal = {"areaId": area_id, "channelId": channel_list[0], "axisInfo": axis_info}
+        result = proxy.IDA.getImage(inputVal)
+        err = is_error(result["result"])
+        if err[0]:
+            return err
+        return False, result["imageId"]
+
+    @staticmethod
+    def get_area_id(proxy, group_id):
+        input_val = {"groupId": group_id, "level": 0, "area": 0}
+        result = proxy.IDA.getArea(input_val)
+        err = is_error(result["result"])
+        if err[0]:
+            return err
+        return False, result["areaId"]
+
+    @staticmethod
+    def get_channel_list(proxy, area_id):
+        input_val = {"areaId": area_id,
+                     "key": "ChannelIdList"}
+        result = proxy.IDA.getChannelList(input_val)
+        err = is_error(result["result"])
+        if err[0]:
+            return err
+        return False, result["value"]
+
+
+    @staticmethod
+    def get_image(proxy, filepath):
+        # TODO: need to update to handle stack of channels, time, and z
+        inputVal = {"filename": filepath}
+        result = proxy.IDA.open(inputVal)
+        error = None
+        error_file = is_error(result["result"])
+        if not error_file[0]:
+            fileId = result["fileId"]
+            group_id = proxy.IDA.getGroup({"fileId": fileId, "group": 0})
+            group_id_err = is_error(group_id["result"])
+            if not group_id_err[0]:
+                area_id = EvidentCamera.get_area_id(proxy, result["groupId"])
+                if not area_id[0]:
+                    channel_list = EvidentCamera.get_channel_list(proxy, area_id[1])
+                    if not channel_list[0]:
+                        image_id = EvidentCamera.get_image_id(
+                            proxy,
+                            area_id[1],
+                            np.array([False, False, False]),
+                            np.array(["LAMBDA", "ZSTACK", "TIMELAPSE"]),
+                            np.array([0, 0, 0]),
+                            channel_list[1],
+                        )
+                        if not image_id[0]:
+                            data = EvidentCamera.get_image_data(proxy, image_id)
+                            proxy.IDA.releaseImage({"imageId": image_id[1]})
+                        else:
+                            error = image_id[1]
+                    else:
+                        error = channel_list[1]
+                    proxy.IDA.releaseArea({"areaId": area_id[1]})
+                else:
+                    error = area_id[1]
+                proxy.IDA.releaseGroup({"groupId": result["groupId"]})
+            else:
+                error = group_id_err[1]
+            proxy.IDA.close({"fileId": fileId})
+        else:
+            error = error_file[1]
+        if error is not None:
+            raise RuntimeError("Failed to get image. Error from evident microscope: {}".format(error))
+
+
+    @staticmethod
     def read_evident_image(file_path) -> np.ndarray:
         """
         Static method to read an Evident image file and return the image data and metadata.
@@ -151,14 +267,6 @@ class EvidentCamera(Detector):
         Returns:
             image (np.ndarray): Acquired image data.
         """
-
-        if not javabridge.get_env():
-            print("Starting JVM...")
-            javabridge.start_vm(class_path=bioformats.JARS)
-            javabridge.attach()
-
-        if not javabridge.get_env():
-            raise RuntimeError("JVM is not running. Please start it before calling this function.")
 
         metadata = bioformats.get_omexml_metadata(file_path)
         meta_data = bioformats.OMEXML(
