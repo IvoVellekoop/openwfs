@@ -57,10 +57,12 @@ class EvidentCamera(Detector):
             javabridge.attach()
 
         # Set logging level to WARN (or ERROR)
-        javabridge.run_script("""
+        javabridge.run_script(
+            """
         var DebugTools = Packages.loci.common.DebugTools;
         DebugTools.setRootLevel("WARN");
-        """)
+        """
+        )
 
     def _do_trigger(self):
         """
