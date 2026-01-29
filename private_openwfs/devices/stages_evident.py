@@ -1,3 +1,4 @@
+from unittest import result
 import astropy.units as u
 from astropy.units import Quantity
 from openwfs.core import Actuator, Detector
@@ -6,24 +7,14 @@ import time
 from ..utilities.utilities import set_metadata
 import shutil
 import os
-
-# ToDo
-# add property to get pixel size and data_shape from microscope, currently hardcoded to the values 100 nm and (1024, 1024)
-# find a way to get the actual values from the microscope software if possible
+import xmlrpc.client
+import string
+import random
 
 # TODO:
-# all MATL functions from the evident manual
-
-# Delete this class after testing.
-# class EvidentMicroscopyImage:
-#     def __init__(self, image_stack, metadata):
-#         self.img = image_stack  # NumPy array (x, y, z, t, c)
-#         self.metadata = metadata  # Parsed OMEXML metadata object
-
-#     @property
-#     def shape(self):
-#         return self.img.shape
-
+# add property to get pixel size and data_shape from microscope, currently hardcoded to the values 100 nm and (1024, 1024)
+# find a way to get the actual values from the microscope software if possible
+# Support for multidimensional images (lambda, z-stack, time-lapse)
 
 class EvidentError:
     def __init__(self, is_error: bool, error):
@@ -35,14 +26,15 @@ class EvidentError:
             raise self.error
 
 
-def get_evident_error(result):
+def get_evident_error(output_command):
     """
     Check the result from Evident Microscope API call and returns the error if not OK. The error is not throw by this function, it is returned to be handled by the caller.
     Args:
         was_error (bool): True if there was an error, False otherwise.
         result (str): Error from Evident Microscope API call.
     """
-    if result != "OK":
+
+    if output_command["result"] != "OK":
         dict_error = {
             "OK": "Success",
             "ERROR": "Failure",
@@ -55,7 +47,7 @@ def get_evident_error(result):
             "FILE_NOT_FOUND": "File not found",
             "UNSUPPORTED_FILE_VERSION": "Unsupported file version",
         }
-        return EvidentError(True, RuntimeError(f"Evident Microscope returned error: {dict_error[result]}"))
+        return EvidentError(True, RuntimeError(f"Evident Microscope returned error: {dict_error[output_command['result']]}. The output of the command was : {output_command}"))
     else:
         return EvidentError(False, None)
 
@@ -79,9 +71,20 @@ class EvidentCamera(Detector):
         Detector.__init__(
             self, duration=np.inf * u.s, latency=0 * u.ms, data_shape=None, pixel_size=None
         )  # duration and pixel_size is set after triggering the camera (see _do_trigger)
+
+        if saving_folder is None:
+            self._saving_folder = None
+        else:
+            if os.path.isdir(saving_folder):
+                self._saving_folder = saving_folder
+            else:
+                raise FileNotFoundError(f"Saving folder does not exist: {saving_folder}. Create the folder or provide a path to an existing folder.")
+    
         self._proxy = proxy
         self._most_recent_file_path = None  # to store the path of the most recently acquired image file
-        self._saving_folder = saving_folder
+        self.session_name = ''.join(random.choices(string.ascii_letters, k=5)) # creates a random session name to for image name of ori files
+        self.images_saved = 0
+        
 
     def _do_trigger(self):
         """
@@ -113,32 +116,33 @@ class EvidentCamera(Detector):
         # print("Accessing image from network path:", file_path)  # for debugging purposes
         #####################################################################
 
-        while self.busy():
-            print("waiting for imaging to complete...")
+        while self.busy(): # This should not be needed but somehow it is
             time.sleep(0.2)
 
         if self._saving_folder is not None:
-            # copy raw OIR files to predefined saving folder
-            if not os.path.isdir(self._saving_folder):
-                raise FileNotFoundError(f"Saving folder does not exist: {self._saving_folder}")
+            # copy raw OIR files to predefined saving folder to save OIR files
 
-            destination = os.path.join(self._saving_folder, os.path.basename(file_path))
+            filename = self.session_name + f"_{self.images_saved:05d}.oir"
+            destination = os.path.join(self._saving_folder, filename)
             shutil.copy2(file_path, destination)
+            # self.images_saved = self.images_saved + 1; This needs to be added but does not work due to the threading in opwenwfs core (locks this forever)
+        print("Reading image from file:", file_path)  # for debugging purposes
+        image, pixel_sizes = self.get_image(self._proxy, self._most_recent_file_path)
 
-        image_stack = self.read_evident_image(file_path)
+        self._pixel_size = pixel_sizes[0:2] * u.um # This needs to be changes to hanbdle multidimensional images
 
         # self.wait() # waiting for imaging to complete - \this function is not working, it waits for fetch to finish according to the base class implementation, and since fetch is called within read, it causes a loop of waiting.
 
         # time.sleep(2)  # wait for file to be fully written, Find better solution later
 
-        return image_stack
+        return image
 
     @staticmethod
     def get_image_size(proxy, image_id):
         inputVal = {"imageId": image_id}
         result = proxy.IDA.getImageSize(inputVal)
-        err = get_evident_error(result["result"])
-        if err.is_error
+        err = get_evident_error(result)
+        if err.is_error:
             return err, 0, 0
         width = result["width"]
         height = result["height"]
@@ -153,28 +157,33 @@ class EvidentCamera(Detector):
         rect = {"x": 0, "y": 0, "width": width, "height": height}
         inputVal = {"imageId": image_id, "rect": rect, "compressType": "NONE"}
         result = proxy.IDA.getImageBody(inputVal)
-        err = get_evident_error(result["result"])
+        err = get_evident_error(result)
 
         if err.is_error:
             return err, None
 
         image = result["data"].data
+        i = 0
         while result["continue"]:
+            i = i + 1
             inputVal = {"imageId": image_id}
             result = proxy.IDA.getNextImageBody(inputVal)
-            err = get_evident_error(result["result"])
+            err = get_evident_error(result)
             if err.is_error:
                 return err, None
 
             image = image + result["data"].data
-        return err, np.frombuffer(image, dtype=np.uint16).reshape((height, width))
+
+
+
+        return err, np.frombuffer(image, dtype=np.uint16).reshape(height, width)
 
     @staticmethod
     def get_axes_on_image(proxy, areaId, labels_axes):
         assert labels_axes.shape == (3,)
-        inputVal = {"areadId": areaId, "key": "Axes"}
+        inputVal = {"areaId": areaId, "key": "Axes"}
         result = proxy.IDA.getProperty(inputVal)
-        err = get_evident_error(result["result"])
+        err = get_evident_error(result)
         if err.is_error:
             return err, None
         out = np.array([0, 0, 0], dtype=bool)
@@ -186,15 +195,17 @@ class EvidentCamera(Detector):
         return err, out
 
     @staticmethod
-    def get_image_id(proxy, area_id, bool_axes, labels_axes, index_axes, channel_list):
+    def get_image_id(proxy, area_id, labels_axes, index_axes, channel_list):
         axis_info = []
-        assert bool_axes.shape == index_axes.shape
-        for exists, index, label in zip(bool_axes, index_axes, labels_axes):
-            if exists:
-                axis_info.append({"axisName": label, "index": index})
+        assert labels_axes.shape == index_axes.shape
+
+        for index, label in zip(index_axes, labels_axes):
+            axis_info.append({"axisName": label, "index": index})
+
         inputVal = {"areaId": area_id, "channelId": channel_list[0], "axisInfo": axis_info}
+
         result = proxy.IDA.getImage(inputVal)
-        err = get_evident_error(result["result"])
+        err = get_evident_error(result)
         if err.is_error:
             return err, None
         return err, result["imageId"]
@@ -203,19 +214,19 @@ class EvidentCamera(Detector):
     def get_area_id(proxy, group_id):
         input_val = {"groupId": group_id, "level": 0, "area": 0}
         result = proxy.IDA.getArea(input_val)
-        err = get_evident_error(result["result"])
+        err = get_evident_error(result)
         if err.is_error:
             return err, None
         return err, result["areaId"]
 
     @staticmethod
     def get_channel_list(proxy, area_id):
-        input_val = {"areaId": area_id, "key": "ChannelIdList"}
-        result = proxy.IDA.getChannelList(input_val)
-        err = get_evident_error(result["result"])
+        input_val = {"areaId": area_id, "key": "EnabledChannelIdList"}
+        result = proxy.IDA.getProperty(input_val)
+        err = get_evident_error(result)
         if err.is_error:
             return err, None
-        return err, result["channelIdList"]
+        return err, result["value"]
 
     @staticmethod
     def get_image(proxy, filepath):
@@ -223,89 +234,69 @@ class EvidentCamera(Detector):
         inputVal = {"filename": filepath}
         result = proxy.IDA.open(inputVal)
         error = None
-        error_file = get_evident_error(result["result"])
+        error_file = get_evident_error(result)
         if not error_file.is_error:
             fileId = result["fileId"]
             group_id = proxy.IDA.getGroup({"fileId": fileId, "group": 0})
-            group_id_err = get_evident_error(group_id["result"])
+            group_id_err = get_evident_error(group_id)
             if not group_id_err.is_error:
-                area_id = EvidentCamera.get_area_id(proxy, result["groupId"])
-                if not area_id[0].is_error:
-                    channel_list = EvidentCamera.get_channel_list(proxy, area_id[1])
-                    if not channel_list[0].is_error:
-                        image_id = EvidentCamera.get_image_id(
-                            proxy,
-                            area_id[1],
-                            np.array([False, False, False]),
-                            np.array(["LAMBDA", "ZSTACK", "TIMELAPSE"]),
-                            np.array([0, 0, 0]),
-                            channel_list[1],
-                        )
-                        if not image_id[0].is_error:
-                            data = EvidentCamera.get_image_data(proxy, image_id)
-                            if not data[0].is_error:
-                                img = data[1]
-                            proxy.IDA.releaseImage({"imageId": image_id[1]})
+                area_id_err, area_id = EvidentCamera.get_area_id(proxy, group_id["groupId"])
+
+                if not area_id_err.is_error:
+                    pixel_sizes_err, pixel_sizes = EvidentCamera.get_pixel_sizes(proxy, area_id)
+
+                    if not pixel_sizes_err.is_error:
+                        channel_list_err, channel_list = EvidentCamera.get_channel_list(proxy, area_id)
+                        
+                        if not channel_list_err.is_error:
+                            api_axes = np.array(["LAMBDA", "ZSTACK", "TIMELAPSE"])
+                            axes_exist_err, axes_exist = EvidentCamera.get_axes_on_image(proxy, area_id, api_axes)
+
+                            if not axes_exist_err.is_error:
+                                axes_of_img = api_axes[axes_exist]                            
+                                image_id_err, image_id = EvidentCamera.get_image_id(
+                                    proxy,
+                                    area_id,
+                                    axes_of_img,
+                                    np.zeros(axes_of_img.shape, dtype=int),
+                                    channel_list,
+                                )
+
+                                if not image_id_err.is_error:
+                                    data_err, data = EvidentCamera.get_image_data(proxy, image_id)
+
+                                    if data_err.is_error:
+                                        error = data_err
+                                    
+                                    proxy.IDA.releaseImage({"imageId": image_id[1]})
+                                else:
+                                    error = image_id_err
+                            else:
+                                error = axes_exist_err
                         else:
-                            error = image_id[0]
+                            error = channel_list_err
                     else:
-                        error = channel_list[0]
-                    proxy.IDA.releaseArea({"areaId": area_id[1]})
+                        error = pixel_sizes_err
+                    proxy.IDA.releaseArea({"areaId": area_id})
                 else:
-                    error = area_id[0]
-                proxy.IDA.releaseGroup({"groupId": result["groupId"]})
+                    error = area_id_err
+                proxy.IDA.releaseGroup({"groupId": group_id})
             else:
                 error = group_id_err
             proxy.IDA.close({"fileId": fileId})
         else:
             error = error_file
         if error is not None:
-            raise error.error
-        return img
+            error.throw_if_error()
+
+        return data, pixel_sizes
 
     @staticmethod
-    def read_evident_image(file_path) -> np.ndarray:
-        """
-        Static method to read an Evident image file and return the image data and metadata.
-        The metadata is stored in the dtype and can be found using the get_metadata function.
-
-        Example usage:
-        from private_openwfs.devices.stages_evident import EvidentCamera as EvidentPrivate
-        img = EvidentPrivate.read_evident_image(file_path)
-        from private_openwfs.utilities.utilities import get_metadata
-        meta_data = get_metadata(img)
-
-        Args:
-            file_path (str): Path to the Evident image file.
-        Returns:
-            image (np.ndarray): Acquired image data.
-        """
-
-        metadata = bioformats.get_omexml_metadata(file_path)
-        meta_data = bioformats.OMEXML(
-            metadata
-        )  # takes that raw XML string and parses it into a Python object that’s easier to work with. The OMEXML class understands the OME-XML schema and gives you structured access.
-
-        # Extract dimensions
-        size_x = meta_data.image().Pixels.SizeX
-        size_y = meta_data.image().Pixels.SizeY
-        size_z = meta_data.image().Pixels.SizeZ
-        size_c = meta_data.image().Pixels.SizeC
-        size_t = meta_data.image().Pixels.SizeT
-
-        # Initialize array in (x, y, z, time, channel) order
-        image_stack = np.zeros((size_x, size_y, size_z, size_t, size_c), dtype=np.uint16)
-
-        with bioformats.ImageReader(file_path) as reader:
-            # Read and fill the array
-            for t in range(size_t):
-                for c in range(size_c):
-                    for z in range(size_z):
-                        img = reader.read(c=c, z=z, t=t, rescale=False)
-                        image_stack[:, :, z, t, c] = img
-
-        image_stack = set_metadata(image_stack, meta_data)
-        return image_stack
+    def get_pixel_sizes(proxy, area_id):
+        inputVal = {"areaId": area_id, "key": "PixelLength"}
+        result = proxy.IDA.getProperty(inputVal)
+        err = get_evident_error(result)
+        return err, result["value"]
 
     def busy(self) -> bool:
         """
@@ -329,18 +320,7 @@ class EvidentCamera(Detector):
         """
         Get the shape of the acquired image data (height, width).
         """
-        height, width, z, t, c = 1024, 1024, 1, 1, 2  # default values
-        return (height, width, z, t, c)
-
-    @property
-    def pixel_size(
-        self,
-    ) -> Quantity[u.nm]:  # a random number for now, need to find a way to get the actual pixel size from the microscope
-        """
-        Get the pixel size of the acquired image data.
-        """
-        pixel_size_nm = 100  # example value in nm, replace with actual value if available
-        return pixel_size_nm * u.nm
+        return None
 
     def get_imaging_progress(self, execution_type: str = "EXECUTION_TYPE_MANUAL_MAIN") -> dict:
         """
@@ -474,7 +454,8 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         stage = mic.stage
     """
 
-    def __init__(self, proxy, saving_folder=None):
+    def __init__(self, url, saving_folder=None):
+        proxy = xmlrpc.client.ServerProxy(url)
         self._proxy = proxy
         self.cam = EvidentCamera(proxy, saving_folder)
         self.stage_xy = EvidentXYStage(proxy)
@@ -516,9 +497,8 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         """
         inputVal = {"settingId": "LSM_TIME_LAPS_ENABLE_SETTING", "enable": enable}
         result = self._proxy.Parameter.setParameter(inputVal)
-
-        if result["result"] != "OK":
-            raise RuntimeError("Failed to set T stack enable status. Result code: {}".format(result["result"]))
+        error = get_evident_error(result)
+        error.throw_if_error()
 
     def load_scan_parameters(self, file_path: str):
         """
@@ -531,11 +511,15 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
             dict: file ID.
 
         """
-        inputVal = {"targetName": file_path}
-        result = self._proxy.Parameter.loadParameter(inputVal)
-        error = get_evident_error(result["result"])
-        error.throw_if_error()
-
+        
+        if os.path.isfile(file_path):
+            inputVal = {"targetName": file_path}
+            result = self._proxy.Parameter.loadParameter(inputVal)
+            error = get_evident_error(result)
+            error.throw_if_error()
+        else:
+            raise FileNotFoundError(f"File not found: {file_path}")
+        
     def get_channel_list(self) -> list[str]:
         """
         Get the list of available channels.
@@ -544,10 +528,10 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
             list[str]: List of channel Ids.
         """
         inputVal = {"settingId": "LSM_CHANNEL_LIST_SETTING"}
-        out = self._proxy.Parameter.getParameter(inputVal)["channelList"]
-        error = get_evident_error(out["result"])
+        out = self._proxy.Parameter.getParameter(inputVal)
+        error = get_evident_error(out)
         error.throw_if_error()
-        return out
+        return out["channelList"]
 
     def get_channel_enabled(self, channel_id: str) -> bool:
         """
@@ -561,7 +545,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         """
         inputVal = {"settingId": "LSM_CHANNEL_ENABLE_SETTING", "channelId": channel_id}
         result = self._proxy.Parameter.getParameter(inputVal)
-        error = get_evident_error(result["result"])
+        error = get_evident_error(result)
         error.throw_if_error()
 
         return result["enable"]
@@ -580,7 +564,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         inputVal = {"settingId": "LSM_CHANNEL_ENABLE_SETTING", "channelId": channel_id, "enable": enable}
         result = self._proxy.Parameter.setParameter(inputVal)
 
-        error = get_evident_error(result["result"])
+        error = get_evident_error(result)
         error.throw_if_error()
 
 
@@ -597,7 +581,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         inputVal = {"settingId": "LSM_CHANNEL_HV_SETTING", "channelId": channel_id}
         result = self._proxy.Parameter.getParameter(inputVal)
 
-        error = get_evident_error(result["result"])
+        error = get_evident_error(result)
         error.throw_if_error()
 
         return result["hv"]
@@ -616,7 +600,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         inputVal = {"settingId": "LSM_CHANNEL_HV_SETTING", "channelId": channel_id, "hv": hv}
         result = self._proxy.Parameter.setParameter(inputVal)
 
-        error = get_evident_error(result["result"])
+        error = get_evident_error(result)
         error.throw_if_error()
 
     def get_channel_gain(self, channel_id: str) -> float:
@@ -632,7 +616,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         inputVal = {"settingId": "LSM_CHANNEL_GAIN_SETTING", "channelId": channel_id}
         result = self._proxy.Parameter.getParameter(inputVal)
 
-        error = get_evident_error(result["result"])
+        error = get_evident_error(result)
         error.throw_if_error()
 
         return result["gain"]
@@ -651,7 +635,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         inputVal = {"settingId": "LSM_CHANNEL_GAIN_SETTING", "channelId": channel_id, "gain": gain}
         result = self._proxy.Parameter.setParameter(inputVal)
 
-        error = get_evident_error(result["result"])
+        error = get_evident_error(result)
         error.throw_if_error()
 
     def get_channel_offset(self, channel_id: str) -> int:
@@ -667,7 +651,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         inputVal = {"settingId": "LSM_CHANNEL_OFFSET_SETTING", "channelId": channel_id}
         result = self._proxy.Parameter.getParameter(inputVal)
 
-        error = get_evident_error(result["result"])
+        error = get_evident_error(result)
         error.throw_if_error()
 
         return result["offset"]
@@ -686,7 +670,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         inputVal = {"settingId": "LSM_CHANNEL_OFFSET_SETTING", "channelId": channel_id, "offset": offset}
         result = self._proxy.Parameter.setParameter(inputVal)
 
-        error = get_evident_error(result["result"])
+        error = get_evident_error(result)
         error.throw_if_error()
 
     def get_laser_list_settings(self) -> list[str]:
@@ -706,7 +690,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         inputVal = {"settingId": "LSM_LASER_LIST_SETTING"}
         result = self._proxy.Parameter.getParameter(inputVal)
 
-        error = get_evident_error(result["result"])
+        error = get_evident_error(result)
         error.throw_if_error()
         
         return result["laserList"]
@@ -724,7 +708,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         inputVal = {"settingId": "LSM_CHANNEL_LASER_SETTING", "channelId": channel_id}
         result = self._proxy.Parameter.getParameter(inputVal)
 
-        error = get_evident_error(result["result"])
+        error = get_evident_error(result)
         error.throw_if_error()
 
         return result["laser"]["laserId"]
@@ -747,7 +731,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         inputVal = {"settingId": "LSM_CHANNEL_LASER_SETTING", "channelId": channel_id, "laser": laser_settings}
         result = self._proxy.Parameter.setParameter(inputVal)
 
-        error = get_evident_error(result["result"])
+        error = get_evident_error(result)
         error.throw_if_error()
 
     def get_laser_enabled(self, laser_id: str) -> bool:
@@ -763,7 +747,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         inputVal = {"settingId": "LSM_LASER_ENABLE_SETTING", "laserId": laser_id}
         result = self._proxy.Parameter.getParameter(inputVal)
 
-        error = get_evident_error(result["result"])
+        error = get_evident_error(result)
         error.throw_if_error()
 
         return result["enable"]
@@ -782,7 +766,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         inputVal = {"settingId": "LSM_LASER_ENABLE_SETTING", "laserId": laser_id, "enable": enable}
         result = self._proxy.Parameter.setParameter(inputVal)
 
-        error = get_evident_error(result["result"])
+        error = get_evident_error(result)
         error.throw_if_error()
 
     def get_laser_intensity(self, laser_id: str) -> float:
@@ -798,7 +782,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         inputVal = {"settingId": "LSM_LASER_INTENSITY_SETTING", "laserId": laser_id}
         result = self._proxy.Parameter.getParameter(inputVal)
 
-        error = get_evident_error(result["result"])
+        error = get_evident_error(result)
         error.throw_if_error()
 
         return result["laserIntensity"]
@@ -817,7 +801,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         inputVal = {"settingId": "LSM_LASER_INTENSITY_SETTING", "laserId": laser_id, "laserIntensity": intensity}
         result = self._proxy.Parameter.setParameter(inputVal)
 
-        error = get_evident_error(result["result"])
+        error = get_evident_error(result)
         error.throw_if_error()
 
     @property
@@ -832,10 +816,10 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         # print("The current objective lens is:", result["revolver"]["lensName"], "with magnification of:", result["revolver"]["magnification"])
         result = self._proxy.Parameter.getParameter(inputVal)
 
-        error = get_evident_error(result["result"])
+        error = get_evident_error(result)
         error.throw_if_error()
 
-        return result["resolver"]
+        return result["revolver"]
 
     @objective.setter
     def objective(self, revolver_index: int):
@@ -848,7 +832,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         inputVal = {"settingId": "LSM_MICROSCOPE_OBJECTIVE_LENS_CURRENT_SETTING", "revolverIndex": revolver_index}
         result = self._proxy.Parameter.setParameter(inputVal)
 
-        error = get_evident_error(result["result"])
+        error = get_evident_error(result)
         error.throw_if_error()
 
     @property
@@ -860,9 +844,9 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
             list[str]: List of objective lens names.
         """
         inputVal = {"settingId": "LSM_MICROSCOPE_OBJECTIVE_LENS_LIST_SETTING"}
-        result = self._proxy.Parameter.getParameter(inputVal)["revolvers"]
+        result = self._proxy.Parameter.getParameter(inputVal)
 
-        error = get_evident_error(result["result"])
+        error = get_evident_error(result)
         error.throw_if_error()
 
         return result["revolvers"]
@@ -876,7 +860,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         result = self._proxy.Parameter.getParameter(inputVal)
         stage_z = result["stagePosition"]
 
-        error = get_evident_error(result["result"])
+        error = get_evident_error(result)
         error.throw_if_error()
 
         return stage_z * u.nm
@@ -890,7 +874,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         inputVal = {"settingId": "Z_STAGE_POSITION_SETTING", "stagePosition": z}
         result = self._proxy.Parameter.setParameter(inputVal)
 
-        error = get_evident_error(result["result"])
+        error = get_evident_error(result)
         error.throw_if_error()
 
     @property
@@ -904,7 +888,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         inputVal = {"settingId": "LSM_Z_COORDINATE_ENABLE_SETTING"}
         result = self._proxy.Parameter.getParameter(inputVal)
 
-        error = get_evident_error(result["result"])
+        error = get_evident_error(result)
         error.throw_if_error()
 
         return result["enable"]
@@ -923,7 +907,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         inputVal = {"settingId": "LSM_Z_COORDINATE_ENABLE_SETTING", "enable": enable}
         result = self._proxy.Parameter.setParameter(inputVal)
 
-        error = get_evident_error(result["result"])
+        error = get_evident_error(result)
         error.throw_if_error()
 
     @property
@@ -937,7 +921,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         inputVal = {"settingId": "LSM_Z_COORDINATE_SLICE_NUM_SETTING"}
         result = self._proxy.Parameter.getParameter(inputVal)
 
-        error = get_evident_error(result["result"])
+        error = get_evident_error(result)
         error.throw_if_error()
 
         return result["sliceNum"]
@@ -956,7 +940,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         inputVal = {"settingId": "LSM_Z_COORDINATE_SLICE_NUM_SETTING", "sliceNum": slice_num}
         result = self._proxy.Parameter.setParameter(inputVal)
 
-        error = get_evident_error(result["result"])
+        error = get_evident_error(result)
         error.throw_if_error()
 
     @property
@@ -970,7 +954,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         inputVal = {"settingId": "LSM_Z_COORDINATE_STEP_SIZE_SETTING"}
         result = self._proxy.Parameter.getParameter(inputVal)
 
-        error = get_evident_error(result["result"])
+        error = get_evident_error(result)
         error.throw_if_error()
 
         return result["stepSize"] * u.nm
@@ -989,5 +973,5 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         inputVal = {"settingId": "LSM_Z_COORDINATE_STEP_SIZE_SETTING", "stepSize": step_size.to(u.nm).value}
         result = self._proxy.Parameter.setParameter(inputVal)
 
-        error = get_evident_error(result["result"])
+        error = get_evident_error(result)
         error.throw_if_error()
