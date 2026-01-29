@@ -415,7 +415,8 @@ class Detector(Device, ABC):
             logging.debug("fetching data of %s ((tid: %i)).", self, threading.get_ident())
             data = self._fetch(*awaited_args, **awaited_kwargs)
             data = set_pixel_size(data, self.pixel_size)
-            assert data.shape == self.data_shape
+            if self.data_shape is not None:
+                assert data.shape == self.data_shape
             if out_ is not None:
                 out_[...] = data  # store data in the location specified during trigger
             return data
