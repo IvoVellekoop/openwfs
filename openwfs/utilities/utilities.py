@@ -337,7 +337,7 @@ def project(
     out_size = (out_shape[1], out_shape[0])
     if (source.dtype == np.complex128) or (source.dtype == np.complex64):
         if out is None:
-            out = np.zeros(out_shape, dtype=source.dtype)
+            out = np.zeros(out_shape, dtype=source.dtype.str)
         # real part
         out.real = cv2.warpAffine(
             source.real,
