@@ -24,3 +24,4 @@ poetry.toml
 /poetry.lock
 /uv.lock
 /openwfs/_version.py
+.coverage
