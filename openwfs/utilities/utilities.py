@@ -337,7 +337,7 @@ def project(
     out_size = (out_shape[1], out_shape[0])
     if (source.dtype == np.complex128) or (source.dtype == np.complex64):
         if out is None:
-            out = np.zeros(out_shape, dtype=source.dtype)
+            out = np.zeros(out_shape, dtype=source.dtype.str)
         # real part
         out.real = cv2.warpAffine(
             source.real,
@@ -395,6 +395,11 @@ def set_pixel_size(data: ArrayLike, pixel_size: Optional[Quantity]) -> np.ndarra
 
     if pixel_size is not None and pixel_size.size == 1:
         pixel_size = pixel_size * np.ones(data.ndim)
+
+    old_pixel_size = get_pixel_size(data)
+    if old_pixel_size is not None:
+        if not np.allclose(old_pixel_size, pixel_size):
+            raise NotImplementedError("Overwritting the value of pixel size is currently not possible.")
 
     data.dtype = np.dtype(data.dtype, metadata={"pixel_size": pixel_size})
     return data
