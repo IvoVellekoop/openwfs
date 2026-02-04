@@ -1,6 +1,7 @@
 from unittest import result
 import astropy.units as u
 from astropy.units import Quantity
+from zmq import CHANNEL
 from openwfs.core import Actuator, Detector
 import numpy as np
 import time
@@ -9,7 +10,8 @@ import shutil
 import os
 import xmlrpc.client
 import string
-import random
+import datetime, itertools
+import time
 
 # TODO:
 # add property to get pixel size and data_shape from microscope, currently hardcoded to the values 100 nm and (1024, 1024)
@@ -82,7 +84,6 @@ class EvidentCamera(Detector):
     
         self._proxy = proxy
         self._most_recent_file_path = None  # to store the path of the most recently acquired image file
-        self.session_name = ''.join(random.choices(string.ascii_letters, k=5)) # creates a random session name to for image name of ori files
         self.images_saved = 0
         
 
@@ -95,6 +96,8 @@ class EvidentCamera(Detector):
         """
         inputVal = {"executionType": "EXECUTION_TYPE_MANUAL_MAIN"}
         result = self._proxy.Protocol.startProtocol(inputVal)
+        error = get_evident_error(result)
+        error.throw_if_error()
 
         # result = self._proxy.Protocol.getAcquiringFiles()
         file_path = result["targetName"][0]["name"]
@@ -119,14 +122,19 @@ class EvidentCamera(Detector):
         while self.busy(): # This should not be needed but somehow it is
             time.sleep(0.2)
 
+            
+        start = time.time()
+  
+
         if self._saving_folder is not None:
             # copy raw OIR files to predefined saving folder to save OIR files
-
-            filename = self.session_name + f"_{self.images_saved:05d}.oir"
+    
+            filename = f"{datetime.datetime.now().strftime('%Y_%m_%d_%H_%M_%S')}.oir"
             destination = os.path.join(self._saving_folder, filename)
             shutil.copy2(file_path, destination)
             # self.images_saved = self.images_saved + 1; This needs to be added but does not work due to the threading in opwenwfs core (locks this forever)
-        print("Reading image from file:", file_path)  # for debugging purposes
+
+
         image, pixel_sizes = self.get_image(self._proxy, self._most_recent_file_path)
 
         self._pixel_size = pixel_sizes[0:2] * u.um # This needs to be changes to hanbdle multidimensional images
@@ -134,6 +142,8 @@ class EvidentCamera(Detector):
         # self.wait() # waiting for imaging to complete - \this function is not working, it waits for fetch to finish according to the base class implementation, and since fetch is called within read, it causes a loop of waiting.
 
         # time.sleep(2)  # wait for file to be fully written, Find better solution later
+        end = time.time()
+        print(end - start)
 
         return image
 
@@ -185,22 +195,31 @@ class EvidentCamera(Detector):
         result = proxy.IDA.getProperty(inputVal)
         err = get_evident_error(result)
         if err.is_error:
-            return err, None
-        out = np.array([0, 0, 0], dtype=bool)
+            return err, None, None
+        axes_bool = np.array([0, 0, 0], dtype=bool)
+        size_bool = np.array([1, 1, 1], dtype=int)
         axes = result["value"]
         for i in np.arange(3):
-            if labels_axes[i] in axes:
-                out[i] = True
-
-        return err, out
+            axis_name = labels_axes[i]
+            if axis_name in axes:
+                axes_bool[i] = True
+                inputVal = {"areaId": areaId, "key": "AxisMaxSize", "additional": {"axisName": str(axis_name)}}
+                result_size = proxy.IDA.getProperty(inputVal)
+                err_size = get_evident_error(result_size)
+                if err_size.is_error:
+                    return err_size, None, None
+                
+                size_bool[i] = int(result_size["value"][0])
+        return err, axes_bool, size_bool
 
     @staticmethod
     def get_image_id(proxy, area_id, labels_axes, index_axes, channel_list):
-        axis_info = []
+    
         assert labels_axes.shape == index_axes.shape
-
+    
+        axis_info = []
         for index, label in zip(index_axes, labels_axes):
-            axis_info.append({"axisName": label, "index": index})
+            axis_info.append({"axisName": str(label), "index": int(index)})
 
         inputVal = {"areaId": area_id, "channelId": channel_list[0], "axisInfo": axis_info}
 
@@ -250,27 +269,31 @@ class EvidentCamera(Detector):
                         
                         if not channel_list_err.is_error:
                             api_axes = np.array(["LAMBDA", "ZSTACK", "TIMELAPSE"])
-                            axes_exist_err, axes_exist = EvidentCamera.get_axes_on_image(proxy, area_id, api_axes)
+                            axes_exist_err, axes_exist, size_axes = EvidentCamera.get_axes_on_image(proxy, area_id, api_axes)
 
                             if not axes_exist_err.is_error:
-                                axes_of_img = api_axes[axes_exist]                            
-                                image_id_err, image_id = EvidentCamera.get_image_id(
-                                    proxy,
-                                    area_id,
-                                    axes_of_img,
-                                    np.zeros(axes_of_img.shape, dtype=int),
-                                    channel_list,
-                                )
+                                multistack_img = None
+                                for iL, iZ, iT in itertools.product(np.arange(size_axes[0]), np.arange(size_axes[1]), np.arange(size_axes[2])):
+                                    axes_of_img = api_axes[axes_exist]                            
+                                    image_id_err, image_id = EvidentCamera.get_image_id(
+                                        proxy,
+                                        area_id,
+                                        axes_of_img,
+                                        np.array((iL, iZ, iT))[axes_exist],
+                                        channel_list,
+                                    )
 
-                                if not image_id_err.is_error:
-                                    data_err, data = EvidentCamera.get_image_data(proxy, image_id)
-
-                                    if data_err.is_error:
-                                        error = data_err
-                                    
-                                    proxy.IDA.releaseImage({"imageId": image_id[1]})
-                                else:
-                                    error = image_id_err
+                                    if not image_id_err.is_error:
+                                        data_err, data = EvidentCamera.get_image_data(proxy, image_id)
+                                        if data_err.is_error:
+                                            error = data_err
+                                        if multistack_img is None:
+                                            multistack_img = np.zeros(data.shape + (size_axes[0], size_axes[1], size_axes[2]), dtype=data.dtype)
+                                        multistack_img[:,:,iL,iZ,iT] = data
+                                        
+                                        proxy.IDA.releaseImage({"imageId": image_id[1]})
+                                    else:
+                                        error = image_id_err
                             else:
                                 error = axes_exist_err
                         else:
@@ -289,7 +312,7 @@ class EvidentCamera(Detector):
         if error is not None:
             error.throw_if_error()
 
-        return data, pixel_sizes
+        return multistack_img, pixel_sizes
 
     @staticmethod
     def get_pixel_sizes(proxy, area_id):
@@ -304,7 +327,11 @@ class EvidentCamera(Detector):
         If get protocol progress returns a state other than IDLING, the device is busy.
         """
         # print(" busy function is used in EvidentCamera to check if the camera is measuring.")
-        return self.get_imaging_progress()["state"] != "IDLING"
+        progress = self.get_imaging_progress()["state"]
+        if progress == "WAITING":
+            self.stop_imaging()
+            progress = self.get_imaging_progress()["state"]
+        return progress != "IDLING"
 
     # we are using the busy function to check if the camera is measuring, so duration property is not needed. it is not possible to query the expected duration from the microscope
     # @property
