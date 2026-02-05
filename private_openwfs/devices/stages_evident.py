@@ -1,22 +1,18 @@
-from unittest import result
 import astropy.units as u
 from astropy.units import Quantity
-from zmq import CHANNEL
 from openwfs.core import Actuator, Detector
 import numpy as np
 import time
 from ..utilities.utilities import set_metadata
-import shutil
+
 import os
 import xmlrpc.client
-import string
-import datetime, itertools
+import itertools
 import time
 
-# TODO:
-# add property to get pixel size and data_shape from microscope, currently hardcoded to the values 100 nm and (1024, 1024)
-# find a way to get the actual values from the microscope software if possible
-# Support for multidimensional images (lambda, z-stack, time-lapse)
+# TO DO:
+# Check if it is possible to get the image data while imaging. E.g. for multiple time stacks get the data while imaging the next frame.
+# Lasers measured on different channels, not clear that the ND array structure is correct for that case
 
 class EvidentError:
     def __init__(self, is_error: bool, error):
@@ -26,7 +22,6 @@ class EvidentError:
     def throw_if_error(self):
         if self.is_error:
             raise self.error
-
 
 def get_evident_error(output_command):
     """
@@ -60,7 +55,6 @@ class EvidentCamera(Detector):
 
     Arg:
         proxy: xmlrpc client proxy to communicate with Evident microscope
-        saving_folder: folder to save raw OIR files, if None, raw files are not copied and stay where the microscope saves them.
 
     Returns:
         EvidentCamera object
@@ -69,18 +63,10 @@ class EvidentCamera(Detector):
         cam = EvidentCamera(proxy)
     """
 
-    def __init__(self, proxy, saving_folder=None):
+    def __init__(self, proxy):
         Detector.__init__(
             self, duration=np.inf * u.s, latency=0 * u.ms, data_shape=None, pixel_size=None
         )  # duration and pixel_size is set after triggering the camera (see _do_trigger)
-
-        if saving_folder is None:
-            self._saving_folder = None
-        else:
-            if os.path.isdir(saving_folder):
-                self._saving_folder = saving_folder
-            else:
-                raise FileNotFoundError(f"Saving folder does not exist: {saving_folder}. Create the folder or provide a path to an existing folder.")
     
         self._proxy = proxy
         self._most_recent_file_path = None  # to store the path of the most recently acquired image file
@@ -103,8 +89,6 @@ class EvidentCamera(Detector):
         file_path = result["targetName"][0]["name"]
         self._most_recent_file_path = file_path  # store the most recent file path
 
-        print("In _fetch: Acquired image saved at:", file_path)  # for debugging purposes
-
     def _fetch(self) -> np.ndarray:
         """
         Fetch the acquired image from the camera and convert to numpy array.
@@ -119,21 +103,8 @@ class EvidentCamera(Detector):
         # print("Accessing image from network path:", file_path)  # for debugging purposes
         #####################################################################
 
-        while self.busy(): # This should not be needed but somehow it is
+        while self.busy(): # This should not be needed but somehow it is. Check with Ivo as probably something is work on how evident is setup in openwfs
             time.sleep(0.2)
-
-            
-        start = time.time()
-  
-
-        if self._saving_folder is not None:
-            # copy raw OIR files to predefined saving folder to save OIR files
-    
-            filename = f"{datetime.datetime.now().strftime('%Y_%m_%d_%H_%M_%S')}.oir"
-            destination = os.path.join(self._saving_folder, filename)
-            shutil.copy2(file_path, destination)
-            # self.images_saved = self.images_saved + 1; This needs to be added but does not work due to the threading in opwenwfs core (locks this forever)
-
 
         image, pixel_sizes = self.get_image(self._proxy, self._most_recent_file_path)
 
@@ -142,8 +113,6 @@ class EvidentCamera(Detector):
         # self.wait() # waiting for imaging to complete - \this function is not working, it waits for fetch to finish according to the base class implementation, and since fetch is called within read, it causes a loop of waiting.
 
         # time.sleep(2)  # wait for file to be fully written, Find better solution later
-        end = time.time()
-        print(end - start)
 
         return image
 
@@ -213,7 +182,7 @@ class EvidentCamera(Detector):
         return err, axes_bool, size_bool
 
     @staticmethod
-    def get_image_id(proxy, area_id, labels_axes, index_axes, channel_list):
+    def get_image_id(proxy, area_id, labels_axes, index_axes, channel):
     
         assert labels_axes.shape == index_axes.shape
     
@@ -221,7 +190,7 @@ class EvidentCamera(Detector):
         for index, label in zip(index_axes, labels_axes):
             axis_info.append({"axisName": str(label), "index": int(index)})
 
-        inputVal = {"areaId": area_id, "channelId": channel_list[0], "axisInfo": axis_info}
+        inputVal = {"areaId": area_id, "channelId": channel, "axisInfo": axis_info}
 
         result = proxy.IDA.getImage(inputVal)
         err = get_evident_error(result)
@@ -249,10 +218,11 @@ class EvidentCamera(Detector):
 
     @staticmethod
     def get_image(proxy, filepath):
-        # TODO: need to update to handle stack of channels, time, and z
+        
         inputVal = {"filename": filepath}
         result = proxy.IDA.open(inputVal)
         error = None
+
         error_file = get_evident_error(result)
         if not error_file.is_error:
             fileId = result["fileId"]
@@ -270,26 +240,28 @@ class EvidentCamera(Detector):
                         if not channel_list_err.is_error:
                             api_axes = np.array(["LAMBDA", "ZSTACK", "TIMELAPSE"])
                             axes_exist_err, axes_exist, size_axes = EvidentCamera.get_axes_on_image(proxy, area_id, api_axes)
-
+                       
                             if not axes_exist_err.is_error:
-                                multistack_img = None
-                                for iL, iZ, iT in itertools.product(np.arange(size_axes[0]), np.arange(size_axes[1]), np.arange(size_axes[2])):
+                                multistack_img = None # initilize as none because the width and height is not known yet
+                                for iL, iZ, iT, iCh in itertools.product(np.arange(size_axes[0]), np.arange(size_axes[1]), np.arange(size_axes[2]), np.arange(len(channel_list))):
                                     axes_of_img = api_axes[axes_exist]                            
                                     image_id_err, image_id = EvidentCamera.get_image_id(
                                         proxy,
                                         area_id,
                                         axes_of_img,
                                         np.array((iL, iZ, iT))[axes_exist],
-                                        channel_list,
+                                        channel_list[iCh],
                                     )
 
                                     if not image_id_err.is_error:
+
                                         data_err, data = EvidentCamera.get_image_data(proxy, image_id)
+
                                         if data_err.is_error:
                                             error = data_err
                                         if multistack_img is None:
-                                            multistack_img = np.zeros(data.shape + (size_axes[0], size_axes[1], size_axes[2]), dtype=data.dtype)
-                                        multistack_img[:,:,iL,iZ,iT] = data
+                                            multistack_img = np.zeros(data.shape + (size_axes[0], size_axes[1], size_axes[2], len(channel_list)), dtype=data.dtype)
+                                        multistack_img[:,:,iL,iZ,iT,iCh] = data
                                         
                                         proxy.IDA.releaseImage({"imageId": image_id[1]})
                                     else:
@@ -416,9 +388,6 @@ class EvidentXYStage(Actuator):
         Returns true if the device is moving else false.
         If stage position is not equal to target position, the device is busy.
         """
-        print(" busy function is used in EvidentXYStage to check if the stage is moving.")
-        print("Current stage position (x, y):", self.xy)
-        print("Target stage position (x, y):", self._target_xy)
         time.sleep(0.5)  # to avoid spamming the proxy with requests
         return tuple(int(q.value) for q in self.xy) != self._target_xy
 
@@ -470,7 +439,6 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
 
     Arg:
         proxy: xmlrpc client proxy to communicate with Evident microscope
-        saving_folder: folder to save raw OIR files, if None, raw files are not copied and stay where the microscope saves them.
 
     Returns:
         EvidentMicroscope object with .camera and .stage properties.
@@ -481,10 +449,10 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         stage = mic.stage
     """
 
-    def __init__(self, url, saving_folder=None):
+    def __init__(self, url):
         proxy = xmlrpc.client.ServerProxy(url)
         self._proxy = proxy
-        self.cam = EvidentCamera(proxy, saving_folder)
+        self.cam = EvidentCamera(proxy)
         self.stage_xy = EvidentXYStage(proxy)
         # super().__init__(self.cam, self.stage_xy)
 
