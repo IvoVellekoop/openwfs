@@ -416,7 +416,7 @@ class EvidentCamera(Detector):
         inputVal = {"executionType": execution_type}
         return self._proxy.Protocol.getProtocolProgress(inputVal)
 
-    def stop_imaging(self, execution_type: str = "EXECUTION_TYPE_MANUAL_MAIN") -> dict:
+    def stop_imaging(self, execution_type: str = "EXECUTION_TYPE_MANUAL_MAIN"):
         """
         Stop imaging on the microscope.
 
@@ -428,7 +428,13 @@ class EvidentCamera(Detector):
             dict: Result dictionary containing result code, wait time, and target name.
         """
         inputVal = {"executionType": execution_type}
-        return self._proxy.Protocol.stopProtocol(inputVal)
+        
+        out = self._proxy.Protocol.stopProtocol(inputVal)
+        if out['result'] not in ("UNAVAILABLE", "OK"):
+            err = get_evident_error(out)
+            err.throw_if_error()
+        return None
+
 
 
 class EvidentXYStage(Actuator):
