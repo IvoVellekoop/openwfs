@@ -428,13 +428,12 @@ class EvidentCamera(Detector):
             dict: Result dictionary containing result code, wait time, and target name.
         """
         inputVal = {"executionType": execution_type}
-        
+
         out = self._proxy.Protocol.stopProtocol(inputVal)
-        if out['result'] not in ("UNAVAILABLE", "OK"):
+        if out["result"] not in ("UNAVAILABLE", "OK"):
             err = get_evident_error(out)
             err.throw_if_error()
         return None
-
 
 
 class EvidentXYStage(Actuator):
