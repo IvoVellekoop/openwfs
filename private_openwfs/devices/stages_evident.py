@@ -3,8 +3,6 @@ from astropy.units import Quantity
 from openwfs.core import Actuator, Detector
 import numpy as np
 import time
-from ..utilities.utilities import set_metadata
-from openwfs.utitilies import set_pixel_size
 
 import os
 import xmlrpc.client
