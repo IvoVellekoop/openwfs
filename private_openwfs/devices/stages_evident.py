@@ -12,6 +12,7 @@ import time
 # TO DO:
 # Check if it is possible to get the image data while imaging. E.g. for multiple time stacks get the data while imaging the next frame.
 # Lasers measured on different channels, not clear that the ND array structure is correct for that case
+# add all the MATL imaging functions
 
 
 class EvidentError:
