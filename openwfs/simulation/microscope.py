@@ -41,6 +41,7 @@ class Microscope(Processor):
         magnification: float = 1.0,
         xy_stage=None,
         z_stage=None,
+        immersion_refractive_index: Optional[float] = 1.0,
         incident_field: Union[Detector, ArrayLike, None] = None,
         incident_transform: Optional[Transform] = None,
         aberrations: Union[Detector, np.ndarray, None] = None,
@@ -107,6 +108,7 @@ class Microscope(Processor):
         self.aberration_transform = aberration_transform
         self.slm_transform = incident_transform
         self.wavelength = wavelength.to(u.nm)
+        self.immersion_refractive_index = immersion_refractive_index
         self.oversampling_factor = 2.0
         self.xy_stage = xy_stage or XYStage(0.1 * u.um, 0.1 * u.um)
         self.z_stage = z_stage or LinearStage(0.1 * u.um)
@@ -172,10 +174,10 @@ class Microscope(Processor):
         pupil_extent = unitless(self.wavelength / target_pixel_size)
 
         # If the pupil extent is smaller than 2.0 * NA, warn the user
-        if pupil_extent / 2 < self.numerical_aperture:
+        if pupil_extent[0] / 2 < self.numerical_aperture:
             warnings.warn(
                 f"The given grid does not support the spatial frequency components required for the given numerical aperture. \n"
-                f"Currently, the maximum supported NA is {pupil_extent / 2:.2f} for the current settings. \n"
+                f"Currently, the maximum supported NA is {pupil_extent[0] / 2:.2f} for the current settings. \n"
                 f"Either decrease the magnification, decrease the wavelength or increase the pixel size of the source",
                 UserWarning,
             )
@@ -192,7 +194,7 @@ class Microscope(Processor):
         # Add defocus from z-stage
         if self.z_stage is not None:
             phase = propagation(
-                pupil_shape, distance=self.z_stage.position, wavelength=self.wavelength, extent=pupil_extent
+                pupil_shape, distance=self.z_stage.position, wavelength=self.wavelength, extent=pupil_extent, refractive_index=self.immersion_refractive_index
             )
             pupil_field = pupil_field * np.exp(1j * phase)
 
