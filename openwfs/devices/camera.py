@@ -3,10 +3,66 @@ from typing import Optional
 
 import astropy.units as u
 import numpy as np
+import weakref
 from astropy.units import Quantity
 from harvesters.core import Harvester
 
 from ..core import Detector
+
+
+class CameraHarvester:
+    """
+    A wrapper for the Harvester object that allows it to be shared across multiple Camera instances.
+
+    """
+
+    def __init__(self, harvester):
+        self._harvester = harvester
+        self.cti_files = (
+            []
+        )  # Need to keep track of the added CTI files because the same CTI file cannot be added multiple times to the Harvester object. This is a limitation of the Harvesters library, not of this wrapper class. Segmentation fault can occur if the same CTI file is added multiple times.
+
+    def __del__(self):
+        if self._harvester is not None:
+            self._harvester.reset()
+
+    def add_file(self, cti_file):
+        if cti_file not in self.cti_files:
+            try:
+                self._harvester.add_file(cti_file, check_validity=True)
+                self._harvester.update()
+            except (OSError, FileNotFoundError) as e:
+                print(f"Failed to load CTI file: {cti_file}")
+                print(f"Error: {str(e)}")
+                print(
+                    "Please ensure that the CTI file exists at the specified location "
+                    "and that it is a valid GenTL producer file. You can download or "
+                    "locate the file from the camera manufacturer's website or SDK, "
+                    "such as the Basler pylon SDK."
+                )
+            self.cti_files.append(cti_file)
+
+    def enumerate_cameras(self):
+        return self._harvester.device_info_list.copy()
+
+    @staticmethod
+    def get_harvester():
+        """Returns the Harvester object for the specified GenTL producer.
+
+        Returns:
+            Harvester: A Harvester object that can be used to access the cameras available through the specified GenTL producer.
+        """
+        global global_cam_harvester
+        if global_cam_harvester is None:
+            cam_harvester = CameraHarvester(Harvester())
+            global_cam_harvester = weakref.ref(cam_harvester)
+        else:
+            cam_harvester = global_cam_harvester()
+
+        return cam_harvester
+
+
+global_cam_harvester = None
 
 
 class Camera(Detector):
@@ -35,7 +91,7 @@ class Camera(Detector):
         >>> frame = camera.read()
     """
 
-    __slots__ = ("_harvester", "_camera", "_nodes")
+    __slots__ = ("cam_harvester", "_camera", "_nodes")
 
     def __init__(
         self,
@@ -63,29 +119,15 @@ class Camera(Detector):
             **kwargs: Additional keyword arguments.
                 These arguments are transferred to the node map of the camera. They must follow the `genicam` standard.
         """
-        self._harvester = Harvester()
+        global global_cam_harvester
 
-        try:
-            # Try to add the GenTL producer file (cti_file)
-            self._harvester.add_file(cti_file, check_validity=True)
-            print(f"Successfully loaded CTI file: {cti_file}")
-        except Exception as e:
-            # Catch any errors during the file loading process and provide a user-friendly message
-            print(f"Failed to load CTI file: {cti_file}")
-            print(f"Error: {str(e)}")
-            print(
-                "Please ensure that the CTI file exists at the specified location "
-                "and that it is a valid GenTL producer file. You can download or "
-                "locate the file from the camera manufacturer's website or SDK, "
-                "such as the Basler pylon SDK."
-            )
-            raise
-
-        self._harvester.update()
+        self.cam_harvester = CameraHarvester.get_harvester()
+        if cti_file is not None:
+            self.cam_harvester.add_file(cti_file)
 
         # open the camera, use the serial_number to select the camera if it is specified.
         search_key = {"serial_number": serial_number} if serial_number is not None else None
-        self._camera = self._harvester.create(search_key=search_key)
+        self._camera = self.cam_harvester._harvester.create(search_key=search_key)
         nodes = self._camera.remote_device.node_map
         self._nodes = nodes
 
@@ -140,13 +182,15 @@ class Camera(Detector):
         #         automatically expose a selection of properties in the node map as
         #         properties of the Camera object.
         #
-
         try:
             pixel_size = [
                 nodes.SensorPixelHeight.value,
                 nodes.SensorPixelWidth.value,
             ] * u.um
         except AttributeError:  # the SensorPixelWidth feature is optional
+            warnings.warn(
+                "Camera does not have SensorPixelHeight and SensorPixelWidth properties. Pixel size will be set to None. The pixel size can be set manually by setting the _pixel_size attribute of the Camera object, e.g. `camera._pixel_size = [4.8, 4.8] * u.um`"
+            )
             pixel_size = None
 
         super().__init__(
@@ -162,8 +206,6 @@ class Camera(Detector):
         if hasattr(self, "_camera"):
             self._camera.stop()
             self._camera.destroy()
-        if hasattr(self, "_harvester"):
-            self._harvester.reset()
 
     def _do_trigger(self):
         """Executes the software trigger command on the camera.
@@ -310,7 +352,7 @@ class Camera(Detector):
         return self.height, self.width
 
     @staticmethod
-    def enumerate_cameras(cti_file: str):
+    def enumerate_cameras(cti_file=None):
         """Enumerates all cameras available through the specified GenTL producer.
 
         Args:
@@ -322,13 +364,10 @@ class Camera(Detector):
         Warns:
             UserWarning: If the CTI file cannot be loaded.
         """
-        with Harvester() as harvester:
-            try:
-                harvester.add_file(cti_file, check_validity=True)
-                harvester.update()
-            except (OSError, FileNotFoundError):
-                warnings.warn(f"Failed to load CTI file: {cti_file}")
-            return harvester.device_info_list.copy()
+        cam_harvester = CameraHarvester.get_harvester()
+        if cti_file is not None:
+            cam_harvester.add_file(cti_file)
+        return cam_harvester.enumerate_cameras()
 
 
 class _CameraPause:
