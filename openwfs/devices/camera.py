@@ -53,11 +53,15 @@ class CameraHarvester:
             Harvester: A Harvester object that can be used to access the cameras available through the specified GenTL producer.
         """
         global global_cam_harvester
-        if global_cam_harvester is None:
+        if type(global_cam_harvester) is weakref.ReferenceType:
+            if global_cam_harvester() is None:
+                cam_harvester = CameraHarvester(Harvester())
+                global_cam_harvester = weakref.ref(cam_harvester)
+            else:
+                cam_harvester = global_cam_harvester()
+        else:
             cam_harvester = CameraHarvester(Harvester())
             global_cam_harvester = weakref.ref(cam_harvester)
-        else:
-            cam_harvester = global_cam_harvester()
 
         return cam_harvester
 
