@@ -44,7 +44,7 @@ class Texture:
         with self.context:
             GL.glBindTexture(self.type, self.handle)
             GL.glPixelStorei(GL.GL_UNPACK_ALIGNMENT, 4)  # alignment is at least four bytes since we use float32
-            (internal_format, data_format, data_type) = (
+            internal_format, data_format, data_type = (
                 GL.GL_R32F,
                 GL.GL_RED,
                 GL.GL_FLOAT,
