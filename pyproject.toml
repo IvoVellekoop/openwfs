@@ -26,7 +26,7 @@ classifiers = [
 dependencies = [
     "numpy>=1.25.2",
     "astropy>=6.0.0",
-    "opencv-python>=4.9.0.80",
+    "opencv-python>=4.9.0.80, != 4.13.0.*",
     "matplotlib>=3.7.3",
     "scipy>=1.11.3",
     "annotated-types>=0.7.0",
