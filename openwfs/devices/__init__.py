@@ -54,6 +54,9 @@ def safe_import(module_name: str, extra_name: str):
         importlib.import_module(module_name)
     except (ModuleNotFoundError, AttributeError):
         sys.modules[module_name] = _MockModule(module_name, extra_name)
+    except Exception as e:
+        print(f"Error while importing {module_name}: {e}")
+        sys.modules[module_name] = _MockModule(module_name, extra_name)
 
 
 safe_import("harvesters", "genicam")
