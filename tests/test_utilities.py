@@ -154,3 +154,13 @@ def test_inverse():
     assert np.allclose(vector, transformed_back)
     assert np.allclose(inverse @ transform @ vector, vector)
     assert np.allclose(transform @ inverse @ vector, vector)
+
+
+def test_utilities_microscope():
+    import openwfs.utilities as owf_u
+    import openwfs.simulation as owf_s
+
+    mic, slm, src = owf_u.tests.get_test_microscope()
+    assert type(mic) == owf_s.Microscope
+    assert type(slm) == owf_s.SLM
+    assert type(src) == owf_s.StaticSource
