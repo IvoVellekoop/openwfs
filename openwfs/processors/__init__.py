@@ -7,4 +7,5 @@ from .processors import (
     TransformProcessor,
     Roi,
     select_roi,
+    FunctionProcessor
 )

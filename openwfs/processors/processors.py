@@ -460,3 +460,28 @@ class TransformProcessor(Processor):
             out_shape=self.data_shape,
             out_extent=self.extent,
         )
+
+
+class FunctionProcessor(Processor):
+    """Processor that applies a user-defined function to the data from the source."""
+
+    def __init__(self, source: Detector, func, shape: Optional[Sequence[int]] = None, multi_threaded: bool = True):
+        """
+        Args:
+            source (Detector): The data source to process.
+            func (callable): A function that takes the data from source.read() as input and return a processed version of the data. The output of the function must be a numpy array.
+            data_shape (Sequence[int]): The shape of the output data.
+            multi_threaded (bool): Whether to perform processing in a worker thread. Default is True.
+        """
+        super().__init__(source, multi_threaded=multi_threaded)
+        self.func = func
+        self._data_shape = shape
+
+    def _fetch(self, image):
+        return self.func(image)
+
+    @property
+    def data_shape(self) -> tuple:
+        """Size of the data after applying the function"""
+        return self._data_shape
+
