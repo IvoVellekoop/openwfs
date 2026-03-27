@@ -485,4 +485,3 @@ class FunctionProcessor(Processor):
     def data_shape(self) -> tuple:
         """Size of the data after applying the function"""
         return self._data_shape
-
