@@ -467,6 +467,7 @@ class FunctionProcessor(Processor):
 
     def __init__(self, source: Detector, func, shape: Optional[Sequence[int]] = None, multi_threaded: bool = True):
         """
+        Processor that applies a user-defined function to the data from the source.
         Args:
             source (Detector): The data source to process.
             func (callable): A function that takes the data from source.read() as input and return a processed version of the data. The output of the function must be a numpy array.
