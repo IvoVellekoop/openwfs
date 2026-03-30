@@ -13,6 +13,7 @@ authors = [
     { name = "Daniël Cox" },
     { name = "Arnon A. B."},
     { name = "Swapnil Mache"},
+    { name = "Dylan Marques" },
     { name = "Ivo Vellekoop", email = "i.m.vellekoop@utwente.nl" },
 ]
 requires-python = ">=3.10,<4.0"
@@ -26,7 +27,9 @@ classifiers = [
 dependencies = [
     "numpy>=1.25.2",
     "astropy>=6.0.0",
-    "opencv-python>=4.9.0.80",
+#    "opencv-python>=4.9.0.80",
+#    "opencv-python=4.11.0.86",
+    "opencv-python>4.13",
     "matplotlib>=3.7.3",
     "scipy>=1.11.3",
     "annotated-types>=0.7.0",
