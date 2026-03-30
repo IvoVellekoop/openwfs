@@ -180,7 +180,7 @@ class Microscope(Processor):
         pupil_area = np.sum(pupil_field)  # TODO (efficiency): compute area directly from radius
 
         # Add defocus from z-stage
-        if self.z_stage is not None:
+        if self.z_stage is not None and not self.z_stage.position == 0:
             phase = propagation(
                 pupil_shape, distance=self.z_stage.position, wavelength=self.wavelength, extent=pupil_extent
             )
