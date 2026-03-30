@@ -88,24 +88,21 @@ def test_function_processor(func, data_shape):
     data = np.random.rand(10, 10)
     pixel_size = 1 * u.um
     mock_source = StaticSource(data, pixel_size=pixel_size)
-    func_processor = FunctionProcessor(mock_source, func=func, shape=data_shape)
+    func_processor = FunctionProcessor(mock_source, func=func, data_shape=data_shape)
 
     assert np.allclose(func_processor.read(), func(data))
 
 
-def test_error_processor():
+def test_scalar_processor():
     data = np.random.rand(10, 10)
     pixel_size = 1 * u.um
     mock_source = StaticSource(data, pixel_size=pixel_size)
 
-    func_processor = FunctionProcessor(mock_source, func=(lambda data: np.mean(data, axis=(1))), shape=(1,))
-    with pytest.raises(AssertionError):
-        func_processor.read()
+    func_processor = FunctionProcessor(mock_source, func=(lambda data: np.mean(data, axis=(1))), data_shape=(10,))
+    assert np.allclose(data.mean(axis=(1)), func_processor.read())
 
-    # This should always fail because the output has to be a numpy array.
-    func_processor = FunctionProcessor(mock_source, func=(lambda data: 1.0), shape=None)
-    with pytest.raises(AssertionError):
-        func_processor.read()
+    func_processor = FunctionProcessor(mock_source, func=(lambda data: 1.0), data_shape=None)
+    assert np.isclose(func_processor.read(), 1.0)
 
 
 def test_processor_on_processor():
@@ -114,9 +111,9 @@ def test_processor_on_processor():
     mock_source = StaticSource(data, pixel_size=pixel_size)
 
     roi_processor = CropProcessor(mock_source, pos=(5, 5), shape=(2, 2))
-    func_processor = FunctionProcessor(roi_processor, func=lambda x: x * 2, shape=(2, 2))
+    func_processor = FunctionProcessor(roi_processor, func=lambda x: x * 2, data_shape=(2, 2))
 
     assert np.allclose(func_processor.read(), 2 * data[5:7, 5:7])
 
-    func_processsor_2 = FunctionProcessor(func_processor, func=lambda x: x + 1, shape=(2, 2))
+    func_processsor_2 = FunctionProcessor(func_processor, func=lambda x: x + 1, data_shape=(2, 2))
     assert np.allclose(func_processsor_2.read(), 2 * data[5:7, 5:7] + 1)
