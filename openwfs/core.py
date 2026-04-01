@@ -629,6 +629,10 @@ class Processor(Detector, ABC):
     def pixel_size(self) -> Optional[Quantity]:
         """This default implementation returns the pixel size of the first source."""
         return self._sources[0].pixel_size if self._auto_pixel_size else self._pixel_size
+    
+    def busy(self):
+        np.all([i.busy() for i in self._sources])
+
 
 
 class PhaseSLM(ABC):

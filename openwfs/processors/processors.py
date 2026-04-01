@@ -480,3 +480,6 @@ class FunctionProcessor(Processor):
 
     def _fetch(self, image):
         return self.func(image)
+
+    def busy(self):
+        super().busy()
