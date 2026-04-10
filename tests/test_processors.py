@@ -104,6 +104,10 @@ def test_scalar_processor():
     func_processor = FunctionProcessor(mock_source, func=(lambda data: 1.0), data_shape=None)
     assert np.isclose(func_processor.read(), 1.0)
 
+    out = np.ones((1))
+    func_processor.trigger(out=out)
+    assert np.isclose(1.0, out[0])
+
 
 def test_processor_on_processor():
     data = np.random.rand(10, 10)
