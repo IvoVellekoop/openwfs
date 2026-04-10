@@ -1,12 +1,11 @@
 import pytest
 import numpy as np
-from openwfs.utilities.patterns import tilt
-from openwfs.utilities.patterns import gaussian, disk
+from openwfs.utilities.patterns import tilt, gaussian, disk
 
 
 @pytest.mark.parametrize("shape", [10, (7, 10)])
 def test_tilt(shape):
-    t = tilt(shape, (5, 0.71))
+    t = tilt(shape, (2, 2), (5, 0.71))
     if np.size(shape) == 1:
         shape = (shape, shape)
 
@@ -19,18 +18,18 @@ def test_tilt(shape):
     assert np.allclose(t[-1, -1] - t[-1, 0], phase_diff1)
 
 
-shape = (101, 66)
-offset = (0.2, 0.3)
-waist = 0.25
-g = gaussian(shape, waist=0.25, offset=offset)
-argmax = np.unravel_index(np.argmax(g), g.shape)
+def test_gaussian_disk_offset():
+    shape = (101, 66)
+    offset = (0.2, 0.3)
+    waist = 0.25
+    g = gaussian(shape, extent=(2, 2), waist=waist, offset=offset)
+    argmax = np.unravel_index(np.argmax(g), g.shape)
 
-# assumes default extent of (2.0, 2.0)
-expected = np.round((np.array(offset) + 1) * (np.array(shape) - 1) / 2.0)
-assert np.allclose(expected, argmax)
+    expected = np.round((np.array(offset) + 1) * (np.array(shape) - 1) / 2.0)
+    assert np.allclose(expected, argmax)
 
-shape = (101, 101)
-d = disk(shape, 2 / 101, offset=offset)
-arg_center = np.argwhere(d > 0.5)[0]
-expected = (np.array(offset) + 1) * (np.array(shape) - 1) / 2.0
-assert np.allclose(expected, arg_center)
+    shape = (101, 101)
+    d = disk(shape, (2, 2), 2 / 101, offset=offset)
+    arg_center = np.argwhere(d > 0.5)[0]
+    expected = (np.array(offset) + 1) * (np.array(shape) - 1) / 2.0
+    assert np.allclose(expected, arg_center)

@@ -5,6 +5,8 @@ from astropy.units import Quantity
 
 from .utilities import ExtentType, CoordinateType, unitless
 
+from . import patterns_f
+
 # shape of a numpy array, or a single integer that is broadcast to a square shape
 ShapeType = Union[int, Sequence[int]]
 
@@ -87,9 +89,10 @@ def r2_range(shape: ShapeType, extent: ExtentType, offset: Optional[CoordinateTy
 
 def tilt(
     shape: ShapeType,
+    extent: ExtentType,
     g: ExtentType,
-    extent: ExtentType = (2.0, 2.0),
     phase_offset: float = 0.0,
+    offset: Optional[CoordinateType] = None,
 ):
     """Constructs a linear gradient pattern φ=2g·r
 
@@ -108,11 +111,19 @@ def tilt(
         extent: see module documentation
         phase_offset: optional additional phase offset to be added to the pattern
     """
-    c0, c1 = coordinate_range(shape, extent * (Quantity(g) * 2.0))
-    return unitless(c0 + (c1 + phase_offset))
+
+    offset = np.multiply(offset, -1) if offset is not None else None
+    return unitless(patterns_f.tilt(*coordinate_range(shape, extent), g=g, phase_offset=phase_offset))
 
 
-def lens(shape: ShapeType, f: ScalarType, wavelength: ScalarType, extent: ExtentType):
+def lens(
+    shape: ShapeType,
+    extent: ExtentType,
+    f: ScalarType,
+    wavelength: ScalarType,
+    numerical_aperture: ScalarType,
+    offset=None,
+):
     """Constructs a square texture that represents a wavefront defocus: (f-sqrt(f²+r²)) · 2π/λ
 
     `extent`, `wavelength` and `f` should have compatible units (typically astropy length units).
@@ -123,16 +134,25 @@ def lens(shape: ShapeType, f: ScalarType, wavelength: ScalarType, extent: Extent
         wavelength(ScalarType): wavelength
         extent(ExtentType): physical extent of the SLM, same units as `f` and `wavelength`
     """
-    r_sqr = r2_range(shape, extent)
-    return unitless((f - np.sqrt(f**2 + r_sqr)) * (2 * np.pi / wavelength))
+
+    offset = np.multiply(offset, -1) if offset is not None else None
+
+    return patterns_f.lens(
+        *coordinate_range(shape, extent, offset=offset),
+        f=f,
+        wavelength=wavelength,
+        numerical_aperture=numerical_aperture,
+    )
 
 
 def propagation(
     shape: ShapeType,
+    extent: ExtentType,
     distance: ScalarType,
     wavelength: ScalarType,
-    extent: ExtentType,
-    refractive_index: ScalarType = 1.0,
+    refractive_index: ScalarType,
+    numerical_aperture: ScalarType,
+    offset=None,
 ):
     """Computes a wavefront that corresponds to digitally propagating the field in the object plane.
 
@@ -148,16 +168,21 @@ def propagation(
             to convert the `extent` from pupil coordinates to k-space (unit radians/meter),
           extent: extent of the returned image,r2_range in NA units. To cover the full NA with a square, use (2*NA, 2*NA)
     """
-    # convert pupil coordinates to absolute k_x, k_y coordinates
-    n_p2 = r2_range(shape, Quantity(extent))
-    n_z = np.sqrt(np.maximum(refractive_index**2 - n_p2, 0.0))
-    return unitless(2.0 * np.pi / wavelength * distance * n_z)
+    offset = np.multiply(offset, -1) if offset is not None else None
+
+    return patterns_f.propagation(
+        *coordinate_range(shape, extent, offset=offset),
+        distance=distance,
+        wavelength=wavelength,
+        refractive_index=refractive_index,
+        numerical_aperture=numerical_aperture,
+    )
 
 
 def disk(
     shape: ShapeType,
-    radius: ScalarType = 1.0,
-    extent: ExtentType = (2.0, 2.0),
+    extent: ExtentType,
+    radius: ScalarType,
     offset: Optional[CoordinateType] = None,
 ):
     """Constructs an image of a centered (ellipsoid) disk.
@@ -171,19 +196,15 @@ def disk(
           offset: offsets the centre of the disk by offset
     """
 
-    if offset is not None:
-        inv_offset = np.multiply(offset, -1.0)
-    else:
-        inv_offset = None
-
-    return 1.0 * (r2_range(shape, extent, inv_offset) < radius**2)
+    offset = np.multiply(offset, -1) if offset is not None else None
+    return patterns_f.disk(*coordinate_range(shape, extent, offset=offset), radius=radius)
 
 
 def gaussian(
     shape: ShapeType,
+    extent: ExtentType,
     waist: ScalarType,
     truncation_radius: ScalarType = None,
-    extent: ExtentType = (2.0, 2.0),
     offset: Optional[CoordinateType] = None,
 ):
     """Constructs an image of a centered Gaussian
@@ -200,14 +221,7 @@ def gaussian(
         offset: offsets the centre of the Gaussian. The centre of the disk is also offsetted by this amount.
 
     """
-    if offset is not None:
-        inv_offset = np.multiply(offset, -1.0)
-    else:
-        inv_offset = None
-
-    r_sqr = r2_range(shape, extent, inv_offset)
-    w2inv = -1.0 / waist**2
-    gauss = np.exp(unitless(r_sqr * w2inv))
-    if truncation_radius is not None:
-        gauss = gauss * disk(shape, truncation_radius, extent=extent, offset=offset)
-    return unitless(gauss)
+    offset = np.multiply(offset, -1) if offset is not None else None
+    return patterns_f.gaussian(
+        *coordinate_range(shape, extent, offset=offset), waist=waist, truncation_radius=truncation_radius
+    )
