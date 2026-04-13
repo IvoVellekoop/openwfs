@@ -176,13 +176,13 @@ class Microscope(Processor):
 
         # Compute the field in the pupil plane
         # The aberrations and the SLM phase pattern are both mapped to the pupil plane coordinates
-        pupil_field = patterns.disk(pupil_shape, radius=self.numerical_aperture, extent=pupil_extent)
+        pupil_field = patterns.disk(pupil_shape, pupil_extent, self.numerical_aperture)
         pupil_area = np.sum(pupil_field)  # TODO (efficiency): compute area directly from radius
 
         # Add defocus from z-stage
         if self.z_stage is not None:
             phase = propagation(
-                pupil_shape, distance=self.z_stage.position, wavelength=self.wavelength, extent=pupil_extent
+                pupil_shape, pupil_extent, self.z_stage.position, self.wavelength, 1, self.numerical_aperture
             )
             pupil_field = pupil_field * np.exp(1j * phase)
 

@@ -8,7 +8,9 @@ import skimage
 from openwfs.algorithms import StepwiseSequential
 from openwfs.processors import SingleRoi
 from openwfs.simulation import Microscope, Camera, StaticSource, SLM
+from openwfs.utilities import get_pixel_size
 from openwfs.utilities.patterns import tilt
+from openwfs.utilities.tests import get_test_microscope
 
 
 def test_mock_camera_and_single_roi():
@@ -133,7 +135,7 @@ def test_slm_tilt():
     # the input parameter to `tilt` corresponds to a shift 2.0/π the Abbe diffraction limit.
     shift = np.array((-24, 40))
     step = wavelength / (np.pi * na)
-    slm.set_phases(tilt(1000, -shift * pixel_size / step))
+    slm.set_phases(tilt(1000, 2, -shift * pixel_size / step))
 
     new_location = signal_location + shift
 
@@ -268,3 +270,22 @@ def test_mock_slm_lut_and_phase_response():
     slm4.lookup_table = lookup_table
     slm4.set_phases(linear_phase_highres)
     assert np.all(np.abs(slm4.phases.read()[0] - linear_phase_highres) < (3 * np.pi / 256))
+
+
+def test_slm_tilt_and_microscope_shift():
+    """
+    Displaying a tilt pattern on the SLM should result in a shift in the image plane. This test checks if the shift is correct.
+    """
+    mic, slm, src = get_test_microscope()
+
+    ref_img = mic.read()
+    shift = np.multiply(get_pixel_size(ref_img), (10, -5))
+    gradient = shift * np.pi * 2 * mic.numerical_aperture / mic.wavelength / 2
+    tilt_pattern = tilt(slm.pixels.data_shape, extent=(2, 2), g=gradient)
+    slm.set_phases(tilt_pattern)
+
+    shifted_img = mic.read()
+    measured_shift = np.subtract(
+        np.unravel_index(np.argmax(ref_img), ref_img.shape), np.unravel_index(np.argmax(shifted_img), shifted_img.shape)
+    )
+    np.allclose(measured_shift, shift)

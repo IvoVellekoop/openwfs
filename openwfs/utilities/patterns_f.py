@@ -103,7 +103,7 @@ def propagation(
     k = 2 * np.pi * refractive_index / wavelength
     k_x = k * numerical_aperture * rx
     k_y = k * numerical_aperture * ry
-    k_z = np.sqrt(k**2 - k_x**2 - k_y**2)
+    k_z = np.sqrt(np.maximum(k**2 - k_x**2 - k_y**2, 0))
 
     return unitless(distance * k_z)
 
