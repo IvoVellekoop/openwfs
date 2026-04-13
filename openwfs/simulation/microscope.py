@@ -169,14 +169,14 @@ class Microscope(Processor):
         # TODO: think about what happens when the slm is smaller than the pupil
 
         # condition 1. Extent of pupil in pupil coordinates: Abbe limit should give pixel_size resolution
-        pupil_extent = self.wavelength / target_pixel_size
+        pupil_extent = self.wavelength / target_pixel_size / self.numerical_aperture
 
         # condition 2. Minimum number of pixels in x and y should be data_shape
         pupil_shape = self.data_shape
 
         # Compute the field in the pupil plane
         # The aberrations and the SLM phase pattern are both mapped to the pupil plane coordinates
-        pupil_field = patterns.disk(pupil_shape, pupil_extent, self.numerical_aperture)
+        pupil_field = patterns.disk(pupil_shape, pupil_extent, 1.0)
         pupil_area = np.sum(pupil_field)  # TODO (efficiency): compute area directly from radius
 
         # Add defocus from z-stage
@@ -188,8 +188,8 @@ class Microscope(Processor):
 
         # Project aberrations
         if aberrations is not None:
-            # use default of 2.0 * NA for the extent of the aberration map if no pixel size is provided
-            aberration_extent = (2.0 * self.numerical_aperture,) * 2 if get_pixel_size(aberrations) is None else None
+            # use default of 2.0 for the extent of the aberration map if no pixel size is provided
+            aberration_extent = (2.0, 2.0) if get_pixel_size(aberrations) is None else None
             pupil_field = pupil_field * np.exp(
                 1.0j
                 * project(

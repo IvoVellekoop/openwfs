@@ -102,7 +102,7 @@ class FourierDualReference(DualReference):
             # The natural step to take is the Abbe diffraction limit of the modulated part,
             # which corresponds to a gradient from -π to π over the modulated part.
             # TODO: modify tilt to take a 2-D argument, returning the mode set directly?
-            modes[i] = tilt(self._shape, g=k_i * 0.5 * np.pi)
+            modes[i] = tilt(self._shape, extent=(2, 2), g=k_i * 0.5 * np.pi)
 
         return modes, modes
 

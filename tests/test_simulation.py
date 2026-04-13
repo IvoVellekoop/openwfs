@@ -113,36 +113,19 @@ def test_slm_tilt():
     Display a tilt on the SLM should result in an image plane shift. If the magnification is 1, this should
     correspond to a tilt of 1 pixel for a 2 pi phase shift.
     """
-    img = np.zeros((1000, 1000), dtype=np.int16)
-    signal_location = (256, 250)
-    img[signal_location] = 100
-    pixel_size = 400 * u.nm
-    wavelength = 750 * u.nm
-    src = Camera(StaticSource(img, pixel_size=pixel_size), analog_max=None)
+    mic, slm, src = get_test_microscope(mic_args={"numerical_aperture": 0.5})
 
-    slm = SLM(shape=(1000, 1000))
+    ref_img = mic.read()
+    shift = np.multiply(get_pixel_size(ref_img), (10, -5))
+    gradient = shift * np.pi * 2 * mic.numerical_aperture / mic.wavelength / 2
+    tilt_pattern = tilt(slm.pixels.data_shape, extent=(2, 2), g=gradient)
+    slm.set_phases(tilt_pattern)
 
-    na = 1.0
-    sim = Microscope(
-        source=src,
-        incident_field=slm.field,
-        magnification=1,
-        numerical_aperture=na,
-        wavelength=wavelength,
+    shifted_img = mic.read()
+    measured_shift = np.subtract(
+        np.unravel_index(np.argmax(ref_img), ref_img.shape), np.unravel_index(np.argmax(shifted_img), shifted_img.shape)
     )
-
-    # introduce a tilted pupil plane
-    # the input parameter to `tilt` corresponds to a shift 2.0/π the Abbe diffraction limit.
-    shift = np.array((-24, 40))
-    step = wavelength / (np.pi * na)
-    slm.set_phases(tilt(1000, 2, -shift * pixel_size / step))
-
-    new_location = signal_location + shift
-
-    cam = Camera(sim, analog_max=None)
-    img = cam.read(immediate=True)
-    max_pos = np.unravel_index(np.argmax(img), img.shape)
-    assert np.all(max_pos == new_location)
+    assert np.allclose(np.multiply(get_pixel_size(ref_img), measured_shift), shift)
 
 
 def test_microscope_wavefront_shaping(caplog):
@@ -270,22 +253,3 @@ def test_mock_slm_lut_and_phase_response():
     slm4.lookup_table = lookup_table
     slm4.set_phases(linear_phase_highres)
     assert np.all(np.abs(slm4.phases.read()[0] - linear_phase_highres) < (3 * np.pi / 256))
-
-
-def test_slm_tilt_and_microscope_shift():
-    """
-    Displaying a tilt pattern on the SLM should result in a shift in the image plane. This test checks if the shift is correct.
-    """
-    mic, slm, src = get_test_microscope()
-
-    ref_img = mic.read()
-    shift = np.multiply(get_pixel_size(ref_img), (10, -5))
-    gradient = shift * np.pi * 2 * mic.numerical_aperture / mic.wavelength / 2
-    tilt_pattern = tilt(slm.pixels.data_shape, extent=(2, 2), g=gradient)
-    slm.set_phases(tilt_pattern)
-
-    shifted_img = mic.read()
-    measured_shift = np.subtract(
-        np.unravel_index(np.argmax(ref_img), ref_img.shape), np.unravel_index(np.argmax(shifted_img), shifted_img.shape)
-    )
-    np.allclose(measured_shift, shift)

@@ -30,7 +30,7 @@ For example, a square pattern with anisotropic pixels may be described by shape=
 whereas shape=(80,100) and extent(8,10) describes square pixels that form a rectangle.
 
 In a pupil-conjugate configuration, a disk of extent=(NA, NA) exactly covers the back pupil of the microscope objective.
-The transformation matrix of the SLM should be set such that SLM coordinates correspond to normalized pupil coordinates.
+The transformation matrix of the SLM should be set such that SLM coordinates correspond to normalised pupil coordinates.
 
 The extent may have a unit of measure. In this case, other parameters (such as `radius`) may need to have
 an according unit of measure.
@@ -100,15 +100,10 @@ def tilt(
     so that :math:`\\frac{\\int_0^{2\\pi} \\int_0^1 |Z(\\rho, \\phi)|^2 \\rho d\\rho d\\phi}{\\int_0^{2\\pi} \\int_0^1 \\rho d\\rho d\\phi} = 1`.
 
     Args:
-        shape: see module documentation
-        g(tuple of two floats): gradient vector.
-          This has the unit: 1 / extent.unit.
-          For the default extent of (2.0, 2.0), a value of g=(1,0)
-          corresponds to having a ramp from -2 to +2 over the height of the pattern.
-          With an extent of (2.0, 2.0) covering the full NA,
-          this pattern causes a displacement of -2/π times the Abbe diffraction limit
+        shape: Number of pixels of the returned pattern.
+        extent: extent of the return pattern defined in normalised pupil coordinates, i.e. an extent of (2, 2) covers the entire back pupil plane of a microscope objective.
+        g(tuple of two floats): gradient vector. For an extent of (2,2), the shift in the focal plane is given by (gx, gy) * -2 / π * wavelength / 2 / numerical_aperture_aperture. Where 'numerical_aperture' is the numerical aperture of the microscope objective, and 'wavelength' is the wavelength of the light.
           (Note: a positive x-gradient g causes the focal point to move in the _negative_ x-direction)
-        extent: see module documentation
         phase_offset: optional additional phase offset to be added to the pattern
     """
 
@@ -124,15 +119,16 @@ def lens(
     numerical_aperture: ScalarType,
     offset=None,
 ):
-    """Constructs a square texture that represents a wavefront defocus: (f-sqrt(f²+r²)) · 2π/λ
+    """Constructs a phase mask mimicking a lens: (f-sqrt(f²+r²)) · 2π/λ
 
     `extent`, `wavelength` and `f` should have compatible units (typically astropy length units).
 
     Args:
-        shape(ShapeType): see module documentation
+        shape(ShapeType): number of pixels of the returned pattern.
+        extent(ExtentType): extent of the return pattern defined in normalised pupil coordinates, i.e. an extent of (2, 2) covers the entire back pupil plane of the lens mimicked by the pattern.
         f(ScalarType): focal length
         wavelength(ScalarType): wavelength
-        extent(ExtentType): physical extent of the SLM, same units as `f` and `wavelength`
+        numerical_aperture(ScalarType): numerical aperturn of the lens mimicked by the pattern. This is used to convert the `extent` from normalised pupil coordinates to k-space (unit radians/meter), together with the `wavelength` and `f`.
     """
 
     offset = np.multiply(offset, -1) if offset is not None else None
@@ -160,13 +156,15 @@ def propagation(
     φ = k_z · distance
 
     Args:
-          shape: see module documentation
+          shape: number of pixels of the returned pattern.
+          extent: Extent of the return image. This value is defined in normalised pupil coordinates, i.e. an extent of (2, 2) covers the entire back pupil plane of a microscope objective with NA of `numerical_aperture`.
           distance (ScalarType): physical distance to propagate axially.
           refractive_index (Scalar):
           wavelength (Scalar):
             the numerical aperture, refractive index and wavelength are used
             to convert the `extent` from pupil coordinates to k-space (unit radians/meter),
-          extent: extent of the returned image,r2_range in NA units. To cover the full NA with a square, use (2*NA, 2*NA)
+          numerical_aperture: numerical aperture of the microscope objective. This is used to convert the `extent` from pupil coordinates to k-space, together with the `wavelength` and `refractive_index`.
+
     """
     offset = np.multiply(offset, -1) if offset is not None else None
 
@@ -190,9 +188,9 @@ def disk(
     (x / rx)^2 + (y / ry)^2 <= 1.0
 
     Args:
-          shape: see module documentation
+          shape: number of pixels of the returned pattern.
+          extent: extent of the return pattern. This value is used to compute the coordinates of each pixel of the image. Scaling both the extent and radius by the same factor does not change the returned pattern, but changing their ratio does.
           radius (ScalarType): radius of the disk, should have the same unit as `extent`.
-          extent: see module documentation
           offset: offsets the centre of the disk by offset
     """
 
@@ -212,12 +210,12 @@ def gaussian(
     `waist`, `extent` and the optional `truncation_radius` should all have the same unit.
 
     Args:
-        shape: see module documentation
+        shape: Number of pixels of the returned pattern.
+        extent: Extent of the return pattern. This value is used to compute the coordinates for the Gaussian profile. Changing the ratio of `extent` and `waist` changes the returned pattern, but scaling both by the same factor does not change the returned pattern.
         waist (ScalarType): location of the beam waist (1/e value)
             relative to half of the size of the pattern (i.e. relative to the `radius` of the square)
         truncation_radius (ScalarType): when not None, specifies the radius of a disk that is used to truncate the
             Gaussian. All values outside the disk are set to 0.
-        extent: see module documentation
         offset: offsets the centre of the Gaussian. The centre of the disk is also offsetted by this amount.
 
     """
