@@ -3,6 +3,7 @@ import threading
 import time
 from abc import ABC, abstractmethod
 from concurrent.futures import Future, ThreadPoolExecutor
+from types import EllipsisType
 from typing import Set, final, Tuple, Optional
 from weakref import WeakSet
 
@@ -298,7 +299,7 @@ class Detector(Device, ABC):
         self._measurements_pending = 0
         self._lock_condition = threading.Condition()
         self._error = None
-        self._data_shape = data_shape
+        self._data_shape = tuple(data_shape) if data_shape is not None else None
         self._pixel_size = pixel_size
         self._multi_threaded = multi_threaded
 
@@ -413,9 +414,10 @@ class Detector(Device, ABC):
             awaited_args = [(arg.result() if isinstance(arg, Future) else arg) for arg in args_]
             awaited_kwargs = {key: (arg.result() if isinstance(arg, Future) else arg) for (key, arg) in kwargs_.items()}
             logging.debug("fetching data of %s ((tid: %i)).", self, threading.get_ident())
-            data = self._fetch(*awaited_args, **awaited_kwargs)
+            data = np.array(self._fetch(*awaited_args, **awaited_kwargs))
             data = set_pixel_size(data, self.pixel_size)
-            assert data.shape == self.data_shape
+            if self.data_shape is not None and data.shape != self.data_shape:
+                raise ValueError(f"Data shape {data.shape} does not match expected shape {self.data_shape} for {self}.")
             if out_ is not None:
                 out_[...] = data  # store data in the location specified during trigger
             return data
@@ -554,21 +556,33 @@ class Processor(Detector, ABC):
     By default, the `pixel_size` and `data_shape` are the same as the `pixel_size` and `data_shape` of the first input.
     To override this behavior, override the `pixel_size` and `data_shape` properties.
 
-    Args:
-        multi_threaded: If True, `_fetch` is called from a worker thread. Otherwise, `_fetch` is called
-            directly from `trigger`. If the device is not thread-safe, or threading provides no benefit,
-            or for easy debugging, set this to False.
     """
 
-    def __init__(self, *args, multi_threaded: bool):
+    def __init__(
+        self,
+        *args: Detector,
+        data_shape: Optional[tuple[int, ...]] | EllipsisType = ...,
+        pixel_size: Quantity | None | EllipsisType = ...,
+        multi_threaded: bool = True,
+    ):
+        """
+        Args:
+            data_shape: The shape of the data array that `read()` will return, may be None if the data shape is not known or changes dynamically.
+                When not specified (default = ...), the data shape is read dynamically from the first source (`arg[0]`).
+            pixel_size: The size of each pixel in the data array, may be None if the pixel size is not known or changes dynamically.
+                When not specified (default = ...), the pixel size is read dynamically from the first source.
+            see Detector for the arguments that can be passed to `__init__`.
+            Note that `duration` and `latency` are ignored, since they are computed from the inputs.
+            If data_shape and pixel_size are not passed, they are dynamically loaded from the first source processor (args[0]).
+            If the arguments are passed (even when None is passed), they are returned by the `data_shape` and `pixel_size` properties,
+            and not loaded from the first source processor.
+        """
         self._sources = args
-        # data_shape, duration, latency and pixel_size all may change dynamically
-        # when the settings of one of the source detectors is changed.
-        # Therefore, we pass 'None' for all parameters, and override
-        # data_shape, pixel_size, duration and latency in the properties.
+        self._auto_data_shape = data_shape is ...
+        self._auto_pixel_size = pixel_size is ...
         super().__init__(
-            data_shape=None,
-            pixel_size=None,
+            data_shape=data_shape if not data_shape is ... else None,
+            pixel_size=pixel_size if not pixel_size is ... else None,
             duration=None,
             latency=None,
             multi_threaded=multi_threaded,
@@ -609,12 +623,15 @@ class Processor(Detector, ABC):
     @property
     def data_shape(self):
         """This default implementation returns the data shape of the first source."""
-        return self._sources[0].data_shape
+        return self._sources[0].data_shape if self._auto_data_shape else self._data_shape
 
     @property
     def pixel_size(self) -> Optional[Quantity]:
         """This default implementation returns the pixel size of the first source."""
-        return self._sources[0].pixel_size
+        return self._sources[0].pixel_size if self._auto_pixel_size else self._pixel_size
+
+    def busy(self):
+        np.any([i.busy() for i in self._sources])
 
 
 class PhaseSLM(ABC):

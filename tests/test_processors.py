@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 import skimage as sk
 
-from openwfs.processors import SingleRoi, select_roi, Roi, MultipleRoi
+from openwfs.processors import SingleRoi, select_roi, Roi, MultipleRoi, FunctionProcessor, CropProcessor
 from openwfs.simulation.mockdevices import StaticSource
 
 
@@ -75,3 +75,49 @@ def test_multiple_roi_simple_case():
     assert all(
         np.isclose(r, e) for r, e in zip(result, expected_values)
     ), f"ROI average values are incorrect. Expected: {expected_values}, Got: {result}"
+
+
+@pytest.mark.parametrize(
+    "func, data_shape",
+    [
+        (lambda data: data[1:5, 1:4], (4, 3)),  # Center ROI in 4x3 matrix
+        (lambda data: np.mean(data, axis=1), (10,)),  # Mean along axis 1
+    ],
+)
+def test_function_processor(func, data_shape):
+    data = np.random.rand(10, 10)
+    pixel_size = 1 * u.um
+    mock_source = StaticSource(data, pixel_size=pixel_size)
+    func_processor = FunctionProcessor(mock_source, func=func, data_shape=data_shape)
+
+    assert np.allclose(func_processor.read(), func(data))
+
+
+def test_scalar_processor():
+    data = np.random.rand(10, 10)
+    pixel_size = 1 * u.um
+    mock_source = StaticSource(data, pixel_size=pixel_size)
+
+    func_processor = FunctionProcessor(mock_source, func=(lambda data: np.mean(data, axis=(1))), data_shape=(10,))
+    assert np.allclose(data.mean(axis=(1)), func_processor.read())
+
+    func_processor = FunctionProcessor(mock_source, func=(lambda data: 1.0), data_shape=None)
+    assert np.isclose(func_processor.read(), 1.0)
+
+    out = np.ones((1))
+    func_processor.trigger(out=out)
+    assert np.isclose(1.0, out[0])
+
+
+def test_processor_on_processor():
+    data = np.random.rand(10, 10)
+    pixel_size = 1 * u.um
+    mock_source = StaticSource(data, pixel_size=pixel_size)
+
+    roi_processor = CropProcessor(mock_source, pos=(5, 5), shape=(2, 2))
+    func_processor = FunctionProcessor(roi_processor, func=lambda x: x * 2, data_shape=(2, 2))
+
+    assert np.allclose(func_processor.read(), 2 * data[5:7, 5:7])
+
+    func_processsor_2 = FunctionProcessor(func_processor, func=lambda x: x + 1, data_shape=(2, 2))
+    assert np.allclose(func_processsor_2.read(), 2 * data[5:7, 5:7] + 1)

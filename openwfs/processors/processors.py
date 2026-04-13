@@ -1,4 +1,5 @@
-from typing import Sequence, Optional
+from types import EllipsisType
+from typing import Iterable, Sequence, Optional
 
 import cv2
 import numpy as np
@@ -180,9 +181,9 @@ class MultipleRoi(Processor):
             source (Detector): Source detector object to process the data from.
             rois (Sequence[Roi]): Sequence of Roi objects defining the regions of interest.
         """
-        self._rois = np.array(rois)
+        self._rois = np.asarray(rois)
         self._source = source
-        super().__init__(source, multi_threaded=multi_threaded)
+        super().__init__(source, multi_threaded=multi_threaded, pixel_size=None, data_shape=self._rois.shape)
 
     def _fetch(self, image: np.ndarray) -> np.ndarray:  # noqa
         """
@@ -204,16 +205,6 @@ class MultipleRoi(Processor):
 
         return np.vectorize(apply_mask)(self._rois)
 
-    @property
-    def data_shape(self):
-        """The shape of the data array returned by this processor."""
-        return self._rois.shape
-
-    @property
-    def pixel_size(self) -> None:
-        """Returns None, since the elements in the output of the MultipleRoi processor do not have a physical size."""
-        return None
-
 
 class SingleRoi(MultipleRoi):
     """Processor that averages a signal over a single region of interest (ROI).
@@ -229,7 +220,7 @@ class SingleRoi(MultipleRoi):
         radius=0.1,
         mask_type: str = "disk",
         waist=0.5,
-        multi_threaded: bool = True,
+        **kwargs,
     ):
         """
         Processor that averages a signal over a single region of interest (ROI).
@@ -245,8 +236,7 @@ class SingleRoi(MultipleRoi):
         """
         single_roi = Roi(pos, radius, mask_type, waist, source.data_shape)
         rois = np.array([single_roi]).reshape(())
-        super().__init__(source, rois=rois, multi_threaded=multi_threaded)
-        self.__dict__.update(single_roi.__dict__)
+        super().__init__(source, rois=rois, **kwargs)
 
 
 class CropProcessor(Processor):
@@ -260,7 +250,7 @@ class CropProcessor(Processor):
     def __init__(
         self,
         source: Detector,
-        shape: Optional[Sequence[int]] = None,
+        shape: Sequence[int | None] | EllipsisType = ...,
         pos: Optional[Sequence[int]] = None,
         padding_value=0.0,
         multi_threaded: bool = False,
@@ -269,16 +259,24 @@ class CropProcessor(Processor):
 
         Args:
             source (object): The data source to process.
-            shape (tuple): Size of the cropped region (this is data_shape property)
-                default is None: use the full size of the source.
+            shape (tuple): Size of the cropped region (this is the data_shape property)
                 may be a tuple holding one or more None values.
                 These values are then replaced by the size of the source in that dimension.
+                This only works if the source has a defined data_shape.
             pos (tuple): Coordinates of the start of the cropped region.
                 For 2-D data, this is the top-left corner.
             padding_value (float): Value to use if the cropped area extends beyond the original data.
         """
-        super().__init__(source, multi_threaded=multi_threaded)
-        self._data_shape = tuple(shape) if shape is not None else source.data_shape
+        # replace the None values in shape with the corresponding size of the source
+        # Note: this only works if the source has a specified data shape.
+        if shape is ...:
+            data_shape = source.data_shape
+        else:
+            try:
+                data_shape = tuple(s if s is not None else auto for s, auto in zip(shape, source.data_shape))
+            except AttributeError:
+                raise ValueError("If `shape` contains None values, `source` must have a defined `data_shape`")
+        super().__init__(source, data_shape=data_shape, multi_threaded=multi_threaded)
         self._pos = np.array(pos) if pos is not None else np.zeros((len(self.data_shape),), dtype=int)
         self._padding_value = padding_value
 
@@ -402,12 +400,14 @@ class TransformProcessor(Processor):
     By default, the output shape and pixel_size are the same as the input shape.
     If desired, explicit values can be provided for the output shape and pixel_size. The unit of the pixel_size
     should match the unit of the input data after applying the transform.
+
+    todo: make more robust to missing pixel_size and data_shape in the source, etc.
     """
 
     def __init__(
         self,
         source: Detector,
-        transform: Transform = None,
+        transform: Transform | None = None,
         data_shape: Optional[Sequence[int]] = None,
         pixel_size: Optional[Quantity] = None,
         multi_threaded: bool = True,
@@ -460,3 +460,26 @@ class TransformProcessor(Processor):
             out_shape=self.data_shape,
             out_extent=self.extent,
         )
+
+
+class FunctionProcessor(Processor):
+    """Processor that applies a user-defined function to the data from the source."""
+
+    def __init__(self, source: Detector, func, **kwargs):
+        """
+        Processor that applies a user-defined function to the data from the source.
+        Args:
+            source (Detector): The data source to process.
+            func (callable): A function that takes the data from source.read() as input and return a processed version of the data. The output of the function must be a numpy array.
+            data_shape: Sequence[int] | None: The shape of the output data if known. When omitted, the data_shape of the source is used.
+            pixel_size: Quantity | None: The pixel size of the output data if known. When omitted, the pixel_size of the source is used.
+            multi_threaded (bool): Whether to perform processing in a worker thread. Default is True.
+        """
+        super().__init__(source, **kwargs)
+        self.func = func
+
+    def _fetch(self, image):
+        return self.func(image)
+
+    def busy(self):
+        super().busy()
