@@ -21,24 +21,23 @@ indicating the size (shape) in pixels of the returned field. If `shape` is a sca
 used for both axes.
 
 For the coordinates, the OpenGL convention is used, where the coordinates indicate the centers of the pixels.
-By default, the returned pattern is assumed to cover a -1,1 x -1,1 square, 
-which corresponds to a default `extent` parameter of (2.0, 2.0).
+For an extent of (2, 2), the returned pattern is assumed to cover a -1,1 x -1,1 square.
 In this case, the coordinates range from -1+dx/2 to 1-dx/2, where dx=2.0/shape is the pixel size.
 
-Exptent and shape may be specified individually to work with anisotropic pixels or rectangular patterns.
+Extent and shape may be specified individually to work with anisotropic pixels or rectangular patterns.
 For example, a square pattern with anisotropic pixels may be described by shape=(80,100) and extent(2,2)
 whereas shape=(80,100) and extent(8,10) describes square pixels that form a rectangle.
 
-In a pupil-conjugate configuration, a disk of extent=(NA, NA) exactly covers the back pupil of the microscope objective.
-The transformation matrix of the SLM should be set such that SLM coordinates correspond to normalised pupil coordinates.
+The functions were designed to use normalised pupil coordinates (i.e. an extent of (2,2) which covers the entire back focal plane) so they can be used directly in a pupil-conjugate configuration. 
 
-The extent may have a unit of measure. In this case, other parameters (such as `radius`) may need to have
-an according unit of measure.
+Some patterns (e.g. disk) depend on the ratio between the extent and other parameters (e.g. radius) so any coordinate system can be used by tuning both parameters. The documentation is written in terms of normalised pupil coordinates for consistency.
 
 The (0,0) coordinate is always located in the center of the pattern, which may be on a grid point (for odd shape)
 or between grid points (for even shape).
 
 The returned array has a pixel_size property attached.
+
+Functions are available on openwfs.utilities.patterns_f that accept the coordinates as input instead of requiring an extent and shape.
 """
 
 
