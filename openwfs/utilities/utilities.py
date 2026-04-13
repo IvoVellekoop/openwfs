@@ -431,7 +431,7 @@ def get_extent(data: np.ndarray) -> Quantity:
     """
     pixel_size = get_pixel_size(data)
     if pixel_size is None:
-        raise ValueError("Data does not have pixel size metadata, so extent cannot be computed.")
+        return None
     return data.shape * pixel_size
 
 
