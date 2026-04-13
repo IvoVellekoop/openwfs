@@ -176,6 +176,26 @@ def propagation(
     )
 
 
+def parabolic(
+    shape: ShapeType,
+    extent: ExtentType,
+    parabolic_coef: ScalarType,
+    offset: Optional[CoordinateType] = None,
+):
+    """Constructs a parabolic phase mask: parabolic_coef * (x^2 + y^2)
+
+    `extent` and `parabolic_coef` should have compatible units (typically astropy length units).
+
+    Args:
+          shape: number of pixels of the returned pattern.
+          extent: Extent of the return image. This value is defined in normalised pupil coordinates, i.e. an extent of (2, 2) covers the entire back pupil plane of a microscope objective.
+          parabolic_coef (ScalarType): coefficient of the parabolic phase mask. This is used together with the `extent` to determine the curvature of the parabola.
+
+    """
+    offset = np.multiply(offset, -1) if offset is not None else None
+    return patterns_f.parabolic(*coordinate_range(shape, extent, offset=offset), parabolic_coef=parabolic_coef)
+
+
 def disk(
     shape: ShapeType,
     extent: ExtentType,

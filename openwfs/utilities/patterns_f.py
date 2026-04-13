@@ -118,3 +118,21 @@ def gaussian(
     if truncation_radius is not None:
         gauss = gauss * disk(x, y, truncation_radius)
     return unitless(gauss)
+
+
+def parabolic(
+    x,
+    y,
+    parabolic_coef: ScalarType,
+):
+    """Constructs a parabolic phase mask: φ = parabolic_coef * (x² + y²)
+
+    Args:
+        x: array of the pupil plane coordinates in the x-direction. The shape of x and y should be such that they can be added together (i.e. they should be the same shape, or one of them should be broadcastable to the shape of the other).
+        y: array of the pupil plane coordinates in the y-direction. The shape of x and y should be such that they can be added together (i.e. they should be the same shape, or one of them should be broadcastable to the shape of the other).
+        parabolic_coef (ScalarType): coefficient of the parabolic phase mask.
+
+    Return:
+        An array of the same shape as x and y (or broadcasted), containing the phase values of the parabolic pattern.
+    """
+    return unitless(parabolic_coef * (x**2 + y**2))
