@@ -1,5 +1,5 @@
 from typing import Union, Sequence, Optional
-from .utilities import ExtentType, CoordinateType, unitless
+from .utilities import ExtentType, unitless
 
 import numpy as np
 from astropy.units import Quantity
