@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-from openwfs.utilities.patterns import tilt, gaussian, disk, propagation, parabolic
+from openwfs.utilities.patterns import tilt, gaussian, disk, propagation, parabola
 
 
 @pytest.mark.parametrize("shape", [10, (7, 10)])
@@ -35,8 +35,8 @@ def test_gaussian_disk_offset():
     assert np.allclose(expected, arg_center)
 
 
-def test_parabolic():
-    phi = parabolic((11, 11), (2, 2), parabolic_coef=0.5)
+def test_parabola():
+    phi = parabola((11, 11), (2, 2), 0.5)
     assert np.allclose(phi[5, 5], 0)
     r = -1 + 1 / 11
     assert np.allclose(phi[0, 5], 0.5 * (r**2))

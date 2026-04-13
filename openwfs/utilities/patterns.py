@@ -101,7 +101,7 @@ def tilt(
     Args:
         shape: Number of pixels of the returned pattern.
         extent: extent of the return pattern defined in normalised pupil coordinates, i.e. an extent of (2, 2) covers the entire back pupil plane of a microscope objective.
-        g(tuple of two floats): gradient vector. For an extent of (2,2), the shift in the focal plane is given by (gx, gy) * -2 / π * wavelength / 2 / numerical_aperture_aperture. Where 'numerical_aperture' is the numerical aperture of the microscope objective, and 'wavelength' is the wavelength of the light.
+        g(tuple of two floats): gradient vector. For an extent of (2,2), the shift in the focal plane is given by (gx, gy) * -1 / π * wavelength / numerical_aperture_aperture. Where 'numerical_aperture' is the numerical aperture of the microscope objective, and 'wavelength' is the wavelength of the light.
           (Note: a positive x-gradient g causes the focal point to move in the _negative_ x-direction)
         phase_offset: optional additional phase offset to be added to the pattern
     """
@@ -176,24 +176,25 @@ def propagation(
     )
 
 
-def parabolic(
+def parabola(
     shape: ShapeType,
     extent: ExtentType,
-    parabolic_coef: ScalarType,
+    alpha: ScalarType,
     offset: Optional[CoordinateType] = None,
 ):
-    """Constructs a parabolic phase mask: parabolic_coef * (x^2 + y^2)
+    """Constructs a parabola phase mask: alpha * (x^2 + y^2)
 
-    `extent` and `parabolic_coef` should have compatible units (typically astropy length units).
+    `extent` and `alpha` should have compatible units (typically astropy length units).
 
     Args:
           shape: number of pixels of the returned pattern.
           extent: Extent of the return image. This value is defined in normalised pupil coordinates, i.e. an extent of (2, 2) covers the entire back pupil plane of a microscope objective.
-          parabolic_coef (ScalarType): coefficient of the parabolic phase mask. This is used together with the `extent` to determine the curvature of the parabola.
+          alpha (ScalarType): coefficient of the parabola phase mask. This is used together with the `extent` to determine the curvature of the parabola.
+          offset: offsets the centre of the parabola by offset. If the parabola is not centered on the back pupil plane, the image in the focal plane will be shifted. For an extent of (2, 2), the resulting shift is given by offset * alpha * wavelength / (numerical_aperture * π), where `numerical_aperture` is the numerical aperture of the microscope objective, and `wavelength` is the wavelength of the light.
 
     """
     offset = np.multiply(offset, -1) if offset is not None else None
-    return patterns_f.parabolic(*coordinate_range(shape, extent, offset=offset), parabolic_coef=parabolic_coef)
+    return patterns_f.parabola(*coordinate_range(shape, extent, offset=offset), alpha=alpha)
 
 
 def disk(

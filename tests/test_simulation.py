@@ -9,7 +9,7 @@ from openwfs.algorithms import StepwiseSequential
 from openwfs.processors import SingleRoi
 from openwfs.simulation import Microscope, Camera, StaticSource, SLM
 from openwfs.utilities import get_pixel_size
-from openwfs.utilities.patterns import tilt
+from openwfs.utilities.patterns import tilt, gaussian, parabola
 from openwfs.utilities.tests import get_test_microscope
 
 
@@ -108,6 +108,12 @@ def test_slm_and_aberration():
     assert abs(np.vdot(norm_a, norm_b)) >= 1
 
 
+def shift_between_img_max(ref_img, shifted_img):
+    return np.subtract(
+        np.unravel_index(np.argmax(ref_img), ref_img.shape), np.unravel_index(np.argmax(shifted_img), shifted_img.shape)
+    )
+
+
 def test_slm_tilt():
     """
     Display a tilt on the SLM should result in an image plane shift. If the magnification is 1, this should
@@ -117,14 +123,12 @@ def test_slm_tilt():
 
     ref_img = mic.read()
     shift = np.multiply(get_pixel_size(ref_img), (10, -5))
-    gradient = shift * np.pi * 2 * mic.numerical_aperture / mic.wavelength / 2
+    gradient = shift * np.pi * mic.numerical_aperture / mic.wavelength
     tilt_pattern = tilt(slm.pixels.data_shape, extent=(2, 2), g=gradient)
     slm.set_phases(tilt_pattern)
 
     shifted_img = mic.read()
-    measured_shift = np.subtract(
-        np.unravel_index(np.argmax(ref_img), ref_img.shape), np.unravel_index(np.argmax(shifted_img), shifted_img.shape)
-    )
+    measured_shift = shift_between_img_max(ref_img, shifted_img)
     assert np.allclose(np.multiply(get_pixel_size(ref_img), measured_shift), shift)
 
 
@@ -253,3 +257,26 @@ def test_mock_slm_lut_and_phase_response():
     slm4.lookup_table = lookup_table
     slm4.set_phases(linear_phase_highres)
     assert np.all(np.abs(slm4.phases.read()[0] - linear_phase_highres) < (3 * np.pi / 256))
+
+
+def test_parabola_shift():
+    """
+    Tests that a display of a parabola pattern on the SLM with an certain offset results in the expected shift in the image plane.
+    """
+    offset_focal = np.array([1100, 400]) * u.nm
+    coef_parabola = 0.1
+
+    mic, slm, src = get_test_microscope()
+    pupil_offset = (
+        np.multiply(np.multiply(offset_focal, mic.numerical_aperture), -np.pi / mic.wavelength) / coef_parabola
+    )
+    phi = parabola((1024, 1024), (2, 2), coef_parabola)
+    slm.set_phases(phi)
+    img_1 = mic.read()
+
+    phi = parabola((1024, 1024), (2, 2), coef_parabola, offset=pupil_offset)
+    slm.set_phases(phi)
+    img_2 = mic.read()
+    measured_shift = shift_between_img_max(img_1, img_2) * get_pixel_size(img_1)
+    print(measured_shift)
+    assert np.allclose(measured_shift, offset_focal)
