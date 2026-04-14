@@ -7,6 +7,7 @@ import clr
 import os
 from concurrent.futures import ThreadPoolExecutor
 
+# General notes about the implementation of this class:
 # This code uses the DotNET interface from Thorlabs Kinesis to control
 # the KCube KIM001 and KIM101. The code follows the OpenWFS interface to
 # use the KCube with OpenWFS. The code uses a different proces (Thread)
@@ -43,7 +44,7 @@ if clr_loaded:
 
 class KCubeInertial(Actuator):
     """
-    Class to control KCube KIM001 and KIM101 from Thorlabs.
+    Class to control KCube KIM001 and KIM101 from Thorlabs. To use this class the thorlabs Kinesis software must be installed. The software can be downloaded from https://www.thorlabs.com/kinesis-software. The communication with Kinesis is done using pythonnet (clr) which needs to be installed in the python environment.
 
     Arguments:
         serial_number: str - Serial number of the device to control. If not provided, the code
@@ -55,7 +56,7 @@ class KCubeInertial(Actuator):
             movement. Defaults to 20 seconds.
     """
 
-    def __init__(self, serial_number: str = "", pair_channels: bool = False, timeout: u.Quantity = 20 * u.s):
+    def __init__(self, serial_number: str = None, pair_channels: bool = False, timeout: u.Quantity = 20 * u.s):
         super().__init__(duration=np.inf * u.ms, latency=0 * u.ms)
 
         if not clr_loaded:
@@ -67,9 +68,10 @@ class KCubeInertial(Actuator):
 
         DeviceManagerCLI.BuildDeviceList()
 
+        # The 97 code corresponds to the Kinesis internal code for the KCube Inertial Motor.
         serial_number_list = list(map(str, DeviceManagerCLI.GetDeviceList(Int32(97))))
 
-        if serial_number == "":
+        if serial_number is None:
             if len(serial_number_list) == 1:
                 serial_number = serial_number_list[0]
             elif len(serial_number_list) > 1:
@@ -90,14 +92,18 @@ class KCubeInertial(Actuator):
         self.timeout = timeout
         # Connect
         self.device.Connect(self.serial_number)
-        assert self.device.IsConnected
+        if not self.device.IsConnected:
+            raise ValueError(f"Failed to connect to device with serial number {self.serial_number}.")
 
         time.sleep(0.25)
 
         # Ensure that the device settings have been initialized
         if not self.device.IsSettingsInitialized():
             self.device.WaitForSettingsInitialized(10000)  # 10 second timeout
-            assert self.device.IsSettingsInitialized() is True
+            if not self.device.IsSettingsInitialized():
+                raise RuntimeError(
+                    f"Device settings failed to initialize within timeout for device with serial number {self.serial_number}."
+                )
 
         self._worker = ThreadPoolExecutor(max_workers=1)
         self._future = self._worker.submit(lambda: None)
@@ -131,7 +137,7 @@ class KCubeInertial(Actuator):
         self.device.Disconnect()
 
     @property
-    def pair_channels(self):
+    def pair_channels(self) -> bool:
         """
         Get if the channels are paired (i.e. moving simultaneously)
 
@@ -142,7 +148,7 @@ class KCubeInertial(Actuator):
         return self.device.IsDualChannelMode()
 
     @pair_channels.setter
-    def pair_channels(self, val):
+    def pair_channels(self, val: bool) -> None:
         """
         Set if the channels should be paired (i.e. moving simultaneously)
 
@@ -157,8 +163,6 @@ class KCubeInertial(Actuator):
     @property
     def velocity(self):
         """
-        Gets the velocity of the stage in steps/s. This function will probe the device for the
-        current velocity.
         Returns:
             nd.array [1/u.s] - Velocity of the stage. The array has one element per channel.
         """
@@ -225,13 +229,30 @@ class KCubeInertial(Actuator):
 
         return out
 
+    @position.setter
+    def position(self, arr):
+        """
+            Moves the device to the specified absolute positions in steps.
+
+        Arguments:
+            arr: np.ndarray - Array with the absolute positions to move each channel
+        """
+        if not arr.size == self.channels_array.size
+            raise ValueError(
+                f"Size of position array ({arr.size}) does not match number of channels ({self.channels_array.size})."
+            )
+
+        self.throw_error_if_moving()
+        super()._start()
+        self._future = self._worker.submit(self._move_to, arr, self.position, self.pair_channels)
+
     def throw_error_if_moving(self):
         """
         Convenience function to throw an error if the device is moving or if communication thread is communicating with the device.
         """
-        assert (
-            not self.busy()
-        ), "Device is busy. Use self.wait() to wait for the device to finish moving or use self.stop() to stop the device."
+        if self.busy():
+            raise RuntimeError(
+                "Device is busy. Use self.wait() to wait for the device to finish moving or use self.stop() to stop the device.")
 
     def _move_to(self, *args_, **kwargs_):
         """
@@ -307,18 +328,6 @@ class KCubeInertial(Actuator):
                     self.device.MoveBy(ch_i, Int32(int(arr[i])), int(self.timeout.to(u.ms).value))
                     time.sleep(0.2)
 
-    @position.setter
-    def position(self, arr):
-        """
-            Moves the device to the specified absolute positions in steps.
-
-        Arguments:
-            arr: np.ndarray - Array with the absolute positions to move each channel
-        """
-        assert arr.size == self.channels_array.size
-        super()._start()
-        self.throw_error_if_moving()
-        self._future = self._worker.submit(self._move_to, arr, self.position, self.pair_channels)
 
     def move_by(self, deltas: np.ndarray):
         """
@@ -327,7 +336,10 @@ class KCubeInertial(Actuator):
         Arguments:
             deltas: np.ndarray - Array with the relative distances to move each channel
         """
-        assert deltas.size == self.channels_array.size
+        if not deltas.size == self.channels_array.size:
+            raise ValueError(
+                f"Size of deltas array ({deltas.size}) does not match number of channels ({self.channels_array.size})."
+            )
         super()._start()
         self.throw_error_if_moving()
         self._future = self._worker.submit(self._move_by, deltas, self.pair_channels)
