@@ -2,6 +2,7 @@ import warnings
 from typing import Optional, Union
 
 import astropy.units as u
+import cv2
 import numpy as np
 from astropy.units import Quantity
 from numpy.typing import ArrayLike
@@ -12,6 +13,7 @@ from ..plot_utilities import imshow  # noqa - for debugging
 from ..simulation.mockdevices import XYStage, LinearStage, StaticSource
 from ..utilities import project, place, Transform, get_pixel_size, patterns, unitless
 from ..utilities.patterns import propagation
+from matplotlib import pyplot as plt
 
 
 class Microscope(Processor):
@@ -100,6 +102,8 @@ class Microscope(Processor):
         if aberrations is not None and not isinstance(aberrations, Detector):
             if get_pixel_size(aberrations) is None:
                 aberrations = StaticSource(aberrations)
+            else:
+                aberrations = StaticSource(aberrations, pixel_size=get_pixel_size(aberrations))
 
         super().__init__(source, aberrations, incident_field, multi_threaded=multi_threaded)
         self._magnification = magnification
@@ -182,7 +186,6 @@ class Microscope(Processor):
                 UserWarning,
             )
 
-
         # condition 2. Minimum number of pixels in x and y should be data_shape
         pupil_shape = self.data_shape
 
@@ -194,7 +197,11 @@ class Microscope(Processor):
         # Add defocus from z-stage
         if self.z_stage is not None:
             phase = propagation(
-                pupil_shape, distance=self.z_stage.position, wavelength=self.wavelength, extent=pupil_extent, refractive_index=self.immersion_refractive_index
+                pupil_shape,
+                distance=self.z_stage.position,
+                wavelength=self.wavelength,
+                extent=pupil_extent,
+                refractive_index=self.immersion_refractive_index,
             )
             pupil_field = pupil_field * np.exp(1j * phase)
 
@@ -210,6 +217,7 @@ class Microscope(Processor):
                     out_extent=pupil_extent,
                     out_shape=pupil_shape,
                     transform=self.aberration_transform,
+                    interp=cv2.INTER_CUBIC,
                 )
             )
 
@@ -222,13 +230,53 @@ class Microscope(Processor):
                 transform=self.slm_transform,
             )
 
+        # plt.figure(figsize=(10, 5))
+        # plt.subplot(1,2, 1)
+        # plt.imshow(np.angle(incident_field), extent=(-pupil_extent[0] / 2, pupil_extent[0] / 2, -pupil_extent[1] / 2, pupil_extent[1] / 2))
+        # plt.colorbar(label="Phase (radians)")
+        # plt.subplot(1,2, 2)
+        # plt.imshow(np.abs(incident_field), extent=(-pupil_extent[0] / 2, pupil_extent[0] / 2, -pupil_extent[1] / 2, pupil_extent[1] / 2))
+        # plt.colorbar(label="Amplitude")
+        # plt.show()
+
+        # plt.figure(figsize=(10, 5))
+        # plt.subplot(1,2, 1)
+        # plt.imshow(np.angle(project(
+        #         incident_field,
+        #         out_extent=pupil_extent,
+        #         out_shape=pupil_shape,
+        #         transform=self.slm_transform,)), extent=(-pupil_extent[0] / 2, pupil_extent[0] / 2, -pupil_extent[1] / 2, pupil_extent[1] / 2))
+        # plt.colorbar(label="Phase (radians)")
+        # plt.subplot(1,2, 2)
+        # plt.imshow(np.abs(project(
+        #         incident_field,
+        #         out_extent=pupil_extent,
+        #         out_shape=pupil_shape,
+        #         transform=self.slm_transform,)), extent=(-pupil_extent[0] / 2, pupil_extent[0] / 2, -pupil_extent[1] / 2, pupil_extent[1] / 2))
+        # plt.colorbar(label="Amplitude")
+        # plt.show()
+
+        # plt.figure(figsize=(10, 5))
+        # plt.subplot(1,2, 1)
+        # plt.imshow(np.abs(pupil_field)*np.angle(pupil_field), extent=(-pupil_extent[0] / 2, pupil_extent[0] / 2, -pupil_extent[1] / 2, pupil_extent[1] / 2))
+        # plt.colorbar(label="Phase (radians)")
+        # plt.subplot(1,2, 2)
+        # plt.imshow(np.abs(pupil_field), extent=(-pupil_extent[0] / 2, pupil_extent[0] / 2, -pupil_extent[1] / 2, pupil_extent[1] / 2))
+        # plt.colorbar(label="Amplitude")
+        # plt.show()
+        # print(np.max(np.abs(pupil_field)*np.angle(pupil_field)),flush=True)
+
         # Compute the point spread function
         # This is done by Fourier transforming the pupil field and taking the absolute value squared
         # Due to condition 1, after the Fourier transform,
         # the pixel size matches that of the source (the specimen image).
         # Note: there is no need to `ifftshift` the pupil field, since we are taking the absolute value anyway
+
         psf = np.abs(np.fft.ifft2(pupil_field)) ** 2
         psf = np.fft.ifftshift(psf) * (psf.size / pupil_area)
+
+        psf = psf**2  # added for 2 pm
+
         self._psf = psf  # store psf for later inspection
 
         return fftconvolve(source, psf, "same")
