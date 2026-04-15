@@ -286,6 +286,7 @@ def test_parabola_shift():
 
 @pytest.mark.parametrize("extent", [2, 4])
 def test_parabola(extent):
+    # Test that the parabola pattern produces the expected shift in the image plane if the parabola is not centered on the back pupil plane of the image.
     na = 0.9
     wav = 500 * u.nm
     mic, slm, src = get_test_microscope(
@@ -311,6 +312,7 @@ def test_parabola(extent):
 
 
 def test_propagation():
+    # Test that a SLM propagation pattern can compensate for the defocus of the microscope
     mic, slm, src = get_test_microscope()
     img_ref = mic.read()
     phi = propagation(512, 2, 10 * u.um, mic.wavelength, 1, mic.numerical_aperture)
