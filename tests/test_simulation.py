@@ -8,8 +8,8 @@ import skimage
 from openwfs.algorithms import StepwiseSequential
 from openwfs.processors import SingleRoi
 from openwfs.simulation import Microscope, Camera, StaticSource, SLM
-from openwfs.utilities import get_pixel_size
-from openwfs.utilities.patterns import tilt, gaussian, parabola
+from openwfs.utilities import get_pixel_size, Transform
+from openwfs.utilities.patterns import tilt, gaussian, parabola, binary_grating, propagation
 from openwfs.utilities.tests import get_test_microscope
 
 
@@ -267,6 +267,8 @@ def test_parabola_shift():
     coef_parabola = 0.1
 
     mic, slm, src = get_test_microscope()
+
+    # Pupil shift required to shift the image by offset_focal. See docs of parabola
     pupil_offset = (
         np.multiply(np.multiply(offset_focal, mic.numerical_aperture), -np.pi / mic.wavelength) / coef_parabola
     )
@@ -280,3 +282,39 @@ def test_parabola_shift():
     measured_shift = shift_between_img_max(img_1, img_2) * get_pixel_size(img_1)
     print(measured_shift)
     assert np.allclose(measured_shift, offset_focal)
+
+
+@pytest.mark.parametrize("extent", [2, 4])
+def test_parabola(extent):
+    na = 0.9
+    wav = 500 * u.nm
+    mic, slm, src = get_test_microscope(
+        mic_args={"numerical_aperture": na, "wavelength": wav}, src_args={"pixel_size": 50 * u.nm}
+    )
+    extent = 6
+    desired_shift = 1000 * u.nm
+    periodicity = mic.wavelength / desired_shift / mic.numerical_aperture
+
+    phi = binary_grating((512, 512), extent, periodicity, (0, np.pi), angle=45 * u.deg)
+
+    mic.slm_transform = Transform(np.eye(2) * extent / 2, np.zeros(2), np.zeros(2))
+    slm.set_phases(0)
+    img_ref = mic.read()
+    slm.set_phases(phi)
+    img = mic.read()
+
+    assert np.allclose(
+        np.abs(shift_between_img_max(img_ref, img) * get_pixel_size(img_ref)),
+        np.ones(2) * np.sqrt(2) / 2 * desired_shift.to(u.nm),
+        rtol=0.05,
+    )
+
+
+mic, slm, src = get_test_microscope()
+extent = 2
+img_ref = mic.read()
+phi = propagation((512, 512), extent, 10 * u.um, mic.wavelength, 1, mic.numerical_aperture)
+slm.set_phases(phi)
+mic.z_stage.position = -10 * u.um
+img = mic.read()
+np.allclose(img, img_ref, atol=1e-3)

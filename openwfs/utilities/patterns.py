@@ -158,15 +158,12 @@ def propagation(
           shape: number of pixels of the returned pattern.
           extent: Extent of the return image. This value is defined in normalised pupil coordinates, i.e. an extent of (2, 2) covers the entire back pupil plane of a microscope objective with NA of `numerical_aperture`.
           distance (ScalarType): physical distance to propagate axially.
-          refractive_index (Scalar):
-          wavelength (Scalar):
-            the numerical aperture, refractive index and wavelength are used
-            to convert the `extent` from pupil coordinates to k-space (unit radians/meter),
+          wavelength (Scalar): wavelength of the light.
+          refractive_index (Scalar): refractive index of the medium in which the light is propagating.
           numerical_aperture: numerical aperture of the microscope objective. This is used to convert the `extent` from pupil coordinates to k-space, together with the `wavelength` and `refractive_index`.
 
     """
     offset = np.multiply(offset, -1) if offset is not None else None
-
     return patterns_f.propagation(
         *coordinate_range(shape, extent, offset=offset),
         distance=distance,
@@ -242,4 +239,33 @@ def gaussian(
     offset = np.multiply(offset, -1) if offset is not None else None
     return patterns_f.gaussian(
         *coordinate_range(shape, extent, offset=offset), waist=waist, truncation_radius=truncation_radius
+    )
+
+
+def binary_grating(
+    shape: ShapeType,
+    extent: ExtentType,
+    period: ScalarType,
+    values,
+    angle: ScalarType = 0.0,
+    offset: Optional[CoordinateType] = None,
+):
+    """Constructs a binary grating pattern.
+
+    Args:
+        shape: Number of pixels of the returned pattern.
+        extent: Extent of the return pattern. This value is used to compute the coordinates for the grating pattern. Changing the ratio of `extent` and `period` changes the returned pattern, but scaling both by the same factor does not change the returned pattern.
+        period (ScalarType): period of the grating, should have the same unit as `extent`.
+        values: tuple of two values (v0, v1) that are used for the two levels of the binary grating. For example, for a binary phase grating, these values could be (0, π).
+        angle (ScalarType): angle of the grating in radians. For an angle of 0, the grating is oriented along the x-axis, and for an angle of π/2, the grating is oriented along the y-axis.
+        offset: offsets the centre of the grating by offset
+
+        For a SLM in a pupil-conjugate configuration with an objective: If the extent and periodicity is defined in the normalised pupil coordinates, the image created by the first diffraction order of the grating is shifted in the focal plane by wavelength / period / na * (cos(angle), sin(angle)).
+
+    Returns:
+        An array of the same shape as the input `shape`, containing the phase values of the binary grating pattern.
+    """
+    offset = np.multiply(offset, -1) if offset is not None else None
+    return patterns_f.binary_grating(
+        *coordinate_range(shape, extent, offset=offset), period=period, values=values, angle=angle
     )

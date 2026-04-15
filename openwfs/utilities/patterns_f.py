@@ -26,7 +26,7 @@ def tilt(
         x: array of the pupil plane coordinates in the x-direction. The shape of x and y should be such that they can be added together (i.e. they should be the same shape, or one of them should be broadcastable to the shape of the other).
         y: array of the pupil plane coordinates in the y-direction. The shape of x and y should be such that they can be added together (i.e. they should be the same shape, or one of them should be broadcastable to the shape of the other).
         g(tuple of two floats): gradient vector.
-            When used in the pupil plane of an objective, this patterns causes a displacement of the beam along the x and y dimensions. For x and y in normalised pupil coodinates (i.e. -1 to 1), this patterns causes a displacement of: (gx, gy) * (-2 /π * λ / 2 / numerical_aperturn).
+            When used in the pupil plane of an objective, this patterns causes a displacement of the beam along the x and y dimensions. For x and y in normalised pupil coodinates (i.e. -1 to 1), this patterns causes a displacement of: (gx, gy) * (-1 /π * λ / numerical_aperturn).
           (Note: a positive x-gradient g causes the focal point to move in the _negative_ x-direction)
         phase_offset: optional additional phase offset to be added to the pattern
 
@@ -136,3 +136,24 @@ def parabola(
         An array of the same shape as x and y (or broadcasted), containing the phase values of the parabola pattern.
     """
     return unitless(alpha * (x**2 + y**2))
+
+
+def binary_grating(x, y, period, values, angle):
+    """
+        Constructs a binary grating pattern with a given period.
+
+    Args:
+        x: array of the normalised pupil plane coordinates in the x-direction
+        y: array of the normalised pupil plane coordinates in the y-direction
+        period: period of the grating in the same units as x and y (i.e. if x and y are in normalised pupil coordinates, the period should also be in normalised pupil coordinates)
+        values: tuple of two values (value for the "up" phase and value for the "down" phase).
+        angle: angle of the grating in radians. An angle of 0 corresponds to a grating that is periodic along the x-direction, and an angle of π/2 corresponds to a grating that is periodic along the y-direction.
+
+    For a SLM in a pupil-conjugate configuration with an objective, the image created by the first order of this grating is shifted by:
+
+    """
+    coord_along_periodic_direction = x * np.cos(angle) + y * np.sin(angle)
+    phase_mask = np.full(coord_along_periodic_direction.shape, values[0])
+    up_values = (coord_along_periodic_direction % period) >= (period / 2)
+    phase_mask[up_values] = values[1]
+    return phase_mask
