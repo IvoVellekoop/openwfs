@@ -56,8 +56,8 @@ def lens(x, y, f, wavelength, numerical_aperture):
 def propagation(
     x,
     y,
-    distance: ScalarType,
-    wavelength: ScalarType,
+    distance: Quantity,
+    wavelength: Quantity,
     refractive_index: ScalarType,
     numerical_aperture: ScalarType,
 ):
@@ -67,15 +67,15 @@ def propagation(
     Args:
         x: array of the pupil plane coordinates in the x-direction. The shape of x and y should be such that they can be added together (i.e. they should be the same shape, or one of them should be broadcastable to the shape of the other).
         y: array of the pupil plane coordinates in the y-direction. The shape of x and y should be such that they can be added together (i.e. they should be the same shape, or one of them should be broadcastable to the shape of the other).
-        distance (ScalarType): physical distance to propagate axially.
-        refractive_index (Scalar): refractive index of the medium in which the light is propagating.
-        wavelength (Scalar): wavelength of the light.
-        numerical_aperture: numerical aperture of the lens. This is used to convert the pupil-conjugate coordinates x and y to physical units (i.e. to convert from normalised pupil coodinates to k-space coordinates). An x and y of 1 correspond to the edge of the pupil, convering the full numerical aperture of the lens (applied by the phase mask).
+        distance (Quantity): physical distance to propagate axially.
+        wavelength (Quantity): wavelength of the light.
+        refractive_index (ScalarType): refractive index of the medium in which the light is propagating.
+        numerical_aperture (ScalarType): numerical aperture of the lens. This is used to convert the pupil-conjugate coordinates x and y to physical units (i.e. to convert from normalised pupil coodinates to k-space coordinates). An x and y of 1 correspond to the edge of the pupil, convering the full numerical aperture of the lens (applied by the phase mask).
     """
-    k = 2 * np.pi * refractive_index / wavelength
-    k_x = k * numerical_aperture * x
-    k_y = k * numerical_aperture * y
-    k_z = np.sqrt(np.maximum(k**2 - k_x**2 - k_y**2, 0))
+    k_0 = 2 * np.pi / wavelength
+    k_x = k_0 * numerical_aperture * x
+    k_y = k_0 * numerical_aperture * y
+    k_z = np.sqrt(np.maximum((k_0 * refractive_index) ** 2 - k_x**2 - k_y**2, 0))
 
     return unitless(distance * k_z)
 

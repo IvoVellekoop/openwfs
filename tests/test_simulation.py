@@ -259,7 +259,8 @@ def test_mock_slm_lut_and_phase_response():
     assert np.all(np.abs(slm4.phases.read()[0] - linear_phase_highres) < (3 * np.pi / 256))
 
 
-def test_parabola_shift():
+@pytest.mark.parametrize("extent", [2, 4])
+def test_parabola_shift(extent):
     """
     Tests that a display of a parabola pattern on the SLM with an certain offset results in the expected shift in the image plane.
     """
@@ -272,15 +273,15 @@ def test_parabola_shift():
     pupil_offset = (
         np.multiply(np.multiply(offset_focal, mic.numerical_aperture), -np.pi / mic.wavelength) / coef_parabola
     )
-    phi = parabola((1024, 1024), (2, 2), coef_parabola)
+    phi = parabola((1024, 1024), extent, coef_parabola)
     slm.set_phases(phi)
+    mic.slm_transform = Transform(np.eye(2) * extent / 2, np.zeros(2), np.zeros(2))
     img_1 = mic.read()
 
-    phi = parabola((1024, 1024), (2, 2), coef_parabola, offset=pupil_offset)
+    phi = parabola((1024, 1024), extent, coef_parabola, offset=pupil_offset)
     slm.set_phases(phi)
     img_2 = mic.read()
     measured_shift = shift_between_img_max(img_1, img_2) * get_pixel_size(img_1)
-    print(measured_shift)
     assert np.allclose(measured_shift, offset_focal)
 
 
