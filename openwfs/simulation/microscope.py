@@ -72,6 +72,7 @@ class Microscope(Processor):
             z_stage (Stage): Optional stage object that moves the sample up and down to focus the microscope.
                 Higher values are further away from the microscope objective.
                 Defaults to a MockStage.
+            immersion_refractive_index: The refractive index of the immersion medium.
             incident_field: Produces 2-D complex images containing the field output of the SLM.
                 If no `slm_transform` is specified, the `pixel_size` attribute should
                  correspond to normalized pupil coordinates
@@ -225,10 +226,16 @@ class Microscope(Processor):
                 transform=self.slm_transform,
             )
 
-        psf = np.abs(np.fft.ifft2(pupil_field)) ** self.nonlinearity  # added for 2 pm
+        # Compute the point spread function
+        # This is done by Fourier transforming the pupil field and taking the absolute value squared
+        # Due to condition 1, after the Fourier transform,
+        # the pixel size matches that of the source (the specimen image).
+        # Note: there is no need to `ifftshift` the pupil field, since we are taking the absolute value anyway
+        
+        psf = np.abs(np.fft.ifft2(pupil_field)) ** 2  
         psf = np.fft.ifftshift(psf) * (psf.size / pupil_area)
 
-        psf = psf**2  # added for 2 pm
+        psf = psf**self.nonlinearity  # added for 2 pm
 
         self._psf = psf  # store psf for later inspection
 
