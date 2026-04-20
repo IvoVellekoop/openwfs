@@ -71,7 +71,7 @@ def test_propagation(extent, refractive_index):
     phi = propagation(shape, extent, d, wavelength, refractive_index, na)
 
     r_r = coordinate_range(shape, extent)[0][0, 0]
-    kr = 2 * np.pi * refractive_index / wavelength * na * r_r
+    kr = 2 * np.pi / wavelength * na * r_r
     kz = np.sqrt((2 * np.pi * refractive_index / wavelength) ** 2 - kr**2)
     ref_value = unitless(d * kz)
 
