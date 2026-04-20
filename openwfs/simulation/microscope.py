@@ -61,7 +61,7 @@ class Microscope(Processor):
             wavelength: Wavelength of the light used for imaging,
                 the wavelength and numerical_aperture together determine the resolution of the microscope.
             nonlinearity: Exponent to which the PSF is raised. This can be used to simulate two-photon microscopy (nonlinearity=2),
-                or multiphoton microscopy in general (nonlinearity > 2). 
+                or multiphoton microscopy in general (nonlinearity > 2).
             magnification: Scalar magnification factor between input and output image.
                 Note that this factor does not affect the effective image resolution.
                 Increasing the magnification will just produce a zoomed-in blurred image.
