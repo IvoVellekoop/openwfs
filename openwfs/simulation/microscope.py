@@ -40,6 +40,7 @@ class Microscope(Processor):
         data_shape=None,
         numerical_aperture: float = 1.0,
         wavelength: Quantity[u.nm],
+        nonlinearity: int = 1,
         magnification: float = 1.0,
         xy_stage=None,
         z_stage=None,
@@ -59,6 +60,8 @@ class Microscope(Processor):
             numerical_aperture: Numerical aperture of the microscope objective
             wavelength: Wavelength of the light used for imaging,
                 the wavelength and numerical_aperture together determine the resolution of the microscope.
+            nonlinearity: Exponent to which the PSF is raised. This can be used to simulate two-photon microscopy (nonlinearity=2),
+                or multiphoton microscopy in general (nonlinearity > 2). 
             magnification: Scalar magnification factor between input and output image.
                 Note that this factor does not affect the effective image resolution.
                 Increasing the magnification will just produce a zoomed-in blurred image.
@@ -109,6 +112,7 @@ class Microscope(Processor):
         self._magnification = magnification
         self._data_shape = data_shape if data_shape is not None else source.data_shape
         self.numerical_aperture = numerical_aperture
+        self.nonlinearity = nonlinearity
         self.aberration_transform = aberration_transform
         self.slm_transform = incident_transform
         self.wavelength = wavelength.to(u.nm)
@@ -177,15 +181,6 @@ class Microscope(Processor):
         # condition 1. Extent of pupil in pupil coordinates: Abbe limit should give pixel_size resolution
         pupil_extent = unitless(self.wavelength / target_pixel_size)
 
-        # If the pupil extent is smaller than 2.0 * NA, warn the user
-        if pupil_extent[0] / 2 < self.numerical_aperture:
-            warnings.warn(
-                f"The given grid does not support the spatial frequency components required for the given numerical aperture. \n"
-                f"Currently, the maximum supported NA is {pupil_extent[0] / 2:.2f} for the current settings. \n"
-                f"Either decrease the magnification, decrease the wavelength or increase the pixel size of the source",
-                UserWarning,
-            )
-
         # condition 2. Minimum number of pixels in x and y should be data_shape
         pupil_shape = self.data_shape
 
@@ -230,49 +225,7 @@ class Microscope(Processor):
                 transform=self.slm_transform,
             )
 
-        # plt.figure(figsize=(10, 5))
-        # plt.subplot(1,2, 1)
-        # plt.imshow(np.angle(incident_field), extent=(-pupil_extent[0] / 2, pupil_extent[0] / 2, -pupil_extent[1] / 2, pupil_extent[1] / 2))
-        # plt.colorbar(label="Phase (radians)")
-        # plt.subplot(1,2, 2)
-        # plt.imshow(np.abs(incident_field), extent=(-pupil_extent[0] / 2, pupil_extent[0] / 2, -pupil_extent[1] / 2, pupil_extent[1] / 2))
-        # plt.colorbar(label="Amplitude")
-        # plt.show()
-
-        # plt.figure(figsize=(10, 5))
-        # plt.subplot(1,2, 1)
-        # plt.imshow(np.angle(project(
-        #         incident_field,
-        #         out_extent=pupil_extent,
-        #         out_shape=pupil_shape,
-        #         transform=self.slm_transform,)), extent=(-pupil_extent[0] / 2, pupil_extent[0] / 2, -pupil_extent[1] / 2, pupil_extent[1] / 2))
-        # plt.colorbar(label="Phase (radians)")
-        # plt.subplot(1,2, 2)
-        # plt.imshow(np.abs(project(
-        #         incident_field,
-        #         out_extent=pupil_extent,
-        #         out_shape=pupil_shape,
-        #         transform=self.slm_transform,)), extent=(-pupil_extent[0] / 2, pupil_extent[0] / 2, -pupil_extent[1] / 2, pupil_extent[1] / 2))
-        # plt.colorbar(label="Amplitude")
-        # plt.show()
-
-        # plt.figure(figsize=(10, 5))
-        # plt.subplot(1,2, 1)
-        # plt.imshow(np.abs(pupil_field)*np.angle(pupil_field), extent=(-pupil_extent[0] / 2, pupil_extent[0] / 2, -pupil_extent[1] / 2, pupil_extent[1] / 2))
-        # plt.colorbar(label="Phase (radians)")
-        # plt.subplot(1,2, 2)
-        # plt.imshow(np.abs(pupil_field), extent=(-pupil_extent[0] / 2, pupil_extent[0] / 2, -pupil_extent[1] / 2, pupil_extent[1] / 2))
-        # plt.colorbar(label="Amplitude")
-        # plt.show()
-        # print(np.max(np.abs(pupil_field)*np.angle(pupil_field)),flush=True)
-
-        # Compute the point spread function
-        # This is done by Fourier transforming the pupil field and taking the absolute value squared
-        # Due to condition 1, after the Fourier transform,
-        # the pixel size matches that of the source (the specimen image).
-        # Note: there is no need to `ifftshift` the pupil field, since we are taking the absolute value anyway
-
-        psf = np.abs(np.fft.ifft2(pupil_field)) ** 2
+        psf = np.abs(np.fft.ifft2(pupil_field)) ** self.nonlinearity  # added for 2 pm
         psf = np.fft.ifftshift(psf) * (psf.size / pupil_area)
 
         psf = psf**2  # added for 2 pm
