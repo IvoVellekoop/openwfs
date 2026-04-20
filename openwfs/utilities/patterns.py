@@ -113,9 +113,9 @@ def tilt(
 def lens(
     shape: ShapeType,
     extent: ExtentType,
-    f: ScalarType,
-    wavelength: ScalarType,
-    numerical_aperture: ScalarType,
+    f: Quantity,
+    wavelength: Quantity,
+    numerical_aperture: float,
     offset=None,
 ):
     """Constructs a phase mask mimicking a lens: (f-sqrt(f²+r²)) · 2π/λ
@@ -123,13 +123,15 @@ def lens(
     `extent`, `wavelength` and `f` should have compatible units (typically astropy length units).
 
     Args:
-        shape(ShapeType): number of pixels of the returned pattern.
-        extent(ExtentType): extent of the return pattern defined in normalised pupil coordinates, i.e. an extent of (2, 2) covers the entire back pupil plane of the lens mimicked by the pattern.
-        f(ScalarType): focal length
-        wavelength(ScalarType): wavelength
-        numerical_aperture(ScalarType): numerical aperturn of the lens mimicked by the pattern. This is used to convert the `extent` from normalised pupil coordinates to k-space (unit radians/meter), together with the `wavelength` and `f`.
-    """
+        shape: number of pixels of the returned pattern.
+        extent: extent of the return pattern defined in normalised pupil coordinates, i.e. an extent of (2, 2) covers the entire back pupil plane of the lens mimicked by the pattern.
+        f: focal length
+        wavelength: wavelength
+        numerical_aperture: numerical aperturn of the lens mimicked by the pattern. This is used to convert the `extent` from normalised pupil coordinates to k-space (unit radians/meter), together with the `wavelength` and `f`.
 
+    Returns:
+        An array of the same shape as the input `shape`, containing the phase values of the lens phase mask.
+    """
     offset = np.multiply(offset, -1) if offset is not None else None
 
     return patterns_f.lens(
@@ -143,10 +145,10 @@ def lens(
 def propagation(
     shape: ShapeType,
     extent: ExtentType,
-    distance: ScalarType,
-    wavelength: ScalarType,
-    refractive_index: ScalarType,
-    numerical_aperture: ScalarType,
+    distance: Quantity,
+    wavelength: Quantity,
+    refractive_index: float,
+    numerical_aperture: float,
     offset=None,
 ):
     """Computes a wavefront that corresponds to digitally propagating the field in the object plane.
@@ -157,10 +159,13 @@ def propagation(
     Args:
           shape: number of pixels of the returned pattern.
           extent: Extent of the return image. This value is defined in normalised pupil coordinates, i.e. an extent of (2, 2) covers the entire back pupil plane of a microscope objective with NA of `numerical_aperture`.
-          distance (ScalarType): physical distance to propagate axially.
-          wavelength (Scalar): wavelength of the light.
-          refractive_index (Scalar): refractive index of the medium in which the light is propagating.
-          numerical_aperture: numerical aperture of the microscope objective. This is used to convert the `extent` from pupil coordinates to k-space, together with the `wavelength` and `refractive_index`.
+          distance (Quantity): physical distance to propagate axially.
+          wavelength (Quantity): wavelength of the light.
+          refractive_index (float): refractive index of the medium in which the light is propagating.
+          numerical_aperture (float): numerical aperture of the microscope objective. This is used to convert the `extent` from pupil coordinates to k-space, together with the `wavelength` and `refractive_index`.
+
+    Return
+            An array of the same shape as the input `shape`, containing the phase values of the wavefront.
 
     """
     offset = np.multiply(offset, -1) if offset is not None else None
@@ -186,8 +191,11 @@ def parabola(
     Args:
           shape: number of pixels of the returned pattern.
           extent: Extent of the return image. This value is defined in normalised pupil coordinates, i.e. an extent of (2, 2) covers the entire back pupil plane of a microscope objective.
-          alpha (ScalarType): coefficient of the parabola phase mask. This is used together with the `extent` to determine the curvature of the parabola.
-          offset: offsets the centre of the parabola by offset. If the parabola is not centered on the back pupil plane, the image in the focal plane will be shifted. For an extent of (2, 2), the resulting shift is given by offset * alpha * wavelength / (numerical_aperture * π), where `numerical_aperture` is the numerical aperture of the microscope objective, and `wavelength` is the wavelength of the light.
+          alpha (float): coefficient of the parabola phase mask. This is used together with the `extent` to determine the curvature of the parabola.
+          offset: offsets the centre of the parabola by offset. If the parabola is not centered on the back pupil plane, the image in the focal plane will be shifted. The resulting shift is given by offset * alpha * wavelength / (numerical_aperture * π), where `numerical_aperture` is the numerical aperture of the microscope objective, and `wavelength` is the wavelength of the light.
+
+    Return:
+            An array of the same shape as the input `shape`, containing the phase values of the parabola phase mask.
 
     """
     offset = np.multiply(offset, -1) if offset is not None else None
@@ -197,7 +205,7 @@ def parabola(
 def disk(
     shape: ShapeType,
     extent: ExtentType,
-    radius: ScalarType,
+    radius: Quantity,
     offset: Optional[CoordinateType] = None,
 ):
     """Constructs an image of a centered (ellipsoid) disk.
@@ -209,6 +217,9 @@ def disk(
           extent: extent of the return pattern. This value is used to compute the coordinates of each pixel of the image. Scaling both the extent and radius by the same factor does not change the returned pattern, but changing their ratio does.
           radius (ScalarType): radius of the disk, should have the same unit as `extent`.
           offset: offsets the centre of the disk by offset
+
+    Return:
+            An array of the same shape as the input `shape`, containing the values of the disk pattern. The values are 1 inside the disk and 0 outside the disk.
     """
 
     offset = np.multiply(offset, -1) if offset is not None else None
@@ -229,9 +240,9 @@ def gaussian(
     Args:
         shape: Number of pixels of the returned pattern.
         extent: Extent of the return pattern. This value is used to compute the coordinates for the Gaussian profile. Changing the ratio of `extent` and `waist` changes the returned pattern, but scaling both by the same factor does not change the returned pattern.
-        waist (ScalarType): location of the beam waist (1/e value)
+        waist: location of the beam waist (1/e value)
             relative to half of the size of the pattern (i.e. relative to the `radius` of the square)
-        truncation_radius (ScalarType): when not None, specifies the radius of a disk that is used to truncate the
+        truncation_radius: when not None, specifies the radius of a disk that is used to truncate the
             Gaussian. All values outside the disk are set to 0.
         offset: offsets the centre of the Gaussian. The centre of the disk is also offsetted by this amount.
 
