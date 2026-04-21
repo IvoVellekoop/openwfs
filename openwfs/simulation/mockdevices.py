@@ -288,7 +288,7 @@ class Camera(ADCProcessor):
             TODO: move left-right-top-bottom to CropProcessor.
             Expose the properties of CropProcessor as properties of MockCamera automatically by copying from __dict__?
         """
-        self._crop = CropProcessor(source, shape=shape, pos=pos)
+        self._crop = CropProcessor(source, shape=shape if shape is not None else source.data_shape, pos=pos)
         super().__init__(source=self._crop, **kwargs)
         self._base_exposure = exposure
         self._exposure = exposure

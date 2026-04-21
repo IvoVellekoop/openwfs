@@ -433,7 +433,7 @@ def get_extent(data: np.ndarray) -> Quantity:
     """
     pixel_size = get_pixel_size(data)
     if pixel_size is None:
-        return Quantity(data.shape)
+        return None
     return data.shape * pixel_size
 
 
