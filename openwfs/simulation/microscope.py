@@ -193,9 +193,9 @@ class Microscope(Processor):
         if self.z_stage is not None:
             phase = propagation(
                 pupil_shape,
+                extent=pupil_extent,
                 distance=self.z_stage.position,
                 wavelength=self.wavelength,
-                extent=pupil_extent,
                 refractive_index=self.immersion_refractive_index,
                 numerical_aperture=self.numerical_aperture,
             )
