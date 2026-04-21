@@ -900,16 +900,23 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         error = get_evident_error(result)
         error.throw_if_error()
 
-        return result["revolver"]
+        return result["lensName"]
 
     @objective.setter
-    def objective(self, revolver_index: int):
+    def objective(self, name: str):
         """
         Set the objective lens by specifying the revolver index.
 
         Args:
             revolver_index (int): Index of the nosepiece to be changed.
         """
+        obj_list = self.objective_list
+        obj_names = [obj["lensName"] for obj in obj_list]
+        if name not in obj_names:
+            raise ValueError(f"Objective lens '{name}' not found. Available lenses: {obj_names}")
+
+        revolver_index = obj_list[obj_names.index(name)]["revolverIndex"]
+
         inputVal = {"settingId": "LSM_MICROSCOPE_OBJECTIVE_LENS_CURRENT_SETTING", "revolverIndex": revolver_index}
         result = self._proxy.Parameter.setParameter(inputVal)
 
