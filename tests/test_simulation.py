@@ -312,13 +312,24 @@ def test_parabola(extent):
     )
 
 
-def test_propagation():
+@pytest.mark.parametrize("n", [1, 2])
+def test_propagation(n):
     # Test that a SLM propagation pattern can compensate for the defocus of the microscope
-    mic, slm, src = get_test_microscope()
+    mic, slm, src = get_test_microscope(mic_args={"immersion_refractive_index": n})
     img_ref = mic.read()
-    phi = propagation(512, 2, 10 * u.um, mic.wavelength, 1, mic.numerical_aperture)
+    phi = propagation(512, 2, 10 * u.um, mic.wavelength, n, mic.numerical_aperture)
     slm.set_phases(phi)
     mic.z_stage.position = -10 * u.um
     img = mic.read()
 
     assert np.allclose(img, img_ref, atol=1e-3)
+
+
+def test_non_linear_microscope():
+    mic_1, slm_1, src_1 = get_test_microscope()
+    img_ref = mic_1.read()
+
+    mic_2, slm_2, src_2 = get_test_microscope(mic_args={"nonlinearity": 2})
+    img_2p = mic_2.read()
+
+    assert np.allclose(img_2p, img_ref**2)
