@@ -5,6 +5,8 @@ from astropy.units import Quantity
 
 from .utilities import ExtentType, CoordinateType, unitless
 
+from . import patterns_f
+
 # shape of a numpy array, or a single integer that is broadcast to a square shape
 ShapeType = Union[int, Sequence[int]]
 
@@ -19,24 +21,23 @@ indicating the size (shape) in pixels of the returned field. If `shape` is a sca
 used for both axes.
 
 For the coordinates, the OpenGL convention is used, where the coordinates indicate the centers of the pixels.
-By default, the returned pattern is assumed to cover a -1,1 x -1,1 square, 
-which corresponds to a default `extent` parameter of (2.0, 2.0).
+For an extent of (2, 2), the returned pattern is assumed to cover a -1,1 x -1,1 square.
 In this case, the coordinates range from -1+dx/2 to 1-dx/2, where dx=2.0/shape is the pixel size.
 
-Exptent and shape may be specified individually to work with anisotropic pixels or rectangular patterns.
+Extent and shape may be specified individually to work with anisotropic pixels or rectangular patterns.
 For example, a square pattern with anisotropic pixels may be described by shape=(80,100) and extent(2,2)
 whereas shape=(80,100) and extent(8,10) describes square pixels that form a rectangle.
 
-In a pupil-conjugate configuration, a disk of extent=(NA, NA) exactly covers the back pupil of the microscope objective.
-The transformation matrix of the SLM should be set such that SLM coordinates correspond to normalized pupil coordinates.
+The functions were designed to use normalised pupil coordinates (i.e. an extent of (2,2) which covers the entire back focal plane) so they can be used directly in a pupil-conjugate configuration. 
 
-The extent may have a unit of measure. In this case, other parameters (such as `radius`) may need to have
-an according unit of measure.
+Some patterns (e.g. disk) depend on the ratio between the extent and other parameters (e.g. radius) so any coordinate system can be used by tuning both parameters. The documentation is written in terms of normalised pupil coordinates for consistency.
 
 The (0,0) coordinate is always located in the center of the pattern, which may be on a grid point (for odd shape)
 or between grid points (for even shape).
 
 The returned array has a pixel_size property attached.
+
+Functions are available on openwfs.utilities.patterns_f that accept the coordinates as input instead of requiring an extent and shape.
 """
 
 
@@ -87,9 +88,10 @@ def r2_range(shape: ShapeType, extent: ExtentType, offset: Optional[CoordinateTy
 
 def tilt(
     shape: ShapeType,
+    extent: ExtentType,
     g: ExtentType,
-    extent: ExtentType = (2.0, 2.0),
     phase_offset: float = 0.0,
+    offset: Optional[CoordinateType] = None,
 ):
     """Constructs a linear gradient pattern φ=2g·r
 
@@ -97,42 +99,57 @@ def tilt(
     so that :math:`\\frac{\\int_0^{2\\pi} \\int_0^1 |Z(\\rho, \\phi)|^2 \\rho d\\rho d\\phi}{\\int_0^{2\\pi} \\int_0^1 \\rho d\\rho d\\phi} = 1`.
 
     Args:
-        shape: see module documentation
-        g(tuple of two floats): gradient vector.
-          This has the unit: 1 / extent.unit.
-          For the default extent of (2.0, 2.0), a value of g=(1,0)
-          corresponds to having a ramp from -2 to +2 over the height of the pattern.
-          With an extent of (2.0, 2.0) covering the full NA,
-          this pattern causes a displacement of -2/π times the Abbe diffraction limit
+        shape: Number of pixels of the returned pattern.
+        extent: extent of the return pattern defined in normalised pupil coordinates, i.e. an extent of (2, 2) covers the entire back pupil plane of a microscope objective.
+        g(tuple of two floats): gradient vector. For an extent of (2,2), the shift in the focal plane is given by (gx, gy) * -1 / π * wavelength / numerical_aperture_aperture. Where 'numerical_aperture' is the numerical aperture of the microscope objective, and 'wavelength' is the wavelength of the light.
           (Note: a positive x-gradient g causes the focal point to move in the _negative_ x-direction)
-        extent: see module documentation
         phase_offset: optional additional phase offset to be added to the pattern
     """
-    c0, c1 = coordinate_range(shape, extent * (Quantity(g) * 2.0))
-    return unitless(c0 + (c1 + phase_offset))
+
+    offset = np.multiply(offset, -1) if offset is not None else None
+    return unitless(patterns_f.tilt(*coordinate_range(shape, extent), g=g, phase_offset=phase_offset))
 
 
-def lens(shape: ShapeType, f: ScalarType, wavelength: ScalarType, extent: ExtentType):
-    """Constructs a square texture that represents a wavefront defocus: (f-sqrt(f²+r²)) · 2π/λ
+def lens(
+    shape: ShapeType,
+    extent: ExtentType,
+    f: Quantity,
+    wavelength: Quantity,
+    numerical_aperture: float,
+    offset=None,
+):
+    """Constructs a phase mask mimicking a lens: (f-sqrt(f²+r²)) · 2π/λ
 
     `extent`, `wavelength` and `f` should have compatible units (typically astropy length units).
 
     Args:
-        shape(ShapeType): see module documentation
-        f(ScalarType): focal length
-        wavelength(ScalarType): wavelength
-        extent(ExtentType): physical extent of the SLM, same units as `f` and `wavelength`
+        shape: number of pixels of the returned pattern.
+        extent: extent of the return pattern defined in normalised pupil coordinates, i.e. an extent of (2, 2) covers the entire back pupil plane of the lens mimicked by the pattern.
+        f: focal length
+        wavelength: wavelength
+        numerical_aperture: numerical aperturn of the lens mimicked by the pattern. This is used to convert the `extent` from normalised pupil coordinates to k-space (unit radians/meter), together with the `wavelength` and `f`.
+
+    Returns:
+        An array of the same shape as the input `shape`, containing the phase values of the lens phase mask.
     """
-    r_sqr = r2_range(shape, extent)
-    return unitless((f - np.sqrt(f**2 + r_sqr)) * (2 * np.pi / wavelength))
+    offset = np.multiply(offset, -1) if offset is not None else None
+
+    return patterns_f.lens(
+        *coordinate_range(shape, extent, offset=offset),
+        f=f,
+        wavelength=wavelength,
+        numerical_aperture=numerical_aperture,
+    )
 
 
 def propagation(
     shape: ShapeType,
-    distance: ScalarType,
-    wavelength: ScalarType,
     extent: ExtentType,
-    refractive_index: ScalarType = 1.0,
+    distance: Quantity,
+    wavelength: Quantity,
+    refractive_index: float,
+    numerical_aperture: float,
+    offset=None,
 ):
     """Computes a wavefront that corresponds to digitally propagating the field in the object plane.
 
@@ -140,24 +157,55 @@ def propagation(
     φ = k_z · distance
 
     Args:
-          shape: see module documentation
-          distance (ScalarType): physical distance to propagate axially.
-          refractive_index (Scalar):
-          wavelength (Scalar):
-            the numerical aperture, refractive index and wavelength are used
-            to convert the `extent` from pupil coordinates to k-space (unit radians/meter),
-          extent: extent of the returned image,r2_range in NA units. To cover the full NA with a square, use (2*NA, 2*NA)
+          shape: number of pixels of the returned pattern.
+          extent: Extent of the return image. This value is defined in normalised pupil coordinates, i.e. an extent of (2, 2) covers the entire back pupil plane of a microscope objective with NA of `numerical_aperture`.
+          distance (Quantity): physical distance to propagate axially.
+          wavelength (Quantity): wavelength of the light.
+          refractive_index (float): refractive index of the medium in which the light is propagating.
+          numerical_aperture (float): numerical aperture of the microscope objective. This is used to convert the `extent` from pupil coordinates to k-space, together with the `wavelength` and `refractive_index`.
+
+    Return
+            An array of the same shape as the input `shape`, containing the phase values of the wavefront.
+
     """
-    # convert pupil coordinates to absolute k_x, k_y coordinates
-    n_p2 = r2_range(shape, Quantity(extent))
-    n_z = np.sqrt(np.maximum(refractive_index**2 - n_p2, 0.0))
-    return unitless(2.0 * np.pi / wavelength * distance * n_z)
+    offset = np.multiply(offset, -1) if offset is not None else None
+    return patterns_f.propagation(
+        *coordinate_range(shape, extent, offset=offset),
+        distance=distance,
+        wavelength=wavelength,
+        refractive_index=refractive_index,
+        numerical_aperture=numerical_aperture,
+    )
+
+
+def parabola(
+    shape: ShapeType,
+    extent: ExtentType,
+    alpha: ScalarType,
+    offset: Optional[CoordinateType] = None,
+):
+    """Constructs a parabola phase mask: alpha * (x^2 + y^2)
+
+    `extent` and `alpha` should have compatible units (typically astropy length units).
+
+    Args:
+          shape: number of pixels of the returned pattern.
+          extent: Extent of the return image. This value is defined in normalised pupil coordinates, i.e. an extent of (2, 2) covers the entire back pupil plane of a microscope objective.
+          alpha (float): coefficient of the parabola phase mask. This is used together with the `extent` to determine the curvature of the parabola.
+          offset: offsets the centre of the parabola by offset. If the parabola is not centered on the back pupil plane, the image in the focal plane will be shifted. The resulting shift is given by offset * alpha * wavelength / (numerical_aperture * π), where `numerical_aperture` is the numerical aperture of the microscope objective, and `wavelength` is the wavelength of the light.
+
+    Return:
+            An array of the same shape as the input `shape`, containing the phase values of the parabola phase mask.
+
+    """
+    offset = np.multiply(offset, -1) if offset is not None else None
+    return patterns_f.parabola(*coordinate_range(shape, extent, offset=offset), alpha=alpha)
 
 
 def disk(
     shape: ShapeType,
-    radius: ScalarType = 1.0,
-    extent: ExtentType = (2.0, 2.0),
+    extent: ExtentType,
+    radius: Quantity,
     offset: Optional[CoordinateType] = None,
 ):
     """Constructs an image of a centered (ellipsoid) disk.
@@ -165,25 +213,24 @@ def disk(
     (x / rx)^2 + (y / ry)^2 <= 1.0
 
     Args:
-          shape: see module documentation
+          shape: number of pixels of the returned pattern.
+          extent: extent of the return pattern. This value is used to compute the coordinates of each pixel of the image. Scaling both the extent and radius by the same factor does not change the returned pattern, but changing their ratio does.
           radius (ScalarType): radius of the disk, should have the same unit as `extent`.
-          extent: see module documentation
           offset: offsets the centre of the disk by offset
+
+    Return:
+            An array of the same shape as the input `shape`, containing the values of the disk pattern. The values are 1 inside the disk and 0 outside the disk.
     """
 
-    if offset is not None:
-        inv_offset = np.multiply(offset, -1.0)
-    else:
-        inv_offset = None
-
-    return 1.0 * (r2_range(shape, extent, inv_offset) < radius**2)
+    offset = np.multiply(offset, -1) if offset is not None else None
+    return patterns_f.disk(*coordinate_range(shape, extent, offset=offset), radius=radius)
 
 
 def gaussian(
     shape: ShapeType,
+    extent: ExtentType,
     waist: ScalarType,
     truncation_radius: ScalarType = None,
-    extent: ExtentType = (2.0, 2.0),
     offset: Optional[CoordinateType] = None,
 ):
     """Constructs an image of a centered Gaussian
@@ -191,23 +238,45 @@ def gaussian(
     `waist`, `extent` and the optional `truncation_radius` should all have the same unit.
 
     Args:
-        shape: see module documentation
-        waist (ScalarType): location of the beam waist (1/e value)
+        shape: Number of pixels of the returned pattern.
+        extent: Extent of the return pattern. This value is used to compute the coordinates for the Gaussian profile. Changing the ratio of `extent` and `waist` changes the returned pattern, but scaling both by the same factor does not change the returned pattern.
+        waist: location of the beam waist (1/e value)
             relative to half of the size of the pattern (i.e. relative to the `radius` of the square)
-        truncation_radius (ScalarType): when not None, specifies the radius of a disk that is used to truncate the
+        truncation_radius: when not None, specifies the radius of a disk that is used to truncate the
             Gaussian. All values outside the disk are set to 0.
-        extent: see module documentation
         offset: offsets the centre of the Gaussian. The centre of the disk is also offsetted by this amount.
 
     """
-    if offset is not None:
-        inv_offset = np.multiply(offset, -1.0)
-    else:
-        inv_offset = None
+    offset = np.multiply(offset, -1) if offset is not None else None
+    return patterns_f.gaussian(
+        *coordinate_range(shape, extent, offset=offset), waist=waist, truncation_radius=truncation_radius
+    )
 
-    r_sqr = r2_range(shape, extent, inv_offset)
-    w2inv = -1.0 / waist**2
-    gauss = np.exp(unitless(r_sqr * w2inv))
-    if truncation_radius is not None:
-        gauss = gauss * disk(shape, truncation_radius, extent=extent, offset=offset)
-    return unitless(gauss)
+
+def binary_grating(
+    shape: ShapeType,
+    extent: ExtentType,
+    period: ScalarType,
+    values,
+    angle: ScalarType = 0.0,
+    offset: Optional[CoordinateType] = None,
+):
+    """Constructs a binary grating pattern.
+
+    Args:
+        shape: Number of pixels of the returned pattern.
+        extent: Extent of the return pattern. This value is used to compute the coordinates for the grating pattern. Changing the ratio of `extent` and `period` changes the returned pattern, but scaling both by the same factor does not change the returned pattern.
+        period (ScalarType): period of the grating, should have the same unit as `extent`.
+        values: tuple of two values (v0, v1) that are used for the two levels of the binary grating. For example, for a binary phase grating, these values could be (0, π).
+        angle (ScalarType): angle of the grating in radians. For an angle of 0, the grating is oriented along the x-axis, and for an angle of π/2, the grating is oriented along the y-axis.
+        offset: offsets the centre of the grating by offset
+
+        For a SLM in a pupil-conjugate configuration with an objective: If the extent and periodicity is defined in the normalised pupil coordinates, the image created by the first diffraction order of the grating is shifted in the focal plane by wavelength / period / na * (cos(angle), sin(angle)).
+
+    Returns:
+        An array of the same shape as the input `shape`, containing the phase values of the binary grating pattern.
+    """
+    offset = np.multiply(offset, -1) if offset is not None else None
+    return patterns_f.binary_grating(
+        *coordinate_range(shape, extent, offset=offset), period=period, values=values, angle=angle
+    )

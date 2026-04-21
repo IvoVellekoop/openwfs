@@ -1,3 +1,5 @@
+from . import tests
+from . import patterns_f
 from . import patterns
 from . import utilities
 from .patterns import coordinate_range, disk, gaussian, tilt

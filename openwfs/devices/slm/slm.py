@@ -106,7 +106,7 @@ class SLM(Actuator, PhaseSLM):
         self._assert_window_available(monitor_id)
         self._position = pos
         self._monitor_id = monitor_id
-        (default_shape, default_rate, _) = SLM._current_mode(self._monitor_id)
+        default_shape, default_rate, _ = SLM._current_mode(self._monitor_id)
         self._shape = default_shape if shape is None else shape
         self._refresh_rate = default_rate if refresh_rate is None else refresh_rate.to_value(u.Hz)
         self._frame_buffer = None
@@ -205,7 +205,7 @@ class SLM(Actuator, PhaseSLM):
 
         This function also sets the viewport to the full window size and creates a frame buffer.
         """
-        (current_size, current_rate, current_bit_depth) = SLM._current_mode(self._monitor_id)
+        current_size, current_rate, current_bit_depth = SLM._current_mode(self._monitor_id)
         # verify that the bit depth is at least 8 bit
         if current_bit_depth < 8:
             warnings.warn(
@@ -230,7 +230,7 @@ class SLM(Actuator, PhaseSLM):
         glfw.swap_interval(1)
 
         # update the shape property to match the actual value of the window
-        (fb_width, fb_height) = glfw.get_framebuffer_size(self._window)
+        fb_width, fb_height = glfw.get_framebuffer_size(self._window)
         fb_shape = (fb_height, fb_width)
         if self._shape != fb_shape:
             warnings.warn(f"Actual resolution {fb_shape} does not match requested resolution {self._shape}.")
@@ -395,7 +395,7 @@ class SLM(Actuator, PhaseSLM):
 
         self._assert_window_available(value)
         self._monitor_id = value
-        (self._shape, self._refresh_rate, _) = SLM._current_mode(value)
+        self._shape, self._refresh_rate, _ = SLM._current_mode(value)
         self._monitor = glfw.get_monitors()[value - 1] if value != SLM.WINDOWED else None
 
         # move window to new monitor
