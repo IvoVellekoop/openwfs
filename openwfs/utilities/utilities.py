@@ -293,7 +293,7 @@ def project(
     out: Optional[np.ndarray] = None,
     out_extent: Optional[ExtentType] = None,
     out_shape: Optional[tuple[int, ...]] = None,
-    interp = cv2.INTER_NEAREST,
+    interp=cv2.INTER_NEAREST,
 ) -> np.ndarray:
     """Projects the input image onto an array with specified shape and resolution.
 
