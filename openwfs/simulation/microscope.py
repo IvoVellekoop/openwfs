@@ -231,8 +231,8 @@ class Microscope(Processor):
         # Due to condition 1, after the Fourier transform,
         # the pixel size matches that of the source (the specimen image).
         # Note: there is no need to `ifftshift` the pupil field, since we are taking the absolute value anyway
-        
-        psf = np.abs(np.fft.ifft2(pupil_field)) ** 2  
+
+        psf = np.abs(np.fft.ifft2(pupil_field)) ** 2
         psf = np.fft.ifftshift(psf) * (psf.size / pupil_area)
 
         psf = psf**self.nonlinearity  # added for 2 pm
