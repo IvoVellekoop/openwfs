@@ -293,6 +293,7 @@ def project(
     out: Optional[np.ndarray] = None,
     out_extent: Optional[ExtentType] = None,
     out_shape: Optional[tuple[int, ...]] = None,
+    interp=cv2.INTER_NEAREST,
 ) -> np.ndarray:
     """Projects the input image onto an array with specified shape and resolution.
 
@@ -312,6 +313,7 @@ def project(
             If not given, the extent metadata of the out image is used.
         out_shape: shape of the output image.
             This value is ignored if `out` is specified.
+        interp: interpolation method to use when rescaling the image. See OpenCV documentation for options.
 
     Returns:
         np.ndarray: the projected image (`out` if specified, otherwise a new array)
@@ -343,7 +345,7 @@ def project(
             source.real,
             t,
             out_size,
-            flags=cv2.INTER_NEAREST,
+            flags=interp,
             borderMode=cv2.BORDER_CONSTANT,
             borderValue=(0.0,),
         )
@@ -352,7 +354,7 @@ def project(
             source.imag,
             t,
             out_size,
-            flags=cv2.INTER_NEAREST,
+            flags=interp,
             borderMode=cv2.BORDER_CONSTANT,
             borderValue=(0.0,),
         )
@@ -363,7 +365,7 @@ def project(
             t,
             out_size,
             dst=out,
-            flags=cv2.INTER_NEAREST,
+            flags=interp,
             borderMode=cv2.BORDER_CONSTANT,
             borderValue=(0.0,),
         )
