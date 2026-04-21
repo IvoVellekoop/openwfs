@@ -197,6 +197,7 @@ class Microscope(Processor):
                 wavelength=self.wavelength,
                 extent=pupil_extent,
                 refractive_index=self.immersion_refractive_index,
+                numerical_aperture=self.numerical_aperture,
             )
             pupil_field = pupil_field * np.exp(1j * phase)
 
