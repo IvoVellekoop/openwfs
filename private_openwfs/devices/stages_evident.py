@@ -475,7 +475,7 @@ class EvidentXYStage(Actuator):
         Returns true if the device is moving else false.
         If stage position is not equal to target position, the device is busy.
         """
-        time.sleep(0.5)  # to avoid spamming the proxy with requests
+        time.sleep(0.05)  # to avoid spamming the proxy with requests
         return tuple(int(q.value) for q in self.xy) != self._target_xy
 
     @property
@@ -520,6 +520,67 @@ class EvidentXYStage(Actuator):
         self.xy = self.x, y
 
 
+class EvidentZStage(Actuator):
+    """
+    Z Stage in Evident Microscope
+
+    Arg:
+        proxy: xmlrpc client proxy to communicate with Evident microscope
+
+    Returns:
+        EvidentXYStage object with .xy property to get and set the stage position.
+
+    Example:
+        stage = EvidentZStage(proxy)
+        stage.z = 10 * u.nm # move stage to (10, 20) in nm
+        z = stage.z # get current stage position
+    """
+
+    def __init__(self, proxy):
+        Actuator.__init__(
+            self, duration=np.inf * u.ms, latency=0 * u.ms
+        )  # duration is infinite since we don't know when the stage will reach the target position, busy() method will handle that.
+        self._proxy = proxy
+        self._target_z = None  # target position to move to (used in busy() method), in nm as int
+
+    def busy(self) -> bool: 
+        """
+        Returns true if the device is moving else false.
+        If stage position is not equal to target position, the device is busy.
+        """
+        time.sleep(0.05)  # to avoid spamming the proxy with requests
+        return np.abs(self.z - self._target_z) >= 11 * u.nm
+
+    @property
+    def z(self) -> Quantity[u.nm]:
+        """
+        Get current z stage position
+        """
+        inputVal = {"settingId": "Z_STAGE_POSITION_SETTING"}
+        result = self._proxy.Parameter.getParameter(inputVal)
+        stage_z = result["stagePosition"]
+
+        error = get_evident_error(result)
+        error.throw_if_error()
+
+        return stage_z * u.nm
+
+    @z.setter
+    def z(self, z: Quantity):
+        """
+        Set z stage position
+        """
+        super()._start()
+        self._target_z = z
+        z = int(z.to(u.nm).value)
+        inputVal = {"settingId": "Z_STAGE_POSITION_SETTING", "stagePosition": z}
+        result = self._proxy.Parameter.setParameter(inputVal)
+
+        error = get_evident_error(result)
+        error.throw_if_error()
+
+
+
 class EvidentMicroscope:  # (Processor): How to calculate duration and latency, since it depend on both camera and stage?
     """
     Evident Microscope
@@ -541,6 +602,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         self._proxy = proxy
         self.cam = EvidentCamera(proxy)
         self.stage_xy = EvidentXYStage(proxy)
+        self.stage_z = EvidentZStage(proxy)
         # super().__init__(self.cam, self.stage_xy)
 
     @property
@@ -900,7 +962,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         error = get_evident_error(result)
         error.throw_if_error()
 
-        return result["lensName"]
+        return result["revolver"]["lensName"]
 
     @objective.setter
     def objective(self, name: str):
@@ -939,31 +1001,6 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
 
         return result["revolvers"]
 
-    @property
-    def z(self) -> Quantity[u.nm]:
-        """
-        Get current z stage position
-        """
-        inputVal = {"settingId": "Z_STAGE_POSITION_SETTING"}
-        result = self._proxy.Parameter.getParameter(inputVal)
-        stage_z = result["stagePosition"]
-
-        error = get_evident_error(result)
-        error.throw_if_error()
-
-        return stage_z * u.nm
-
-    @z.setter
-    def z(self, z: Quantity):
-        """
-        Set z stage position
-        """
-        z = int(z.to(u.nm).value)
-        inputVal = {"settingId": "Z_STAGE_POSITION_SETTING", "stagePosition": z}
-        result = self._proxy.Parameter.setParameter(inputVal)
-
-        error = get_evident_error(result)
-        error.throw_if_error()
 
     @property
     def z_stack_enabled(self) -> bool:
@@ -1048,7 +1085,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         return result["stepSize"] * u.nm
 
     @z_stack_step_size.setter
-    def z_stack_step_size(self, step_size: int):
+    def z_stack_step_size(self, z: int):
         """
         Set the step size of Z stack.
 
@@ -1058,8 +1095,92 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         Returns:
             dict: Result dictionary containing result code.
         """
-        inputVal = {"settingId": "LSM_Z_COORDINATE_STEP_SIZE_SETTING", "stepSize": step_size.to(u.nm).value}
+        inputVal = {"settingId": "LSM_Z_COORDINATE_STEP_SIZE_SETTING", "stepSize": int(z.to(u.nm).value)}
         result = self._proxy.Parameter.setParameter(inputVal)
 
         error = get_evident_error(result)
         error.throw_if_error()
+        
+    @property
+    def z_stack_end(self) -> int:
+        """
+        Get the step size of Z stack.
+
+        Returns:
+            int: Step size in nm.
+        """
+        inputVal = {"settingId": "LSM_Z_COORDINATE_END_SETTING"}
+        result = self._proxy.Parameter.getParameter(inputVal)
+
+        error = get_evident_error(result)
+        error.throw_if_error()
+
+        return result["endPosition"] * u.nm
+
+    @z_stack_end.setter
+    def z_stack_end(self, z: int):
+        """
+        Set the end z of Z stack.
+
+        Args:
+            x (Quantity): Step size in nm to set.
+
+        Returns:
+            dict: Result dictionary containing result code.
+        """
+        inputVal = {"settingId": "LSM_Z_COORDINATE_END_SETTING", "endPosition": int(z.to(u.nm).value)}
+        result = self._proxy.Parameter.setParameter(inputVal)
+
+        error = get_evident_error(result)
+        error.throw_if_error()
+
+    @property
+    def z_stack_start(self):
+        """
+        Get the start of Z stack.
+
+        Returns:
+            int: start of z stack
+        """
+        inputVal = {"settingId": "LSM_Z_COORDINATE_START_SETTING"}
+        result = self._proxy.Parameter.getParameter(inputVal)
+
+        error = get_evident_error(result)
+        error.throw_if_error()
+
+        return result["startPosition"] * u.nm
+
+    @z_stack_start.setter
+    def z_stack_start(self, z):
+        """
+        Set the end z of Z stack.
+
+        Args:
+            x (Quantity): start in nm to set.
+
+        Returns:
+            dict: Result dictionary containing result code.
+        """
+        inputVal = {"settingId": "LSM_Z_COORDINATE_START_SETTING", "startPosition": int(z.to(u.nm).value)}
+        result = self._proxy.Parameter.setParameter(inputVal)
+
+        error = get_evident_error(result)
+        error.throw_if_error()
+    
+
+    def z_stack_read(self, z):
+        if z.size < 2:
+            raise ValueError("Z must be a vector with size bigger or equal than 2")
+        
+        step = z[1] - z[0]
+        if not np.allclose(np.diff(z), step):
+            raise ValueError("The spacing of Z must be uniform")
+
+        self.z_stack_enabled = True
+        self.z_stack_start = z[0]
+        self.z_stack_slice_num = 2 # Slice to minimal vlaue to make sure that the temporary values are not outside the range allowed
+        self.z_stack_step_size = 10*u.nm # Step to the minimal value to make sure that slice_num * old_step is not more than allowed range
+        self.z_stack_slice_num = z.size
+        self.z_stack_step_size = step
+
+        self.cam.read()
