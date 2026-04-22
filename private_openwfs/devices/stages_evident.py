@@ -543,7 +543,7 @@ class EvidentZStage(Actuator):
         self._proxy = proxy
         self._target_z = None  # target position to move to (used in busy() method), in nm as int
 
-    def busy(self) -> bool: 
+    def busy(self) -> bool:
         """
         Returns true if the device is moving else false.
         If stage position is not equal to target position, the device is busy.
@@ -578,7 +578,6 @@ class EvidentZStage(Actuator):
 
         error = get_evident_error(result)
         error.throw_if_error()
-
 
 
 class EvidentMicroscope:  # (Processor): How to calculate duration and latency, since it depend on both camera and stage?
@@ -1001,7 +1000,6 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
 
         return result["revolvers"]
 
-
     @property
     def z_stack_enabled(self) -> bool:
         """
@@ -1100,7 +1098,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
 
         error = get_evident_error(result)
         error.throw_if_error()
-        
+
     @property
     def z_stack_end(self) -> int:
         """
@@ -1166,20 +1164,23 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
 
         error = get_evident_error(result)
         error.throw_if_error()
-    
 
     def z_stack_read(self, z):
         if z.size < 2:
             raise ValueError("Z must be a vector with size bigger or equal than 2")
-        
+
         step = z[1] - z[0]
         if not np.allclose(np.diff(z), step):
             raise ValueError("The spacing of Z must be uniform")
 
         self.z_stack_enabled = True
         self.z_stack_start = z[0]
-        self.z_stack_slice_num = 2 # Slice to minimal vlaue to make sure that the temporary values are not outside the range allowed
-        self.z_stack_step_size = 10*u.nm # Step to the minimal value to make sure that slice_num * old_step is not more than allowed range
+        self.z_stack_slice_num = (
+            2  # Slice to minimal vlaue to make sure that the temporary values are not outside the range allowed
+        )
+        self.z_stack_step_size = (
+            10 * u.nm
+        )  # Step to the minimal value to make sure that slice_num * old_step is not more than allowed range
         self.z_stack_slice_num = z.size
         self.z_stack_step_size = step
 
