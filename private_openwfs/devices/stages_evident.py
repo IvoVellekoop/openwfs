@@ -1093,11 +1093,15 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         Returns:
             dict: Result dictionary containing result code.
         """
-        inputVal = {"settingId": "LSM_Z_COORDINATE_STEP_SIZE_SETTING", "stepSize": int(z.to(u.nm).value)}
+        inputVal = {"settingId": "LSM_Z_COORDINATE_STEP_SIZE_SETTING", "stepSize": self.round2nm(z)}
         result = self._proxy.Parameter.setParameter(inputVal)
 
         error = get_evident_error(result)
         error.throw_if_error()
+
+    @staticmethod
+    def round2nm(val):
+        return int(np.round(val.to(u.nm).value))
 
     @property
     def z_stack_end(self) -> int:
@@ -1126,7 +1130,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         Returns:
             dict: Result dictionary containing result code.
         """
-        inputVal = {"settingId": "LSM_Z_COORDINATE_END_SETTING", "endPosition": int(z.to(u.nm).value)}
+        inputVal = {"settingId": "LSM_Z_COORDINATE_END_SETTING", "endPosition": self.round2nm(z)}
         result = self._proxy.Parameter.setParameter(inputVal)
 
         error = get_evident_error(result)
@@ -1159,7 +1163,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         Returns:
             dict: Result dictionary containing result code.
         """
-        inputVal = {"settingId": "LSM_Z_COORDINATE_START_SETTING", "startPosition": int(z.to(u.nm).value)}
+        inputVal = {"settingId": "LSM_Z_COORDINATE_START_SETTING", "startPosition": self.round2nm(z)}
         result = self._proxy.Parameter.setParameter(inputVal)
 
         error = get_evident_error(result)
@@ -1173,15 +1177,10 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         if not np.allclose(np.diff(z), step):
             raise ValueError("The spacing of Z must be uniform")
 
-        self.z_stack_enabled = True
+        self.z_stack_end = z[-1]
         self.z_stack_start = z[0]
-        self.z_stack_slice_num = (
-            2  # Slice to minimal vlaue to make sure that the temporary values are not outside the range allowed
-        )
-        self.z_stack_step_size = (
-            10 * u.nm
-        )  # Step to the minimal value to make sure that slice_num * old_step is not more than allowed range
-        self.z_stack_slice_num = z.size
         self.z_stack_step_size = step
+        self.z_stack_enabled = True
 
-        self.cam.read()
+        img = self.cam.read()
+        return img
