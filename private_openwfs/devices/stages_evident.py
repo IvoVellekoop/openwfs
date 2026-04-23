@@ -101,6 +101,7 @@ class EvidentCamera(Detector):
         # result = self._proxy.Protocol.getAcquiringFiles()
         file_path = result["targetName"][0]["name"]
         self._most_recent_file_path = file_path  # store the most recent file path
+        self._planned_imaging_time = result["wait"] * u.s
 
     def _fetch(self) -> np.ndarray:
         """
@@ -639,6 +640,40 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
             dict: Result dictionary containing result code.
         """
         inputVal = {"settingId": "LSM_TIME_LAPS_ENABLE_SETTING", "enable": enable}
+        result = self._proxy.Parameter.setParameter(inputVal)
+        error = get_evident_error(result)
+        error.throw_if_error()
+
+    @property
+    def t_stack_step(self):
+        inputVal = {"settingId": "LSM_TIME_LAPS_INTERVAL_SETTING"}
+        result = self._proxy.Parameter.setParameter(inputVal)
+        error = get_evident_error(result)
+        error.throw_if_error()
+
+        return result["interval"] * 10**(-result["unitOfInterval"])
+    
+    @t_stack_step.setter
+    def t_stack_step(self, value):
+
+        int_val = round(value.to(u.ms).value)
+        inputVal = {"settingId": "LSM_TIME_LAPS_INTERVAL_SETTING", "interval": int_val, "unitOfInterval": 3}
+        result = self._proxy.Parameter.setParameter(inputVal)
+        error = get_evident_error(result)
+        error.throw_if_error()
+
+    @property 
+    def t_stack_slice_num(self):
+        inputVal = {"settingId": "LSM_TIME_LAPS_REPEAT_TIMES_SETTING"}
+        result = self._proxy.Parameter.setParameter(inputVal)
+        error = get_evident_error(result)
+        error.throw_if_error()
+
+        return result["repeadCount"]
+    
+    @t_stack_slice_num.setter
+    def t_stack_slice_num(self, value: int):
+        inputVal = {"settingId": "LSM_TIME_LAPS_REPEAT_TIMES_SETTING", "repeatCount": value}
         result = self._proxy.Parameter.setParameter(inputVal)
         error = get_evident_error(result)
         error.throw_if_error()
@@ -1184,3 +1219,21 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
 
         img = self.cam.read()
         return img
+
+    def t_stack_read(self, t):
+        if t.size < 2:
+            raise ValueError("T must be a vector with more than 1 element")
+
+        step = t[1] - t[0]
+
+        if not np.allclose(np.diff(t), step):
+            raise ValueError("The spacing of T must be uniform")
+        
+        self.t_stack_slice_num = t.size
+        self.t_stack_step = step
+        self.t_stack_enabled = True
+
+        self.cam.read()
+        
+    def imaging_progress(self):
+        return self.cam.get_imaging_progress()
