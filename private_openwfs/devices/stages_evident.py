@@ -651,8 +651,8 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         error = get_evident_error(result)
         error.throw_if_error()
 
-        return result["interval"] * 10**(-result["unitOfInterval"])
-    
+        return result["interval"] * 10 ** (-result["unitOfInterval"])
+
     @t_stack_step.setter
     def t_stack_step(self, value):
 
@@ -662,7 +662,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         error = get_evident_error(result)
         error.throw_if_error()
 
-    @property 
+    @property
     def t_stack_slice_num(self):
         inputVal = {"settingId": "LSM_TIME_LAPS_REPEAT_TIMES_SETTING"}
         result = self._proxy.Parameter.setParameter(inputVal)
@@ -670,7 +670,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         error.throw_if_error()
 
         return result["repeadCount"]
-    
+
     @t_stack_slice_num.setter
     def t_stack_slice_num(self, value: int):
         inputVal = {"settingId": "LSM_TIME_LAPS_REPEAT_TIMES_SETTING", "repeatCount": value}
@@ -1228,12 +1228,12 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
 
         if not np.allclose(np.diff(t), step):
             raise ValueError("The spacing of T must be uniform")
-        
+
         self.t_stack_slice_num = t.size
         self.t_stack_step = step
         self.t_stack_enabled = True
 
         self.cam.read()
-        
+
     def imaging_progress(self):
         return self.cam.get_imaging_progress()
