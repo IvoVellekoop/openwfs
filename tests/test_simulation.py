@@ -8,7 +8,9 @@ import skimage
 from openwfs.algorithms import StepwiseSequential
 from openwfs.processors import SingleRoi
 from openwfs.simulation import Microscope, Camera, StaticSource, SLM
-from openwfs.utilities.patterns import tilt
+from openwfs.utilities import get_pixel_size, Transform
+from openwfs.utilities.patterns import tilt, gaussian, parabola, binary_grating, propagation
+from openwfs.utilities.tests import get_test_microscope
 
 
 def test_mock_camera_and_single_roi():
@@ -106,41 +108,28 @@ def test_slm_and_aberration():
     assert abs(np.vdot(norm_a, norm_b)) >= 1
 
 
+def shift_between_img_max(ref_img, shifted_img):
+    return np.subtract(
+        np.unravel_index(np.argmax(ref_img), ref_img.shape), np.unravel_index(np.argmax(shifted_img), shifted_img.shape)
+    )
+
+
 def test_slm_tilt():
     """
     Display a tilt on the SLM should result in an image plane shift. If the magnification is 1, this should
     correspond to a tilt of 1 pixel for a 2 pi phase shift.
     """
-    img = np.zeros((1000, 1000), dtype=np.int16)
-    signal_location = (256, 250)
-    img[signal_location] = 100
-    pixel_size = 400 * u.nm
-    wavelength = 750 * u.nm
-    src = Camera(StaticSource(img, pixel_size=pixel_size), analog_max=None)
+    mic, slm, src = get_test_microscope(mic_args={"numerical_aperture": 0.5})
 
-    slm = SLM(shape=(1000, 1000))
+    ref_img = mic.read()
+    shift = np.multiply(get_pixel_size(ref_img), (10, -5))
+    gradient = shift * np.pi * mic.numerical_aperture / mic.wavelength
+    tilt_pattern = tilt(slm.pixels.data_shape, extent=(2, 2), g=gradient)
+    slm.set_phases(tilt_pattern)
 
-    na = 1.0
-    sim = Microscope(
-        source=src,
-        incident_field=slm.field,
-        magnification=1,
-        numerical_aperture=na,
-        wavelength=wavelength,
-    )
-
-    # introduce a tilted pupil plane
-    # the input parameter to `tilt` corresponds to a shift 2.0/π the Abbe diffraction limit.
-    shift = np.array((-24, 40))
-    step = wavelength / (np.pi * na)
-    slm.set_phases(tilt(1000, -shift * pixel_size / step))
-
-    new_location = signal_location + shift
-
-    cam = Camera(sim, analog_max=None)
-    img = cam.read(immediate=True)
-    max_pos = np.unravel_index(np.argmax(img), img.shape)
-    assert np.all(max_pos == new_location)
+    shifted_img = mic.read()
+    measured_shift = shift_between_img_max(ref_img, shifted_img)
+    assert np.allclose(np.multiply(get_pixel_size(ref_img), measured_shift), shift)
 
 
 def test_microscope_wavefront_shaping(caplog):
@@ -268,3 +257,84 @@ def test_mock_slm_lut_and_phase_response():
     slm4.lookup_table = lookup_table
     slm4.set_phases(linear_phase_highres)
     assert np.all(np.abs(slm4.phases.read()[0] - linear_phase_highres) < (3 * np.pi / 256))
+
+
+@pytest.mark.parametrize("extent", [2, 4])
+def test_parabola_shift(extent):
+    """
+    Tests that a display of a parabola pattern on the SLM with an certain offset results in the expected shift in the image plane.
+    """
+    offset_focal = np.array([1100, 400]) * u.nm
+    coef_parabola = 0.1
+
+    mic, slm, src = get_test_microscope()
+
+    # Pupil shift required to shift the image by offset_focal. See docs of parabola
+    pupil_offset = (
+        np.multiply(np.multiply(offset_focal, mic.numerical_aperture), -np.pi / mic.wavelength) / coef_parabola
+    )
+    phi = parabola((1024, 1024), extent, coef_parabola)
+    slm.set_phases(phi)
+    mic.slm_transform = Transform(np.eye(2) * extent / 2, np.zeros(2), np.zeros(2))
+    img_1 = mic.read()
+
+    phi = parabola((1024, 1024), extent, coef_parabola, offset=pupil_offset)
+    slm.set_phases(phi)
+    img_2 = mic.read()
+    measured_shift = shift_between_img_max(img_1, img_2) * get_pixel_size(img_1)
+    assert np.allclose(measured_shift, offset_focal)
+
+
+@pytest.mark.parametrize("extent", [2, 4])
+def test_binary_gratting(extent):
+    # Test that the binary_grating pattern produces the expected shift in the image plane
+    na = 0.9
+    wav = 500 * u.nm
+    mic, slm, src = get_test_microscope(
+        mic_args={"numerical_aperture": na, "wavelength": wav}, src_args={"pixel_size": 50 * u.nm}
+    )
+    desired_shift = 1000 * u.nm
+    periodicity = mic.wavelength / desired_shift / mic.numerical_aperture
+
+    phi = binary_grating((512, 512), extent=extent, period=periodicity, values=(0, np.pi), angle=45 * u.deg)
+
+    mic.slm_transform = Transform(np.eye(2) * extent / 2, np.zeros(2), np.zeros(2))
+    slm.set_phases(0)
+    img_ref = mic.read()
+    slm.set_phases(phi)
+    img = mic.read()
+
+    assert np.allclose(
+        np.abs(shift_between_img_max(img_ref, img) * get_pixel_size(img_ref)),
+        np.ones(2) * np.sqrt(2) / 2 * desired_shift.to(u.nm),
+        rtol=0.05,
+    )
+
+
+@pytest.mark.parametrize("n", [1, 2])
+def test_propagation(n):
+    # Test that a SLM propagation pattern can compensate for the defocus of the microscope
+    mic, slm, src = get_test_microscope(mic_args={"immersion_refractive_index": n})
+    img_ref = mic.read()
+    phi = propagation(
+        512,
+        distance=10 * u.um,
+        wavelength=mic.wavelength,
+        numerical_aperture=mic.numerical_aperture,
+        refractive_index=n,
+    )
+    slm.set_phases(phi)
+    mic.z_stage.position = -10 * u.um
+    img = mic.read()
+
+    assert np.allclose(img, img_ref, atol=1e-3)
+
+
+def test_non_linear_microscope():
+    mic_1, slm_1, src_1 = get_test_microscope()
+    img_ref = mic_1.read()
+
+    mic_2, slm_2, src_2 = get_test_microscope(mic_args={"nonlinearity": 2})
+    img_2p = mic_2.read()
+
+    assert np.allclose(img_2p, img_ref**2)

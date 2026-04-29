@@ -140,7 +140,7 @@ class Roi:
             # for square masks, instead use the actual size
             if self.mask_type == "disk":
                 d = round(self._radius) * 2 + 1
-                self._mask = disk(d, r)
+                self._mask = disk(d, radius=r)
             elif self.mask_type == "gaussian":
                 d = round(self._radius) * 2 + 1
                 self._mask = gaussian(d, self._waist)
