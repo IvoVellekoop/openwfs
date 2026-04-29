@@ -1,3 +1,4 @@
+from cv2 import INTER_NEAREST, INTER_LINEAR, INTER_CUBIC
 from . import tests
 from . import patterns_f
 from . import patterns

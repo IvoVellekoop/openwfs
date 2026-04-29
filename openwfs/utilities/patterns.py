@@ -88,8 +88,8 @@ def r2_range(shape: ShapeType, extent: ExtentType, offset: Optional[CoordinateTy
 
 def tilt(
     shape: ShapeType,
-    extent: ExtentType,
     g: ExtentType,
+    extent: ExtentType = (2.0, 2.0),
     phase_offset: float = 0.0,
     offset: Optional[CoordinateType] = None,
 ):
@@ -107,15 +107,18 @@ def tilt(
     """
 
     offset = np.multiply(offset, -1) if offset is not None else None
-    return unitless(patterns_f.tilt(*coordinate_range(shape, extent), g=g, phase_offset=phase_offset))
+    g = Quantity(g)
+    if g.size == 1:
+        g = g.repeat(2)
+    return unitless(patterns_f.tilt(*coordinate_range(shape, extent), gx=g[0], gy=g[1], phase_offset=phase_offset))
 
 
 def lens(
     shape: ShapeType,
-    extent: ExtentType,
     f: Quantity,
     wavelength: Quantity,
     numerical_aperture: float,
+    extent: ExtentType = (2.0, 2.0),
     offset=None,
 ):
     """Constructs a phase mask mimicking a lens: (f-sqrt(f²+r²)) · 2π/λ
@@ -144,11 +147,11 @@ def lens(
 
 def propagation(
     shape: ShapeType,
-    extent: ExtentType,
     distance: Quantity,
     wavelength: Quantity,
-    refractive_index: float,
     numerical_aperture: float,
+    refractive_index: float = 1.0,
+    extent: ExtentType = (2.0, 2.0),
     offset=None,
 ):
     """Computes a wavefront that corresponds to digitally propagating the field in the object plane.
@@ -180,8 +183,8 @@ def propagation(
 
 def parabola(
     shape: ShapeType,
-    extent: ExtentType,
     alpha: ScalarType,
+    extent: ExtentType = (2.0, 2.0),
     offset: Optional[CoordinateType] = None,
 ):
     """Constructs a parabola phase mask: alpha * (x^2 + y^2)
@@ -204,8 +207,8 @@ def parabola(
 
 def disk(
     shape: ShapeType,
-    extent: ExtentType,
-    radius: Quantity,
+    radius: float = 1,
+    extent: ExtentType = (2.0, 2.0),
     offset: Optional[CoordinateType] = None,
 ):
     """Constructs an image of a centered (ellipsoid) disk.
@@ -228,8 +231,8 @@ def disk(
 
 def gaussian(
     shape: ShapeType,
-    extent: ExtentType,
     waist: ScalarType,
+    extent: ExtentType = (2.0, 2.0),
     truncation_radius: ScalarType = None,
     offset: Optional[CoordinateType] = None,
 ):
@@ -255,9 +258,9 @@ def gaussian(
 
 def binary_grating(
     shape: ShapeType,
-    extent: ExtentType,
     period: ScalarType,
-    values,
+    values: Sequence[float],
+    extent: ExtentType = (2.0, 2.0),
     angle: ScalarType = 0.0,
     offset: Optional[CoordinateType] = None,
 ):

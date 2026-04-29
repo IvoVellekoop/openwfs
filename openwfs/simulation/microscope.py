@@ -186,17 +186,17 @@ class Microscope(Processor):
 
         # Compute the field in the pupil plane
         # The aberrations and the SLM phase pattern are both mapped to the pupil plane coordinates
-        pupil_field = patterns.disk(pupil_shape, pupil_extent, 1.0)
+        pupil_field = patterns.disk(pupil_shape, radius=1.0, extent=pupil_extent)
         pupil_area = np.sum(pupil_field)  # TODO (efficiency): compute area directly from radius
 
         # Add defocus from z-stage
         if self.z_stage is not None:
             phase = propagation(
                 pupil_shape,
-                extent=pupil_extent,
                 distance=self.z_stage.position,
                 wavelength=self.wavelength,
                 refractive_index=self.immersion_refractive_index,
+                extent=pupil_extent,
                 numerical_aperture=self.numerical_aperture,
             )
             pupil_field = pupil_field * np.exp(1j * phase)
@@ -225,7 +225,6 @@ class Microscope(Processor):
                 out_shape=pupil_shape,
                 transform=self.slm_transform,
             )
-
         # Compute the point spread function
         # This is done by Fourier transforming the pupil field and taking the absolute value squared
         # Due to condition 1, after the Fourier transform,
