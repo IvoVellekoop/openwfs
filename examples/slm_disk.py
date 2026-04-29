@@ -23,7 +23,7 @@ phases = np.random.uniform(low=0, high=30, size=(1, 18))
 slm.patches[0].set_phases(phases, update=False)
 
 # add a second patch that corresponds to a linear gradient
-gradient = patterns.tilt(slm_size, (2, 2), (10, 25))
+gradient = patterns.tilt(slm_size, g=(10, 25), extent=(2, 2))
 slm.patches.append(Patch(slm))
 slm.patches[1].set_phases(gradient)
 

@@ -140,10 +140,10 @@ class Roi:
             # for square masks, instead use the actual size
             if self.mask_type == "disk":
                 d = round(self._radius) * 2 + 1
-                self._mask = disk(d, (2, 2), r)
+                self._mask = disk(d, radius=r)
             elif self.mask_type == "gaussian":
                 d = round(self._radius) * 2 + 1
-                self._mask = gaussian(d, (2, 2), self._waist)
+                self._mask = gaussian(d, self._waist)
             else:  # square
                 d = round(self._radius * 2.0)
                 self._mask = np.ones((d, d))
