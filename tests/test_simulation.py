@@ -286,14 +286,13 @@ def test_parabola_shift(extent):
 
 
 @pytest.mark.parametrize("extent", [2, 4])
-def test_parabola(extent):
-    # Test that the parabola pattern produces the expected shift in the image plane if the parabola is not centered on the back pupil plane of the image.
+def test_binary_gratting(extent):
+    # Test that the binary_grating pattern produces the expected shift in the image plane
     na = 0.9
     wav = 500 * u.nm
     mic, slm, src = get_test_microscope(
         mic_args={"numerical_aperture": na, "wavelength": wav}, src_args={"pixel_size": 50 * u.nm}
     )
-    extent = 6
     desired_shift = 1000 * u.nm
     periodicity = mic.wavelength / desired_shift / mic.numerical_aperture
 
