@@ -7,7 +7,7 @@ import astropy.units as u
 
 @pytest.mark.parametrize("shape", [10, (7, 10)])
 def test_tilt(shape):
-    t = tilt(shape, (2, 2), (5, 0.71))
+    t = tilt(shape, extent=(2, 2), g=(5, 0.71))
     if np.size(shape) == 1:
         shape = (shape, shape)
 
@@ -31,14 +31,14 @@ def test_gaussian_disk_offset():
     assert np.allclose(expected, argmax)
 
     shape = (101, 101)
-    d = disk(shape, (2, 2), 2 / 101, offset=offset)
+    d = disk(shape, radius=2 / 101, extent=(2, 2), offset=offset)
     arg_center = np.argwhere(d > 0.5)[0]
     expected = (np.array(offset) + 1) * (np.array(shape) - 1) / 2.0
     assert np.allclose(expected, arg_center)
 
 
 def test_parabola():
-    phi = parabola((11, 11), (2, 2), 0.5)
+    phi = parabola((11, 11), extent=(2, 2), alpha=0.5)
     assert np.allclose(phi[5, 5], 0)
     r = -1 + 1 / 11
     assert np.allclose(phi[0, 5], 0.5 * (r**2))
@@ -50,7 +50,7 @@ def test_binary_grating(extent):
     period = 0.1
     values = (1, 2)
     shape = (1000, 1)
-    phi = binary_grating(shape, extent, period, values, angle=0)
+    phi = binary_grating(shape, period, values, extent=extent, angle=0)
     first_up = np.argmax(phi)
     phi_2 = phi[first_up:]
     first_down = np.argmin(phi_2)
@@ -68,7 +68,7 @@ def test_propagation(extent, refractive_index):
     d = 10 * u.um
     wavelength = 0.5 * u.um
     na = 1
-    phi = propagation(shape, extent, d, wavelength, refractive_index, na)
+    phi = propagation(shape, d, wavelength, na, refractive_index=refractive_index, extent=extent)
 
     r_r = coordinate_range(shape, extent)[0][0, 0]
     kr = 2 * np.pi / wavelength * na * r_r

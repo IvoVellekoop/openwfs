@@ -14,7 +14,8 @@ ScalarType = Union[float, np.ndarray, Quantity]
 def tilt(
     x,
     y,
-    g,
+    gx,
+    gy,
     phase_offset: float = 0.0,
 ):
     """Constructs a linear gradient pattern φ=2g·r
@@ -33,7 +34,7 @@ def tilt(
     Return:
         An array of the same shape as x and y (or broadcasted), containing the phase values of the tilt pattern.
     """
-    return unitless(x * 2 * g[0] + y * 2 * g[1] + phase_offset)
+    return unitless(x * 2 * gx + y * 2 * gy + phase_offset)
 
 
 def lens(x, y, f, wavelength, numerical_aperture):
@@ -58,8 +59,8 @@ def propagation(
     y,
     distance: Quantity,
     wavelength: Quantity,
-    refractive_index: ScalarType,
     numerical_aperture: ScalarType,
+    refractive_index: ScalarType = 1.0,
 ):
     """
     Computes the phase mask that can be applied in the pupil plane of an objective to digitially propagate the field in the object plane by a distance `distance`.
@@ -83,7 +84,7 @@ def propagation(
 def disk(
     x,
     y,
-    radius: ScalarType,
+    radius: float,
 ):
     """Constructs an image of a centered (ellipsoid) disk.
 
