@@ -286,18 +286,17 @@ def test_parabola_shift(extent):
 
 
 @pytest.mark.parametrize("extent", [2, 4])
-def test_parabola(extent):
-    # Test that the parabola pattern produces the expected shift in the image plane if the parabola is not centered on the back pupil plane of the image.
+def test_binary_gratting(extent):
+    # Test that the binary_grating pattern produces the expected shift in the image plane
     na = 0.9
     wav = 500 * u.nm
     mic, slm, src = get_test_microscope(
         mic_args={"numerical_aperture": na, "wavelength": wav}, src_args={"pixel_size": 50 * u.nm}
     )
-    extent = 6
     desired_shift = 1000 * u.nm
     periodicity = mic.wavelength / desired_shift / mic.numerical_aperture
 
-    phi = binary_grating((512, 512), extent, periodicity, (0, np.pi), angle=45 * u.deg)
+    phi = binary_grating((512, 512), extent=extent, period=periodicity, values=(0, np.pi), angle=45 * u.deg)
 
     mic.slm_transform = Transform(np.eye(2) * extent / 2, np.zeros(2), np.zeros(2))
     slm.set_phases(0)
@@ -317,7 +316,13 @@ def test_propagation(n):
     # Test that a SLM propagation pattern can compensate for the defocus of the microscope
     mic, slm, src = get_test_microscope(mic_args={"immersion_refractive_index": n})
     img_ref = mic.read()
-    phi = propagation(512, 2, 10 * u.um, mic.wavelength, n, mic.numerical_aperture)
+    phi = propagation(
+        512,
+        distance=10 * u.um,
+        wavelength=mic.wavelength,
+        numerical_aperture=mic.numerical_aperture,
+        refractive_index=n,
+    )
     slm.set_phases(phi)
     mic.z_stage.position = -10 * u.um
     img = mic.read()
