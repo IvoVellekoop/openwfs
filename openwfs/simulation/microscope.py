@@ -49,7 +49,6 @@ class Microscope(Processor):
         aberrations: Union[Detector, np.ndarray, None] = None,
         aberration_transform: Optional[Transform] = None,
         multi_threaded: bool = True,
-        only_on_axis_intensity: bool = False,
     ):
         """
         Args:
