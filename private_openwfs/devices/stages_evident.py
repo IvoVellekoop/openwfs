@@ -559,12 +559,12 @@ class EvidentZStage(Actuator):
         """
         inputVal = {"settingId": "Z_STAGE_POSITION_SETTING"}
         result = self._proxy.Parameter.getParameter(inputVal)
-        stage_z = result["stagePosition"]
+        z_stage = result["stagePosition"]
 
         error = get_evident_error(result)
         error.throw_if_error()
 
-        return stage_z * u.nm
+        return z_stage * u.nm
 
     @z.setter
     def z(self, z: Quantity):
@@ -601,9 +601,9 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         proxy = xmlrpc.client.ServerProxy(url)
         self._proxy = proxy
         self.cam = EvidentCamera(proxy)
-        self.stage_xy = EvidentXYStage(proxy)
-        self.stage_z = EvidentZStage(proxy)
-        # super().__init__(self.cam, self.stage_xy)
+        self.xy_stage = EvidentXYStage(proxy)
+        self.z_stage = EvidentZStage(proxy)
+        # super().__init__(self.cam, self.xy_stage)
 
     @property
     def version(self) -> str:
