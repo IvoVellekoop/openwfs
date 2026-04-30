@@ -353,4 +353,4 @@ def test_microscope_z_stack():
 
     assert np.allclose(imgs[:, :, 0], img_z_first)
     assert np.allclose(imgs[:, :, 1], img_z_second)
-    assert imgs.shape == (img_ref.shape[0], img_ref.shape[1], z.size)
+    assert imgs.shape == (img_z_second.shape[0], img_z_second.shape[1], z.size)
