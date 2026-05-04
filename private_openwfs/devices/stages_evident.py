@@ -553,21 +553,21 @@ class EvidentZStage(Actuator):
         return np.abs(self.z - self._target_z) >= 11 * u.nm
 
     @property
-    def z(self) -> Quantity[u.nm]:
+    def position(self) -> Quantity[u.nm]:
         """
         Get current z stage position
         """
         inputVal = {"settingId": "Z_STAGE_POSITION_SETTING"}
         result = self._proxy.Parameter.getParameter(inputVal)
-        z_stage = result["stagePosition"]
+        pos = result["stagePosition"]
 
         error = get_evident_error(result)
         error.throw_if_error()
 
-        return z_stage * u.nm
+        return pos * u.nm
 
-    @z.setter
-    def z(self, z: Quantity):
+    @position.setter
+    def position(self, z: Quantity):
         """
         Set z stage position
         """
@@ -579,6 +579,20 @@ class EvidentZStage(Actuator):
 
         error = get_evident_error(result)
         error.throw_if_error()
+
+    @property
+    def z(self) -> Quantity[u.nm]:
+        """
+        Get current z stage position
+        """
+        return self.position
+
+    @z.setter
+    def z(self, z: Quantity):
+        """
+        Set z stage position
+        """
+        self.position = z
 
 
 class EvidentMicroscope:  # (Processor): How to calculate duration and latency, since it depend on both camera and stage?
@@ -615,6 +629,9 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         """
         inputVal = {"settingId": "LSM_MICROSCOPE_VERSION_SETTING"}
         return self._proxy.Parameter.getParameter(inputVal)["version"]
+
+    def read(self):
+        return self.cam.read()
 
     @property
     def t_stack_enabled(self) -> bool:
