@@ -310,18 +310,18 @@ class EvidentCamera(Detector):
                         channel_list_err, channel_list = EvidentCamera.get_channel_list(proxy, area_id)
 
                         if not channel_list_err.is_error:
-                            api_axes = np.array(["LAMBDA", "ZSTACK", "TIMELAPSE"])
+                            api_axes = np.array(["TIMELAPSE", "ZSTACK", "LAMBDA"])
                             axes_exist_err, axes_exist, size_axes = EvidentCamera.get_axes_on_image(
                                 proxy, area_id, api_axes
                             )
 
                             if not axes_exist_err.is_error:
                                 multistack_img = None  # initilize as none because the width and height is not known yet
-                                for iL, iZ, iT, iCh in itertools.product(
+                                for iCh, iT, iZ, iL in itertools.product(
+                                    np.arange(len(channel_list)),
                                     np.arange(size_axes[0]),
                                     np.arange(size_axes[1]),
                                     np.arange(size_axes[2]),
-                                    np.arange(len(channel_list)),
                                 ):
                                     axes_of_img = api_axes[axes_exist]
                                     image_id_err, image_id = EvidentCamera.get_image_id(
@@ -340,11 +340,11 @@ class EvidentCamera(Detector):
                                             error = data_err
                                         if multistack_img is None:
                                             multistack_img = np.zeros(
-                                                data.shape
-                                                + (size_axes[0], size_axes[1], size_axes[2], len(channel_list)),
+                                                (len(channel_list), size_axes[0], size_axes[1], size_axes[2])
+                                                + data.shape,
                                                 dtype=data.dtype,
                                             )
-                                        multistack_img[:, :, iL, iZ, iT, iCh] = data
+                                        multistack_img[iCh, iT, iZ, iL, :, :] = data
 
                                         proxy.IDA.releaseImage({"imageId": image_id[1]})
                                     else:
