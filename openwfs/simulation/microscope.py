@@ -295,8 +295,8 @@ class Microscope(Processor):
         Returns:
             Multidimensional array where imgs[...,iz] is the image at z position z[iz].
         """
-        z_stack_images = np.zeros(self.data_shape + (len(z),))
+        z_stack_images = np.zeros((len(z),) + self.data_shape)
         for ind, val in enumerate(z):
             self.z_stage.position = val
-            z_stack_images[:, :, ind] = self.read()
+            z_stack_images[ind, :, :] = self.read()
         return z_stack_images
