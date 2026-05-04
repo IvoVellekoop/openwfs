@@ -351,6 +351,6 @@ def test_microscope_z_stack():
     mic.z_stage.position = z[1]
     img_z_second = mic.read()
 
-    assert np.allclose(imgs[:, :, 0], img_z_first)
-    assert np.allclose(imgs[:, :, 1], img_z_second)
+    assert np.allclose(imgs[0, :, :], img_z_first)
+    assert np.allclose(imgs[1, :, :], img_z_second)
     assert imgs.shape == (img_z_second.shape[0], img_z_second.shape[1], z.size)
