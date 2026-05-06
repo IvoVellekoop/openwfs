@@ -477,7 +477,7 @@ class EvidentXYStage(Actuator):
         If stage position is not equal to target position, the device is busy.
         """
         time.sleep(0.05)  # to avoid spamming the proxy with requests
-        return tuple(int(q.value) for q in self.xy) != self._target_xy
+        return np.sum((self.xy - self._target_xy) ** 2) > self._step**2
 
     @property
     def xy(self) -> tuple[Quantity[u.nm], Quantity[u.nm]]:
@@ -529,11 +529,11 @@ class EvidentZStage(Actuator):
         proxy: xmlrpc client proxy to communicate with Evident microscope
 
     Returns:
-        EvidentXYStage object with .xy property to get and set the stage position.
+        EvidentZStage object with .position property to get and set the stage position.
 
     Example:
         stage = EvidentZStage(proxy)
-        stage.z = 10 * u.nm # move stage to (10, 20) in nm
+        stage.z = 10 * u.nm # move stage to 10 in nm
         z = stage.z # get current stage position
     """
 
@@ -543,6 +543,7 @@ class EvidentZStage(Actuator):
         )  # duration is infinite since we don't know when the stage will reach the target position, busy() method will handle that.
         self._proxy = proxy
         self._target_z = None  # target position to move to (used in busy() method), in nm as int
+        self._step = 10 * u.nm
 
     def busy(self) -> bool:
         """
@@ -550,7 +551,8 @@ class EvidentZStage(Actuator):
         If stage position is not equal to target position, the device is busy.
         """
         time.sleep(0.05)  # to avoid spamming the proxy with requests
-        return np.abs(self.z - self._target_z) >= 11 * u.nm
+        # The stage has precision of 10nm so we consider the stage to be at the target position when within 10nm of the goal
+        return np.abs(self.z - self._target_z) >= self._step
 
     @property
     def position(self) -> Quantity[u.nm]:
@@ -1222,6 +1224,16 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         error.throw_if_error()
 
     def z_stack_read(self, z):
+        """
+        Read Z stack images at the specified z positions.
+
+        Args:
+            z (array-like): Array of z positions to read.
+
+        Returns:
+            numpy.ndarray: Z stack images acquired at the specified z positions
+        """
+
         if z.size < 2:
             raise ValueError("Z must be a vector with size bigger or equal than 2")
 
@@ -1236,6 +1248,23 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
 
         img = self.cam.read()
         return img
+
+    def _default_z_stack_read(self, z):
+        """
+        Default z stack read that does not use the z stack function. Temporary function which should be moved to the abstract microscope interface
+
+        """
+
+        self.z_stage.position = z[0]
+        first_img = self.cam.read()  # read the first image to get the shape and dtype
+
+        imgs = np.zeros((z.size,) + first_img.shape, dtype=first_img.dtype)
+        imgs[0, ...] = first_img
+        for i, z_pos in enumerate(z[1:], 1):
+            self.z_stage.position = z_pos
+            imgs[i, ...] = self.cam.read()
+
+        return imgs
 
     def t_stack_read(self, t):
         if t.size < 2:
