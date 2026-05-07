@@ -477,7 +477,7 @@ class EvidentXYStage(Actuator):
         If stage position is not equal to target position, the device is busy.
         """
         time.sleep(0.05)  # to avoid spamming the proxy with requests
-        return np.sum((self.xy - self._target_xy) ** 2) > self._step**2
+        return ~u.allclose(self.xy, self._target_xy, atol=self._step / 2)
 
     @property
     def xy(self) -> tuple[Quantity[u.nm], Quantity[u.nm]]:
@@ -496,9 +496,10 @@ class EvidentXYStage(Actuator):
         # print(self._step)
         x_rounded = self.round_quantity(x, self._step)
         y_rounded = self.round_quantity(y, self._step)
-        self._target_xy = (int(x_rounded.to(u.nm).value), int(y_rounded.to(u.nm).value))
-        x = int(x_rounded.to(u.nm).value)
-        y = int(y_rounded.to(u.nm).value)
+        self._target_xy = (round(x_rounded.to(u.nm)), round(y_rounded.to(u.nm)))
+
+        x = round(x_rounded.to(u.nm).value)
+        y = round(y_rounded.to(u.nm).value)
         inputVal = {"settingId": "XY_STAGE_POSITION_SETTING", "x": x, "y": y, "escapeEnabled": False}
         self._proxy.Parameter.setParameter(inputVal)
 
