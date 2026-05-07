@@ -286,3 +286,17 @@ class Microscope(Processor):
             tuple: The dimensions of the output image (height, width).
         """
         return self._data_shape
+
+    def z_stack_read(self, z):
+        """Measures a z-stack by moving the z-stage to different positions and reading the corresponding images
+        Args:
+            z: Array of z positions to read at.
+
+        Returns:
+            Multidimensional array where imgs[...,iz] is the image at z position z[iz].
+        """
+        z_stack_images = np.zeros((len(z),) + self.data_shape)
+        for ind, val in enumerate(z):
+            self.z_stage.position = val
+            z_stack_images[ind, :, :] = self.read()
+        return z_stack_images
