@@ -1,6 +1,7 @@
 import astropy.units as u
 from astropy.units import Quantity
 from openwfs.core import Actuator, Detector
+from ..utilities.utilities import round_quantity
 import numpy as np
 import time
 
@@ -462,14 +463,6 @@ class EvidentXYStage(Actuator):
         self._target_xy = None  # target position to move to (used in busy() method), in nm as int
         self._step = 100 * u.nm  # rounding resolution
 
-    @staticmethod
-    def round_quantity(q, step):
-        # convert to the same unit as step
-        q_in_step = q.to(step.unit)
-        # round value
-        rounded_value = np.round(q_in_step.value / step.value) * step.value
-        # return Quantity with correct unit
-        return rounded_value * step.unit
 
     def busy(self) -> bool:
         """
@@ -494,8 +487,8 @@ class EvidentXYStage(Actuator):
         x, y = value
         # print(x)
         # print(self._step)
-        x_rounded = self.round_quantity(x, self._step)
-        y_rounded = self.round_quantity(y, self._step)
+        x_rounded = round_quantity(x, self._step)
+        y_rounded = round_quantity(y, self._step)
         self._target_xy = (round(x_rounded.to(u.nm)), round(y_rounded.to(u.nm)))
 
         x = round(x_rounded.to(u.nm).value)
