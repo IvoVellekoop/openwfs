@@ -463,7 +463,6 @@ class EvidentXYStage(Actuator):
         self._target_xy = None  # target position to move to (used in busy() method), in nm as int
         self._step = 100 * u.nm  # rounding resolution
 
-
     def busy(self) -> bool:
         """
         Returns true if the device is moving else false.
