@@ -469,7 +469,7 @@ class EvidentXYStage(Actuator):
         If stage position is not equal to target position, the device is busy.
         """
         time.sleep(0.05)  # to avoid spamming the proxy with requests
-        return ~u.allclose(self.xy, self._target_xy, atol=self._step / 2)
+        return not u.allclose(self.xy, self._target_xy, atol=self._step / 2)
 
     @property
     def xy(self) -> tuple[Quantity[u.nm], Quantity[u.nm]]:
