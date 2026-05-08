@@ -1,6 +1,7 @@
 import astropy.units as u
 from astropy.units import Quantity
 from openwfs.core import Actuator, Detector
+from ..utilities.utilities import round_quantity
 import numpy as np
 import time
 
@@ -101,6 +102,7 @@ class EvidentCamera(Detector):
         # result = self._proxy.Protocol.getAcquiringFiles()
         file_path = result["targetName"][0]["name"]
         self._most_recent_file_path = file_path  # store the most recent file path
+        self._planned_imaging_time = result["wait"] * u.s
 
     def _fetch(self) -> np.ndarray:
         """
@@ -309,18 +311,18 @@ class EvidentCamera(Detector):
                         channel_list_err, channel_list = EvidentCamera.get_channel_list(proxy, area_id)
 
                         if not channel_list_err.is_error:
-                            api_axes = np.array(["LAMBDA", "ZSTACK", "TIMELAPSE"])
+                            api_axes = np.array(["TIMELAPSE", "ZSTACK", "LAMBDA"])
                             axes_exist_err, axes_exist, size_axes = EvidentCamera.get_axes_on_image(
                                 proxy, area_id, api_axes
                             )
 
                             if not axes_exist_err.is_error:
                                 multistack_img = None  # initilize as none because the width and height is not known yet
-                                for iL, iZ, iT, iCh in itertools.product(
+                                for iCh, iT, iZ, iL in itertools.product(
+                                    np.arange(len(channel_list)),
                                     np.arange(size_axes[0]),
                                     np.arange(size_axes[1]),
                                     np.arange(size_axes[2]),
-                                    np.arange(len(channel_list)),
                                 ):
                                     axes_of_img = api_axes[axes_exist]
                                     image_id_err, image_id = EvidentCamera.get_image_id(
@@ -339,11 +341,11 @@ class EvidentCamera(Detector):
                                             error = data_err
                                         if multistack_img is None:
                                             multistack_img = np.zeros(
-                                                data.shape
-                                                + (size_axes[0], size_axes[1], size_axes[2], len(channel_list)),
+                                                (len(channel_list), size_axes[0], size_axes[1], size_axes[2])
+                                                + data.shape,
                                                 dtype=data.dtype,
                                             )
-                                        multistack_img[:, :, iL, iZ, iT, iCh] = data
+                                        multistack_img[iCh, iT, iZ, iL, :, :] = data
 
                                         proxy.IDA.releaseImage({"imageId": image_id[1]})
                                     else:
@@ -461,22 +463,13 @@ class EvidentXYStage(Actuator):
         self._target_xy = None  # target position to move to (used in busy() method), in nm as int
         self._step = 100 * u.nm  # rounding resolution
 
-    @staticmethod
-    def round_quantity(q, step):
-        # convert to the same unit as step
-        q_in_step = q.to(step.unit)
-        # round value
-        rounded_value = np.round(q_in_step.value / step.value) * step.value
-        # return Quantity with correct unit
-        return rounded_value * step.unit
-
     def busy(self) -> bool:
         """
         Returns true if the device is moving else false.
         If stage position is not equal to target position, the device is busy.
         """
-        time.sleep(0.5)  # to avoid spamming the proxy with requests
-        return tuple(int(q.value) for q in self.xy) != self._target_xy
+        time.sleep(0.05)  # to avoid spamming the proxy with requests
+        return not u.allclose(self.xy, self._target_xy, atol=self._step / 2)
 
     @property
     def xy(self) -> tuple[Quantity[u.nm], Quantity[u.nm]]:
@@ -493,11 +486,12 @@ class EvidentXYStage(Actuator):
         x, y = value
         # print(x)
         # print(self._step)
-        x_rounded = self.round_quantity(x, self._step)
-        y_rounded = self.round_quantity(y, self._step)
-        self._target_xy = (int(x_rounded.to(u.nm).value), int(y_rounded.to(u.nm).value))
-        x = int(x_rounded.to(u.nm).value)
-        y = int(y_rounded.to(u.nm).value)
+        x_rounded = round_quantity(x, self._step)
+        y_rounded = round_quantity(y, self._step)
+        self._target_xy = (round(x_rounded.to(u.nm)), round(y_rounded.to(u.nm)))
+
+        x = round(x_rounded.to(u.nm).value)
+        y = round(y_rounded.to(u.nm).value)
         inputVal = {"settingId": "XY_STAGE_POSITION_SETTING", "x": x, "y": y, "escapeEnabled": False}
         self._proxy.Parameter.setParameter(inputVal)
 
@@ -520,6 +514,82 @@ class EvidentXYStage(Actuator):
         self.xy = self.x, y
 
 
+class EvidentZStage(Actuator):
+    """
+    Z Stage in Evident Microscope
+
+    Arg:
+        proxy: xmlrpc client proxy to communicate with Evident microscope
+
+    Returns:
+        EvidentZStage object with .position property to get and set the stage position.
+
+    Example:
+        stage = EvidentZStage(proxy)
+        stage.z = 10 * u.nm # move stage to 10 in nm
+        z = stage.z # get current stage position
+    """
+
+    def __init__(self, proxy):
+        Actuator.__init__(
+            self, duration=np.inf * u.ms, latency=0 * u.ms
+        )  # duration is infinite since we don't know when the stage will reach the target position, busy() method will handle that.
+        self._proxy = proxy
+        self._target_z = None  # target position to move to (used in busy() method), in nm as int
+        self._step = 10 * u.nm
+
+    def busy(self) -> bool:
+        """
+        Returns true if the device is moving else false.
+        If stage position is not equal to target position, the device is busy.
+        """
+        time.sleep(0.05)  # to avoid spamming the proxy with requests
+        # The stage has precision of 10nm so we consider the stage to be at the target position when within 10nm of the goal
+        return np.abs(self.z - self._target_z) >= self._step
+
+    @property
+    def position(self) -> Quantity[u.nm]:
+        """
+        Get current z stage position
+        """
+        inputVal = {"settingId": "Z_STAGE_POSITION_SETTING"}
+        result = self._proxy.Parameter.getParameter(inputVal)
+        pos = result["stagePosition"]
+
+        error = get_evident_error(result)
+        error.throw_if_error()
+
+        return pos * u.nm
+
+    @position.setter
+    def position(self, z: Quantity):
+        """
+        Set z stage position
+        """
+        super()._start()
+        self._target_z = z
+        z = int(z.to(u.nm).value)
+        inputVal = {"settingId": "Z_STAGE_POSITION_SETTING", "stagePosition": z}
+        result = self._proxy.Parameter.setParameter(inputVal)
+
+        error = get_evident_error(result)
+        error.throw_if_error()
+
+    @property
+    def z(self) -> Quantity[u.nm]:
+        """
+        Get current z stage position
+        """
+        return self.position
+
+    @z.setter
+    def z(self, z: Quantity):
+        """
+        Set z stage position
+        """
+        self.position = z
+
+
 class EvidentMicroscope:  # (Processor): How to calculate duration and latency, since it depend on both camera and stage?
     """
     Evident Microscope
@@ -540,8 +610,9 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         proxy = xmlrpc.client.ServerProxy(url)
         self._proxy = proxy
         self.cam = EvidentCamera(proxy)
-        self.stage_xy = EvidentXYStage(proxy)
-        # super().__init__(self.cam, self.stage_xy)
+        self.xy_stage = EvidentXYStage(proxy)
+        self.z_stage = EvidentZStage(proxy)
+        # super().__init__(self.cam, self.xy_stage)
 
     @property
     def version(self) -> str:
@@ -553,6 +624,9 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         """
         inputVal = {"settingId": "LSM_MICROSCOPE_VERSION_SETTING"}
         return self._proxy.Parameter.getParameter(inputVal)["version"]
+
+    def read(self):
+        return self.cam.read()
 
     @property
     def t_stack_enabled(self) -> bool:
@@ -578,6 +652,40 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
             dict: Result dictionary containing result code.
         """
         inputVal = {"settingId": "LSM_TIME_LAPS_ENABLE_SETTING", "enable": enable}
+        result = self._proxy.Parameter.setParameter(inputVal)
+        error = get_evident_error(result)
+        error.throw_if_error()
+
+    @property
+    def t_stack_step(self):
+        inputVal = {"settingId": "LSM_TIME_LAPS_INTERVAL_SETTING"}
+        result = self._proxy.Parameter.setParameter(inputVal)
+        error = get_evident_error(result)
+        error.throw_if_error()
+
+        return result["interval"] * 10 ** (-result["unitOfInterval"])
+
+    @t_stack_step.setter
+    def t_stack_step(self, value):
+
+        int_val = round(value.to(u.ms).value)
+        inputVal = {"settingId": "LSM_TIME_LAPS_INTERVAL_SETTING", "interval": int_val, "unitOfInterval": 3}
+        result = self._proxy.Parameter.setParameter(inputVal)
+        error = get_evident_error(result)
+        error.throw_if_error()
+
+    @property
+    def t_stack_slice_num(self):
+        inputVal = {"settingId": "LSM_TIME_LAPS_REPEAT_TIMES_SETTING"}
+        result = self._proxy.Parameter.setParameter(inputVal)
+        error = get_evident_error(result)
+        error.throw_if_error()
+
+        return result["repeadCount"]
+
+    @t_stack_slice_num.setter
+    def t_stack_slice_num(self, value: int):
+        inputVal = {"settingId": "LSM_TIME_LAPS_REPEAT_TIMES_SETTING", "repeatCount": value}
         result = self._proxy.Parameter.setParameter(inputVal)
         error = get_evident_error(result)
         error.throw_if_error()
@@ -900,16 +1008,23 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         error = get_evident_error(result)
         error.throw_if_error()
 
-        return result["revolver"]
+        return result["revolver"]["lensName"]
 
     @objective.setter
-    def objective(self, revolver_index: int):
+    def objective(self, name: str):
         """
         Set the objective lens by specifying the revolver index.
 
         Args:
             revolver_index (int): Index of the nosepiece to be changed.
         """
+        obj_list = self.objective_list
+        obj_names = [obj["lensName"] for obj in obj_list]
+        if name not in obj_names:
+            raise ValueError(f"Objective lens '{name}' not found. Available lenses: {obj_names}")
+
+        revolver_index = obj_list[obj_names.index(name)]["revolverIndex"]
+
         inputVal = {"settingId": "LSM_MICROSCOPE_OBJECTIVE_LENS_CURRENT_SETTING", "revolverIndex": revolver_index}
         result = self._proxy.Parameter.setParameter(inputVal)
 
@@ -931,32 +1046,6 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         error.throw_if_error()
 
         return result["revolvers"]
-
-    @property
-    def z(self) -> Quantity[u.nm]:
-        """
-        Get current z stage position
-        """
-        inputVal = {"settingId": "Z_STAGE_POSITION_SETTING"}
-        result = self._proxy.Parameter.getParameter(inputVal)
-        stage_z = result["stagePosition"]
-
-        error = get_evident_error(result)
-        error.throw_if_error()
-
-        return stage_z * u.nm
-
-    @z.setter
-    def z(self, z: Quantity):
-        """
-        Set z stage position
-        """
-        z = int(z.to(u.nm).value)
-        inputVal = {"settingId": "Z_STAGE_POSITION_SETTING", "stagePosition": z}
-        result = self._proxy.Parameter.setParameter(inputVal)
-
-        error = get_evident_error(result)
-        error.throw_if_error()
 
     @property
     def z_stack_enabled(self) -> bool:
@@ -1041,7 +1130,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         return result["stepSize"] * u.nm
 
     @z_stack_step_size.setter
-    def z_stack_step_size(self, step_size: int):
+    def z_stack_step_size(self, z: int):
         """
         Set the step size of Z stack.
 
@@ -1051,8 +1140,139 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         Returns:
             dict: Result dictionary containing result code.
         """
-        inputVal = {"settingId": "LSM_Z_COORDINATE_STEP_SIZE_SETTING", "stepSize": step_size.to(u.nm).value}
+        inputVal = {"settingId": "LSM_Z_COORDINATE_STEP_SIZE_SETTING", "stepSize": self.round2nm(z)}
         result = self._proxy.Parameter.setParameter(inputVal)
 
         error = get_evident_error(result)
         error.throw_if_error()
+
+    @staticmethod
+    def round2nm(val):
+        return int(np.round(val.to(u.nm).value))
+
+    @property
+    def z_stack_end(self) -> int:
+        """
+        Get the step size of Z stack.
+
+        Returns:
+            int: Step size in nm.
+        """
+        inputVal = {"settingId": "LSM_Z_COORDINATE_END_SETTING"}
+        result = self._proxy.Parameter.getParameter(inputVal)
+
+        error = get_evident_error(result)
+        error.throw_if_error()
+
+        return result["endPosition"] * u.nm
+
+    @z_stack_end.setter
+    def z_stack_end(self, z: int):
+        """
+        Set the end z of Z stack.
+
+        Args:
+            x (Quantity): Step size in nm to set.
+
+        Returns:
+            dict: Result dictionary containing result code.
+        """
+        inputVal = {"settingId": "LSM_Z_COORDINATE_END_SETTING", "endPosition": self.round2nm(z)}
+        result = self._proxy.Parameter.setParameter(inputVal)
+
+        error = get_evident_error(result)
+        error.throw_if_error()
+
+    @property
+    def z_stack_start(self):
+        """
+        Get the start of Z stack.
+
+        Returns:
+            int: start of z stack
+        """
+        inputVal = {"settingId": "LSM_Z_COORDINATE_START_SETTING"}
+        result = self._proxy.Parameter.getParameter(inputVal)
+
+        error = get_evident_error(result)
+        error.throw_if_error()
+
+        return result["startPosition"] * u.nm
+
+    @z_stack_start.setter
+    def z_stack_start(self, z):
+        """
+        Set the end z of Z stack.
+
+        Args:
+            x (Quantity): start in nm to set.
+
+        Returns:
+            dict: Result dictionary containing result code.
+        """
+        inputVal = {"settingId": "LSM_Z_COORDINATE_START_SETTING", "startPosition": self.round2nm(z)}
+        result = self._proxy.Parameter.setParameter(inputVal)
+
+        error = get_evident_error(result)
+        error.throw_if_error()
+
+    def z_stack_read(self, z):
+        """
+        Read Z stack images at the specified z positions.
+
+        Args:
+            z (array-like): Array of z positions to read.
+
+        Returns:
+            numpy.ndarray: Z stack images acquired at the specified z positions
+        """
+
+        if z.size < 2:
+            raise ValueError("Z must be a vector with size bigger or equal than 2")
+
+        step = z[1] - z[0]
+        if not np.allclose(np.diff(z), step):
+            raise ValueError("The spacing of Z must be uniform")
+
+        self.z_stack_end = z[-1]
+        self.z_stack_start = z[0]
+        self.z_stack_step_size = step
+        self.z_stack_enabled = True
+
+        img = self.cam.read()
+        return img
+
+    def _default_z_stack_read(self, z):
+        """
+        Default z stack read that does not use the z stack function. Temporary function which should be moved to the abstract microscope interface
+
+        """
+
+        self.z_stage.position = z[0]
+        first_img = self.cam.read()  # read the first image to get the shape and dtype
+
+        imgs = np.zeros((z.size,) + first_img.shape, dtype=first_img.dtype)
+        imgs[0, ...] = first_img
+        for i, z_pos in enumerate(z[1:], 1):
+            self.z_stage.position = z_pos
+            imgs[i, ...] = self.cam.read()
+
+        return imgs
+
+    def t_stack_read(self, t):
+        if t.size < 2:
+            raise ValueError("T must be a vector with more than 1 element")
+
+        step = t[1] - t[0]
+
+        if not np.allclose(np.diff(t), step):
+            raise ValueError("The spacing of T must be uniform")
+
+        self.t_stack_slice_num = t.size
+        self.t_stack_step = step
+        self.t_stack_enabled = True
+
+        self.cam.read()
+
+    def imaging_progress(self):
+        return self.cam.get_imaging_progress()
