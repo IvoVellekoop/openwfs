@@ -1,3 +1,4 @@
+import os
 import warnings
 from typing import Optional
 
@@ -5,6 +6,7 @@ import astropy.units as u
 import numpy as np
 from astropy.units import Quantity
 from harvesters.core import Harvester
+from pathlib import Path
 
 from ..core import Detector
 
@@ -39,7 +41,7 @@ class Camera(Detector):
 
     def __init__(
         self,
-        cti_file: str,
+        cti_file: Optional[str] = None,
         serial_number: Optional[str] = None,
         multi_threaded=True,
         **kwargs,
@@ -58,12 +60,24 @@ class Camera(Detector):
                 For Basler cameras, this is typically located in
                 R"C:\\Program Files\\Basler\\pylon 7\\Runtime\\x64\\ProducerU3V.cti".
 
+                If cti_file is NONE (default), the constructor will attempt to find the CTI file in the directory 
+                specified by the `GENICAM_GENTL64_PATH` environment variable. If the environment variable is not 
+                set, a ValueError is raised.
+
             serial_number: The serial number of the camera.
                 When omitted, the first camera found is selected.
             **kwargs: Additional keyword arguments.
                 These arguments are transferred to the node map of the camera. They must follow the `genicam` standard.
         """
         self._harvester = Harvester()
+
+        if cti_file is None:
+            gentl_path = os.environ.get("GENICAM_GENTL64_PATH")
+        if gentl_path:
+            cti_file = str(Path(gentl_path) / "ProducerU3V.cti")
+            print(f"Using GenICam producer: {cti_file}")
+        else:
+            raise ValueError("GENICAM_GENTL64_PATH is not set. Is Basler Pylon installed?")
 
         try:
             # Try to add the GenTL producer file (cti_file)
