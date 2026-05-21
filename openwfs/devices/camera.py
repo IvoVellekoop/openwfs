@@ -60,8 +60,8 @@ class Camera(Detector):
                 For Basler cameras, this is typically located in
                 R"C:\\Program Files\\Basler\\pylon 7\\Runtime\\x64\\ProducerU3V.cti".
 
-                If cti_file is NONE (default), the constructor will attempt to find the CTI file in the directory 
-                specified by the `GENICAM_GENTL64_PATH` environment variable. If the environment variable is not 
+                If cti_file is NONE (default), the constructor will attempt to find the CTI file in the directory
+                specified by the `GENICAM_GENTL64_PATH` environment variable. If the environment variable is not
                 set, a ValueError is raised.
 
             serial_number: The serial number of the camera.
