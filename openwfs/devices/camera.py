@@ -61,7 +61,7 @@ class Camera(Detector):
                 R"C:\\Program Files\\Basler\\pylon 7\\Runtime\\x64\\ProducerU3V.cti".
 
                 If cti_file is NONE (default), the constructor will attempt to find the CTI file in the directory
-                specified by the `GENICAM_GENTL64_PATH` environment variable. If the environment variable is not
+                specified by the `GENICAM_GENTL64_PATH` or `GENICAM_GENTL32_PATH` environment variable. If the environment variable is not
                 set, a ValueError is raised.
 
             serial_number: The serial number of the camera.
@@ -72,28 +72,33 @@ class Camera(Detector):
         self._harvester = Harvester()
 
         if cti_file is None:
-            gentl_path = os.environ.get("GENICAM_GENTL64_PATH")
-        if gentl_path:
-            cti_file = str(Path(gentl_path) / "ProducerU3V.cti")
-            print(f"Using GenICam producer: {cti_file}")
-        else:
-            raise ValueError("GENICAM_GENTL64_PATH is not set. Is Basler Pylon installed?")
+            # for windows use the GENICAM_GENTL64_PATH environment variable, which is set by the Basler pylon installer 
+            # by default. Else use the GENICAM_GENTL32_PATH environment variable for 32 bit systems. If neither is set, raise an error.
+            gentl_path = (os.environ.get("GENICAM_GENTL64_PATH") or os.environ.get("GENICAM_GENTL32_PATH"))
+            if not gentl_path:
+                raise ValueError("GENICAM_GENTL64_PATH and GENICAM_GENTL32_PATH are not set. Check if Basler Pylon is installed or set cti_path manually.")
+            # find all cti files in the gentl_path directory and add them to the harvester
+            cti_files = [str(p) for p in Path(gentl_path).glob("*.cti")]
+        else:    # if cti_file is provided, use it directly       
+            cti_files = [cti_file]
 
-        try:
-            # Try to add the GenTL producer file (cti_file)
-            self._harvester.add_file(cti_file, check_validity=True)
-            print(f"Successfully loaded CTI file: {cti_file}")
-        except Exception as e:
-            # Catch any errors during the file loading process and provide a user-friendly message
-            print(f"Failed to load CTI file: {cti_file}")
-            print(f"Error: {str(e)}")
-            print(
-                "Please ensure that the CTI file exists at the specified location "
-                "and that it is a valid GenTL producer file. You can download or "
-                "locate the file from the camera manufacturer's website or SDK, "
-                "such as the Basler pylon SDK."
-            )
-            raise
+        # load all cti files in the harvester
+        for cti_file in cti_files: 
+            try:
+                # Try to add the GenTL producer file (cti_file)
+                self._harvester.add_file(cti_file, check_validity=True)
+                print(f"Successfully loaded CTI file: {cti_file}")
+            except Exception as e:
+                # Catch any errors during the file loading process and provide a user-friendly message
+                print(f"Failed to load CTI file: {cti_file}")
+                print(f"Error: {str(e)}")
+                print(
+                    "Please ensure that the CTI file exists at the specified location "
+                    "and that it is a valid GenTL producer file. You can download or "
+                    "locate the file from the camera manufacturer's website or SDK, "
+                    "such as the Basler pylon SDK."
+                )
+                raise
 
         self._harvester.update()
 
