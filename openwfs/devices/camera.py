@@ -72,18 +72,20 @@ class Camera(Detector):
         self._harvester = Harvester()
 
         if cti_file is None:
-            # for windows use the GENICAM_GENTL64_PATH environment variable, which is set by the Basler pylon installer 
+            # for windows use the GENICAM_GENTL64_PATH environment variable, which is set by the Basler pylon installer
             # by default. Else use the GENICAM_GENTL32_PATH environment variable for 32 bit systems. If neither is set, raise an error.
-            gentl_path = (os.environ.get("GENICAM_GENTL64_PATH") or os.environ.get("GENICAM_GENTL32_PATH"))
+            gentl_path = os.environ.get("GENICAM_GENTL64_PATH") or os.environ.get("GENICAM_GENTL32_PATH")
             if not gentl_path:
-                raise ValueError("GENICAM_GENTL64_PATH and GENICAM_GENTL32_PATH are not set. Check if Basler Pylon is installed or set cti_path manually.")
+                raise ValueError(
+                    "GENICAM_GENTL64_PATH and GENICAM_GENTL32_PATH are not set. Check if Basler Pylon is installed or set cti_path manually."
+                )
             # find all cti files in the gentl_path directory and add them to the harvester
             cti_files = [str(p) for p in Path(gentl_path).glob("*.cti")]
-        else:    # if cti_file is provided, use it directly       
+        else:  # if cti_file is provided, use it directly
             cti_files = [cti_file]
 
         # load all cti files in the harvester
-        for cti_file in cti_files: 
+        for cti_file in cti_files:
             try:
                 # Try to add the GenTL producer file (cti_file)
                 self._harvester.add_file(cti_file, check_validity=True)
