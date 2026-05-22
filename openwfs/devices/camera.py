@@ -80,7 +80,8 @@ class Camera(Detector):
                     "GENICAM_GENTL64_PATH and GENICAM_GENTL32_PATH are not set. Check if Basler Pylon is installed or set cti_path manually."
                 )
             # find all cti files in the gentl_path directory and add them to the harvester
-            cti_files = [str(p) for p in Path(gentl_path).glob("*.cti")]
+            cti_files = [str(p) for gp in gentl_path.split(os.pathsep) for p in Path(gp).glob("*.cti")]
+
         else:  # if cti_file is provided, use it directly
             cti_files = [cti_file]
 
