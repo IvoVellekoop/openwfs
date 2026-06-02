@@ -293,6 +293,7 @@ def project(
     out: Optional[np.ndarray] = None,
     out_extent: Optional[ExtentType] = None,
     out_shape: Optional[tuple[int, ...]] = None,
+    interp=cv2.INTER_NEAREST,
 ) -> np.ndarray:
     """Projects the input image onto an array with specified shape and resolution.
 
@@ -312,6 +313,7 @@ def project(
             If not given, the extent metadata of the out image is used.
         out_shape: shape of the output image.
             This value is ignored if `out` is specified.
+        interp: interpolation method to use when rescaling the image. See OpenCV documentation for options.
 
     Returns:
         np.ndarray: the projected image (`out` if specified, otherwise a new array)
@@ -337,13 +339,13 @@ def project(
     out_size = (out_shape[1], out_shape[0])
     if (source.dtype == np.complex128) or (source.dtype == np.complex64):
         if out is None:
-            out = np.zeros(out_shape, dtype=source.dtype)
+            out = np.zeros(out_shape, dtype=source.dtype.str)
         # real part
         out.real = cv2.warpAffine(
             source.real,
             t,
             out_size,
-            flags=cv2.INTER_NEAREST,
+            flags=interp,
             borderMode=cv2.BORDER_CONSTANT,
             borderValue=(0.0,),
         )
@@ -352,7 +354,7 @@ def project(
             source.imag,
             t,
             out_size,
-            flags=cv2.INTER_NEAREST,
+            flags=interp,
             borderMode=cv2.BORDER_CONSTANT,
             borderValue=(0.0,),
         )
@@ -363,7 +365,7 @@ def project(
             t,
             out_size,
             dst=out,
-            flags=cv2.INTER_NEAREST,
+            flags=interp,
             borderMode=cv2.BORDER_CONSTANT,
             borderValue=(0.0,),
         )
@@ -395,6 +397,11 @@ def set_pixel_size(data: ArrayLike, pixel_size: Optional[Quantity]) -> np.ndarra
 
     if pixel_size is not None and pixel_size.size == 1:
         pixel_size = pixel_size * np.ones(data.ndim)
+
+    old_pixel_size = get_pixel_size(data)
+    if old_pixel_size is not None:
+        if not np.allclose(old_pixel_size, pixel_size):
+            raise NotImplementedError("Overwritting the value of pixel size is currently not possible.")
 
     data.dtype = np.dtype(data.dtype, metadata={"pixel_size": pixel_size})
     return data
@@ -431,7 +438,7 @@ def get_extent(data: np.ndarray) -> Quantity:
     """
     pixel_size = get_pixel_size(data)
     if pixel_size is None:
-        return Quantity(data.shape)
+        return None
     return data.shape * pixel_size
 
 

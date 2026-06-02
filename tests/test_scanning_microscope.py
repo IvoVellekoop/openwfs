@@ -116,7 +116,7 @@ def test_scan_pattern(direction, bidirectional):
     # plt.show()
 
     # check if returned pattern is correct
-    (y, x) = coordinate_range(
+    y, x = coordinate_range(
         (scanner._resolution, scanner._resolution),
         10000 / reference_zoom,
         offset=(5000, 5000),
