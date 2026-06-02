@@ -10,7 +10,6 @@ from numpy import ndarray as nd
 from .core import Detector
 from .utilities import get_extent
 
-
 # TODO: needs review and documentation. Remove single-use functions, simplify code.
 
 

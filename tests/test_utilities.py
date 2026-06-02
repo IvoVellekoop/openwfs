@@ -1,5 +1,6 @@
 import astropy.units as u
 import numpy as np
+import pytest
 
 from openwfs.utilities import (
     set_pixel_size,
@@ -73,6 +74,12 @@ def test_place():
     dst_trivial = place(src.shape, ps1, src)
     assert np.allclose(src, dst_trivial)
     assert np.all(get_pixel_size(dst_trivial) == ps1)
+
+    ps1 = (0.5, 2) * u.um
+    ps2 = (3.0, 1.0) * u.um
+    src = set_pixel_size(np.zeros((7, 8)), ps1)
+    with pytest.raises(NotImplementedError):
+        set_pixel_size(src, ps2)
 
     # place image in output with larger extent and same pixel size.
     # the source will be padded with zeros (exactly one row and two columns on all sides)
@@ -154,3 +161,13 @@ def test_inverse():
     assert np.allclose(vector, transformed_back)
     assert np.allclose(inverse @ transform @ vector, vector)
     assert np.allclose(transform @ inverse @ vector, vector)
+
+
+def test_utilities_microscope():
+    import openwfs.utilities as owf_u
+    import openwfs.simulation as owf_s
+
+    mic, slm, src = owf_u.tests.get_test_microscope()
+    assert type(mic) == owf_s.Microscope
+    assert type(slm) == owf_s.SLM
+    assert type(src) == owf_s.StaticSource

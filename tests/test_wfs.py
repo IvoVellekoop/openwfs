@@ -116,33 +116,23 @@ def test_multi_target_algorithms(shape: tuple[int, int], feedback_shape: tuple[i
     print(f"noise fidelity:   \ttheoretical = {theoretical_noise_fidelity},\testimated = {result.fidelity_noise}")
     print(f"comparing at relative tolerance: {tolerance}")
 
-    assert np.allclose(
-        enhancement, theoretical_enhancement, rtol=tolerance
-    ), f"""
+    assert np.allclose(enhancement, theoretical_enhancement, rtol=tolerance), f"""
         The SSA algorithm did not enhance the focus as much as expected.
         Theoretical {theoretical_enhancement}, got {enhancement}"""
 
-    assert np.allclose(
-        estimated_enhancement, enhancement, rtol=tolerance
-    ), f"""
+    assert np.allclose(estimated_enhancement, enhancement, rtol=tolerance), f"""
          The SSA algorithm did not estimate the enhancement correctly.
          Estimated {estimated_enhancement}, got {enhancement}"""
 
-    assert np.allclose(
-        t_correlation, theoretical_t_correlation, rtol=tolerance
-    ), f"""
+    assert np.allclose(t_correlation, theoretical_t_correlation, rtol=tolerance), f"""
         The SSA algorithm did not measure the transmission matrix correctly.
         Expected {theoretical_t_correlation}, got {t_correlation}"""
 
-    assert np.allclose(
-        estimated_t_correlation, theoretical_t_correlation, rtol=tolerance
-    ), f"""
+    assert np.allclose(estimated_t_correlation, theoretical_t_correlation, rtol=tolerance), f"""
         The SSA algorithm did not estimate the fidelity of the transmission matrix correctly.
         Expected {theoretical_t_correlation}, got {estimated_t_correlation}"""
 
-    assert np.allclose(
-        result.fidelity_noise, theoretical_noise_fidelity, rtol=tolerance
-    ), f"""
+    assert np.allclose(result.fidelity_noise, theoretical_noise_fidelity, rtol=tolerance), f"""
         The SSA algorithm did not estimate the noise correctly.
         Expected {theoretical_noise_fidelity}, got {result.fidelity_noise}"""
 
@@ -299,9 +289,7 @@ def test_phase_shift_correction():
         signal = sim.read()
         signals.append(signal)
 
-    assert (
-        np.std(signals) / np.mean(signals) < 0.001
-    ), f"""The response of SimulatedWFS is sensitive to a flat 
+    assert np.std(signals) / np.mean(signals) < 0.001, f"""The response of SimulatedWFS is sensitive to a flat 
         phase shift. This is incorrect behaviour"""
 
 
@@ -376,9 +364,7 @@ def test_multidimensional_feedback_ssa():
     after = sim.read()
     enhancement = after / before
 
-    assert (
-        enhancement[target] >= 3.0
-    ), f"""The SSA algorithm did not enhance focus as much as expected.
+    assert enhancement[target] >= 3.0, f"""The SSA algorithm did not enhance focus as much as expected.
             Expected at least 3.0, got {enhancement}"""
 
 
@@ -401,9 +387,7 @@ def test_multidimensional_feedback_fourier():
     after = sim.read()
     enhancement = after / before
 
-    assert (
-        enhancement[2, 1] >= 3.0
-    ), f"""The algorithm did not enhance the focus as much as expected.
+    assert enhancement[2, 1] >= 3.0, f"""The algorithm did not enhance the focus as much as expected.
             Expected at least 3.0, got {enhancement}"""
 
 
