@@ -78,7 +78,7 @@ def test_to_matrix():
     # Repeat for different input and output pixel sizes
     expected_matrix = ((0.5, 8, 1), (0.75, 8, 1), (0, 0, 1))
     result_matrix = transform.to_matrix((0.5, 4) * u.um, (1, 2) * u.um)
-    print(result_matrix)
+
     assert np.allclose(result_matrix, expected_matrix)
 
     # Test center correction. The center of the source image should be mapped to the center of the destination image
