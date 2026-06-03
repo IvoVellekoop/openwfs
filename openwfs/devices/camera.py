@@ -144,8 +144,6 @@ class Camera(Detector):
             cti_files = [cti_file]
 
         self.cam_harvester = CameraHarvester.get_harvester()
-        if cti_file is not None:
-            self.cam_harvester.add_file(cti_file)
 
         # load all cti files in the harvester
         for cti_file in cti_files:
