@@ -8,8 +8,10 @@ from openwfs.utilities import (
     place,
     Transform,
     project,
+    set_extent,
 )
 
+from openwfs.utilities.patterns import parabola
 
 def test_to_matrix():
     # equal pixel sizes and identity matrix should result in identity matrix
@@ -188,6 +190,22 @@ def test_transform():
         out_shape=src.shape,
     )
     assert np.allclose(dst1a, dst1b)
+
+    # test that when flipping and rotating, the centre stays the centre, not matter pixel shape
+    transform = Transform(transform = np.array([[0, -1], [-2, 0]]))
+    extent = (5,9)
+    pat = -parabola(extent, 0.5, extent)
+    centre = (pat.shape[0] // 2, pat.shape[1] // 2)
+    max_loc = np.unravel_index(np.argmax(pat), pat.shape)
+    assert max_loc == centre, f"Expected maximum pixel location to be at the center {centre}, but got {max_loc}"
+
+
+    pat = set_extent(pat, extent)
+    pat_extent = (9, 9)
+    pat_big = project(source = pat, out_extent=pat_extent, out_shape=(13, 5), transform=transform)
+    max_loc_big = np.unravel_index(np.argmax(pat_big), pat_big.shape)
+    centre_big = (pat_big.shape[0] // 2, pat_big.shape[1] // 2)
+    assert max_loc_big == centre_big, f"Expected maximum pixel location to be at the center {centre_big}, but got {max_loc_big}"
 
 
 def test_zoom():
