@@ -21,7 +21,7 @@ def test_to_matrix():
     # Define the expected output matrix for same input and output pixel sizes
     expected_matrix = np.eye(3)
     result_matrix = transform.to_matrix((1, 2) * u.um, (1, 2) * u.um)
-    print(result_matrix)
+
     assert result_matrix.shape == (3, 3)
     assert np.allclose(result_matrix, expected_matrix)
 
@@ -38,7 +38,7 @@ def test_to_matrix():
     expected_matrix = np.eye(3)
     expected_matrix[0, 0] = 2 * u.um / (1 * u.um)
     result_matrix = transform.to_matrix((2, 2) * u.um, (1, 2) * u.um)
-    print(result_matrix)
+
     assert result_matrix.shape == (3, 3)
     assert np.allclose(result_matrix, expected_matrix)
 
