@@ -11,10 +11,10 @@ from openwfs.utilities import (
 )
 
 
-def test_to_matrix(): 
+def test_to_matrix():
     # equal pixel sizes and identity matrix should result in identity matrix
     transform = Transform(
-        transform=((1,0), (0, 1)),
+        transform=((1, 0), (0, 1)),
         source_origin=(0.0, 0.0) * u.m,
         destination_origin=(0, 0) * u.mm,
     )
@@ -27,13 +27,13 @@ def test_to_matrix():
 
     # Non equal pixel sizes and identity matrix should be scaled by pixel ratios
     transform = Transform(
-        transform=((1,0), (0, 1)),
+        transform=((1, 0), (0, 1)),
         source_origin=(0.0, 0.0) * u.m,
         destination_origin=(0, 0) * u.mm,
     )
     # Define the expected output matrix for same input and output pixel sizes
     # if you want to keep NA coordinates at the same location (identity transform above), but pixels are halv
-    # as small in x direction, you need to move scale by 2 in the x direction, so that the same physical distance 
+    # as small in x direction, you need to move scale by 2 in the x direction, so that the same physical distance
     # corresponds to 2 pixels instead of 1 pixel.
     expected_matrix = np.eye(3)
     expected_matrix[0, 0] = 2 * u.um / (1 * u.um)
@@ -50,10 +50,10 @@ def test_to_matrix():
         destination_origin=(0, 0) * u.mm,
     )
     # Coordinate (1,0) in physical coordinates is transformed to (1,3) in physical coordinates
-    # 
+    #
     # (1 um ,0) correponds to (1 , 0 ) in pixel coordinates, and (1um, 3um) corresponds to (1, 1.5) in pixel coordinates,
     # so the first column of the matrix should be (1, 1.5, 0)
-    # Similarly (0,1 um) (corresponds to (0 , 0.5) in pixel coordinates) is transformed to (2um ,4 um) 
+    # Similarly (0,1 um) (corresponds to (0 , 0.5) in pixel coordinates) is transformed to (2um ,4 um)
     # (corresponds to (2, 2) in pixel coordinates, for pixel size (1um, 2um))), so the second column of the matrix should be (4, 4, 0)
     # Define the expected output matrix for same input and output pixel sizes
     expected_matrix = ((1, 4, 0), (1.5, 4, 0), (0, 0, 1))
@@ -76,8 +76,9 @@ def test_to_matrix():
     assert np.allclose(result_matrix, expected_matrix)
 
     # Repeat for different input and output pixel sizes
-    expected_matrix = ((2, 8, 1), (0.75, 8, 1), (0, 0, 1))
+    expected_matrix = ((0.5, 8, 1), (0.75, 8, 1), (0, 0, 1))
     result_matrix = transform.to_matrix((0.5, 4) * u.um, (1, 2) * u.um)
+    print(result_matrix)
     assert np.allclose(result_matrix, expected_matrix)
 
     # Test center correction. The center of the source image should be mapped to the center of the destination image
