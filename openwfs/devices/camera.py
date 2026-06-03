@@ -36,7 +36,7 @@ class CameraHarvester:
                 self._harvester.update()
                 logging.info(f"Successfully loaded CTI file: {cti_file}")
             except (OSError, FileNotFoundError) as e:
-                raise RunTimeError(
+                raise RuntimeError(
                     f"Failed to load CTI file: {cti_file}. Error: {str(e)}\n Please ensure that the CTI file exists at the specified location\nand that it is a valid GenTL producer file. You can download or\nlocate the file from the camera manufacturer's website or SDK,\nsuch as the Basler pylon SDK."
                 )
             self.cti_files.append(cti_file)
