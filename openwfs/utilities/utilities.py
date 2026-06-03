@@ -165,11 +165,13 @@ class Transform:
     def to_matrix(self, source_pixel_size: CoordinateType, destination_pixel_size: CoordinateType) -> np.ndarray:
         """Returns a homogeneous transformation matrix that transforms (y,x,1) coordinates to (y', x', 1)."""
         matrix = np.eye(3)
-        matrix[0:2, 0:2] = unitless(self.transform * source_pixel_size / destination_pixel_size)
+        A = unitless(np.diag(1.0 / destination_pixel_size) @ self.transform @ np.diag(source_pixel_size))
+        matrix[0:2, 0:2] = A
         if self.destination_origin is not None:
             matrix[0:2, 2] = unitless(self.destination_origin / destination_pixel_size)
         if self.source_origin is not None:
-            matrix[0:2, 2] -= unitless((self.transform @ self.source_origin) / destination_pixel_size)
+            src_origin_px = unitless(self.source_origin / source_pixel_size)
+            matrix[0:2, 2] -= A @ src_origin_px
         return matrix
 
     def opencl_matrix(self) -> np.ndarray:
