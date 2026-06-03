@@ -11,7 +11,38 @@ from openwfs.utilities import (
 )
 
 
-def test_to_matrix():
+def test_to_matrix(): 
+    # equal pixel sizes and identity matrix should result in identity matrix
+    transform = Transform(
+        transform=((1,0), (0, 1)),
+        source_origin=(0.0, 0.0) * u.m,
+        destination_origin=(0, 0) * u.mm,
+    )
+    # Define the expected output matrix for same input and output pixel sizes
+    expected_matrix = np.eye(3)
+    result_matrix = transform.to_matrix((1, 2) * u.um, (1, 2) * u.um)
+    print(result_matrix)
+    assert result_matrix.shape == (3, 3)
+    assert np.allclose(result_matrix, expected_matrix)
+
+    # Non equal pixel sizes and identity matrix should be scaled by pixel ratios
+    transform = Transform(
+        transform=((1,0), (0, 1)),
+        source_origin=(0.0, 0.0) * u.m,
+        destination_origin=(0, 0) * u.mm,
+    )
+    # Define the expected output matrix for same input and output pixel sizes
+    # if you want to keep NA coordinates at the same location (identity transform above), but pixels are halv
+    # as small in x direction, you need to move scale by 2 in the x direction, so that the same physical distance 
+    # corresponds to 2 pixels instead of 1 pixel.
+    expected_matrix = np.eye(3)
+    expected_matrix[0, 0] = 2 * u.um / (1 * u.um)
+    result_matrix = transform.to_matrix((2, 2) * u.um, (1, 2) * u.um)
+    print(result_matrix)
+    assert result_matrix.shape == (3, 3)
+    assert np.allclose(result_matrix, expected_matrix)
+
+
     # Create a transform object
     transform = Transform(
         transform=((1, 2), (3, 4)),
