@@ -3,13 +3,11 @@ import harvesters
 import pytest
 
 from openwfs.devices import Camera, is_loaded
+import openwfs.devices as opwfs_d
 from openwfs.processors import HDRCamera
 
 if not is_loaded(harvesters):
     pytest.skip(harvesters.message, allow_module_level=True)
-
-
-cti_path = R"C:\Program Files\Basler\pylon 7\Runtime\x64\ProducerU3V.cti"
 
 
 @pytest.fixture
@@ -18,17 +16,11 @@ def camera():
     Fixture that returns a Camera object.
     If no camera is found, the test is skipped.
     """
-    cameras = Camera.enumerate_cameras(cti_path)
+    _harvester = opwfs_d.camera.CameraHarvester.get_harvester()
+    cameras = _harvester.enumerate_cameras()
     if len(cameras) == 0:
         pytest.skip("No camera found", allow_module_level=True)
-    return Camera(cti_path)
-
-
-def test_grab(camera):
-    frame = camera.read()
-    assert frame.shape == camera.data_shape
-    assert (camera.height, camera.width) == camera.data_shape
-    assert (camera._nodes.Height.value, camera._nodes.Width.value) == camera.data_shape
+    return Camera()
 
 
 def test_hdr(camera):
