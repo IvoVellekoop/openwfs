@@ -8,10 +8,63 @@ from openwfs.utilities import (
     place,
     Transform,
     project,
+    set_extent,
 )
+
+from openwfs.utilities.patterns import parabola
 
 
 def test_to_matrix():
+    # equal pixel sizes and identity matrix should result in identity matrix
+    transform = Transform(
+        transform=((1, 0), (0, 1)),
+        source_origin=(0.0, 0.0) * u.m,
+        destination_origin=(0, 0) * u.mm,
+    )
+    # Define the expected output matrix for same input and output pixel sizes
+    expected_matrix = np.eye(3)
+    result_matrix = transform.to_matrix((1, 2) * u.um, (1, 2) * u.um)
+
+    assert result_matrix.shape == (3, 3)
+    assert np.allclose(result_matrix, expected_matrix)
+
+    # Non equal pixel sizes and identity matrix should be scaled by pixel ratios
+    transform = Transform(
+        transform=((1, 0), (0, 1)),
+        source_origin=(0.0, 0.0) * u.m,
+        destination_origin=(0, 0) * u.mm,
+    )
+    # Define the expected output matrix for same input and output pixel sizes
+    # if you want to keep NA coordinates at the same location (identity transform above), but pixels are halv
+    # as small in x direction, you need to move scale by 2 in the x direction, so that the same physical distance
+    # corresponds to 2 pixels instead of 1 pixel.
+    expected_matrix = np.eye(3)
+    expected_matrix[0, 0] = 2 * u.um / (1 * u.um)
+    result_matrix = transform.to_matrix((2, 2) * u.um, (1, 2) * u.um)
+
+    assert result_matrix.shape == (3, 3)
+    assert np.allclose(result_matrix, expected_matrix)
+
+    # test off diagonal matrix with anisotropic pixel sizes.
+    # Create a transform object
+    transform = Transform(
+        transform=((1, 2), (3, 4)),
+        source_origin=(0.0, 0.0) * u.m,
+        destination_origin=(0, 0) * u.mm,
+    )
+    # Coordinate (1,0) in physical coordinates is transformed to (1,3) in physical coordinates
+    #
+    # (1 um ,0) correponds to (1 , 0 ) in pixel coordinates, and (1um, 3um) corresponds to (1, 1.5) in pixel coordinates,
+    # so the first column of the matrix should be (1, 1.5, 0)
+    # Similarly (0,1 um) (corresponds to (0 , 0.5) in pixel coordinates) is transformed to (2um ,4 um)
+    # (corresponds to (2, 2) in pixel coordinates, for pixel size (1um, 2um))), so the second column of the matrix should be (4, 4, 0)
+    # Define the expected output matrix for same input and output pixel sizes
+    expected_matrix = ((1, 4, 0), (1.5, 4, 0), (0, 0, 1))
+    result_matrix = transform.to_matrix((1, 2) * u.um, (1, 2) * u.um)
+    assert result_matrix.shape == (3, 3)
+    assert np.allclose(result_matrix, expected_matrix)
+
+    # now add a translation of 1 , 1 pixel, for pixel sizes (1um, 2um), this corresponds to a translation of (1um, 2um) in physical coordinates, so the last column of the matrix should be (1, 1.5, 1)
     # Create a transform object
     transform = Transform(
         transform=((1, 2), (3, 4)),
@@ -20,14 +73,15 @@ def test_to_matrix():
     )
 
     # Define the expected output matrix for same input and output pixel sizes
-    expected_matrix = ((1, 2, 1), (3, 4, 1), (0, 0, 1))
+    expected_matrix = ((1, 4, 1), (1.5, 4, 1), (0, 0, 1))
     result_matrix = transform.to_matrix((1, 2) * u.um, (1, 2) * u.um)
     assert result_matrix.shape == (3, 3)
     assert np.allclose(result_matrix, expected_matrix)
 
     # Repeat for different input and output pixel sizes
-    expected_matrix = ((0.5, 4, 1), (1.5, 8, 1), (0, 0, 1))
+    expected_matrix = ((0.5, 8, 1), (0.75, 8, 1), (0, 0, 1))
     result_matrix = transform.to_matrix((0.5, 4) * u.um, (1, 2) * u.um)
+
     assert np.allclose(result_matrix, expected_matrix)
 
     # Test center correction. The center of the source image should be mapped to the center of the destination image
@@ -137,6 +191,23 @@ def test_transform():
         out_shape=src.shape,
     )
     assert np.allclose(dst1a, dst1b)
+
+    # test that when flipping and rotating, the centre stays the centre, not matter pixel shape
+    transform = Transform(transform=np.array([[0, -1], [-2, 0]]))
+    extent = (5, 9)
+    pat = -parabola(extent, 0.5, extent)
+    centre = (pat.shape[0] // 2, pat.shape[1] // 2)
+    max_loc = np.unravel_index(np.argmax(pat), pat.shape)
+    assert max_loc == centre, f"Expected maximum pixel location to be at the center {centre}, but got {max_loc}"
+
+    pat = set_extent(pat, extent)
+    pat_extent = (9, 9)
+    pat_big = project(source=pat, out_extent=pat_extent, out_shape=(13, 5), transform=transform)
+    max_loc_big = np.unravel_index(np.argmax(pat_big), pat_big.shape)
+    centre_big = (pat_big.shape[0] // 2, pat_big.shape[1] // 2)
+    assert (
+        max_loc_big == centre_big
+    ), f"Expected maximum pixel location to be at the center {centre_big}, but got {max_loc_big}"
 
 
 def test_zoom():
