@@ -159,8 +159,6 @@ class Camera(Detector):
             **kwargs: Additional keyword arguments.
                 These arguments are transferred to the node map of the camera. They must follow the `genicam` standard.
         """
-        global global_cam_harvester
-
         self.cam_harvester = CameraHarvester.get_harvester()
         if cti_file is None:
             self.cam_harvester.add_cti_files_enviroment_variable()
