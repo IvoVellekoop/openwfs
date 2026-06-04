@@ -165,7 +165,6 @@ class Camera(Detector):
         else:  # if cti_file is provided, use it directly
             self.cam_harvester.add_file(cti_file)
 
-
         # open the camera, use the serial_number to select the camera if it is specified.
         search_key = {"serial_number": serial_number} if serial_number is not None else None
         self._camera = self.cam_harvester._harvester.create(search_key=search_key)
