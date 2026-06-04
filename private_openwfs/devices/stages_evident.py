@@ -559,7 +559,7 @@ class EvidentZStage(Actuator):
         error = get_evident_error(result)
         error.throw_if_error()
 
-        return pos * u.nm
+        return -pos * u.nm
 
     @position.setter
     def position(self, z: Quantity):
@@ -568,6 +568,8 @@ class EvidentZStage(Actuator):
         """
         super()._start()
         self._target_z = z
+        # Invert z because z should be positive when movi
+        z = -z
         z = int(z.to(u.nm).value)
         inputVal = {"settingId": "Z_STAGE_POSITION_SETTING", "stagePosition": z}
         result = self._proxy.Parameter.setParameter(inputVal)
