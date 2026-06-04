@@ -77,8 +77,7 @@ class CameraHarvester:
 
         return self._harvester.device_info_list.copy()
 
-    @staticmethod
-    def add_cti_files_enviroment_variable():
+    def add_cti_files_enviroment_variable(self):
         """
         Add all CTI files in the directory specified by the GENICAM_GENTL64_PATH or GENICAM_GENTL32_PATH environment variable to the harvester.
 
@@ -94,11 +93,9 @@ class CameraHarvester:
         # find all cti files in the gentl_path directory and add them to the harvester
         cti_files = [str(p) for gp in gentl_path.split(os.pathsep) for p in Path(gp).glob("*.cti")]
 
-        harvester = CameraHarvester.get_harvester()
-
         # load all cti files in the harvester
         for cti_file in cti_files:
-            harvester.add_file(cti_file)
+            self.add_file(cti_file)
 
 
 global_cam_harvester = None
@@ -164,12 +161,12 @@ class Camera(Detector):
         """
         global global_cam_harvester
 
-        if cti_file is None:
-            CameraHarvester.add_cti_files_enviroment_variable()
-        else:  # if cti_file is provided, use it directly
-            cti_files = [cti_file]
-
         self.cam_harvester = CameraHarvester.get_harvester()
+        if cti_file is None:
+            self.cam_harvester.add_cti_files_enviroment_variable()
+        else:  # if cti_file is provided, use it directly
+            self.cam_harvester.add_file(cti_file)
+
 
         # open the camera, use the serial_number to select the camera if it is specified.
         search_key = {"serial_number": serial_number} if serial_number is not None else None
@@ -396,6 +393,19 @@ class Camera(Detector):
     def data_shape(self):
         """Shape (height, width) of the data array returned by the camera."""
         return self.height, self.width
+
+    @staticmethod
+    def enumerate_cameras(cti_file=None):
+        """Enumerates all cameras available through the specified GenTL producer.
+
+        Args:
+            cti_file: The path to the GenTL producer file. If None, the files on the GENICAM_GENTL64_PATH or GENICAM_GENTL32_PATH environment variable will be used.
+
+        Returns:
+            list: A list of device information dictionaries for all available cameras.
+        """
+        cam_harvester = CameraHarvester.get_harvester()
+        return cam_harvester.enumerate_cameras(cti_file=cti_file)
 
 
 class _CameraPause:
