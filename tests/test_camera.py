@@ -28,6 +28,14 @@ def camera():
     return Camera()
 
 
+def test_grab(camera):
+    frame = camera.read()
+    assert frame.shape == camera.data_shape
+    assert (camera.height, camera.width) == camera.data_shape
+    assert (camera._nodes.Height.value, camera._nodes.Width.value) == camera.data_shape
+    return Camera()
+
+
 def test_hdr(camera):
     """Test the HDR camera functionality.
     Note: this just tests if the code can be run, visual inspection is needed to see if the result is correct."""
