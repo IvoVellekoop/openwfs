@@ -244,7 +244,7 @@ class KCubeInertial(Actuator):
 
         self.throw_error_if_moving()
         super()._start()
-        self._future = self._worker.submit(self._move_to, arr, self.position, self.pair_channels)
+        self._future = self._worker.submit(self._move_to, arr, self.position, self.pair_channels, True)
 
     def throw_error_if_moving(self):
         """
@@ -262,70 +262,42 @@ class KCubeInertial(Actuator):
             args_[0]: np.ndarray - Array with the absolute positions to move each channel
             args_[1]: np.ndarray - Array with the current positions of each channel
             args_[2]: bool - If the channels are paired
+            args_[3]: bool - True if the movement is to the position and False if the movement is by a relative amount.
         """
         arr = args_[0]
         current_position = args_[1]
-        dists = np.abs(current_position - arr)
         pair_channels = args_[2]
+        is_move_to = args_[3]
+
+        dists = np.abs(current_position - arr) if is_move_to else np.abs(arr)
+
+        time_required = dists 
+
+        api_move_function = self.device.MoveTo if is_move_to else self.device.MoveBy
+        
 
         if pair_channels:
             # If the channels are paired, the code finds the motor from the paired channels travels
             # further. It starts the movement of that channel last to ensure that when the movement
             # finishes the other motor already finished.
             for i in np.array([0, 2]):
-                if dists[i] > dists[i + 1]:
+                if time_required[i] > time_required[i + 1]:
                     i_long, i_short = i, i + 1
                 else:
                     i_long, i_short = i + 1, i
 
-                if dists[i_short] != 0:  # Need to check this otherwise Kinesis will block the thread
-                    self.device.MoveTo(self.channels_array[i_short], Int32(int(arr[i_short])), 0)
+                if np.isclose(dists[i_short], 0):  # Need to check this otherwise Kinesis will block the thread
+                    api_move_function(self.channels_array[i_short], Int32(int(arr[i_short])), 0)
 
-                if dists[i_long] != 0:
-                    self.device.MoveTo(
+                if np.isclose(dists[i_long], 0):
+                    api_move_function(
                         self.channels_array[i_long], Int32(int(arr[i_long])), int(self.timeout.to(u.ms).value)
                     )
                     time.sleep(0.2)  # Need this, not sure why. Errors on position set otherwise
         else:
             for i, ch_i in enumerate(self.channels_array):
-                if dists[i] != 0:
+                if np.isclose(dists[i], 0):
                     self.device.MoveTo(ch_i, Int32(int(arr[i])), int(self.timeout.to(u.ms).value))
-                    time.sleep(0.2)
-
-    def _move_by(self, *args_, **kwargs_):
-        """
-            Function to be ran by the thread to move the stage by a relative amount
-
-        Arguments:
-            args_[0]: np.ndarray - Array with the relative distances to move each channel
-            args_[1]: bool - If the channels are paired
-        """
-        arr = args_[0]
-        dists = np.abs(arr)
-        pair_channels = args_[1]
-
-        if pair_channels:
-            # If the channels are paired, the code finds the motor from the paired channels travels
-            # further. It starts the movement of that channel last to ensure that when then movement
-            # finishes the other motor already finished.
-            for i in np.array([0, 2]):
-                if dists[i] > dists[i + 1]:
-                    i_long, i_short = i, i + 1
-                else:
-                    i_long, i_short = i + 1, i
-
-                if dists[i_short] != 0:  # Need to check this otherwise Kinesis will block the thread
-                    self.device.MoveBy(self.channels_array[i_short], Int32(int(arr[i_short])), 0)
-
-                if dists[i_long] != 0:
-                    self.device.MoveBy(
-                        self.channels_array[i_long], Int32(int(arr[i_long])), int(self.timeout.to(u.ms).value)
-                    )
-                    time.sleep(0.2)  # Need this, not sure why. Errors on position set otherwise
-        else:
-            for i, ch_i in enumerate(self.channels_array):
-                if dists[i] != 0:
-                    self.device.MoveBy(ch_i, Int32(int(arr[i])), int(self.timeout.to(u.ms).value))
                     time.sleep(0.2)
 
 
@@ -342,7 +314,7 @@ class KCubeInertial(Actuator):
             )
         super()._start()
         self.throw_error_if_moving()
-        self._future = self._worker.submit(self._move_by, deltas, self.pair_channels)
+        self._future = self._worker.submit(self._move_by, deltas, self.position, self.pair_channels, False)
 
     def stop(self):
         """
