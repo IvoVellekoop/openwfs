@@ -27,13 +27,11 @@ def camera():
         pytest.skip("No camera found", allow_module_level=True)
     return Camera()
 
-
 def test_grab(camera):
     frame = camera.read()
     assert frame.shape == camera.data_shape
     assert (camera.height, camera.width) == camera.data_shape
     assert (camera._nodes.Height.value, camera._nodes.Width.value) == camera.data_shape
-    return Camera()
 
 
 def test_hdr(camera):
