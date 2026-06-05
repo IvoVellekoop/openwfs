@@ -8,7 +8,6 @@ from openwfs.utilities.patterns import (
     parabola,
     binary_grating,
     coordinate_range,
-    binary_grating_constant_pixel_width,
 )
 from openwfs.utilities import unitless
 import astropy.units as u
@@ -71,10 +70,10 @@ def test_binary_grating(extent):
     np.allclose(phi_2[p + first_down : p + 2 * first_down], values[1])
     np.allclose(period, 2 * p / shape[0] * extent)
 
-    phi_cte = binary_grating_constant_pixel_width(shape, period, values, extent=extent, angle=0)
+    phi_cte = binary_grating(shape, period, values, extent=extent, angle=0, round_period = True)
     assert np.allclose(phi_cte, phi)
 
-    phi_cte_2 = binary_grating_constant_pixel_width(shape, 0.105, values, extent=extent, angle=0)
+    phi_cte_2 = binary_grating(shape, 0.105, values, extent=extent, angle=0, round_period = True)
     assert not np.allclose(phi_cte, phi_cte_2)
     tmp = (phi_cte_2[6:-6]).reshape(-1, 26)
     assert np.all(np.isclose(tmp[0:-1:2], tmp[0, :]))

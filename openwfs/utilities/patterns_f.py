@@ -153,6 +153,7 @@ def binary_grating(x, y, period, values, angle):
     For a SLM in a pupil-conjugate configuration with an objective, the image created by the first order of this grating is shifted by:
 
     """
+
     coord_along_periodic_direction = x * np.cos(angle) + y * np.sin(angle)
     phase_mask = np.full(coord_along_periodic_direction.shape, values[0])
     up_values = (coord_along_periodic_direction % period) >= (period / 2)
