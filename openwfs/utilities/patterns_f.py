@@ -150,7 +150,7 @@ def binary_grating(x, y, period, values, angle):
         values: tuple of two values (value for the "up" phase and value for the "down" phase).
         angle: angle of the grating in radians. An angle of 0 corresponds to a grating that is periodic along the x-direction, and an angle of π/2 corresponds to a grating that is periodic along the y-direction.
 
-    For a SLM in a pupil-conjugate configuration with an objective, the image created by the first order of this grating is shifted by:
+        For a SLM in a pupil-conjugate configuration with an objective: If the extent and periodicity is defined in the normalised pupil coordinates, the image created by the first diffraction order of the grating is shifted in the focal plane by wavelength / period / na * (cos(angle), sin(angle)).
 
     """
 
