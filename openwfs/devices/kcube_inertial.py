@@ -331,6 +331,6 @@ class KCubeInertial(Actuator):
         """
         Returns True if the device is currently moving or communicating with the device.
         """
-        # This function works because the thread will be lock by kinesis while a movement
+        # This function works because the thread will be locked by kinesis while a movement
         # is ongoing.
         return not self._future.done()
