@@ -54,6 +54,9 @@ def safe_import(module_name: str, extra_name: str):
         importlib.import_module(module_name)
     except (ModuleNotFoundError, AttributeError):
         sys.modules[module_name] = _MockModule(module_name, extra_name)
+    except Exception as e:
+        print(f"Error while importing {module_name}: {e}")
+        sys.modules[module_name] = _MockModule(module_name, extra_name)
 
 
 safe_import("harvesters", "genicam")
@@ -68,6 +71,7 @@ safe_import("glfw", "opengl")
 safe_import("zaber_motion", "zaber")
 safe_import("serial", "zaber")
 safe_import("serial.tools", "zaber")
+safe_import("clr", "clr")
 
 from .camera import Camera
 from .galvo_scanner import ScanningMicroscope, Axis
@@ -75,3 +79,4 @@ from .nidaq_gain import Gain
 from . import slm
 from .slm import SLM
 from .zaber_stage import ZaberXYStage, ZaberLinearStage
+from .kcube_inertial import KCubeInertial
