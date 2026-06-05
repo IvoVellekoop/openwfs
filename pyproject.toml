@@ -35,12 +35,12 @@ dependencies = [
 [project.optional-dependencies]
 # Hardware-related extras
 nidaq = ["nidaqmx>=1.0.1"]
-genicam = ["harvesters>=1.4.2; python_version < '3.12'"]
+genicam = ["harvesters>=1.4.2"]
 opengl = ["PyOpenGL>=3.1.7", "glfw>=2.5.9"]
 zaber = ["zaber-motion>=4.0.0", "pyserial>=3.5"]
 all = [
     "nidaqmx>=1.0.1",
-    "harvesters>=1.4.2; python_version < '3.12'",
+    "harvesters>=1.4.2",
     "PyOpenGL>=3.1.7",
     "glfw>=2.5.9",
     "zaber-motion>=4.0.0",
