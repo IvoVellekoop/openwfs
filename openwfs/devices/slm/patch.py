@@ -118,7 +118,7 @@ class Patch(PhaseSLM):
         # store the data on the GPU
         with self.context:
             self._geometry = value
-            (self._vertices, self._indices) = GL.glGenBuffers(2)
+            self._vertices, self._indices = GL.glGenBuffers(2)
             self._index_count = value.indices.size
             GL.glBindBuffer(GL.GL_ARRAY_BUFFER, self._vertices)
             GL.glBufferData(

@@ -271,7 +271,9 @@ def test_measure_modulated_light_dual_phase_stepping_noise_free(num_blocks, phas
     "num_blocks, phase_steps, gaussian_noise_std, atol",
     [(10, 6, 0.0, 1e-6), (6, 8, 2.0, 1e-3)],
 )
-def test_measure_modulated_light_dual_phase_stepping_with_noise(num_blocks, phase_steps, gaussian_noise_std, atol):
+def test_measure_modulated_light_dual_phase_stepping_with_noise_and_blocks(
+    num_blocks, phase_steps, gaussian_noise_std, atol
+):
     """Test fidelity estimation due to amount of modulated light. Can test with noise."""
     # === Define mock hardware, perfect SLM ===
     # Aberration and image source

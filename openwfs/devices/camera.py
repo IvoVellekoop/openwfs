@@ -1,3 +1,5 @@
+import os
+import logging
 import warnings
 from typing import Optional
 
@@ -6,6 +8,7 @@ import numpy as np
 import weakref
 from astropy.units import Quantity
 from harvesters.core import Harvester
+from pathlib import Path
 
 from ..core import Detector
 
@@ -31,19 +34,12 @@ class CameraHarvester:
             try:
                 self._harvester.add_file(cti_file, check_validity=True)
                 self._harvester.update()
+                logging.info(f"Successfully loaded CTI file: {cti_file}")
             except (OSError, FileNotFoundError) as e:
-                print(f"Failed to load CTI file: {cti_file}")
-                print(f"Error: {str(e)}")
-                print(
-                    "Please ensure that the CTI file exists at the specified location "
-                    "and that it is a valid GenTL producer file. You can download or "
-                    "locate the file from the camera manufacturer's website or SDK, "
-                    "such as the Basler pylon SDK."
+                raise RuntimeError(
+                    f"Failed to load CTI file: {cti_file}. Error: {str(e)}\n Please ensure that the CTI file exists at the specified location\nand that it is a valid GenTL producer file. You can download or\nlocate the file from the camera manufacturer's website or SDK,\nsuch as the Basler pylon SDK."
                 )
             self.cti_files.append(cti_file)
-
-    def enumerate_cameras(self):
-        return self._harvester.device_info_list.copy()
 
     @staticmethod
     def get_harvester():
@@ -64,6 +60,42 @@ class CameraHarvester:
             global_cam_harvester = weakref.ref(cam_harvester)
 
         return cam_harvester
+
+    def enumerate_cameras(self, cti_file=None):
+        """Enumerates all cameras available through the specified GenTL producer.
+
+        Args:
+            cti_file: The path to the GenTL producer file. If None, the files on the GENICAM_GENTL64_PATH or GENICAM_GENTL32_PATH environment variable will be used.
+
+        Returns:
+            list: A list of device information dictionaries for all available cameras.
+        """
+        if cti_file is None:
+            self.add_cti_files_enviroment_variable()
+        else:
+            self.add_file(cti_file)
+
+        return self._harvester.device_info_list.copy()
+
+    def add_cti_files_enviroment_variable(self):
+        """
+        Add all CTI files in the directory specified by the GENICAM_GENTL64_PATH or GENICAM_GENTL32_PATH environment variable to the harvester.
+
+        """
+        # for windows use the GENICAM_GENTL64_PATH environment variable, which is set by the Basler pylon installer
+        # by default. Else use the GENICAM_GENTL32_PATH environment variable for 32 bit systems. If neither is set, raise an error.
+        gentl_path = os.environ.get("GENICAM_GENTL64_PATH") or os.environ.get("GENICAM_GENTL32_PATH")
+        if not gentl_path:
+            raise ValueError(
+                "GENICAM_GENTL64_PATH and GENICAM_GENTL32_PATH are not set. Check if Basler Pylon is installed or set cti_path manually."
+            )
+
+        # find all cti files in the gentl_path directory and add them to the harvester
+        cti_files = [str(p) for gp in gentl_path.split(os.pathsep) for p in Path(gp).glob("*.cti")]
+
+        # load all cti files in the harvester
+        for cti_file in cti_files:
+            self.add_file(cti_file)
 
 
 global_cam_harvester = None
@@ -99,7 +131,7 @@ class Camera(Detector):
 
     def __init__(
         self,
-        cti_file: str,
+        cti_file: Optional[str] = None,
         serial_number: Optional[str] = None,
         multi_threaded=True,
         **kwargs,
@@ -118,15 +150,19 @@ class Camera(Detector):
                 For Basler cameras, this is typically located in
                 R"C:\\Program Files\\Basler\\pylon 7\\Runtime\\x64\\ProducerU3V.cti".
 
+                If cti_file is NONE (default), the constructor will attempt to find the CTI file in the directory
+                specified by the `GENICAM_GENTL64_PATH` or `GENICAM_GENTL32_PATH` environment variable. If the environment variable is not
+                set, a ValueError is raised.
+
             serial_number: The serial number of the camera.
                 When omitted, the first camera found is selected.
             **kwargs: Additional keyword arguments.
                 These arguments are transferred to the node map of the camera. They must follow the `genicam` standard.
         """
-        global global_cam_harvester
-
         self.cam_harvester = CameraHarvester.get_harvester()
-        if cti_file is not None:
+        if cti_file is None:
+            self.cam_harvester.add_cti_files_enviroment_variable()
+        else:  # if cti_file is provided, use it directly
             self.cam_harvester.add_file(cti_file)
 
         # open the camera, use the serial_number to select the camera if it is specified.
@@ -360,18 +396,13 @@ class Camera(Detector):
         """Enumerates all cameras available through the specified GenTL producer.
 
         Args:
-            cti_file: The path to the GenTL producer file.
+            cti_file: The path to the GenTL producer file. If None, the files on the GENICAM_GENTL64_PATH or GENICAM_GENTL32_PATH environment variable will be used.
 
         Returns:
             list: A list of device information dictionaries for all available cameras.
-
-        Warns:
-            UserWarning: If the CTI file cannot be loaded.
         """
         cam_harvester = CameraHarvester.get_harvester()
-        if cti_file is not None:
-            cam_harvester.add_file(cti_file)
-        return cam_harvester.enumerate_cameras()
+        return cam_harvester.enumerate_cameras(cti_file=cti_file)
 
 
 class _CameraPause:
