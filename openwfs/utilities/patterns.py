@@ -283,3 +283,56 @@ def binary_grating(
     return patterns_f.binary_grating(
         *coordinate_range(shape, extent, offset=offset), period=period, values=values, angle=angle
     )
+
+
+def binary_grating_constant_pixel_width(
+    shape: ShapeType,
+    period: ScalarType,
+    values: Sequence[float],
+    extent: ExtentType = (2.0, 2.0),
+    angle: float = 0,
+    offset: Optional[CoordinateType] = None,
+):
+    """
+    Construct a binary grating similar to `binary_grating`, but the period is adjusted to be an integer number of pixels, so that the number of pixels per period is constant across the pattern. 
+
+    Args:
+        shape: Number of pixels of the returned pattern.
+        extent: Extent of the return pattern. This value is used to compute the coordinates for the grating pattern. Changing the ratio of `extent` and `period` changes the returned pattern, but scaling both by the same factor does not change the returned pattern.
+        period (ScalarType): period of the grating, should have the same unit as `extent`.
+        values: tuple of two values (v0, v1) that are used for the two levels of the binary grating. For example, for a binary phase grating, these values could be (0, π).
+        angle (ScalarType): angle of the grating in radians. For an angle of 0, the grating is oriented along the x-axis, and for an angle of π/2, the grating is oriented along the y-axis. (only supports angles of 0 and π/2)
+        offset: offsets the centre of the grating by offset
+
+        For a SLM in a pupil-conjugate configuration with an objective: If the extent and periodicity is defined in the normalised pupil coordinates, the image created by the first diffraction order of the grating is shifted in the focal plane by wavelength / period / na * (cos(angle), sin(angle)).
+
+    Returns:
+        An array of the same shape as the input `shape`, containing the phase values of the binary grating pattern.
+
+    """
+    if not (np.isclose(angle, 0) or np.isclose(angle, np.pi / 2)):
+        raise ValueError("Only angles of 0 and π/2 are supported for binary_grating_constant_pixel_width")
+
+    if np.isclose(angle, 0):
+        axis = 0
+    else:
+        axis = 1
+
+    pixel_size = extent / np.array(shape)
+    period_number_pixels_units = int(np.round(period / pixel_size[axis]))
+    period_extent_units = period_number_pixels_units * pixel_size[axis]
+
+    return binary_grating(
+        shape=shape,
+        period=period_extent_units,
+        values=values,
+        extent=extent,
+        angle=angle,
+        offset=offset,
+    )
+
+
+
+
+
+
