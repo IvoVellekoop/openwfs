@@ -294,7 +294,7 @@ def binary_grating_constant_pixel_width(
     offset: Optional[CoordinateType] = None,
 ):
     """
-    Construct a binary grating similar to `binary_grating`, but the period is adjusted to be an integer number of pixels, so that the number of pixels per period is constant across the pattern. 
+    Construct a binary grating similar to `binary_grating`, but the period is adjusted to be an integer number of pixels, so that the number of pixels per period is constant across the pattern.
 
     Args:
         shape: Number of pixels of the returned pattern.
@@ -330,9 +330,3 @@ def binary_grating_constant_pixel_width(
         angle=angle,
         offset=offset,
     )
-
-
-
-
-
-
