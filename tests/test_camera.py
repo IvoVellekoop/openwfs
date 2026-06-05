@@ -3,7 +3,6 @@ import harvesters
 import pytest
 
 from openwfs.devices import Camera, is_loaded
-import openwfs.devices as opwfs_d
 from openwfs.processors import HDRCamera
 import os
 
@@ -22,8 +21,8 @@ def camera():
         pytest.skip(
             "GENICAM_GENTL64_PATH or GENICAM_GENTL32_PATH environment variable not set", allow_module_level=True
         )
-    _harvester = opwfs_d.camera.CameraHarvester.get_harvester()
-    cameras = _harvester.enumerate_cameras()
+    cameras = Camera.enumerate_cameras()
+
     if len(cameras) == 0:
         pytest.skip("No camera found", allow_module_level=True)
     return Camera()
