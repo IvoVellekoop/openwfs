@@ -27,6 +27,7 @@ def camera():
         pytest.skip("No camera found", allow_module_level=True)
     return Camera()
 
+
 def test_grab(camera):
     frame = camera.read()
     assert frame.shape == camera.data_shape
