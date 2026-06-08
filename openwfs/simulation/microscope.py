@@ -298,5 +298,5 @@ class Microscope(Processor):
         z_stack_images = np.zeros((len(z),) + self.data_shape)
         for ind, val in enumerate(z):
             self.z_stage.position = val
-            z_stack_images[ind, :, :] = self.read()
+            z_stack_images[ind, ...] = self.read()
         return z_stack_images
