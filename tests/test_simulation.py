@@ -338,3 +338,19 @@ def test_non_linear_microscope():
     img_2p = mic_2.read()
 
     assert np.allclose(img_2p, img_ref**2)
+
+
+def test_microscope_z_stack():
+    mic, slm, src = get_test_microscope()
+    z = [10, -10] * u.um
+    imgs = mic.z_stack_read(z)
+
+    mic.z_stage.position = z[0]
+    img_z_first = mic.read()
+
+    mic.z_stage.position = z[1]
+    img_z_second = mic.read()
+
+    assert np.allclose(imgs[0, :, :], img_z_first)
+    assert np.allclose(imgs[1, :, :], img_z_second)
+    assert imgs.shape == (z.size, img_z_second.shape[0], img_z_second.shape[1])
