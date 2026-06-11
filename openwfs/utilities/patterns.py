@@ -262,7 +262,6 @@ def binary_grating(
     values: Sequence[float],
     extent: ExtentType = (2.0, 2.0),
     angle: ScalarType = 0.0,
-    offset: Optional[CoordinateType] = None,
     round_period: bool = False,
 ):
     """Constructs a binary grating pattern.
@@ -273,7 +272,6 @@ def binary_grating(
         period (ScalarType): period of the grating, should have the same unit as `extent`.
         values: tuple of two values (v0, v1) that are used for the two levels of the binary grating. For example, for a binary phase grating, these values could be (0, π).
         angle (ScalarType): angle of the grating in radians. For an angle of 0, the grating is oriented along the x-axis, and for an angle of π/2, the grating is oriented along the y-axis.
-        offset: offsets the centre of the grating by offset
         round_period: if True, the period will be rounded to the nearest multiple of the two times pixel size, so that the width of the stripes is an integer number of pixels. If round_period is True, the angle must be either 0 or π/2 (i.e. the grating must be either vertical or horizontal). Default to False
 
         For a SLM in a pupil-conjugate configuration with an objective: If the extent and periodicity is defined in the normalised pupil coordinates, the image created by the first diffraction order of the grating is shifted in the focal plane by wavelength / period / na * (cos(angle), sin(angle)).
@@ -295,7 +293,4 @@ def binary_grating(
         period_number_pixels_units = int(np.round(period / 2 / pixel_size[axis]))
         period = period_number_pixels_units * pixel_size[axis] * 2
 
-    offset = np.multiply(offset, -1) if offset is not None else None
-    return patterns_f.binary_grating(
-        *coordinate_range(shape, extent, offset=offset), period=period, values=values, angle=angle
-    )
+    return patterns_f.binary_grating(*coordinate_range(shape, extent), period=period, values=values, angle=angle)
