@@ -282,7 +282,7 @@ def binary_grating(
 
     if round_period:
         if not (np.isclose(angle, 0) or np.isclose(angle, np.pi / 2)):
-            raise ValueError("Only angles of 0 and π/2 are supported for binary_grating_constant_pixel_width")
+            raise ValueError("Only angles of 0 and π/2 are supported for binary_grating with round_period=True")
 
         if np.isclose(angle, 0):
             axis = 0
