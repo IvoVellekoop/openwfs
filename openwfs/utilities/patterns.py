@@ -290,6 +290,10 @@ def binary_grating(
             axis = 1
 
         pixel_size = extent / np.array(shape)
+
+        if np.isscalar(pixel_size):
+            pixel_size = (pixel_size, pixel_size)
+
         period_number_pixels_units = int(np.round(period / 2 / pixel_size[axis]))
         period = period_number_pixels_units * pixel_size[axis] * 2
 
