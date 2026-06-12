@@ -1,6 +1,14 @@
 import pytest
 import numpy as np
-from openwfs.utilities.patterns import tilt, gaussian, disk, propagation, parabola, binary_grating, coordinate_range
+from openwfs.utilities.patterns import (
+    tilt,
+    gaussian,
+    disk,
+    propagation,
+    parabola,
+    binary_grating,
+    coordinate_range,
+)
 from openwfs.utilities import unitless
 import astropy.units as u
 
@@ -47,10 +55,13 @@ def test_parabola():
 
 @pytest.mark.parametrize("extent", [2, 4])
 def test_binary_grating(extent):
+    extent = 2.0
     period = 0.1
     values = (1, 2)
     shape = (1000, 1)
     phi = binary_grating(shape, period, values, extent=extent, angle=0)
+
+    # Check that the values are correct within the expected period
     first_up = np.argmax(phi)
     phi_2 = phi[first_up:]
     first_down = np.argmin(phi_2)
@@ -60,6 +71,19 @@ def test_binary_grating(extent):
     np.allclose(phi_2[p : p + first_down], values[0])
     np.allclose(phi_2[p + first_down : p + 2 * first_down], values[1])
     np.allclose(period, 2 * p / shape[0] * extent)
+
+    phi_cte = binary_grating(shape, period, values, extent=extent, angle=0, round_period=True)
+    # Check that round_period does not change the pattern when the period is already an integer number of pixels
+    assert np.allclose(phi_cte, phi)
+
+    phi_cte_2 = binary_grating(shape, 0.105, values, extent=extent, angle=0, round_period=True)
+
+    # Ensure that phi_cte_2 is not the same as phi_cte (This only serves to check that the rounding is actually doing something, since the period is different, the pattern should be different)
+    assert not np.allclose(phi_cte, phi_cte_2)
+    tmp = (phi_cte_2[6:-6]).reshape(-1, 26)
+    # Check that the pattern has the same number of pixels up and down with a constant period
+    assert np.all(np.isclose(tmp[0:-1:2], tmp[0, :]))
+    assert np.all(np.isclose(tmp[1:-1:2], tmp[1, :]))
 
 
 @pytest.mark.parametrize("extent, refractive_index", [(2, 1.0), (1, 1.5)])
