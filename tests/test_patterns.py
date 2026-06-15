@@ -86,7 +86,7 @@ def test_binary_grating(extent):
     assert np.all(np.isclose(tmp[1:-1:2], tmp[1, :]))
 
     # Tests that rounds_period works fine with single valued shape and extent
-    np.allclose(
+    assert np.allclose(
         binary_grating(100, 0.1, values, extent=2, round_period=True),
         binary_grating((100, 100), 0.1, values, extent=(2, 2), round_period=True),
     )
