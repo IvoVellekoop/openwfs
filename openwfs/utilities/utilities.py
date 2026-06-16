@@ -166,13 +166,13 @@ class Transform:
         """Returns a homogeneous transformation matrix that transforms (y,x,1) coordinates to (y', x', 1)."""
         matrix = np.eye(3)
         A = unitless(
-            np.diag(1.0 / np.array(destination_pixel_size)) @ self.transform @ np.diag(np.array(source_pixel_size))
+            np.diag(1.0 / Quantity(destination_pixel_size)) @ self.transform @ np.diag(Quantity(source_pixel_size))
         )
         matrix[0:2, 0:2] = A
         if self.destination_origin is not None:
-            matrix[0:2, 2] = unitless(self.destination_origin / destination_pixel_size)
+            matrix[0:2, 2] = unitless(Quantity(self.destination_origin) / Quantity(destination_pixel_size))
         if self.source_origin is not None:
-            src_origin_px = unitless(self.source_origin / source_pixel_size)
+            src_origin_px = unitless(Quantity(self.source_origin) / Quantity(source_pixel_size))
             matrix[0:2, 2] -= A @ src_origin_px
         return matrix
 
