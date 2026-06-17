@@ -65,7 +65,7 @@ class KCubeInertial(Actuator):
             movement. Defaults to 20 seconds.
     """
 
-    def __init__(self, serial_number: str = None, pair_channels: bool = False, timeout: u.Quantity = 20 * u.s, kinesis_files = ):
+    def __init__(self, serial_number: str = None, pair_channels: bool = False, timeout: u.Quantity = 20 * u.s, kinesis_files = None):
 
         if kinesis_files == None:
             kinesis_files = [
@@ -84,6 +84,12 @@ class KCubeInertial(Actuator):
             InertialMotorStatus,
         )
         from System import Int32
+
+        self.DeviceManagerCLI = DeviceManagerCLI
+        self.KCubeInertialMotor = KCubeInertialMotor
+        self.ThorlabsInertialMotorSettings = ThorlabsInertialMotorSettings
+        self.InertialMotorStatus = InertialMotorStatus
+        self.Int32 = Int32
 
         super().__init__(duration=np.inf * u.ms, latency=0 * u.ms)
 
@@ -221,17 +227,17 @@ class KCubeInertial(Actuator):
     def _set_velocity_acceralleration(self, velocity, acceleration):
         self.throw_error_if_moving()
         config = self.device.GetInertialMotorConfiguration(self.serial_number)
-        settings = ThorlabsInertialMotorSettings.GetSettings(config)
+        settings = self.ThorlabsInertialMotorSettings.GetSettings(config)
         for i, ch_i in enumerate(self.channels_array):
-            settings.Drive.Channel(ch_i).StepRate = Int32(int(velocity[i].to(1 / u.s).value))
-            settings.Drive.Channel(ch_i).StepAcceleration = Int32(int(acceleration[i].to(1 / u.s**2).value))
+            settings.Drive.Channel(ch_i).StepRate = self.Int32(int(velocity[i].to(1 / u.s).value))
+            settings.Drive.Channel(ch_i).StepAcceleration = self.Int32(int(acceleration[i].to(1 / u.s**2).value))
         self.device.SetSettings(settings, True, True)
         self._get_velocity_acceleration()
 
     def _get_velocity_acceleration(self):
         self.throw_error_if_moving()
         config = self.device.GetInertialMotorConfiguration(self.serial_number)
-        settings = ThorlabsInertialMotorSettings.GetSettings(config)
+        settings = self.ThorlabsInertialMotorSettings.GetSettings(config)
         vel = []
         acc = []
         for ch_i in self.channels_array:
@@ -258,7 +264,7 @@ class KCubeInertial(Actuator):
         Arguments:
             arr: np.ndarray - Array with the absolute positions to move each channel
         """
-        if not arr.size == self.channels_array.size
+        if not arr.size == self.channels_array.size:
             raise ValueError(
                 f"Size of position array ({arr.size}) does not match number of channels ({self.channels_array.size})."
             )
@@ -282,10 +288,10 @@ class KCubeInertial(Actuator):
 
         """
         distance_acceleration = velocity**2 / (2 * acceleration)
-        if distance < 2 * distance_acceleration:
-            time = 2 * np.sqrt(distance / acceleration)
-        else:
-            time = 2 * velocity / acceleration + (distance - 2 * distance_acceleration) / velocity
+        ind_achieve_max_velocity = distance >= 2 * distance_acceleration
+        time = 2 * np.sqrt(distance / acceleration)
+        time[ind_achieve_max_velocity] = 2 * velocity[ind_achieve_max_velocity] / acceleration[ind_achieve_max_velocity] + (distance[ind_achieve_max_velocity] - 2 * distance_acceleration[ind_achieve_max_velocity]) / velocity[ind_achieve_max_velocity]
+        print(time)
         return time
 
 
@@ -321,18 +327,18 @@ class KCubeInertial(Actuator):
                 else:
                     i_long, i_short = i + 1, i
 
-                if np.isclose(dists[i_short], 0):  # Need to check this otherwise Kinesis will block the thread
-                    api_move_function(self.channels_array[i_short], Int32(int(arr[i_short])), 0)
+                if not np.isclose(dists[i_short], 0):  # Need to check this otherwise Kinesis will block the thread
+                    api_move_function(self.channels_array[i_short], self.Int32(int(arr[i_short])), 0)
 
-                if np.isclose(dists[i_long], 0):
+                if not np.isclose(dists[i_long], 0):
                     api_move_function(
-                        self.channels_array[i_long], Int32(int(arr[i_long])), int(self.timeout.to(u.ms).value)
+                        self.channels_array[i_long], self.Int32(int(arr[i_long])), int(self.timeout.to(u.ms).value)
                     )
                     time.sleep(0.2)  # Need this, not sure why. Errors on position set otherwise
         else:
             for i, ch_i in enumerate(self.channels_array):
-                if np.isclose(dists[i], 0):
-                    self.device.MoveTo(ch_i, Int32(int(arr[i])), int(self.timeout.to(u.ms).value))
+                if not np.isclose(dists[i], 0):
+                    api_move_function(ch_i, self.Int32(int(arr[i])), int(self.timeout.to(u.ms).value))
                     time.sleep(0.2)
 
 
@@ -349,7 +355,7 @@ class KCubeInertial(Actuator):
             )
         super()._start()
         self.throw_error_if_moving()
-        self._future = self._worker.submit(self._move_by, deltas, self.position, self.pair_channels, False)
+        self._future = self._worker.submit(self._move_to, deltas, self.position, self.pair_channels, False)
 
     def stop(self):
         """
