@@ -300,7 +300,6 @@ class KCubeInertial(Actuator):
             + (distance[ind_achieve_max_velocity] - 2 * distance_acceleration[ind_achieve_max_velocity])
             / velocity[ind_achieve_max_velocity]
         )
-        print(time)
         return time
 
     def _move_to(self, *args_, **kwargs_):
