@@ -1,7 +1,6 @@
 from ..core import Actuator
 import numpy as np
 import astropy.units as u
-from . import _MockModule
 import time
 import clr
 import os
@@ -201,7 +200,7 @@ class KCubeInertial(Actuator):
         return vel
 
     @velocity.setter
-    def velocity(self, val: Quantity):
+    def velocity(self, val: u.Quantity[1 / u.s]):
         """
         Set the velocity of the stage in steps/s
         Arguments:
@@ -220,7 +219,7 @@ class KCubeInertial(Actuator):
         return acc
 
     @acceleration.setter
-    def acceleration(self, val: Quantity):
+    def acceleration(self, val: u.Quantity[1 / u.s**2]):
         """
         Set the acceleration of the stage in steps/s^2
         Arguments:
@@ -261,7 +260,7 @@ class KCubeInertial(Actuator):
         return out
 
     @position.setter
-    def position(self, arr: Quantity):
+    def position(self, arr: int):
         """
             Moves the device to the specified absolute positions in steps.
 
@@ -287,7 +286,7 @@ class KCubeInertial(Actuator):
             )
 
     @staticmethod
-    def movement_time(distance: Quantity, velocity: Quantity, acceleration: Quantity) -> Quantity:
+    def movement_time(distance: int, velocity: u.Quantity[1/u.s], acceleration: u.Quantity[1/u.s**2]) -> u.Quantity[u.s]:
         """
         Returns the time required to move a given distance with a given velocity and acceleration. This function assumes a trapezoidal velocity profile, which is the default for Kinesis. The function calculates the time required to accelerate to the velocity, the time required to decelerate from the velocity, and the time required to move at constant velocity. If the distance is too short to reach the velocity, the function calculates the time required to accelerate and decelerate without reaching the velocity.
 
@@ -302,21 +301,16 @@ class KCubeInertial(Actuator):
         )
         return time
 
-    def _move_to(self, *args_, **kwargs_):
+    def _move_to(self, arr, current_position, pair_channels, is_move_to):
         """
             Function to be ran by the thread to move the stage to an absolute position
 
         Arguments:
-            args_[0]: np.ndarray - Array with the absolute positions to move each channel
-            args_[1]: np.ndarray - Array with the current positions of each channel
-            args_[2]: bool - If the channels are paired
-            args_[3]: bool - True if the movement is to the position and False if the movement is by a relative amount.
+            arr: np.ndarray - Array with the absolute positions to move each channel
+            current_position: np.ndarray - Array with the current positions of each channel
+            pair_channels: bool - If the channels are paired
+            is_move_to: bool - True if the movement is to the position and False if the movement is by a relative amount.
         """
-        arr = args_[0]
-        current_position = args_[1]
-        pair_channels = args_[2]
-        is_move_to = args_[3]
-
         dists = np.abs(current_position - arr) if is_move_to else np.abs(arr)
 
         time_required = self.movement_time(dists, self._velocity, self._acceleration)
@@ -347,7 +341,7 @@ class KCubeInertial(Actuator):
                     api_move_function(ch_i, self.Int32(int(arr[i])), int(self.timeout.to(u.ms).value))
                     time.sleep(0.2)
 
-    def move_by(self, deltas: Quantity):
+    def move_by(self, deltas: int):
         """
             Moves the device by the specified relative distances in steps.
 
