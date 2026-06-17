@@ -20,7 +20,8 @@ from concurrent.futures import ThreadPoolExecutor
 # is communicating with the device. For this, function communicating with the
 # device use the function throw_error_if_moving()
 
-class KinesisHandler():
+
+class KinesisHandler:
     """
     Class to handle the connection with the Kinesis software. This class is used to ensure that the Kinesis software is properly initialized and that the device list is built before trying to connect to a device. This is important because if the device list is not built, the code will not be able to find the device and will raise an error.
     """
@@ -33,19 +34,20 @@ class KinesisHandler():
 
         for f in kinesis_files:
             if not os.path.isfile(f):
-                raise FileNotFoundError(f"Thorlabs Kinesis library file not found: {f}. Ensure that the correct path to the Kinesis libraries is provided and that the Kinesis software is installed. The library can be downloaded from https://www.thorlabs.com/kinesis-software.")
+                raise FileNotFoundError(
+                    f"Thorlabs Kinesis library file not found: {f}. Ensure that the correct path to the Kinesis libraries is provided and that the Kinesis software is installed. The library can be downloaded from https://www.thorlabs.com/kinesis-software."
+                )
 
             clr.AddReference(f)
             self.files.append(f)
 
-    @staticmethod 
+    @staticmethod
     def get_handler():
         global global_kinesis_handler
         if global_kinesis_handler is None:
             return KinesisHandler([])
         else:
             return global_kinesis_handler
-
 
 
 global_kinesis_handler = None
@@ -65,7 +67,9 @@ class KCubeInertial(Actuator):
             movement. Defaults to 20 seconds.
     """
 
-    def __init__(self, serial_number: str = None, pair_channels: bool = False, timeout: u.Quantity = 20 * u.s, kinesis_files = None):
+    def __init__(
+        self, serial_number: str = None, pair_channels: bool = False, timeout: u.Quantity = 20 * u.s, kinesis_files=None
+    ):
 
         if kinesis_files == None:
             kinesis_files = [
@@ -279,21 +283,25 @@ class KCubeInertial(Actuator):
         """
         if self.busy():
             raise RuntimeError(
-                "Device is busy. Use self.wait() to wait for the device to finish moving or use self.stop() to stop the device.")
+                "Device is busy. Use self.wait() to wait for the device to finish moving or use self.stop() to stop the device."
+            )
 
     @staticmethod
     def movement_time(distance, velocity, acceleration):
         """
-            Returns the time required to move a given distance with a given velocity and acceleration. This function assumes a trapezoidal velocity profile, which is the default for Kinesis. The function calculates the time required to accelerate to the velocity, the time required to decelerate from the velocity, and the time required to move at constant velocity. If the distance is too short to reach the velocity, the function calculates the time required to accelerate and decelerate without reaching the velocity.
+        Returns the time required to move a given distance with a given velocity and acceleration. This function assumes a trapezoidal velocity profile, which is the default for Kinesis. The function calculates the time required to accelerate to the velocity, the time required to decelerate from the velocity, and the time required to move at constant velocity. If the distance is too short to reach the velocity, the function calculates the time required to accelerate and decelerate without reaching the velocity.
 
         """
         distance_acceleration = velocity**2 / (2 * acceleration)
         ind_achieve_max_velocity = distance >= 2 * distance_acceleration
         time = 2 * np.sqrt(distance / acceleration)
-        time[ind_achieve_max_velocity] = 2 * velocity[ind_achieve_max_velocity] / acceleration[ind_achieve_max_velocity] + (distance[ind_achieve_max_velocity] - 2 * distance_acceleration[ind_achieve_max_velocity]) / velocity[ind_achieve_max_velocity]
+        time[ind_achieve_max_velocity] = (
+            2 * velocity[ind_achieve_max_velocity] / acceleration[ind_achieve_max_velocity]
+            + (distance[ind_achieve_max_velocity] - 2 * distance_acceleration[ind_achieve_max_velocity])
+            / velocity[ind_achieve_max_velocity]
+        )
         print(time)
         return time
-
 
     def _move_to(self, *args_, **kwargs_):
         """
@@ -315,7 +323,6 @@ class KCubeInertial(Actuator):
         time_required = self.movement_time(dists, self._velocity, self._acceleration)
 
         api_move_function = self.device.MoveTo if is_move_to else self.device.MoveBy
-        
 
         if pair_channels:
             # If the channels are paired, the code finds the motor from the paired channels travels
@@ -340,7 +347,6 @@ class KCubeInertial(Actuator):
                 if not np.isclose(dists[i], 0):
                     api_move_function(ch_i, self.Int32(int(arr[i])), int(self.timeout.to(u.ms).value))
                     time.sleep(0.2)
-
 
     def move_by(self, deltas: np.ndarray):
         """
@@ -375,4 +381,3 @@ class KCubeInertial(Actuator):
         # This function works because the thread will be locked by kinesis while a movement
         # is ongoing.
         return not self._future.done()
-
