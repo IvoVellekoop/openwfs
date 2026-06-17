@@ -201,7 +201,7 @@ class KCubeInertial(Actuator):
         return vel
 
     @velocity.setter
-    def velocity(self, val):
+    def velocity(self, val: Quantity):
         """
         Set the velocity of the stage in steps/s
         Arguments:
@@ -220,7 +220,7 @@ class KCubeInertial(Actuator):
         return acc
 
     @acceleration.setter
-    def acceleration(self, val):
+    def acceleration(self, val: Quantity):
         """
         Set the acceleration of the stage in steps/s^2
         Arguments:
@@ -261,7 +261,7 @@ class KCubeInertial(Actuator):
         return out
 
     @position.setter
-    def position(self, arr):
+    def position(self, arr: Quantity):
         """
             Moves the device to the specified absolute positions in steps.
 
@@ -287,7 +287,7 @@ class KCubeInertial(Actuator):
             )
 
     @staticmethod
-    def movement_time(distance, velocity, acceleration):
+    def movement_time(distance: Quantity, velocity: Quantity, acceleration: Quantity) -> Quantity:
         """
         Returns the time required to move a given distance with a given velocity and acceleration. This function assumes a trapezoidal velocity profile, which is the default for Kinesis. The function calculates the time required to accelerate to the velocity, the time required to decelerate from the velocity, and the time required to move at constant velocity. If the distance is too short to reach the velocity, the function calculates the time required to accelerate and decelerate without reaching the velocity.
 
@@ -347,7 +347,7 @@ class KCubeInertial(Actuator):
                     api_move_function(ch_i, self.Int32(int(arr[i])), int(self.timeout.to(u.ms).value))
                     time.sleep(0.2)
 
-    def move_by(self, deltas: np.ndarray):
+    def move_by(self, deltas: Quantity):
         """
             Moves the device by the specified relative distances in steps.
 
