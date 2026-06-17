@@ -207,7 +207,7 @@ class KCubeInertial(Actuator):
         Arguments:
             val: nd.array [1/u.s] - Velocity to set. The array has one element per channel.
         """
-        self._set_velocity_acceralleration(val, self._acceleration)
+        self._set_velocity_acceleration(val, self._acceleration)
 
     @property
     def acceleration(self):
@@ -226,9 +226,9 @@ class KCubeInertial(Actuator):
         Arguments:
             val: nd.array [1/u.s**2] - Acceleration to set. The array has one element per channel.
         """
-        self._set_velocity_acceralleration(self._velocity, val)
+        self._set_velocity_acceleration(self._velocity, val)
 
-    def _set_velocity_acceralleration(self, velocity, acceleration):
+    def _set_velocity_acceleration(self, velocity, acceleration):
         self.throw_error_if_moving()
         config = self.device.GetInertialMotorConfiguration(self.serial_number)
         settings = self.ThorlabsInertialMotorSettings.GetSettings(config)
