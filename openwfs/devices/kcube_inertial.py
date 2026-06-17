@@ -20,26 +20,35 @@ from concurrent.futures import ThreadPoolExecutor
 # is communicating with the device. For this, function communicating with the
 # device use the function throw_error_if_moving()
 
-clr_loaded = type(clr) is not _MockModule
+class KinesisHandler():
+    """
+    Class to handle the connection with the Kinesis software. This class is used to ensure that the Kinesis software is properly initialized and that the device list is built before trying to connect to a device. This is important because if the device list is not built, the code will not be able to find the device and will raise an error.
+    """
 
-if clr_loaded:
-    th_ine_files = [
-        r"C:\Program Files\Thorlabs\Kinesis\Thorlabs.MotionControl.DeviceManagerCLI.dll",
-        r"C:\Program Files\Thorlabs\Kinesis\Thorlabs.MotionControl.GenericMotorCLI.dll",
-        r"C:\Program Files\Thorlabs\Kinesis\Thorlabs.MotionControl.KCube.InertialMotorCLI.dll",
-    ]
-    th_ine_lib_found = all(map(os.path.isfile, th_ine_files))
-    if th_ine_lib_found:
-        for f in th_ine_files:
+    def __init__(self, kinesis_files):
+        self.files = []
+        self.add_files(kinesis_files)
+
+    def add_files(self, kinesis_files):
+
+        for f in kinesis_files:
+            if not os.path.isfile(f):
+                raise FileNotFoundError(f"Thorlabs Kinesis library file not found: {f}. Ensure that the correct path to the Kinesis libraries is provided and that the Kinesis software is installed. The library can be downloaded from https://www.thorlabs.com/kinesis-software.")
+
             clr.AddReference(f)
+            self.files.append(f)
 
-        from Thorlabs.MotionControl.DeviceManagerCLI import DeviceManagerCLI
-        from Thorlabs.MotionControl.KCube.InertialMotorCLI import (
-            KCubeInertialMotor,
-            ThorlabsInertialMotorSettings,
-            InertialMotorStatus,
-        )
-        from System import Int32
+    @staticmethod 
+    def get_handler():
+        global global_kinesis_handler
+        if global_kinesis_handler is None:
+            return KinesisHandler([])
+        else:
+            return global_kinesis_handler
+
+
+
+global_kinesis_handler = None
 
 
 class KCubeInertial(Actuator):
@@ -56,15 +65,27 @@ class KCubeInertial(Actuator):
             movement. Defaults to 20 seconds.
     """
 
-    def __init__(self, serial_number: str = None, pair_channels: bool = False, timeout: u.Quantity = 20 * u.s):
-        super().__init__(duration=np.inf * u.ms, latency=0 * u.ms)
+    def __init__(self, serial_number: str = None, pair_channels: bool = False, timeout: u.Quantity = 20 * u.s, kinesis_files = ):
 
-        if not clr_loaded:
-            raise ImportError("pythonnet (clr) is not installed. Install pythonnet to use Thorlabs Kinesis libraries.")
-        if not th_ine_lib_found:
-            raise ImportError(
-                "Thorlabs Kinesis libraries not found. Download and install Thorlabs Kinesis software from https://www.thorlabs.com/software-pages/motion_control/."
-            )
+        if kinesis_files == None:
+            kinesis_files = [
+                r"C:\Program Files\Thorlabs\Kinesis\Thorlabs.MotionControl.DeviceManagerCLI.dll",
+                r"C:\Program Files\Thorlabs\Kinesis\Thorlabs.MotionControl.GenericMotorCLI.dll",
+                r"C:\Program Files\Thorlabs\Kinesis\Thorlabs.MotionControl.KCube.InertialMotorCLI.dll",
+            ]
+
+        kinesis_handler = KinesisHandler.get_handler()
+        kinesis_handler.add_files(kinesis_files)
+
+        from Thorlabs.MotionControl.DeviceManagerCLI import DeviceManagerCLI
+        from Thorlabs.MotionControl.KCube.InertialMotorCLI import (
+            KCubeInertialMotor,
+            ThorlabsInertialMotorSettings,
+            InertialMotorStatus,
+        )
+        from System import Int32
+
+        super().__init__(duration=np.inf * u.ms, latency=0 * u.ms)
 
         DeviceManagerCLI.BuildDeviceList()
 
@@ -254,6 +275,20 @@ class KCubeInertial(Actuator):
             raise RuntimeError(
                 "Device is busy. Use self.wait() to wait for the device to finish moving or use self.stop() to stop the device.")
 
+    @staticmethod
+    def movement_time(distance, velocity, acceleration):
+        """
+            Returns the time required to move a given distance with a given velocity and acceleration. This function assumes a trapezoidal velocity profile, which is the default for Kinesis. The function calculates the time required to accelerate to the velocity, the time required to decelerate from the velocity, and the time required to move at constant velocity. If the distance is too short to reach the velocity, the function calculates the time required to accelerate and decelerate without reaching the velocity.
+
+        """
+        distance_acceleration = velocity**2 / (2 * acceleration)
+        if distance < 2 * distance_acceleration:
+            time = 2 * np.sqrt(distance / acceleration)
+        else:
+            time = 2 * velocity / acceleration + (distance - 2 * distance_acceleration) / velocity
+        return time
+
+
     def _move_to(self, *args_, **kwargs_):
         """
             Function to be ran by the thread to move the stage to an absolute position
@@ -271,7 +306,7 @@ class KCubeInertial(Actuator):
 
         dists = np.abs(current_position - arr) if is_move_to else np.abs(arr)
 
-        time_required = dists 
+        time_required = self.movement_time(dists, self._velocity, self._acceleration)
 
         api_move_function = self.device.MoveTo if is_move_to else self.device.MoveBy
         
@@ -334,3 +369,4 @@ class KCubeInertial(Actuator):
         # This function works because the thread will be locked by kinesis while a movement
         # is ongoing.
         return not self._future.done()
+
