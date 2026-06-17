@@ -191,10 +191,10 @@ class KCubeInertial(Actuator):
         time.sleep(0.2)
 
     @property
-    def velocity(self):
+    def velocity(self) -> u.Quantity[1 / u.s]:
         """
         Returns:
-            nd.array [1/u.s] - Velocity of the stage. The array has one element per channel.
+            np.array [1/u.s] - Velocity of the stage. The array has one element per channel.
         """
         vel, acc = self._get_velocity_acceleration()
         return vel
@@ -204,16 +204,16 @@ class KCubeInertial(Actuator):
         """
         Set the velocity of the stage in steps/s
         Arguments:
-            val: nd.array [1/u.s] - Velocity to set. The array has one element per channel.
+            val: np.array [1/u.s] - Velocity to set. The array has one element per channel.
         """
         self._set_velocity_acceleration(val, self._acceleration)
 
     @property
-    def acceleration(self):
-        """
+    def acceleration(self) -> u.Quantity[1 / u.s**2]:
+        """ 
         Gets the acceleration of the stage in steps/s^2. This function will probe the device for the current acceleration.
         Returns:
-            nd.array [1/u.s**2] - Acceleration of the stage. The array has one element per channel.
+            np.array [1/u.s**2] - Acceleration of the stage. The array has one element per channel.
         """
         vel, acc = self._get_velocity_acceleration()
         return acc
@@ -223,7 +223,7 @@ class KCubeInertial(Actuator):
         """
         Set the acceleration of the stage in steps/s^2
         Arguments:
-            val: nd.array [1/u.s**2] - Acceleration to set. The array has one element per channel.
+            val: np.array [1/u.s**2] - Acceleration to set. The array has one element per channel.
         """
         self._set_velocity_acceleration(self._velocity, val)
 
@@ -251,7 +251,7 @@ class KCubeInertial(Actuator):
         return self._velocity, self._acceleration
 
     @property
-    def position(self):
+    def position(self) -> np.ndarray:
         self.throw_error_if_moving()
         out = np.zeros(self.channels_array.size, dtype=np.int32)
         for i, ch_i in enumerate(self.channels_array):
@@ -260,7 +260,7 @@ class KCubeInertial(Actuator):
         return out
 
     @position.setter
-    def position(self, arr: int):
+    def position(self, arr: np.ndarray):
         """
             Moves the device to the specified absolute positions in steps.
 
@@ -341,7 +341,7 @@ class KCubeInertial(Actuator):
                     api_move_function(ch_i, self.Int32(int(arr[i])), int(self.timeout.to(u.ms).value))
                     time.sleep(0.2)
 
-    def move_by(self, deltas: int):
+    def move_by(self, deltas: int) -> None:
         """
             Moves the device by the specified relative distances in steps.
 
