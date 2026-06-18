@@ -28,6 +28,15 @@ def test_to_matrix():
     assert result_matrix.shape == (3, 3)
     assert np.allclose(result_matrix, expected_matrix)
 
+    # test that we get identity if units of source and destination are same but have different apparent units (e.g. um / mm)
+    transform = Transform(
+        transform=((1, 0), (0, 1)),
+        source_origin=(0.0, 0.0) * u.m / u.mm,
+        destination_origin=(0, 0) * u.mm / u.m,
+    )
+    result_matrix = transform.to_matrix((1000, 2000) * u.um / u.mm, (1, 2) * u.um / u.um)
+    assert np.allclose(result_matrix, expected_matrix)
+
     # Non equal pixel sizes and identity matrix should be scaled by pixel ratios
     transform = Transform(
         transform=((1, 0), (0, 1)),
