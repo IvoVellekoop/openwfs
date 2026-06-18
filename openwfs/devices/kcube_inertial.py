@@ -210,7 +210,7 @@ class KCubeInertial(Actuator):
 
     @property
     def acceleration(self) -> u.Quantity[1 / u.s**2]:
-        """ 
+        """
         Gets the acceleration of the stage in steps/s^2. This function will probe the device for the current acceleration.
         Returns:
             np.array [1/u.s**2] - Acceleration of the stage. The array has one element per channel.
@@ -286,7 +286,9 @@ class KCubeInertial(Actuator):
             )
 
     @staticmethod
-    def movement_time(distance: int, velocity: u.Quantity[1/u.s], acceleration: u.Quantity[1/u.s**2]) -> u.Quantity[u.s]:
+    def movement_time(
+        distance: int, velocity: u.Quantity[1 / u.s], acceleration: u.Quantity[1 / u.s**2]
+    ) -> u.Quantity[u.s]:
         """
         Returns the time required to move a given distance with a given velocity and acceleration. This function assumes a trapezoidal velocity profile, which is the default for Kinesis. The function calculates the time required to accelerate to the velocity, the time required to decelerate from the velocity, and the time required to move at constant velocity. If the distance is too short to reach the velocity, the function calculates the time required to accelerate and decelerate without reaching the velocity.
 
