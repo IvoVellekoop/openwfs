@@ -461,6 +461,7 @@ class EvidentXYStage(Actuator):
         )  # duration is infinite since we don't know when the stage will reach the target position, busy() method will handle that.
         self._proxy = proxy
         self._target_xy = None  # target position to move to (used in busy() method), in nm as int
+        self._moving = False # Stores if a movement command has been issue and finished. This is for openwfs to not think that the stage is still moving when a movement was mad using the manual control of the microscope.
         self._step = 100 * u.nm  # rounding resolution
 
     def busy(self) -> bool:
@@ -469,13 +470,23 @@ class EvidentXYStage(Actuator):
         If stage position is not equal to target position, the device is busy.
         """
         time.sleep(0.05)  # to avoid spamming the proxy with requests
-        return not u.allclose(self.xy, self._target_xy, atol=self._step / 2)
+        
+        if not self._moving:
+            return False
+
+        arrive_at_target = u.allclose(self.xy, self._target_xy, atol=self._step / 2)
+        self._moving = not arrive_at_target
+        return self._moving
 
     @property
     def xy(self) -> tuple[Quantity[u.nm], Quantity[u.nm]]:
         # get current xy stage position
         inpuVal = {"settingId": "XY_STAGE_POSITION_SETTING"}
         result = self._proxy.Parameter.getParameter(inpuVal)
+
+        error = get_evident_error(result)
+        error.throw_if_error()
+
         stage_x = result["x"]
         stage_y = result["y"]
         return stage_x * u.nm, stage_y * u.nm
@@ -493,7 +504,12 @@ class EvidentXYStage(Actuator):
         x = round(x_rounded.to(u.nm).value)
         y = round(y_rounded.to(u.nm).value)
         inputVal = {"settingId": "XY_STAGE_POSITION_SETTING", "x": x, "y": y, "escapeEnabled": False}
-        self._proxy.Parameter.setParameter(inputVal)
+        result = self._proxy.Parameter.setParameter(inputVal)
+
+        error = get_evident_error(result)
+        error.throw_if_error()
+
+        self._moving = True
 
     @property
     def x(self) -> Quantity[u.nm]:
@@ -536,6 +552,7 @@ class EvidentZStage(Actuator):
         )  # duration is infinite since we don't know when the stage will reach the target position, busy() method will handle that.
         self._proxy = proxy
         self._target_z = None  # target position to move to (used in busy() method), in nm as int
+        self._moving = False # Stores if a movement command has been issue and finished. This is for openwfs to not think that the stage is still moving when a movement was mad using the manual control of the microscope.
         self._step = 10 * u.nm
 
     def busy(self) -> bool:
@@ -545,7 +562,13 @@ class EvidentZStage(Actuator):
         """
         time.sleep(0.05)  # to avoid spamming the proxy with requests
         # The stage has precision of 10nm so we consider the stage to be at the target position when within 10nm of the goal
-        return np.abs(self.z - self._target_z) >= self._step
+
+        if not self._moving:
+            return False
+
+        arrive_at_target = np.abs(self.z - self._target_z) < self._step
+        self._moving = not arrive_at_target
+        return self._moving
 
     @property
     def position(self) -> Quantity[u.nm]:
@@ -568,7 +591,8 @@ class EvidentZStage(Actuator):
         """
         super()._start()
         self._target_z = z
-        # Invert z because z should be positive when movi
+        # Invert z because z should be positive when moving along the optical axis
+        # The Z of the microscope is defined based on the objective lens
         z = -z
         z = int(z.to(u.nm).value)
         inputVal = {"settingId": "Z_STAGE_POSITION_SETTING", "stagePosition": z}
@@ -576,6 +600,7 @@ class EvidentZStage(Actuator):
 
         error = get_evident_error(result)
         error.throw_if_error()
+        self._moving = True
 
     @property
     def z(self) -> Quantity[u.nm]:
