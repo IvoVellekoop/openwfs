@@ -461,7 +461,7 @@ class EvidentXYStage(Actuator):
         )  # duration is infinite since we don't know when the stage will reach the target position, busy() method will handle that.
         self._proxy = proxy
         self._target_xy = None  # target position to move to (used in busy() method), in nm as int
-        self._moving = False # Stores if a movement command has been issue and finished. This is for openwfs to not think that the stage is still moving when a movement was mad using the manual control of the microscope.
+        self._moving = False  # Stores if a movement command has been issue and finished. This is for openwfs to not think that the stage is still moving when a movement was mad using the manual control of the microscope.
         self._step = 100 * u.nm  # rounding resolution
 
     def busy(self) -> bool:
@@ -470,7 +470,7 @@ class EvidentXYStage(Actuator):
         If stage position is not equal to target position, the device is busy.
         """
         time.sleep(0.05)  # to avoid spamming the proxy with requests
-        
+
         if not self._moving:
             return False
 
@@ -552,7 +552,7 @@ class EvidentZStage(Actuator):
         )  # duration is infinite since we don't know when the stage will reach the target position, busy() method will handle that.
         self._proxy = proxy
         self._target_z = None  # target position to move to (used in busy() method), in nm as int
-        self._moving = False # Stores if a movement command has been issue and finished. This is for openwfs to not think that the stage is still moving when a movement was mad using the manual control of the microscope.
+        self._moving = False  # Stores if a movement command has been issue and finished. This is for openwfs to not think that the stage is still moving when a movement was mad using the manual control of the microscope.
         self._step = 10 * u.nm
 
     def busy(self) -> bool:
