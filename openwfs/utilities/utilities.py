@@ -466,15 +466,16 @@ def set_extent(data: np.ndarray, extent: ExtentType) -> np.ndarray:
     """
     return set_pixel_size(data, extent / np.array(data.shape))
 
+
 def round_quantity(q, step):
     """
         Rounds a Quantity to the nearest multiple of a given step size.
-    
+
     Args:
         q (Quantity): The input quantity to be rounded.
         step (Quantity): The step size to which the input quantity should be rounded.
 
-    Returns: 
+    Returns:
         Quantity: The rounded quantity, with the same unit as the step size.
     """
     # convert to the same unit as step
