@@ -15,4 +15,5 @@ from .utilities import (
     place,
     set_extent,
     get_extent,
+    round_quantity
 )
