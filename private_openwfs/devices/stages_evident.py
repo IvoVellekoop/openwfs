@@ -1,5 +1,6 @@
 import astropy.units as u
 from astropy.units import Quantity
+from sympy import false
 from openwfs.core import Actuator, Detector
 from ..utilities.utilities import round_quantity
 import numpy as np
@@ -546,7 +547,7 @@ class EvidentZStage(Actuator):
         z = stage.z # get current stage position
     """
 
-    def __init__(self, proxy):
+    def __init__(self, proxy, is_piezo):
         Actuator.__init__(
             self, duration=np.inf * u.ms, latency=0 * u.ms
         )  # duration is infinite since we don't know when the stage will reach the target position, busy() method will handle that.
@@ -554,6 +555,7 @@ class EvidentZStage(Actuator):
         self._target_z = None  # target position to move to (used in busy() method), in nm as int
         self._moving = False  # Stores if a movement command has been issue and finished. This is for openwfs to not think that the stage is still moving when a movement was mad using the manual control of the microscope (because the definition of stop is only based on current position and target position).
         self._step = 10 * u.nm
+        self.is_piezo = is_piezo  # if the z stage controls the piezo or the motor
 
     def busy(self) -> bool:
         """
@@ -575,10 +577,16 @@ class EvidentZStage(Actuator):
         """
         Get current z stage position
         """
-        inputVal = {"settingId": "Z_STAGE_POSITION_SETTING"}
-        result = self._proxy.Parameter.getParameter(inputVal)
-        pos = result["stagePosition"]
 
+        if self.is_piezo:
+            inputVal = {"settingId": "LSM_Z_PIEZO_POSITION_SETTING"}
+            out = "zPosition"
+        else:
+            inputVal = {"settingId": "Z_STAGE_POSITION_SETTING"}
+            out = "stagePosition"
+
+        result = self._proxy.Parameter.getParameter(inputVal)
+        pos = result[out]
         error = get_evident_error(result)
         error.throw_if_error()
 
@@ -595,7 +603,11 @@ class EvidentZStage(Actuator):
         # The Z of the microscope is defined based on the objective lens
         z = -z
         z = int(z.to(u.nm).value)
-        inputVal = {"settingId": "Z_STAGE_POSITION_SETTING", "stagePosition": z}
+        if self.is_piezo:
+            inputVal = {"settingId": "LSM_Z_PIEZO_POSITION_SETTING", "zPosition": z}
+        else:
+            inputVal = {"settingId": "Z_STAGE_POSITION_SETTING", "stagePosition": z}
+            
         result = self._proxy.Parameter.setParameter(inputVal)
 
         error = get_evident_error(result)
@@ -638,7 +650,9 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         self._proxy = proxy
         self.cam = EvidentCamera(proxy)
         self.xy_stage = EvidentXYStage(proxy)
-        self.z_stage = EvidentZStage(proxy)
+        self.z_stage_motor = EvidentZStage(proxy, is_piezo = False)
+        self.z_stage_piezo = EvidentZStage(proxy, is_piezo = True)
+        self.use_z_stage_piezo = False
         # super().__init__(self.cam, self.xy_stage)
 
     @property
@@ -651,6 +665,13 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         """
         inputVal = {"settingId": "LSM_MICROSCOPE_VERSION_SETTING"}
         return self._proxy.Parameter.getParameter(inputVal)["version"]
+    
+    @property
+    def z_stage(self) -> EvidentZStage:
+        if self.use_z_stage_piezo:
+            return self.z_stage_piezo
+        else:
+            return self.z_stage_motor
 
     def read(self):
         return self.cam.read()
