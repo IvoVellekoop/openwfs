@@ -33,11 +33,6 @@ class BlinkHDMIHandler:
             self.blink_lib.Get_SLMTemp.restype = ctypes.c_double # Taken from example file
             self.sdk_created = True
 
-    def create_sdk(self):
-        """
-        Create the SDK for the Blink software.
-        """
-
     @staticmethod
     def get_handler():
         global global_blinkhdmi_handler
