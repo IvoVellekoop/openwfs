@@ -554,7 +554,9 @@ class EvidentZStage(Actuator):
         self._proxy = proxy
         self._target_z = None  # target position to move to (used in busy() method), in nm as int
         self._moving = False  # Stores if a movement command has been issue and finished. This is for openwfs to not think that the stage is still moving when a movement was mad using the manual control of the microscope (because the definition of stop is only based on current position and target position).
-        self._step = 100 * u.nm if is_piezo else 10 * u.nm  # For the piezo stage thhe output of the SDK is not stable within 10nm. Increased to avoid timeout.
+        self._step = (
+            100 * u.nm if is_piezo else 10 * u.nm
+        )  # For the piezo stage thhe output of the SDK is not stable within 10nm. Increased to avoid timeout.
         self.is_piezo = is_piezo  # if the z stage controls the piezo or the motor
 
     def busy(self) -> bool:
@@ -581,12 +583,12 @@ class EvidentZStage(Actuator):
         if self.is_piezo:
             inputVal = {"settingId": "LSM_Z_PIEZO_POSITION_SETTING"}
             out = "zPosition"
-            scale = 1 
+            scale = 1
         else:
             inputVal = {"settingId": "Z_STAGE_POSITION_SETTING"}
             out = "stagePosition"
-            scale = -1 # Invert z because z should be positive when moving along the optical axis
-                # The Z of the microscope is defined based on the objective lens
+            scale = -1  # Invert z because z should be positive when moving along the optical axis
+            # The Z of the microscope is defined based on the objective lens
 
         result = self._proxy.Parameter.getParameter(inputVal)
         pos = result[out]
@@ -601,22 +603,23 @@ class EvidentZStage(Actuator):
         Set z stage position
         """
         super()._start()
-        
-        
+
         z_rounded = round(round_quantity(z.to(u.nm), self._step).to(u.nm))
         self._target_z = z_rounded
-        
+
         z = round(z_rounded.value)
         if self.is_piezo:
             inputVal = {"settingId": "LSM_Z_PIEZO_POSITION_SETTING", "zPosition": z}
         else:
-            z = -z # Invert z because z should be positive when moving along the optical axis
-                # The Z of the microscope is defined based on the objective lens
+            z = -z  # Invert z because z should be positive when moving along the optical axis
+            # The Z of the microscope is defined based on the objective lens
             inputVal = {"settingId": "Z_STAGE_POSITION_SETTING", "stagePosition": z}
-        
+
         action_submitted = False
         ti = time.time() * u.ns
-        while action_submitted is False: # For the piezo stage, the position can not be set immeadiatly after imaging (the SDK returns UNAVAILABLE for half a second). This loop will wait until the SDK is ready to set the position up to 2 seconds.
+        while (
+            action_submitted is False
+        ):  # For the piezo stage, the position can not be set immeadiatly after imaging (the SDK returns UNAVAILABLE for half a second). This loop will wait until the SDK is ready to set the position up to 2 seconds.
             result = self._proxy.Parameter.setParameter(inputVal)
             if result["result"] == "OK":
                 action_submitted = True
@@ -627,7 +630,9 @@ class EvidentZStage(Actuator):
                 error.throw_if_error()
 
             if (time.time() * u.ns - ti) > 2 * u.s:
-                raise TimeoutError("Timeout while trying to set z stage position. The microscope did not respond in time.")
+                raise TimeoutError(
+                    "Timeout while trying to set z stage position. The microscope did not respond in time."
+                )
 
         self._moving = True
 
@@ -667,8 +672,8 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         self._proxy = proxy
         self.cam = EvidentCamera(proxy)
         self.xy_stage = EvidentXYStage(proxy)
-        self.z_stage_motor = EvidentZStage(proxy, is_piezo = False)
-        self.z_stage_piezo = EvidentZStage(proxy, is_piezo = True)
+        self.z_stage_motor = EvidentZStage(proxy, is_piezo=False)
+        self.z_stage_piezo = EvidentZStage(proxy, is_piezo=True)
         self.use_z_stage_piezo = False
         # super().__init__(self.cam, self.xy_stage)
 
@@ -682,7 +687,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         """
         inputVal = {"settingId": "LSM_MICROSCOPE_VERSION_SETTING"}
         return self._proxy.Parameter.getParameter(inputVal)["version"]
-    
+
     @property
     def z_stage(self) -> EvidentZStage:
         if self.use_z_stage_piezo:
@@ -1177,7 +1182,7 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
 
         error = get_evident_error(result)
         error.throw_if_error()
-    
+
     def nm_value_rounded_to_zstage_stepsize(self, z):
         step_size = self.z_stage._step
         return round(round_quantity(z, step_size).to(u.nm).value)
@@ -1209,7 +1214,10 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         Returns:
             dict: Result dictionary containing result code.
         """
-        inputVal = {"settingId": "LSM_Z_COORDINATE_STEP_SIZE_SETTING", "stepSize": self.nm_value_rounded_to_zstage_stepsize(z)}
+        inputVal = {
+            "settingId": "LSM_Z_COORDINATE_STEP_SIZE_SETTING",
+            "stepSize": self.nm_value_rounded_to_zstage_stepsize(z),
+        }
         result = self._proxy.Parameter.setParameter(inputVal)
 
         error = get_evident_error(result)
@@ -1242,7 +1250,10 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         Returns:
             dict: Result dictionary containing result code.
         """
-        inputVal = {"settingId": "LSM_Z_COORDINATE_END_SETTING", "endPosition": self.nm_value_rounded_to_zstage_stepsize(z)}
+        inputVal = {
+            "settingId": "LSM_Z_COORDINATE_END_SETTING",
+            "endPosition": self.nm_value_rounded_to_zstage_stepsize(z),
+        }
         result = self._proxy.Parameter.setParameter(inputVal)
 
         error = get_evident_error(result)
@@ -1276,7 +1287,10 @@ class EvidentMicroscope:  # (Processor): How to calculate duration and latency, 
         Returns:
             dict: Result dictionary containing result code.
         """
-        inputVal = {"settingId": "LSM_Z_COORDINATE_START_SETTING", "startPosition": self.nm_value_rounded_to_zstage_stepsize(z)}
+        inputVal = {
+            "settingId": "LSM_Z_COORDINATE_START_SETTING",
+            "startPosition": self.nm_value_rounded_to_zstage_stepsize(z),
+        }
         result = self._proxy.Parameter.setParameter(inputVal)
 
         error = get_evident_error(result)
