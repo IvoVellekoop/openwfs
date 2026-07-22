@@ -5,6 +5,7 @@ import numpy as np
 import tempfile
 import astropy.units as u
 
+
 class BlinkHDMIHandler:
     """
     Class to handle the connection with the HDMI blink software. This class is used to ensure that the Blink software is properly initialized and closed.
@@ -30,7 +31,7 @@ class BlinkHDMIHandler:
 
         if not self.sdk_created:
             self.blink_lib.Create_SDK()
-            self.blink_lib.Get_SLMTemp.restype = ctypes.c_double # Taken from example file
+            self.blink_lib.Get_SLMTemp.restype = ctypes.c_double  # Taken from example file
             self.sdk_created = True
 
     @staticmethod
@@ -55,23 +56,22 @@ class BlinkHDMIHandler:
             self.blink_lib.Delete_SDK()
             self.sdk_created = False
 
+
 global_blinkhdmi_handler = None
 
 
 class SLMBlinkHDMI(SLM):
-    
 
-    def __init__(self, blink_path, slm_index = 0, is_10bit = False, **kwargs):
+    def __init__(self, blink_path, slm_index=0, is_10bit=False, **kwargs):
         self.handler = BlinkHDMIHandler.get_handler()
         self.handler.add_dll(blink_path)
         self.slm_blink_index = slm_index
         self.is_10bit = is_10bit
-        
+
         buffer = ctypes.create_unicode_buffer(256)
         self.usb_port = self.handler.blink_lib.GetComPort(self.slm_blink_index, buffer)
 
         super().__init__(**kwargs)
-
 
     def load_lookup_table(self, grey_bits, voltage_bits):
         """
@@ -83,29 +83,18 @@ class SLMBlinkHDMI(SLM):
 
         data = np.column_stack((grey_bits, voltage_bits))
 
-        with tempfile.NamedTemporaryFile(
-                mode="w",
-                suffix=".lut",
-                delete=False
-        ) as f:
-            np.savetxt(
-                f,
-                data,
-                fmt="%d",
-                delimiter="\t"
-            )
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".lut", delete=False) as f:
+            np.savetxt(f, data, fmt="%d", delimiter="\t")
             filename = f.name
 
-    
         self.handler.blink_lib.Load_lut(self.slm_blink_index, filename)
 
     def load_linear_lookup_table(self):
         bit_depth = 10 if self.is_10bit else 8
-        bit_grey = np.arange(2 ** bit_depth)
-        bit_voltage = bit_grey * 4 # Map the 8/10 bit values to the 10/12 bit range
+        bit_grey = np.arange(2**bit_depth)
+        bit_voltage = bit_grey * 4  # Map the 8/10 bit values to the 10/12 bit range
         self.load_lookup_table(bit_grey, bit_voltage)
 
     @property
     def temperature(self):
         return self.handler.blink_lib.Get_SLMTemp(self.slm_blink_index) * u.deg_C
-
