@@ -1,0 +1,111 @@
+import ctypes
+import weakref
+from openwfs.devices import SLM
+import numpy as np
+import tempfile
+
+class BlinkHDMIHandler:
+    """
+    Class to handle the connection with the HDMI blink software. This class is used to ensure that the Blink software is properly initialized and closed.
+    """
+
+    def __init__(self):
+        self.blink_lib = None
+        self.path = None
+        self.sdk_created = False
+
+    def add_dll(self, path):
+        """
+        Add a file to the Blink software.
+        :param file_path: The path to the file to be added.
+        """
+        if self.path is not None:
+            self.path = path
+            ctypes.cdll.LoadLibrary(self.path)
+            self.blink_lib = ctypes.CDLL("Blink_C_wrapper")
+        else:
+            if self.path != path:
+                raise ValueError("A different DLL has already been loaded.")
+
+        if not self.sdk_created:
+            self.blink_lib.CreateSDK()
+            self.sdk_created = True
+
+    def create_sdk(self):
+        """
+        Create the SDK for the Blink software.
+        """
+
+    @staticmethod
+    def get_handler():
+        global global_blinkhdmi_handler
+        if type(global_blinkhdmi_handler) is weakref.ReferenceType:
+            if global_blinkhdmi_handler is None:
+                handler = BlinkHDMIHandler()
+                global_blinkhdmi_handler = weakref.ref(handler)
+            else:
+                handler = global_blinkhdmi_handler()
+        else:
+            handler = BlinkHDMIHandler()
+            global_blinkhdmi_handler = weakref.ref(handler)
+        return handler
+
+    def __del__(self):
+        """
+        Destructor for the BlinkHDMIHandler class. This method is called when the object is deleted and ensures that the Blink software is properly closed.
+        """
+        if self.sdk_created:
+            self.blink_lib.CloseSDK()
+            self.sdk_created = False
+
+global_blinkhdmi_handler = None
+
+
+class SLMBLinkHDMI(SLM):
+    
+
+    def __init__(self, blink_path, slm_index = 0, monitor_id = None, is_10bit = False):
+        self.handler = BlinkHDMIHandler.get_handler()
+        self.handler.add_dll(blink_path)
+        self.slm_blink_index = slm_index
+        self.is_10bit = is_10bit
+        
+        buffer = ctypes.create_unicode_buffer(256)
+        self.usb_port = self.handler.blink_lib.GetCOMPort(self.slm_blink_index, buffer)
+
+        super().__init__(monitor_id = monitor_id)
+
+
+    def load_lookup_table(self, grey_bits, voltage_bits):
+        """
+        Load a lookup table into the Blink software.
+        :param lut: The lookup table to be loaded.
+        """
+        # Create file
+        # load file into blink software
+
+        data = np.column_stack((grey_bits, voltage_bits))
+
+        with tempfile.NamedTemporaryFile(
+                mode="w",
+                suffix=".lut",
+                delete=False
+        ) as f:
+            np.savetxt(
+                f,
+                data,
+                fmt="%d",
+                delimiter="\t"
+            )
+            filename = f.name
+
+    
+        self.handler.blink_lib.Load_lut(self.slm_blink_index, filename)
+
+    def load_linear_lookup_table(self):
+        bit_depth = 10 if self.is_10bit else 8
+        bit_grey = np.arange(2 ** bit_depth)
+        bit_voltage = bit_depth * 4 # Map the 8/10 bit values to the 10/12 bit range
+        self.load_lookup_table(bit_grey, bit_voltage)
+
+
