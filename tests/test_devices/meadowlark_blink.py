@@ -1,6 +1,5 @@
 from openwfs.devices import SLMBlinkHDMI
 import numpy as np
-import time
 
 slm = SLMBlinkHDMI(blink_path=r"C:\Program Files\Meadowlark Optics\Blink 1920 HDMI\SDK\Blink_C_wrapper.dll", monitor_id=2, is_10bit=True, coordinate_system = "full")
 
