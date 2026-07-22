@@ -66,7 +66,7 @@ global_blinkhdmi_handler = None
 class SLMBlinkHDMI(SLM):
     
 
-    def __init__(self, blink_path, slm_index = 0, monitor_id = None, is_10bit = False):
+    def __init__(self, blink_path, slm_index = 0, is_10bit = False, **kwargs):
         self.handler = BlinkHDMIHandler.get_handler()
         self.handler.add_dll(blink_path)
         self.slm_blink_index = slm_index
@@ -75,7 +75,7 @@ class SLMBlinkHDMI(SLM):
         buffer = ctypes.create_unicode_buffer(256)
         self.usb_port = self.handler.blink_lib.GetComPort(self.slm_blink_index, buffer)
 
-        super().__init__(monitor_id = monitor_id)
+        super().__init__(**kwargs)
 
 
     def load_lookup_table(self, grey_bits, voltage_bits):
