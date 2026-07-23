@@ -72,9 +72,10 @@ class SLMBlinkHDMI(SLM):
         if lut is None:
             lut = self.linear_lookup_table()
 
-        buffer = ctypes.create_unicode_buffer(256)
-        self.usb_port = self.handler.blink_lib.GetComPort(self.slm_blink_index, buffer)
-
+        self.usb_port = ctypes.create_unicode_buffer(256)
+        status = self.handler.blink_lib.GetComPort(self.slm_blink_index, self.usb_port)
+        if status == 0:
+            raise RuntimeError("SLM not found. The Blink SDK has a few issues. Check connections and restart python and try again (..and again probably...)")
         self.load_lookup_table(lut)
 
         super().__init__(**kwargs)
@@ -88,14 +89,18 @@ class SLMBlinkHDMI(SLM):
         # load file into blink software
         grey_bits = np.linspace(0, 2**self.bit_depth, num=voltage_bits.size, endpoint=False)
 
-        voltage_bits = round(voltage_bits)
+        voltage_bits = np.round(voltage_bits)
         data = np.column_stack((grey_bits, voltage_bits))
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".lut", delete=False) as f:
             np.savetxt(f, data, fmt="%d", delimiter="\t")
+            print(f.name)
             filename = f.name
 
-        self.handler.blink_lib.Load_lut(self.slm_blink_index, filename)
+        status = self.handler.blink_lib.Load_lut(self.slm_blink_index, filename)
+        if status == 0:
+            raise RuntimeError("Loading the table on the SLM failed")
+
         self._lookup_table = voltage_bits
 
     @property
