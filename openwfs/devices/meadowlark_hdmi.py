@@ -62,15 +62,20 @@ global_blinkhdmi_handler = None
 
 class SLMBlinkHDMI(SLM):
 
-    def __init__(self, blink_path, slm_index=0, is_10bit=False, **kwargs):
+    def __init__(self, blink_path, slm_index=0, is_10bit=False, lut=None, **kwargs):
         self.handler = BlinkHDMIHandler.get_handler()
         self.handler.add_dll(blink_path)
         self.slm_blink_index = slm_index
         self.is_10bit = is_10bit
         self.bit_depth = 10 if self.is_10bit else 8
 
+        if lut is None:
+            lut = self.linear_lookup_table()
+
         buffer = ctypes.create_unicode_buffer(256)
         self.usb_port = self.handler.blink_lib.GetComPort(self.slm_blink_index, buffer)
+
+        self.load_lookup_table(lut)
 
         super().__init__(**kwargs)
 
@@ -81,10 +86,7 @@ class SLMBlinkHDMI(SLM):
         """
         # Create file
         # load file into blink software
-        grey_bits = np.arange(2**self.bit_depth)
-
-        if voltage_bits.size != grey_bits.size:
-            raise ValueError("The size of voltage_bits array must be equal to 2^bit_depth.")
+        grey_bits = np.linspace(0, 2**self.bit_depth, num=voltage_bits.size, endpoint=False)
 
         voltage_bits = round(voltage_bits)
         data = np.column_stack((grey_bits, voltage_bits))
@@ -109,7 +111,6 @@ class SLMBlinkHDMI(SLM):
         return self.handler.blink_lib.Get_SLMTemp(self.slm_blink_index) * u.deg_C
 
     def linear_lookup_table(self):
-        bit_depth = 10 if self.is_10bit else 8
-        bit_grey = np.arange(2**bit_depth)
-        bit_voltage = bit_grey * 4  # Map the 8/10 bit values to the 10/12 bit range
+        bit_grey = np.arange(2**self.bit_depth)
+        bit_voltage = bit_grey * 4  # Map the 8/10 bit grey values to the 10/12 bit voltage value
         return bit_voltage
