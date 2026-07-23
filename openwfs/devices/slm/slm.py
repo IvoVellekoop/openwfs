@@ -580,6 +580,13 @@ class SLM(Actuator, PhaseSLM):
     def lookup_table(self, value: Sequence[int]):
         self._frame_buffer.lookup_table = value[:]
 
+    def linear_lookup_table(self):
+        """Returns a linear lookup table that maps the wrapped phase range of 0-2pi to gray values.
+
+        The gray values are represented in the range from 0 to 2**bit_depth - 1). For an 8-bit video mode, this is 0-255.
+        """
+        return np.arange(256)
+
     def set_phases(self, values: ArrayLike, update=True):
         self.primary_patch.set_phases(values, update)
 

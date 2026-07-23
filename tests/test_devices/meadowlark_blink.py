@@ -8,7 +8,9 @@ slm = SLMBlinkHDMI(
     coordinate_system="full",
 )
 
-slm.load_linear_lookup_table()
+lut = slm.linear_lookup_table()
+slm.lookup_table = lut
+
 
 slm.set_phases(np.random.rand(10, 10))
 slm.temperature
