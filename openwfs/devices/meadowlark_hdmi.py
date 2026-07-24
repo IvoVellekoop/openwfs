@@ -61,6 +61,16 @@ global_blinkhdmi_handler = None
 
 
 class SLMBlinkHDMI(SLM):
+    """
+    Class to control a Meadowlark SLM using the Blink software. The SLM uses the Blink software to mainly load lookup tables on the SLM which allows to achieve a higher bit depth than when using the software lookup table available on the openwfs SLM class. The SLM screen is still controlled using the openwfs SLM class.
+
+    Args:
+        blink_path (str): Path to the Blink DLL file.
+        lookup_table (np.ndarray): Lookup table to be loaded on the SLM. (Or already loaded)
+        slm_index (int, optional): Index of the SLM to be used. This index is the SLM index defined on Blink. Defaults to 0.
+        is_10bit (bool, optional): Whether the SLM is 10-bit or not. Defaults to False.
+        load_lookutp_table (bool, optional): Whether to load the lookup table on initialization. Defaults to True. If False, the lookup table passed to the constructor must matchthe lookup table already loaded on the SLM.
+    """
 
     def __init__(self, blink_path, lookup_table, slm_index=0, is_10bit=False, load_lookutp_table=True, **kwargs):
         self.handler = BlinkHDMIHandler.get_handler()
@@ -81,14 +91,16 @@ class SLMBlinkHDMI(SLM):
 
         super().__init__(**kwargs)
 
-    def load_lookup_table(self, voltage_bits):
+    def _create_lut_file(self, voltage_bits):
         """
-        Load a lookup table into the Blink software.
-        :param lut: The lookup table to be loaded.
-        """
-        # Create file
-        # load file into blink software
+        Create a lookup table temporary file to be uploaded to the SLM. The filename is returned.
 
+        Args:
+            voltage_bits: The lookup table to be loaded. The lookup table must have 2**bit_depth values, and tells how each grey value is mapped to the voltage value. The values of the lookup table must be in the range of 0 to 2**(bit_depth + 2) - 1. For example, for a 10-bit SLM, the values must be in the range of 0 to 4095.
+
+        Returns:
+            filename: The name of the file created. The file is created in a temporary directory and
+        """
         if voltage_bits.size != 2**self.bit_depth:
             raise ValueError(f"Lookup table must have {2**self.bit_depth} values for a {self.bit_depth}-bit SLM.")
 
@@ -101,25 +113,57 @@ class SLMBlinkHDMI(SLM):
             np.savetxt(f, data, fmt="%d", delimiter="\t")
             filename = f.name
 
+        return filename
+
+    def load_lookup_table(self, voltage_bits):
+        """
+        See the lookup_table property for more information on how to use this method.
+        """
+        # Create file
+        # load file into blink software
+
+        filename = self._create_lut_file(voltage_bits)
+
         status = self.handler.blink_lib.Load_lut(self.slm_blink_index, filename)
         if status == 0:
             raise RuntimeError("Loading the table on the SLM failed")
 
         self._lookup_table = voltage_bits
 
+    def store_lookup_table(self):
+        """
+        Store the currently loaded lookup table on the SLM into the permanent memory of the SLM. This allows to keep the lookup table even after the SLM is turned off.
+        """
+        status = self.handler.blink_lib.Store_lut(self.slm_blink_index)
+        if status == 0:
+            raise RuntimeError("Storing the table on the SLM failed")
+
     @property
     def lookup_table(self):
+
         return self._lookup_table
 
     @lookup_table.setter
     def lookup_table(self, voltage_bits):
+        """
+        Load the lookup table on the SLM using the Blink software.
+
+        Args:
+            voltage_bits: The lookup table to be loaded. The lookup table must have 2**bit_depth values, and tells how each grey value is mapped to the voltage value. The values of the lookup table must be in the range of 0 to 2**(bit_depth + 2) - 1. For example, for a 10-bit SLM, the values must be in the range of 0 to 4095.
+        """
         self.load_lookup_table(voltage_bits)
 
     @property
     def temperature(self):
+        """
+        Returns the temperature of the SLM in degrees Celsius. The temperature is read from the SLM using the Blink software.
+        """
         return self.handler.blink_lib.Get_SLMTemp(self.slm_blink_index) * u.deg_C
 
     def linear_lookup_table(self):
+        """
+        Returns a linear lookup table for the SLM. The linear lookup table maps the grey values to the voltage values linearly. The voltage values are in the range of 0 to 2**(bit_depth + 2) - 1. For example, for a 10-bit SLM, the voltage values are in the range of 0 to 4095.
+        """
         bit_grey = np.arange(2**self.bit_depth)
         bit_voltage = bit_grey * 4  # Map the 8/10 bit grey values to the 10/12 bit voltage value
         return bit_voltage
