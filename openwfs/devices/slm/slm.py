@@ -48,6 +48,7 @@ class SLM(Actuator, PhaseSLM):
         "_field_reader",
         "_context",
         "_clones",
+        "encoding",
     ]
 
     _active_slms = WeakSet()
@@ -68,6 +69,7 @@ class SLM(Actuator, PhaseSLM):
         duration: TimeType = 1,
         coordinate_system: str = "short",
         transform: Optional[Transform] = None,
+        encoding="8b_r",
     ):
         """
         Constructs a new SLM window.
@@ -114,6 +116,7 @@ class SLM(Actuator, PhaseSLM):
         self._window = None
         self._globals = -1
         self.patches = []
+        self.encoding = encoding
         self._context = None
         self._create_window()  # sets self._context, self._window and self._globals and self._frame_patch, self._monitor
         self._coordinate_system = coordinate_system
@@ -124,7 +127,7 @@ class SLM(Actuator, PhaseSLM):
         # Create a single patch for displaying phase.
         # this default patch is square 1.0, and can be accessed through the 'primary_phase_patch' attribute
         # In advanced scenarios, the geometry of this patch may be modified, or it may be replaced altogether.
-        self.patches.append(Patch(self._context))
+        self.patches.append(Patch(self._context, encoding=self.encoding))
         self.primary_patch = self.patches[0]
         SLM._active_slms.add(self)
 
@@ -664,8 +667,20 @@ class FrontBufferReader(Detector):
         with self._context:
             GL.glReadBuffer(GL.GL_FRONT)
             shape = self.data_shape
-            data = np.empty(shape, dtype="uint8")
-            GL.glReadPixels(0, 0, shape[1], shape[0], GL.GL_RED, GL.GL_UNSIGNED_BYTE, data)
+            if self.slm.encoding == "8b_r":
+                data = np.empty(shape, dtype="uint8")
+                GL.glReadPixels(0, 0, shape[1], shape[0], GL.GL_RED, GL.GL_UNSIGNED_BYTE, data)
+            elif self.slm.encoding == "10b_rb":
+                data = np.empty(shape, dtype="uint32")
+                GL.glReadPixels(0, 0, shape[1], shape[0], GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, data)
+
+                red_channel = (data >> 24) & 0xFF
+                blue_channel = (data >> 8) & 0x3  # Extract the 2 least significant bits from the blue channel
+
+                # Combine the channels to get the original 10-bit values
+                data = (red_channel << 2) | blue_channel
+                data = data.astype(np.int16)
+
             # flip data upside down, because the OpenGL convention is to have the origin at the bottom left,
             # but we want it at the top left (like in numpy)
             return data[::-1, :]

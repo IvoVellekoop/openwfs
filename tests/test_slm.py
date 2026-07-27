@@ -8,6 +8,7 @@ import pytest
 
 from openwfs.devices import is_loaded
 from openwfs.devices.slm import SLM, Patch, geometry
+from openwfs.devices.slm.texture import Texture
 from openwfs.utilities import Transform
 
 if not is_loaded(glfw):
@@ -285,3 +286,24 @@ def test_circular_geometry(slm):
         np.repeat(np.flip(np.arange(30, 70)), 1).reshape((-1, 1)),
         atol=1,
     )
+
+
+def test_convert_floatdata_to_10b_rb():
+    a = np.ones((2, 2))
+    rgba = Texture.convert_floatdata_to_10b_rb(a)
+    rgba_uint8 = rgba.view(np.uint8).reshape((2, 2, 4))
+
+    assert np.all(rgba_uint8[:, :, 3] == 255)  # 8 bits of red to 1
+    assert np.all(rgba_uint8[:, :, 2] == 0)  # 8 bits of green to 0
+    assert np.all(rgba_uint8[:, :, 1] == 3)  # 2 least significant bits of blue to 1
+    assert np.all(rgba_uint8[:, :, 0] == 0)  # Alpha
+
+    a = np.zeros((2, 2))
+    rgba = Texture.convert_floatdata_to_10b_rb(a)
+
+    assert np.all(rgba == 0)  # all zero
+
+    a = np.ones((2, 2)) * 0.5
+    rgba = Texture.convert_floatdata_to_10b_rb(a)
+
+    assert np.all(rgba == 2**31)  # Most import bit of red to 1 and all the rest to 0

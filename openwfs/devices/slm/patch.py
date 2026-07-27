@@ -26,6 +26,7 @@ class Patch(PhaseSLM):
         geometry=None,
         vertex_shader=default_vertex_shader,
         fragment_shader=default_fragment_shader,
+        encoding="8b_r",
     ):
         """
         Constructs a new patch (a shape) that can be drawn on the screen.
@@ -44,13 +45,14 @@ class Patch(PhaseSLM):
         self.additive_blend = True
         self.enabled = True
         self.context = Context(slm)
+        self.encoding = encoding
 
         # construct vertex shader, fragment shader and program
         with self.context:
             vs = shaders.compileShader(vertex_shader, GL.GL_VERTEX_SHADER)
             fs = shaders.compileShader(fragment_shader, GL.GL_FRAGMENT_SHADER)
             self._program = shaders.compileProgram(vs, fs)
-            self._textures = [Texture(self.context)]
+            self._textures = [Texture(self.context, encoding=self.encoding)]
 
         self.geometry = rectangle(2.0) if geometry is None else geometry
         super().__init__()
@@ -180,7 +182,9 @@ class FrameBufferPatch(Patch):
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
 
         self._bit_depth = bit_depth
-        self._textures.append(Texture(self.context, GL.GL_TEXTURE_1D))  # create texture for lookup table
+        self._textures.append(
+            Texture(self.context, GL.GL_TEXTURE_1D, encoding=self.encoding)
+        )  # create texture for lookup table
         self._lookup_table = None
         self.lookup_table = lookup_table
         self.additive_blend = False
