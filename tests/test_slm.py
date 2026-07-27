@@ -290,13 +290,11 @@ def test_circular_geometry(slm):
 
 def test_convert_floatdata_to_10b_rb():
     a = np.ones((2, 2))
-    rgba = Texture.convert_floatdata_to_10b_rb(a)
-    rgba_uint8 = rgba.view(np.uint8).reshape((2, 2, 4))
+    rgba_uint8 = Texture.convert_floatdata_to_10b_rb(a)
 
-    assert np.all(rgba_uint8[:, :, 3] == 255)  # 8 bits of red to 1
-    assert np.all(rgba_uint8[:, :, 2] == 0)  # 8 bits of green to 0
-    assert np.all(rgba_uint8[:, :, 1] == 3)  # 2 least significant bits of blue to 1
-    assert np.all(rgba_uint8[:, :, 0] == 0)  # Alpha
+    assert np.all(rgba_uint8[:, :, 2] == 255)  # 8 bits of red to 1
+    assert np.all(rgba_uint8[:, :, 1] == 0)  # 8 bits of green to 0
+    assert np.all(rgba_uint8[:, :, 0] == 3)  # 2 least significant bits of blue to 1
 
     a = np.zeros((2, 2))
     rgba = Texture.convert_floatdata_to_10b_rb(a)
@@ -306,4 +304,6 @@ def test_convert_floatdata_to_10b_rb():
     a = np.ones((2, 2)) * 0.5
     rgba = Texture.convert_floatdata_to_10b_rb(a)
 
-    assert np.all(rgba == 2**31)  # Most import bit of red to 1 and all the rest to 0
+    assert np.all(rgba[:, :, 2] == 2**7)  # 8 bits of red to 1
+    assert np.all(rgba[:, :, 1] == 0)  # 8 bits of green to 0
+    assert np.all(rgba[:, :, 0] == 0)  # 2 least significant bits of blue to 1

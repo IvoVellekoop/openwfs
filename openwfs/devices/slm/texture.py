@@ -127,24 +127,14 @@ class Texture:
     @staticmethod
     def convert_floatdata_to_10b_rb(data):
         data = np.asarray(data, dtype=np.float32, order="C")
-        # Creates a 32-bit RGBA image from a 2D array of float values in the range [0, 1]. In this image, only the 10 least significant bits have information. The bits need to be moved to the right bits of the RGBA channels.
-        value = np.rint(data * 1023).astype(np.uint32)
 
-        # Calculates the 2 least significant bits of the img which need to be moved to the 2 least significant bits of the blue channel
-        least_significant_bits = value & 0b11
+        data = np.rint(data * 1023).astype(np.uint16)
 
-        # Move the bits to be filling the 2 least significant bits of the blue channel
-        least_significant_bits = least_significant_bits << 8
+        value = np.zeros(data.shape + (3,), dtype = np.uint8)
 
-        # Remove the 2 least significant bits of the image which will be added later to the right channel
-        value = value >> 2
+        value[:,:,0] = data & 0x03 # Put the 2 least significant bits of the data in the blue channel
 
-        # Move the bits to be filling the 8 bits of the red channel
-        value = value << 24
-
-        # Add the 2 least significant bits of the blue channel to the 8 bits of the red channel
-        value = value | least_significant_bits
-
+        value[:,:,2] = (data >> 2) & 0xFF # Put the 8 most significant bits of the data in the red channel
         return value
 
     def set_data_10b_rb(self, _value):
@@ -158,7 +148,7 @@ class Texture:
             GL.glTexImage2D(
                 GL.GL_TEXTURE_2D,
                 0,
-                GL.GL_RGBA8,
+                GL.GL_RGB8,
                 value.shape[1],
                 value.shape[0],
                 0,
@@ -175,25 +165,19 @@ class Texture:
                 0,
                 value.shape[1],
                 value.shape[0],
-                GL.GL_RGBA,
+                GL.GL_RGB,
                 GL.GL_UNSIGNED_BYTE,
                 value,
             )
 
     def get_data_enconding_10b_rb(self):
         with self.context:
-            data = np.empty(self._data_shape, dtype="uint32")
-            GL.glGetTextureImage(self.handle, 0, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, data.size * 4, data)
+            data = np.empty(self._data_shape + (3,), dtype="uint8")
+            GL.glGetTextureImage(self.handle, 0, GL.GL_RGB, GL.GL_UNSIGNED_BYTE, data.size, data)
 
-            # Extract the 10-bit values from the RGBA channels
-            red_channel = (data >> 24) & 0xFF
-            blue_channel = (data >> 8) & 0x3  # Extract the 2 least significant bits from the blue channel
+            data_int16 = data[:,:,0].astype(np.int16) << 2 | data[:,:,2]
 
-            # Combine the channels to get the original 10-bit values
-            combined_values = (red_channel << 2) | blue_channel
-
-            # Convert back to float in the range [0, 1]
-            float_data = combined_values.astype(np.float32) / 1023.0
+            float_data = data_int16 / 1023.0
 
             return float_data.reshape(self._data_shape)
 

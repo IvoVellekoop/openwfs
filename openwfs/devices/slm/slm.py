@@ -672,7 +672,8 @@ class FrontBufferReader(Detector):
                 GL.glReadPixels(0, 0, shape[1], shape[0], GL.GL_RED, GL.GL_UNSIGNED_BYTE, data)
             elif self.slm.encoding == "10b_rb":
                 data = np.empty(shape, dtype="uint32")
-                GL.glReadPixels(0, 0, shape[1], shape[0], GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, data)
+                print("Still in progress")
+                GL.glReadPixels(0, 0, shape[1], shape[0], GL.GL_RGB, GL.GL_UNSIGNED_BYTE, data)
 
                 red_channel = (data >> 24) & 0xFF
                 blue_channel = (data >> 8) & 0x3  # Extract the 2 least significant bits from the blue channel
