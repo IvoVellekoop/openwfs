@@ -121,4 +121,3 @@ class Texture:
             data = np.empty(self._data_shape, dtype="float32")
             GL.glGetTextureImage(self.handle, 0, GL.GL_RED, GL.GL_FLOAT, data.size * 4, data)
             return data
-

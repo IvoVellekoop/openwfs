@@ -191,9 +191,7 @@ class FrameBufferPatch(Patch):
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
 
         self._bit_depth = bit_depth
-        self._textures.append(
-            Texture(self.context, GL.GL_TEXTURE_1D)
-        )  # create texture for lookup table
+        self._textures.append(Texture(self.context, GL.GL_TEXTURE_1D))  # create texture for lookup table
         self._lookup_table = None
         self.lookup_table = lookup_table
         self.additive_blend = False
