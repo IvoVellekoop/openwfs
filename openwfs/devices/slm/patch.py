@@ -11,6 +11,7 @@ from .shaders import (
     default_vertex_shader,
     default_fragment_shader,
     post_process_fragment_shader,
+    post_process_fragment_shader_10b_rb,
     post_process_vertex_shader,
 )
 from .texture import Texture
@@ -26,6 +27,7 @@ class Patch(PhaseSLM):
         geometry=None,
         vertex_shader=default_vertex_shader,
         fragment_shader=default_fragment_shader,
+        encoding="8b_r",
     ):
         """
         Constructs a new patch (a shape) that can be drawn on the screen.
@@ -44,6 +46,7 @@ class Patch(PhaseSLM):
         self.additive_blend = True
         self.enabled = True
         self.context = Context(slm)
+        self.encoding = encoding
 
         # construct vertex shader, fragment shader and program
         with self.context:
@@ -156,9 +159,17 @@ class FrameBufferPatch(Patch):
                 Note: this maximum value is mapped to 1.0 in the opengl shader, and converted back to 2**bit_depth by
                 the opengl hardware.
         """
+
+        if slm.encoding == "8b_r":
+            fragment_shader = post_process_fragment_shader
+        elif slm.encoding == "10b_rb":
+            fragment_shader = post_process_fragment_shader_10b_rb
+        else:
+            raise ValueError(f"Encoding {slm.encoding} not supported for FrameBufferPatch")
+
         super().__init__(
             slm,
-            fragment_shader=post_process_fragment_shader,
+            fragment_shader=fragment_shader,
             vertex_shader=post_process_vertex_shader,
         )
         # Create a frame buffer object to render to. The frame buffer holds a texture that is the same size as the

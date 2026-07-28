@@ -8,6 +8,7 @@ import pytest
 
 from openwfs.devices import is_loaded
 from openwfs.devices.slm import SLM, Patch, geometry
+from openwfs.devices.slm.texture import Texture
 from openwfs.utilities import Transform
 
 if not is_loaded(glfw):
@@ -285,3 +286,22 @@ def test_circular_geometry(slm):
         np.repeat(np.flip(np.arange(30, 70)), 1).reshape((-1, 1)),
         atol=1,
     )
+
+
+def test_encoding_10b_rb():
+    slm = SLM(monitor_id=0, encoding="10b_rb", shape=(1024, 1), coordinate_system="full")
+    phi = np.linspace(0, 2 * np.pi, num=1024).reshape((-1, 1))
+    slm.set_phases(phi)
+
+    phi_slm = slm.phases.read()
+    assert np.allclose(phi, phi_slm, atol=2 * np.pi / 1024)
+
+    bits_slm = slm.pixels.read().ravel()
+    print(bits_slm)
+
+    assert np.allclose(bits_slm, np.arange(1024))
+
+
+def test_error_unknown_encoding():
+    with pytest.raises(ValueError):
+        SLM(monitor_id=0, encoding="unknown", shape=(1024, 1), coordinate_system="full")

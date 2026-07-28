@@ -48,6 +48,7 @@ class SLM(Actuator, PhaseSLM):
         "_field_reader",
         "_context",
         "_clones",
+        "encoding",
     ]
 
     _active_slms = WeakSet()
@@ -68,6 +69,7 @@ class SLM(Actuator, PhaseSLM):
         duration: TimeType = 1,
         coordinate_system: str = "short",
         transform: Optional[Transform] = None,
+        encoding="8b_r",
     ):
         """
         Constructs a new SLM window.
@@ -114,6 +116,7 @@ class SLM(Actuator, PhaseSLM):
         self._window = None
         self._globals = -1
         self.patches = []
+        self.encoding = encoding
         self._context = None
         self._create_window()  # sets self._context, self._window and self._globals and self._frame_patch, self._monitor
         self._coordinate_system = coordinate_system
@@ -124,7 +127,7 @@ class SLM(Actuator, PhaseSLM):
         # Create a single patch for displaying phase.
         # this default patch is square 1.0, and can be accessed through the 'primary_phase_patch' attribute
         # In advanced scenarios, the geometry of this patch may be modified, or it may be replaced altogether.
-        self.patches.append(Patch(self._context))
+        self.patches.append(Patch(self._context, encoding=self.encoding))
         self.primary_patch = self.patches[0]
         SLM._active_slms.add(self)
 
@@ -223,6 +226,10 @@ class SLM(Actuator, PhaseSLM):
         # create a new frame buffer
         # re-use the lookup table if possible, otherwise create a default one ranging from 0 to 2 ** bit_depth-1.
         old_lut = self._frame_buffer.lookup_table if self._frame_buffer is not None else None
+
+        if self.encoding == "10b_rb":
+            current_bit_depth = 10
+
         self._frame_buffer = FrameBufferPatch(self, old_lut, current_bit_depth)
         GL.glViewport(0, 0, self._shape[1], self._shape[0])
         # tell openGL to wait for the vertical retrace when swapping buffers (it appears need to do this
@@ -671,11 +678,18 @@ class FrontBufferReader(Detector):
         with self._context:
             GL.glReadBuffer(GL.GL_FRONT)
             shape = self.data_shape
-            data = np.empty(shape, dtype="uint8")
-            GL.glReadPixels(0, 0, shape[1], shape[0], GL.GL_RED, GL.GL_UNSIGNED_BYTE, data)
+            if self._context.slm.encoding == "8b_r":
+                data = np.empty(shape, dtype="uint8")
+                GL.glReadPixels(0, 0, shape[1], shape[0], GL.GL_RED, GL.GL_UNSIGNED_BYTE, data)
+            elif self._context.slm.encoding == "10b_rb":
+                data = np.ones(shape + (3,), dtype="uint8")
+                GL.glReadPixels(0, 0, shape[1], shape[0], GL.GL_RGB, GL.GL_UNSIGNED_BYTE, data)
+
+                data = data[..., 0] << 2 | data[..., 2]
+
             # flip data upside down, because the OpenGL convention is to have the origin at the bottom left,
             # but we want it at the top left (like in numpy)
-            return data[::-1, :]
+            return data[::-1, ...]
 
 
 class FrameBufferReader(Detector):
