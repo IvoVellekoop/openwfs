@@ -69,7 +69,7 @@ class SLMBlinkHDMI(SLM):
         lookup_table (np.ndarray): Lookup table to be loaded on the SLM. (Or already loaded)
         slm_index (int, optional): Index of the SLM to be used. This index is the SLM index defined on Blink. Defaults to 0.
         is_10bit (bool, optional): Whether the SLM is 10-bit or not. Defaults to False.
-        load_lookutp_table (bool, optional): Whether to load the lookup table on initialization. Defaults to True. If False, the lookup table passed to the constructor must matchthe lookup table already loaded on the SLM.
+        load_lookutp_table (bool, optional): Whether to load the lookup table on initialization. Defaults to True. If False, the lookup table passed to the constructor must match the lookup table already loaded on the SLM.
     """
 
     def __init__(self, blink_path, lookup_table, slm_index=0, is_10bit=False, load_lookutp_table=True, **kwargs):
@@ -89,7 +89,9 @@ class SLMBlinkHDMI(SLM):
         if load_lookutp_table:
             self.load_lookup_table(lookup_table)
 
-        super().__init__(**kwargs)
+        default_encoding = {"encoding": "10b_rb" if is_10bit else "8b_r"}
+
+        super().__init__(**(default_encoding | kwargs))
 
     def _create_lut_file(self, voltage_bits):
         """
