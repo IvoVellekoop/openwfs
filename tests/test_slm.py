@@ -300,5 +300,3 @@ def test_encoding_10b_rb():
     print(bits_slm)
 
     assert np.allclose(bits_slm, np.arange(1024))
-
-
