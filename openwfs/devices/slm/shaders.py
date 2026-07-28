@@ -51,6 +51,23 @@ post_process_fragment_shader = """
         }
     """
 
+post_process_fragment_shader_10b_rb = """
+        #version 440 core
+        in vec2 texCoord;
+        out vec4 colorOut;
+        layout(binding = 0) uniform sampler2D texSampler;
+        layout(binding = 1) uniform sampler1D LUT;
+        const float scale = 0.15915494309189535f; // corresponds to 1/(2 pi).
+        const float offset = 0.001953125f; // corresponds to 0.5/256.
+
+        void main() {
+            float raw = texture(texSampler, texCoord).r * scale + offset;
+            float val = texture(LUT, raw).r;
+            uint val_int = uint(val * 1023);
+            colorOut = vec4((val_int >> 2 & 0xFF) / 255.0, 0.0, (val_int & 0x03) / 255.0, 1.0);
+        }
+    """
+
 post_process_vertex_shader = """
         #version 440 core
         layout(location = 0) in vec2 slm_coordinate;

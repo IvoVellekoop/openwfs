@@ -307,3 +307,8 @@ def test_convert_floatdata_to_10b_rb():
     assert np.all(rgba[:, :, 2] == 2**7)  # 8 bits of red to 1
     assert np.all(rgba[:, :, 1] == 0)  # 8 bits of green to 0
     assert np.all(rgba[:, :, 0] == 0)  # 2 least significant bits of blue to 1
+
+slm = SLM(monitor_id = 2, encoding="10b_rb")
+
+
+

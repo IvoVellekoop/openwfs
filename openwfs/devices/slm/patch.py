@@ -11,6 +11,7 @@ from .shaders import (
     default_vertex_shader,
     default_fragment_shader,
     post_process_fragment_shader,
+    post_process_fragment_shader_10b_rb,
     post_process_vertex_shader,
 )
 from .texture import Texture
@@ -160,7 +161,7 @@ class FrameBufferPatch(Patch):
         """
         super().__init__(
             slm,
-            fragment_shader=post_process_fragment_shader,
+            fragment_shader=post_process_fragment_shader if slm.encoding == "8b_r" else post_process_fragment_shader_10b_rb,
             vertex_shader=post_process_vertex_shader,
         )
         # Create a frame buffer object to render to. The frame buffer holds a texture that is the same size as the

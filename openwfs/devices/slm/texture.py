@@ -36,20 +36,11 @@ class Texture:
         GL.glBindTexture(self.type, self.handle)
 
     def set_data(self, value):
-        if self.encoding == "8b_r":
-            self.set_data_8b_r(value)
-        elif self.encoding == "10b_rb":
-            self.set_data_10b_rb(value)
-        else:
-            raise ValueError(f"Unknown encoding: {self.encoding}")
-
-    def set_data_8b_r(self, value):
         """Set texture data.
 
         The texture data is directly copied to the GPU memory,
          so the original data array can be modified or deleted.
         """
-        value = np.asarray(value, dtype=np.float32, order="C")
 
         with self.context:
             GL.glBindTexture(self.type, self.handle)
@@ -59,13 +50,15 @@ class Texture:
                 GL.GL_RED,
                 GL.GL_FLOAT,
             )
+            value = np.asarray(value, dtype=np.float32, order="C")
 
             if self.type == GL.GL_TEXTURE_1D:
                 # check if data has the correct dimension, convert scalars to arrays of correct dimension
                 if value.ndim == 0:
                     value = value.reshape((1,))
-                elif value.ndim != 1:
+                if value.ndim != 1:
                     raise ValueError("Data should be a 1-d array or a scalar")
+
                 if value.shape != self._data_shape:
                     # create a new texture
                     GL.glTexImage1D(
@@ -96,6 +89,7 @@ class Texture:
                     value = value.reshape((1, 1))
                 elif value.ndim != 2:
                     raise ValueError("Data should be a 2-D array or a scalar")
+
                 if value.shape != self._data_shape:
                     GL.glTexImage2D(
                         GL.GL_TEXTURE_2D,
@@ -123,52 +117,6 @@ class Texture:
                     )
             else:
                 raise ValueError("Texture type not supported")
-
-    @staticmethod
-    def convert_floatdata_to_10b_rb(data):
-        data = np.asarray(data, dtype=np.float32, order="C")
-
-        data = np.rint(data * 1023).astype(np.uint16)
-
-        value = np.zeros(data.shape + (3,), dtype = np.uint8)
-
-        value[:,:,0] = data & 0x03 # Put the 2 least significant bits of the data in the blue channel
-
-        value[:,:,2] = (data >> 2) & 0xFF # Put the 8 most significant bits of the data in the red channel
-        return value
-
-    def set_data_10b_rb(self, _value):
-        value = self.convert_floatdata_to_10b_rb(_value)
-
-        if value.ndim == 0:
-            value = value.reshape((1, 1))
-        elif value.ndim != 2:
-            raise ValueError("Data should be a 2-D array or a scalar")
-        if value.shape != self._data_shape:
-            GL.glTexImage2D(
-                GL.GL_TEXTURE_2D,
-                0,
-                GL.GL_RGB8,
-                value.shape[1],
-                value.shape[0],
-                0,
-                GL.GL_RGBA,
-                GL.GL_UNSIGNED_BYTE,
-                value,
-            )
-            self._data_shape = value.shape
-        else:
-            GL.glTexSubImage2D(
-                GL.GL_TEXTURE_2D,
-                0,
-                0,
-                0,
-                value.shape[1],
-                value.shape[0],
-                GL.GL_RGB,
-                GL.GL_UNSIGNED_BYTE,
-                value,
-            )
 
     def get_data_enconding_10b_rb(self):
         with self.context:

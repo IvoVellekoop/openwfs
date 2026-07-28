@@ -226,6 +226,10 @@ class SLM(Actuator, PhaseSLM):
         # create a new frame buffer
         # re-use the lookup table if possible, otherwise create a default one ranging from 0 to 2 ** bit_depth-1.
         old_lut = self._frame_buffer.lookup_table if self._frame_buffer is not None else None
+
+        if self.encoding == "10b_rb":
+            current_bit_depth = 10
+
         self._frame_buffer = FrameBufferPatch(self, old_lut, current_bit_depth)
         GL.glViewport(0, 0, self._shape[1], self._shape[0])
         # tell openGL to wait for the vertical retrace when swapping buffers (it appears need to do this
@@ -667,24 +671,18 @@ class FrontBufferReader(Detector):
         with self._context:
             GL.glReadBuffer(GL.GL_FRONT)
             shape = self.data_shape
-            if self.slm.encoding == "8b_r":
+            if self._context.slm.encoding == "8b_r":
                 data = np.empty(shape, dtype="uint8")
                 GL.glReadPixels(0, 0, shape[1], shape[0], GL.GL_RED, GL.GL_UNSIGNED_BYTE, data)
-            elif self.slm.encoding == "10b_rb":
-                data = np.empty(shape, dtype="uint32")
-                print("Still in progress")
+            elif self._context.slm.encoding == "10b_rb":
+                data = np.ones(shape + (3,), dtype="uint8")
                 GL.glReadPixels(0, 0, shape[1], shape[0], GL.GL_RGB, GL.GL_UNSIGNED_BYTE, data)
 
-                red_channel = (data >> 24) & 0xFF
-                blue_channel = (data >> 8) & 0x3  # Extract the 2 least significant bits from the blue channel
-
-                # Combine the channels to get the original 10-bit values
-                data = (red_channel << 2) | blue_channel
-                data = data.astype(np.int16)
+                data = data[...,0] << 2 | data[...,2]
 
             # flip data upside down, because the OpenGL convention is to have the origin at the bottom left,
             # but we want it at the top left (like in numpy)
-            return data[::-1, :]
+            return data[::-1,...]
 
 
 class FrameBufferReader(Detector):
