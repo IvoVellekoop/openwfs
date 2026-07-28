@@ -69,10 +69,10 @@ class SLMBlinkHDMI(SLM):
         lookup_table (np.ndarray): Lookup table to be loaded on the SLM. (Or already loaded)
         slm_index (int, optional): Index of the SLM to be used. This index is the SLM index defined on Blink. Defaults to 0.
         is_10bit (bool, optional): Whether the SLM is 10-bit or not. Defaults to False.
-        load_lookutp_table (bool, optional): Whether to load the lookup table on initialization. Defaults to True. If False, the lookup table passed to the constructor must match the lookup table already loaded on the SLM.
+        load_lookup_table (bool, optional): Whether to load the lookup table on initialization. Defaults to True. If False, the lookup table passed to the constructor must match the lookup table already loaded on the SLM.
     """
 
-    def __init__(self, blink_path, lookup_table, slm_index=0, is_10bit=False, load_lookutp_table=True, **kwargs):
+    def __init__(self, blink_path, lookup_table, slm_index=0, is_10bit=False, load_lookup_table=True, **kwargs):
         self.handler = BlinkHDMIHandler.get_handler()
         self.handler.add_dll(blink_path)
         self.slm_blink_index = slm_index
@@ -86,7 +86,7 @@ class SLMBlinkHDMI(SLM):
                 "SLM not found. The Blink SDK has a few issues. Check connections and restart python and try again (..and again probably...)"
             )
 
-        if load_lookutp_table:
+        if load_lookup_table:
             self.load_lookup_table(lookup_table)
 
         default_encoding = {"encoding": "10b_rb" if is_10bit else "8b_r"}

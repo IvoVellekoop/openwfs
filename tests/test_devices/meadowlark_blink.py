@@ -6,7 +6,7 @@ slm = SLMBlinkHDMI(
     monitor_id=2,
     is_10bit=True,
     coordinate_system="full",
-    load_lookutp_table=False,
+    load_lookup_table=False,
     lookup_table = np.arange(1024),
 )
 
