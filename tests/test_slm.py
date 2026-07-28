@@ -287,28 +287,10 @@ def test_circular_geometry(slm):
         atol=1,
     )
 
-
-def test_convert_floatdata_to_10b_rb():
-    a = np.ones((2, 2))
-    rgba_uint8 = Texture.convert_floatdata_to_10b_rb(a)
-
-    assert np.all(rgba_uint8[:, :, 2] == 255)  # 8 bits of red to 1
-    assert np.all(rgba_uint8[:, :, 1] == 0)  # 8 bits of green to 0
-    assert np.all(rgba_uint8[:, :, 0] == 3)  # 2 least significant bits of blue to 1
-
-    a = np.zeros((2, 2))
-    rgba = Texture.convert_floatdata_to_10b_rb(a)
-
-    assert np.all(rgba == 0)  # all zero
-
-    a = np.ones((2, 2)) * 0.5
-    rgba = Texture.convert_floatdata_to_10b_rb(a)
-
-    assert np.all(rgba[:, :, 2] == 2**7)  # 8 bits of red to 1
-    assert np.all(rgba[:, :, 1] == 0)  # 8 bits of green to 0
-    assert np.all(rgba[:, :, 0] == 0)  # 2 least significant bits of blue to 1
-
-slm = SLM(monitor_id = 2, encoding="10b_rb")
-
-
-
+def test_encoding_10b_rb():
+    slm = SLM(monitor_id = 0, encoding = "10b_rb", shape = (1024, 1), coordinate_system = "full")
+    phi = np.linspace(0, 2 * np.pi, num = 1024).reshape((-1,1))
+    slm.set_phases(phi)
+    
+    phi_slm = slm.phases.read()
+    assert np.allclose(phi, phi_slm, atol = 2 * np.pi / 1024)

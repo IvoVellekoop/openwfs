@@ -5,15 +5,13 @@ from .context import Context
 
 
 class Texture:
-    def __init__(self, slm, texture_type=None, encoding="8b_r"):
+    def __init__(self, slm, texture_type=None):
         self.context = Context(slm)
         self.handle = GL.glGenTextures(1)
         self.type = texture_type if texture_type is not None else GL.GL_TEXTURE_2D
         self.synchronized = False  # self.data is not yet synchronized with texture in GPU memory
         self._data_shape = None  # current size of the texture, to see if we need to make a new texture or
         # overwrite the exiting one
-
-        self.encoding = encoding
 
         # create a single pixel texture as default (also activates the OpenGL context and binds the texture
         self.set_data(0)
@@ -118,26 +116,9 @@ class Texture:
             else:
                 raise ValueError("Texture type not supported")
 
-    def get_data_enconding_10b_rb(self):
-        with self.context:
-            data = np.empty(self._data_shape + (3,), dtype="uint8")
-            GL.glGetTextureImage(self.handle, 0, GL.GL_RGB, GL.GL_UNSIGNED_BYTE, data.size, data)
-
-            data_int16 = data[:,:,0].astype(np.int16) << 2 | data[:,:,2]
-
-            float_data = data_int16 / 1023.0
-
-            return float_data.reshape(self._data_shape)
-
     def get_data(self):
         with self.context:
-            if self.encoding == "8b_r":
-                data = np.empty(self._data_shape, dtype="float32")
-                GL.glGetTextureImage(self.handle, 0, GL.GL_RED, GL.GL_FLOAT, data.size * 4, data)
-                return data
+            data = np.empty(self._data_shape, dtype="float32")
+            GL.glGetTextureImage(self.handle, 0, GL.GL_RED, GL.GL_FLOAT, data.size * 4, data)
+            return data
 
-            elif self.encoding == "10b_rb":
-                return self.get_data_enconding_10b_rb()
-
-            else:
-                raise ValueError(f"Unknown encoding: {self.encoding}")

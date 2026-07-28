@@ -53,7 +53,7 @@ class Patch(PhaseSLM):
             vs = shaders.compileShader(vertex_shader, GL.GL_VERTEX_SHADER)
             fs = shaders.compileShader(fragment_shader, GL.GL_FRAGMENT_SHADER)
             self._program = shaders.compileProgram(vs, fs)
-            self._textures = [Texture(self.context, encoding=self.encoding)]
+            self._textures = [Texture(self.context)]
 
         self.geometry = rectangle(2.0) if geometry is None else geometry
         super().__init__()
@@ -159,9 +159,17 @@ class FrameBufferPatch(Patch):
                 Note: this maximum value is mapped to 1.0 in the opengl shader, and converted back to 2**bit_depth by
                 the opengl hardware.
         """
+
+        if slm.encoding == "8b_r":
+            fragment_shader = post_process_fragment_shader
+        elif slm.encoding == "10b_rb":
+            fragment_shader = post_process_fragment_shader_10b_rb
+        else:
+            raise ValueError(f"Encoding {slm.encoding} not supported for FrameBufferPatch")
+
         super().__init__(
             slm,
-            fragment_shader=post_process_fragment_shader if slm.encoding == "8b_r" else post_process_fragment_shader_10b_rb,
+            fragment_shader=fragment_shader,
             vertex_shader=post_process_vertex_shader,
         )
         # Create a frame buffer object to render to. The frame buffer holds a texture that is the same size as the
@@ -184,7 +192,7 @@ class FrameBufferPatch(Patch):
 
         self._bit_depth = bit_depth
         self._textures.append(
-            Texture(self.context, GL.GL_TEXTURE_1D, encoding=self.encoding)
+            Texture(self.context, GL.GL_TEXTURE_1D)
         )  # create texture for lookup table
         self._lookup_table = None
         self.lookup_table = lookup_table
