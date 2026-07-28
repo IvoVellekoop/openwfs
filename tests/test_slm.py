@@ -295,3 +295,10 @@ def test_encoding_10b_rb():
 
     phi_slm = slm.phases.read()
     assert np.allclose(phi, phi_slm, atol=2 * np.pi / 1024)
+
+    bits_slm = slm.pixels.read().ravel()
+    print(bits_slm)
+
+    assert np.allclose(bits_slm, np.arange(1024))
+
+
