@@ -592,7 +592,10 @@ class SLM(Actuator, PhaseSLM):
 
         The gray values are represented in the range from 0 to 2**bit_depth - 1). For an 8-bit video mode, this is 0-255.
         """
-        return np.arange(256)
+        if self.encoding == "10b_rb":
+            return np.arange(1024)
+        else:
+            return np.arange(256)
 
     def set_phases(self, values: ArrayLike, update=True):
         self.primary_patch.set_phases(values, update)
