@@ -76,8 +76,6 @@ class SLMBlinkHDMI(SLM):
         self.handler = BlinkHDMIHandler.get_handler()
         self.handler.add_dll(blink_path)
         self.slm_blink_index = slm_index
-        self.is_10bit = is_10bit
-        self.bit_depth = 10 if self.is_10bit else 8
 
         self.usb_port = ctypes.create_unicode_buffer(256)
         status = self.handler.blink_lib.GetComPort(self.slm_blink_index, self.usb_port)

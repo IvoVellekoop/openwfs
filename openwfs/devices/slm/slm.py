@@ -243,6 +243,10 @@ class SLM(Actuator, PhaseSLM):
             warnings.warn(f"Actual resolution {fb_shape} does not match requested resolution {self._shape}.")
             self._shape = fb_shape
 
+    @property
+    def bit_depth(self):
+        return self._frame_buffer._bit_depth
+
     @staticmethod
     def _init_glfw():
         """Initializes the GLFW library and sets global configuration.
