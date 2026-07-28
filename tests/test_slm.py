@@ -300,3 +300,8 @@ def test_encoding_10b_rb():
     print(bits_slm)
 
     assert np.allclose(bits_slm, np.arange(1024))
+
+
+def test_error_unknown_encoding():
+    with pytest.raises(ValueError):
+        SLM(monitor_id=0, encoding="unknown", shape=(1024, 1), coordinate_system="full")
