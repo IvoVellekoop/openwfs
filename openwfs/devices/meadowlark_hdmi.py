@@ -69,15 +69,13 @@ class SLMBlinkHDMI(SLM):
         lookup_table (np.ndarray): Lookup table to be loaded on the SLM. (Or already loaded)
         slm_index (int, optional): Index of the SLM to be used. This index is the SLM index defined on Blink. Defaults to 0.
         is_10bit (bool, optional): Whether the SLM is 10-bit or not. Defaults to False.
-        load_lookutp_table (bool, optional): Whether to load the lookup table on initialization. Defaults to True. If False, the lookup table passed to the constructor must matchthe lookup table already loaded on the SLM.
+        load_lookup_table (bool, optional): Whether to load the lookup table on initialization. Defaults to True. If False, the lookup table passed to the constructor must match the lookup table already loaded on the SLM.
     """
 
-    def __init__(self, blink_path, lookup_table, slm_index=0, is_10bit=False, load_lookutp_table=True, **kwargs):
+    def __init__(self, blink_path, lookup_table, slm_index=0, is_10bit=False, load_lookup_table=True, **kwargs):
         self.handler = BlinkHDMIHandler.get_handler()
         self.handler.add_dll(blink_path)
         self.slm_blink_index = slm_index
-        self.is_10bit = is_10bit
-        self.bit_depth = 10 if self.is_10bit else 8
 
         self.usb_port = ctypes.create_unicode_buffer(256)
         status = self.handler.blink_lib.GetComPort(self.slm_blink_index, self.usb_port)
@@ -86,10 +84,14 @@ class SLMBlinkHDMI(SLM):
                 "SLM not found. The Blink SDK has a few issues. Check connections and restart python and try again (..and again probably...)"
             )
 
-        if load_lookutp_table:
+        if load_lookup_table:
             self.load_lookup_table(lookup_table)
+        else:
+            self._lookup_table = lookup_table
 
-        super().__init__(**kwargs)
+        default_encoding = {"encoding": "10b_rb" if is_10bit else "8b_r"}
+
+        super().__init__(**(default_encoding | kwargs))
 
     def _create_lut_file(self, voltage_bits):
         """
@@ -151,7 +153,8 @@ class SLMBlinkHDMI(SLM):
         Args:
             voltage_bits: The lookup table to be loaded. The lookup table must have 2**bit_depth values, and tells how each grey value is mapped to the voltage value. The values of the lookup table must be in the range of 0 to 2**(bit_depth + 2) - 1. For example, for a 10-bit SLM, the values must be in the range of 0 to 4095.
         """
-        self.load_lookup_table(voltage_bits)
+        if not np.allclose(self.lookup_table, voltage_bits):
+            self.load_lookup_table(voltage_bits)
 
     @property
     def temperature(self):

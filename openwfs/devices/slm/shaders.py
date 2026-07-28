@@ -58,7 +58,7 @@ post_process_fragment_shader_10b_rb = """
         layout(binding = 0) uniform sampler2D texSampler;
         layout(binding = 1) uniform sampler1D LUT;
         const float scale = 0.15915494309189535f; // corresponds to 1/(2 pi).
-        const float offset = 0.001953125f; // corresponds to 0.5/256.
+        const float offset = 0.00048828125f; // corresponds to 0.5/256.
 
         void main() {
             float raw = texture(texSampler, texCoord).r * scale + offset;

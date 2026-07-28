@@ -246,6 +246,10 @@ class SLM(Actuator, PhaseSLM):
             warnings.warn(f"Actual resolution {fb_shape} does not match requested resolution {self._shape}.")
             self._shape = fb_shape
 
+    @property
+    def bit_depth(self):
+        return self._frame_buffer._bit_depth
+
     @staticmethod
     def _init_glfw():
         """Initializes the GLFW library and sets global configuration.
@@ -595,7 +599,10 @@ class SLM(Actuator, PhaseSLM):
 
         The gray values are represented in the range from 0 to 2**bit_depth - 1). For an 8-bit video mode, this is 0-255.
         """
-        return np.arange(256)
+        if self.encoding == "10b_rb":
+            return np.arange(1024)
+        else:
+            return np.arange(256)
 
     def set_phases(self, values: ArrayLike, update=True):
         self.primary_patch.set_phases(values, update)
@@ -687,8 +694,8 @@ class FrontBufferReader(Detector):
             elif self._context.slm.encoding == "10b_rb":
                 data = np.ones(shape + (3,), dtype="uint8")
                 GL.glReadPixels(0, 0, shape[1], shape[0], GL.GL_RGB, GL.GL_UNSIGNED_BYTE, data)
-
-                data = data[..., 0] << 2 | data[..., 2]
+                data_int16 = data.astype(np.int16)
+                data = data_int16[..., 0] << 2 | data_int16[..., 2]
 
             # flip data upside down, because the OpenGL convention is to have the origin at the bottom left,
             # but we want it at the top left (like in numpy)
