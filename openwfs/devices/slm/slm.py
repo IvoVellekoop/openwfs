@@ -98,6 +98,9 @@ class SLM(Actuator, PhaseSLM):
                 The `transform` determines how these vertex coordinates that make up the shape of a Patch (see
                 :class:`Patch`) are mapped to the SLM window.
                 By default, 'short' is used (see :attr:`transform`)
+            enconding: String defining how the phases values are enconded into phases values. Possible values are:
+                - '8b_r': 8-bit encoding, where the 8 bit enconding will be store in the red, green and blue channels of the frame buffer.
+                - '10b_rb': 10-bit enconding, where 8-bits are encoded in the red channel and the remaining 2-bits are encoded in the least significant bits of the blue channel. This encoding can be used to control 10-bit SLM from Meadowlark Optics.
 
         Attributes:
             patches (list[Patch]): List of patches that are drawn on the SLM.

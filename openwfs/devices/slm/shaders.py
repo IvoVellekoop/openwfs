@@ -62,9 +62,11 @@ post_process_fragment_shader_10b_rb = """
 
         void main() {
             float raw = texture(texSampler, texCoord).r * scale + offset;
-            float val = texture(LUT, raw).r;
-            uint val_int = uint(val * 1023);
-            colorOut = vec4((val_int >> 2 & 0xFF) / 255.0, 0.0, (val_int & 0x03) / 255.0, 1.0);
+            float val = texture(LUT, raw).r; // Float32 with value from 0 to 1
+            uint val_int = uint(val * 1023); // Convert a integer from 0 to 1023 (10 bits) to represent the value
+            uint red = (val_int >> 2) & 0xFF; // Get the first 8 bits for red channel
+            uint blue = val_int & 0x03; // Get the last 2 bits for blue channel
+            colorOut = vec4(red / 255.0, 0.0, blue / 255.0, 1.0);
         }
     """
 
