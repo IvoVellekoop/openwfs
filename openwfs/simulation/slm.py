@@ -237,7 +237,7 @@ class SLM(PhaseSLM, Actuator):
     @property
     def bit_depth(self):
         """
-            Returns the bit depth of the SLM. This is used to determine how many gray values are available.
+        Returns the bit depth of the SLM. This is used to determine how many gray values are available.
         """
         return 8
 
