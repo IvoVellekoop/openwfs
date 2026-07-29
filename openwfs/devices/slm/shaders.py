@@ -58,12 +58,13 @@ post_process_fragment_shader_10b_rb = """
         layout(binding = 0) uniform sampler2D texSampler;
         layout(binding = 1) uniform sampler1D LUT;
         const float scale = 0.15915494309189535f; // corresponds to 1/(2 pi).
-        const float offset = 0.00048828125f; // corresponds to 0.5/256.
+        const float offset = 0.00048828125f; // corresponds to 0.5/1024.
+        const float PI = 3.1415926535897932384626433832795f;
 
         void main() {
-            float raw = texture(texSampler, texCoord).r * scale + offset;
-            float val = texture(LUT, raw).r; // Float32 with value from 0 to 1
-            uint val_int = uint(val * 1023); // Convert a integer from 0 to 1023 (10 bits) to represent the value
+            float phi = mod(texture(texSampler, texCoord).r, 2.0 * PI);
+            float val = phi * scale + offset;
+            uint val_int = uint(round(val * 1023)); // Convert to integer from 0 to 1023 (10 bits) to represent the value
             uint red = (val_int >> 2) & 0xFF; // Get the first 8 bits for red channel
             uint blue = val_int & 0x03; // Get the last 2 bits for blue channel
             colorOut = vec4(red / 255.0, 0.0, blue / 255.0, 1.0);
