@@ -300,7 +300,6 @@ def test_encoding_10b_rb():
 
     assert np.allclose(bits_slm, np.arange(1024))
 
-
     slm.lookup_table = np.arange(512)
     slm.set_phases(phi)
     bits_slm = slm.pixels.read().ravel()
