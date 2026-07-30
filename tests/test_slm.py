@@ -301,6 +301,13 @@ def test_encoding_10b_rb():
     assert np.allclose(bits_slm, np.arange(1024))
 
 
+    slm.lookup_table = np.arange(512)
+    slm.set_phases(phi)
+    bits_slm = slm.pixels.read().ravel()
+    assert np.allclose(bits_slm[::2], np.arange(512))
+    assert np.allclose(bits_slm[1::2], np.arange(512))
+
+
 def test_error_unknown_encoding():
     with pytest.raises(ValueError):
         SLM(monitor_id=0, encoding="unknown", shape=(1024, 1), coordinate_system="full")
