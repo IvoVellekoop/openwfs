@@ -5,6 +5,7 @@ import time
 import clr
 import os
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 # General notes about the implementation of this class:
 # This code uses the DotNET interface from Thorlabs Kinesis to control
@@ -18,6 +19,56 @@ from concurrent.futures import ThreadPoolExecutor
 # process cannot try to communicate with the device while the move thread
 # is communicating with the device. For this, function communicating with the
 # device use the function KinesisHandler.throw_error_if_moving()
+
+
+def _find_kinesis_dlls(folder_path, required_dll_names):
+    """
+    Find Kinesis DLL files in a folder.
+    
+    Arguments:
+        folder_path: str or Path or None - Path to the Thorlabs Kinesis folder. If None,
+            defaults to C:\Program Files\Thorlabs\Kinesis.
+        required_dll_names: list of str - Names of required DLL files (e.g., 
+            ['Thorlabs.MotionControl.DeviceManagerCLI.dll', ...])
+    
+    Returns:
+        list of str - Full paths to found DLL files in the same order as required_dll_names
+    
+    Raises:
+        FileNotFoundError - If folder does not exist or required DLLs are not found
+    """
+    if folder_path is None:
+        folder_path = r"C:\Program Files\Thorlabs\Kinesis"
+    
+    folder = Path(folder_path)
+    
+    if not folder.is_dir():
+        raise FileNotFoundError(
+            f"Thorlabs Kinesis folder not found: {folder_path}. Ensure that the correct path to "
+            "the Kinesis installation is provided. The software can be downloaded from "
+            "https://www.thorlabs.com/kinesis-software."
+        )
+    
+    found_dlls = []
+    missing_dlls = []
+    
+    for dll_name in required_dll_names:
+        dll_path = folder / dll_name
+        if dll_path.is_file():
+            found_dlls.append(str(dll_path))
+        else:
+            missing_dlls.append(dll_name)
+    
+    if missing_dlls:
+        missing_str = ", ".join(missing_dlls)
+        raise FileNotFoundError(
+            f"Required Thorlabs Kinesis DLL files not found in {folder_path}. "
+            f"Missing files: {missing_str}. Ensure that the Kinesis software "
+            "is installed in this location. The software can be downloaded from "
+            "https://www.thorlabs.com/kinesis-software."
+        )
+    
+    return found_dlls
 
 
 class KinesisHandler:
@@ -134,18 +185,20 @@ class KCubeInertial(Actuator):
             (i.e. moving simultaneously). Only important for KIM101.
         timeout: Quantity [u.s] - Defines the timeout time for the stage when performing
             movement. Defaults to 20 seconds.
+        kinesis_folder: str - Path to the Thorlabs Kinesis installation folder. If not provided,
+            defaults to C:\Program Files\Thorlabs\Kinesis.
     """
 
     def __init__(
-        self, serial_number: str = None, pair_channels: bool = False, timeout: u.Quantity = 20 * u.s, kinesis_files=None
+        self, serial_number: str = None, pair_channels: bool = False, timeout: u.Quantity = 20 * u.s, kinesis_folder: str = None
     ):
 
-        if kinesis_files == None:
-            kinesis_files = [
-                r"C:\Program Files\Thorlabs\Kinesis\Thorlabs.MotionControl.DeviceManagerCLI.dll",
-                r"C:\Program Files\Thorlabs\Kinesis\Thorlabs.MotionControl.GenericMotorCLI.dll",
-                r"C:\Program Files\Thorlabs\Kinesis\Thorlabs.MotionControl.KCube.InertialMotorCLI.dll",
-            ]
+        required_dlls = [
+            "Thorlabs.MotionControl.DeviceManagerCLI.dll",
+            "Thorlabs.MotionControl.GenericMotorCLI.dll",
+            "Thorlabs.MotionControl.KCube.InertialMotorCLI.dll",
+        ]
+        kinesis_files = _find_kinesis_dlls(kinesis_folder, required_dlls)
 
         kinesis_handler = KinesisHandler.get_handler()
         kinesis_handler.add_files(kinesis_files)
@@ -414,19 +467,20 @@ class MotorizedFilterFlip(Actuator):
             an error is raised.
         timeout: Quantity [u.s] - Defines the timeout time for the stage when performing
             movement. Defaults to 20 seconds.
-        kinesis_files: list of str - List of paths to the Kinesis libraries. The libraries needed are Thorlabs.MotionControl.DeviceManagerCLI.dll, Thorlabs.MotionControl.GenericMotorCLI.dll, and Thorlabs.FilterFlipperCLI.dll. If not provided, the code will try to find the libraries in the default installation path of Kinesis (C:\Program Files\Thorlabs\Kinesis).
+        kinesis_folder: str - Path to the Thorlabs Kinesis installation folder. If not provided,
+            defaults to C:\Program Files\Thorlabs\Kinesis.
     """
 
     def __init__(
-        self, serial_number: str = None, timeout: u.Quantity = 20 * u.s, kinesis_files=None
+        self, serial_number: str = None, timeout: u.Quantity = 20 * u.s, kinesis_folder: str = None
     ):
 
-        if kinesis_files == None:
-            kinesis_files = [
-                r"C:\Program Files\Thorlabs\Kinesis\Thorlabs.MotionControl.DeviceManagerCLI.dll",
-                r"C:\Program Files\Thorlabs\Kinesis\Thorlabs.MotionControl.GenericMotorCLI.dll",
-                r"C:\Program Files\Thorlabs\Kinesis\Thorlabs.MotionControl.FilterFlipperCLI.dll",
-            ]
+        required_dlls = [
+            "Thorlabs.MotionControl.DeviceManagerCLI.dll",
+            "Thorlabs.MotionControl.GenericMotorCLI.dll",
+            "Thorlabs.MotionControl.FilterFlipperCLI.dll",
+        ]
+        kinesis_files = _find_kinesis_dlls(kinesis_folder, required_dlls)
 
         kinesis_handler = KinesisHandler.get_handler()
         kinesis_handler.add_files(kinesis_files)
