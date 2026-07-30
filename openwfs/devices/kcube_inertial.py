@@ -21,56 +21,6 @@ from pathlib import Path
 # device use the function KinesisHandler.throw_error_if_moving()
 
 
-def _find_kinesis_dlls(folder_path, required_dll_names):
-    """
-    Find Kinesis DLL files in a folder.
-
-    Arguments:
-        folder_path: str or Path or None - Path to the Thorlabs Kinesis folder. If None,
-            defaults to C:\Program Files\Thorlabs\Kinesis.
-        required_dll_names: list of str - Names of required DLL files (e.g.,
-            ['Thorlabs.MotionControl.DeviceManagerCLI.dll', ...])
-
-    Returns:
-        list of str - Full paths to found DLL files in the same order as required_dll_names
-
-    Raises:
-        FileNotFoundError - If folder does not exist or required DLLs are not found
-    """
-    if folder_path is None:
-        folder_path = r"C:\Program Files\Thorlabs\Kinesis"
-
-    folder = Path(folder_path)
-
-    if not folder.is_dir():
-        raise FileNotFoundError(
-            f"Thorlabs Kinesis folder not found: {folder_path}. Ensure that the correct path to "
-            "the Kinesis installation is provided. The software can be downloaded from "
-            "https://www.thorlabs.com/kinesis-software."
-        )
-
-    found_dlls = []
-    missing_dlls = []
-
-    for dll_name in required_dll_names:
-        dll_path = folder / dll_name
-        if dll_path.is_file():
-            found_dlls.append(str(dll_path))
-        else:
-            missing_dlls.append(dll_name)
-
-    if missing_dlls:
-        missing_str = ", ".join(missing_dlls)
-        raise FileNotFoundError(
-            f"Required Thorlabs Kinesis DLL files not found in {folder_path}. "
-            f"Missing files: {missing_str}. Ensure that the Kinesis software "
-            "is installed in this location. The software can be downloaded from "
-            "https://www.thorlabs.com/kinesis-software."
-        )
-
-    return found_dlls
-
-
 class KinesisHandler:
     """
     Class to handle the connection with the Kinesis software. This class is used to ensure that the Kinesis software is properly initialized and that the device list is built before trying to connect to a device. This is important because if the device list is not built, the code will not be able to find the device and will raise an error.
@@ -169,6 +119,57 @@ class KinesisHandler:
         device.device.StopPolling()
         device.device.Disconnect()
 
+    def _find_kinesis_dlls(required_dll_names, folder_path=None):
+        """
+        Find Kinesis DLL files in a folder.
+        
+        Arguments:
+            folder_path: str or Path or None - Path to the Thorlabs Kinesis folder. If None,
+                defaults to C:\Program Files\Thorlabs\Kinesis.
+            required_dll_names: list of str - Names of required DLL files (e.g., 
+                ['Thorlabs.MotionControl.DeviceManagerCLI.dll', ...])
+        
+        Returns:
+            list of str - Full paths to found DLL files in the same order as required_dll_names
+        
+        Raises:
+            FileNotFoundError - If folder does not exist or required DLLs are not found
+        """
+        if folder_path is None:
+            folder_path = r"C:\Program Files\Thorlabs\Kinesis"
+        
+        folder = Path(folder_path)
+        
+        if not folder.is_dir():
+            raise FileNotFoundError(
+                f"Thorlabs Kinesis folder not found: {folder_path}. Ensure that the correct path to "
+                "the Kinesis installation is provided. The software can be downloaded from "
+                "https://www.thorlabs.com/kinesis-software."
+            )
+        
+        found_dlls = []
+        missing_dlls = []
+        
+        for dll_name in required_dll_names:
+            dll_path = folder / dll_name
+            if dll_path.is_file():
+                found_dlls.append(str(dll_path))
+            else:
+                missing_dlls.append(dll_name)
+        
+        if missing_dlls:
+            missing_str = ", ".join(missing_dlls)
+            raise FileNotFoundError(
+                f"Required Thorlabs Kinesis DLL files not found in {folder_path}. "
+                f"Missing files: {missing_str}. Ensure that the Kinesis software "
+                "is installed in this location. The software can be downloaded from "
+                "https://www.thorlabs.com/kinesis-software."
+            )
+        
+        return found_dlls
+
+
+
 
 global_kinesis_handler = None
 
@@ -202,7 +203,7 @@ class KCubeInertial(Actuator):
             "Thorlabs.MotionControl.GenericMotorCLI.dll",
             "Thorlabs.MotionControl.KCube.InertialMotorCLI.dll",
         ]
-        kinesis_files = _find_kinesis_dlls(kinesis_folder, required_dlls)
+        kinesis_files = KinesisHandler._find_kinesis_dlls(required_dlls, kinesis_folder)
 
         kinesis_handler = KinesisHandler.get_handler()
         kinesis_handler.add_files(kinesis_files)
@@ -484,7 +485,7 @@ class MotorizedFilterFlip(Actuator):
             "Thorlabs.MotionControl.GenericMotorCLI.dll",
             "Thorlabs.MotionControl.FilterFlipperCLI.dll",
         ]
-        kinesis_files = _find_kinesis_dlls(kinesis_folder, required_dlls)
+        kinesis_files = KinesisHandler._find_kinesis_dlls(required_dlls, kinesis_folder)
 
         kinesis_handler = KinesisHandler.get_handler()
         kinesis_handler.add_files(kinesis_files)
