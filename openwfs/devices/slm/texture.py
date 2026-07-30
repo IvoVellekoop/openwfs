@@ -39,7 +39,6 @@ class Texture:
         The texture data is directly copied to the GPU memory,
          so the original data array can be modified or deleted.
         """
-        value = np.asarray(value, dtype=np.float32, order="C")
 
         with self.context:
             GL.glBindTexture(self.type, self.handle)
@@ -49,13 +48,15 @@ class Texture:
                 GL.GL_RED,
                 GL.GL_FLOAT,
             )
+            value = np.asarray(value, dtype=np.float32, order="C")
 
             if self.type == GL.GL_TEXTURE_1D:
                 # check if data has the correct dimension, convert scalars to arrays of correct dimension
                 if value.ndim == 0:
                     value = value.reshape((1,))
-                elif value.ndim != 1:
+                if value.ndim != 1:
                     raise ValueError("Data should be a 1-d array or a scalar")
+
                 if value.shape != self._data_shape:
                     # create a new texture
                     GL.glTexImage1D(
@@ -86,6 +87,7 @@ class Texture:
                     value = value.reshape((1, 1))
                 elif value.ndim != 2:
                     raise ValueError("Data should be a 2-D array or a scalar")
+
                 if value.shape != self._data_shape:
                     GL.glTexImage2D(
                         GL.GL_TEXTURE_2D,
