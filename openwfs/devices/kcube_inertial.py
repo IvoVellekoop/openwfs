@@ -24,41 +24,41 @@ from pathlib import Path
 def _find_kinesis_dlls(folder_path, required_dll_names):
     """
     Find Kinesis DLL files in a folder.
-    
+
     Arguments:
         folder_path: str or Path or None - Path to the Thorlabs Kinesis folder. If None,
             defaults to C:\Program Files\Thorlabs\Kinesis.
-        required_dll_names: list of str - Names of required DLL files (e.g., 
+        required_dll_names: list of str - Names of required DLL files (e.g.,
             ['Thorlabs.MotionControl.DeviceManagerCLI.dll', ...])
-    
+
     Returns:
         list of str - Full paths to found DLL files in the same order as required_dll_names
-    
+
     Raises:
         FileNotFoundError - If folder does not exist or required DLLs are not found
     """
     if folder_path is None:
         folder_path = r"C:\Program Files\Thorlabs\Kinesis"
-    
+
     folder = Path(folder_path)
-    
+
     if not folder.is_dir():
         raise FileNotFoundError(
             f"Thorlabs Kinesis folder not found: {folder_path}. Ensure that the correct path to "
             "the Kinesis installation is provided. The software can be downloaded from "
             "https://www.thorlabs.com/kinesis-software."
         )
-    
+
     found_dlls = []
     missing_dlls = []
-    
+
     for dll_name in required_dll_names:
         dll_path = folder / dll_name
         if dll_path.is_file():
             found_dlls.append(str(dll_path))
         else:
             missing_dlls.append(dll_name)
-    
+
     if missing_dlls:
         missing_str = ", ".join(missing_dlls)
         raise FileNotFoundError(
@@ -67,7 +67,7 @@ def _find_kinesis_dlls(folder_path, required_dll_names):
             "is installed in this location. The software can be downloaded from "
             "https://www.thorlabs.com/kinesis-software."
         )
-    
+
     return found_dlls
 
 
@@ -123,7 +123,7 @@ class KinesisHandler:
         # Start polling and enable channel
         device.device.StartPolling(250)  # 250ms polling rate
         time.sleep(0.25)
-        
+
         device.device.EnableDevice()
         time.sleep(0.25)  # Wait for device to enable
 
@@ -134,7 +134,7 @@ class KinesisHandler:
         serial_number_list = []
         for device_code in device_codes:
             serial_number_list.append(list(map(str, DeviceManagerCLI.GetDeviceList(device_code))))
-        
+
         serial_number_list = [item for sublist in serial_number_list for item in sublist]
 
         if serial_number is None:
@@ -154,7 +154,7 @@ class KinesisHandler:
 
         return str(serial_number)
 
-    @staticmethod 
+    @staticmethod
     def throw_error_if_moving(device):
         """
         Convenience function to throw an error if the device is moving or if communication thread is communicating with the device.
@@ -190,7 +190,11 @@ class KCubeInertial(Actuator):
     """
 
     def __init__(
-        self, serial_number: str = None, pair_channels: bool = False, timeout: u.Quantity = 20 * u.s, kinesis_folder: str = None
+        self,
+        serial_number: str = None,
+        pair_channels: bool = False,
+        timeout: u.Quantity = 20 * u.s,
+        kinesis_folder: str = None,
     ):
 
         required_dlls = [
@@ -221,7 +225,11 @@ class KCubeInertial(Actuator):
 
         DeviceManagerCLI.BuildDeviceList()
 
-        self.serial_number = KinesisHandler.look_for_serialnumber(DeviceManagerCLI, device_codes=[KCubeInertialMotor.DevicePrefix_KIM101, KCubeInertialMotor.DevicePrefix_KIM001], serial_number=serial_number)
+        self.serial_number = KinesisHandler.look_for_serialnumber(
+            DeviceManagerCLI,
+            device_codes=[KCubeInertialMotor.DevicePrefix_KIM101, KCubeInertialMotor.DevicePrefix_KIM001],
+            serial_number=serial_number,
+        )
 
         self.device = KCubeInertialMotor.CreateKCubeInertialMotor(self.serial_number)
         self.timeout = timeout
@@ -362,7 +370,6 @@ class KCubeInertial(Actuator):
         super()._start()
         self._future = self._worker.submit(self._move_to, arr, self.position, self.pair_channels, True)
 
-
     @staticmethod
     def movement_time(
         distance: int, velocity: u.Quantity[1 / u.s], acceleration: u.Quantity[1 / u.s**2]
@@ -456,7 +463,6 @@ class KCubeInertial(Actuator):
         return not self._future.done()
 
 
-
 class MotorizedFilterFlip(Actuator):
     """
     Class to control Motorized Filter Flip (MFF101) from Thorlabs. To use this class the thorlabs Kinesis software must be installed. The software can be downloaded from https://www.thorlabs.com/kinesis-software. The communication with Kinesis is done using pythonnet (clr) which needs to be installed in the python environment.
@@ -471,9 +477,7 @@ class MotorizedFilterFlip(Actuator):
             defaults to C:\Program Files\Thorlabs\Kinesis.
     """
 
-    def __init__(
-        self, serial_number: str = None, timeout: u.Quantity = 20 * u.s, kinesis_folder: str = None
-    ):
+    def __init__(self, serial_number: str = None, timeout: u.Quantity = 20 * u.s, kinesis_folder: str = None):
 
         required_dlls = [
             "Thorlabs.MotionControl.DeviceManagerCLI.dll",
@@ -497,9 +501,10 @@ class MotorizedFilterFlip(Actuator):
 
         super().__init__(duration=np.inf * u.ms, latency=0 * u.ms)
 
-
         # create new device
-        self.serial_number = KinesisHandler.look_for_serialnumber(DeviceManagerCLI, device_codes=[FilterFlipper.DevicePrefix], serial_number=serial_number)
+        self.serial_number = KinesisHandler.look_for_serialnumber(
+            DeviceManagerCLI, device_codes=[FilterFlipper.DevicePrefix], serial_number=serial_number
+        )
         self.device = FilterFlipper.CreateFilterFlipper(self.serial_number)
         self.timeout = timeout
 
@@ -508,11 +513,8 @@ class MotorizedFilterFlip(Actuator):
         self._worker = ThreadPoolExecutor(max_workers=1)
         self._future = self._worker.submit(lambda: None)
 
-
-
     def __del__(self):
         KinesisHandler.disconnect(self)
-
 
     def _move_to(self, pos):
         """
@@ -525,7 +527,7 @@ class MotorizedFilterFlip(Actuator):
 
     def home(self):
         """
-            Moves the device to the home position (0).
+        Moves the device to the home position (0).
         """
         KinesisHandler.throw_error_if_moving(self)
         super()._start()
@@ -555,6 +557,3 @@ class MotorizedFilterFlip(Actuator):
         # This function works because the thread will be locked by kinesis while a movement
         # is ongoing.
         return not self._future.done()
-
-
-
