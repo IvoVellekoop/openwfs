@@ -62,7 +62,7 @@ post_process_fragment_shader_10b_rb = """
         const float PI = 3.1415926535897932384626433832795f;
 
         void main() {
-            float phi = mod(texture(texSampler, texCoord).r, 2.0 * PI) * scale; // Normalize phase to [0, 1]
+            float phi = mod(texture(texSampler, texCoord).r, 2.0 * PI) * scale + offset; // Normalize phase to [0, 1]
             float val = texture(LUT, phi).r; // Applies the software LUT table
             uint val_int = uint(round(val * 1023)); // Convert to integer from 0 to 1023 (10 bits) to represent the value
             uint red = (val_int >> 2) & 0xFF; // Get the first 8 bits for red channel

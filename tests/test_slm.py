@@ -291,15 +291,22 @@ def test_circular_geometry(slm):
 def test_encoding_10b_rb():
     slm = SLM(monitor_id=0, encoding="10b_rb", shape=(1024, 1), coordinate_system="full")
     phi = np.linspace(0, 2 * np.pi, num=1024, endpoint=False).reshape((-1, 1))
+
+    # Test phases values are correct
     slm.set_phases(phi)
-
     phi_slm = slm.phases.read()
-    assert np.allclose(phi, phi_slm, atol=2 * np.pi / 1024)
+    assert np.allclose(phi, phi_slm)
 
+    # Test bit value of phase
     bits_slm = slm.pixels.read().ravel()
-
     assert np.allclose(bits_slm, np.arange(1024))
 
+    # Test phase wrapping
+    slm.set_phases(phi + 2 * np.pi)
+    bits_slm = slm.pixels.read().ravel()
+    assert np.allclose(bits_slm, np.arange(1024))
+
+    # Test lookup table
     slm.lookup_table = np.arange(512)
     slm.set_phases(phi)
     bits_slm = slm.pixels.read().ravel()
