@@ -58,19 +58,6 @@ class KinesisHandler:
         device.device.Connect(device.serial_number)
         if not device.device.IsConnected:
             raise ValueError(f"Failed to connect to device with serial number {device.serial_number}.")
-        time.sleep(0.25)
-
-        # Ensure that the device settings have been initialized
-        if not device.device.IsSettingsInitialized():
-            device.device.WaitForSettingsInitialized(10000)  # 10 second timeout
-            if not device.device.IsSettingsInitialized():
-                raise RuntimeError(
-                    f"Device settings failed to initialize within timeout for device with serial number {device.serial_number}."
-                )
-
-        device.device.Connect(device.serial_number)
-        if not device.device.IsConnected:
-            raise ValueError(f"Failed to connect to device with serial number {device.serial_number}.")
 
         time.sleep(0.25)
 
@@ -90,21 +77,24 @@ class KinesisHandler:
         time.sleep(0.25)  # Wait for device to enable
 
     @staticmethod
-    def look_for_serialnumber(DeviceManagerCLI, device_code, serial_number):
+    def look_for_serialnumber(DeviceManagerCLI, device_codes, serial_number):
         DeviceManagerCLI.BuildDeviceList()
 
-        # The 97 code corresponds to the Kinesis internal code for the KCube Inertial Motor.
-        serial_number_list = list(map(str, DeviceManagerCLI.GetDeviceList(device_code)))
+        serial_number_list = []
+        for device_code in device_codes:
+            serial_number_list.append(list(map(str, DeviceManagerCLI.GetDeviceList(device_code))))
+        
+        serial_number_list = [item for sublist in serial_number_list for item in sublist]
 
         if serial_number is None:
             if len(serial_number_list) == 1:
                 serial_number = serial_number_list[0]
             elif len(serial_number_list) > 1:
                 raise ValueError(
-                    f"Multiple FilterFlipper devices found. Please specify a serial number. Available devices: {serial_number_list}"
+                    f"Multiple devices found. Please specify a serial number. Available devices: {serial_number_list}"
                 )
             else:
-                raise ValueError("No FilterFlipper devices found.")
+                raise ValueError("No devices found.")
 
         if serial_number not in serial_number_list:
             raise ValueError(
@@ -178,7 +168,7 @@ class KCubeInertial(Actuator):
 
         DeviceManagerCLI.BuildDeviceList()
 
-        self.serial_number = KinesisHandler.look_for_serialnumber(DeviceManagerCLI, device_code=KCubeInertialMotor.DevicePrefix, serial_number=serial_number)
+        self.serial_number = KinesisHandler.look_for_serialnumber(DeviceManagerCLI, device_codes=[KCubeInertialMotor.DevicePrefix_KIM101, KCubeInertialMotor.DevicePrefix_KIM001], serial_number=serial_number)
 
         self.device = KCubeInertialMotor.CreateKCubeInertialMotor(self.serial_number)
         self.timeout = timeout
@@ -455,7 +445,7 @@ class MotorizedFilterFlip(Actuator):
 
 
         # create new device
-        self.serial_number = KinesisHandler.look_for_serialnumber(DeviceManagerCLI, device_code=FilterFlipper.DevicePrefix, serial_number=serial_number)
+        self.serial_number = KinesisHandler.look_for_serialnumber(DeviceManagerCLI, device_codes=[FilterFlipper.DevicePrefix], serial_number=serial_number)
         self.device = FilterFlipper.CreateFilterFlipper(self.serial_number)
         self.timeout = timeout
 

@@ -39,28 +39,3 @@ for i in [True, False]:
     assert np.allclose(stage.position, p_f + delta)
 
 del stage
-# stage = 3
-# stage.shutdown()
-
-#
-# class Dummy:
-#     def __init__(self):
-#         self._workers = ThreadPoolExecutor(max_workers=1)
-#         self.value = None
-#
-#     def compute_value(self, *args_, **kwargs_):
-#         print(self.value)
-#         assert 1== 2
-#         return args_[0] * args_[0]
-#
-#     def set_value(self, v):
-#         self._future = self._workers.submit(self.compute_value, v, 2 * v)
-#
-#     def get_value(self):
-#         print(self._future.done())
-#         return self._future.result()
-#
-# d = Dummy()
-# d.set_value(5)
-# d._future.done()
-# print(d.get_value\:0
