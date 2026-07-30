@@ -6,7 +6,6 @@ import time
 # Test KCubeInertial stage. Requires a physical device KIM101 to be connected.
 
 stage = ow_d.KCubeInertial()
-print("asda")
 
 for i in [True, False]:
     stage.pair_channels = i
