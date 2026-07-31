@@ -170,3 +170,16 @@ class SLMBlinkHDMI(SLM):
         bit_grey = np.arange(2**self.bit_depth)
         bit_voltage = bit_grey * 4  # Map the 8/10 bit grey values to the 10/12 bit voltage value
         return bit_voltage
+
+    def get_lookup_table_filename(self):
+        """
+        Returns the filename of the lookup table currently loaded on the SLM.
+        """
+
+        filename = ctypes.create_unicode_buffer(256)
+        status = self.handler.blink_lib.GetLUTFileName(self.slm_blink_index, filename)
+
+        if status == 0:
+            raise RuntimeError("Getting the filename of the lookup table failed")
+
+        return filename
