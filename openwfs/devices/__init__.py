@@ -79,5 +79,5 @@ from .nidaq_gain import Gain
 from . import slm
 from .slm import SLM
 from .zaber_stage import ZaberXYStage, ZaberLinearStage
-from .kcube_inertial import KCubeInertial
+from .kcube_inertial import KCubeInertial, MotorizedFilterFlip
 from .meadowlark_hdmi import SLMBlinkHDMI
