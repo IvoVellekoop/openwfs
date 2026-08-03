@@ -77,8 +77,10 @@ class SLMBlinkHDMI(SLM):
         self.handler.add_dll(blink_path)
         self.slm_blink_index = slm_index
 
-        self.usb_port = ctypes.create_unicode_buffer(256)
-        status = self.handler.blink_lib.GetComPort(self.slm_blink_index, self.usb_port)
+        str_usb_port = ctypes.create_unicode_buffer(256)
+        status = self.handler.blink_lib.GetComPort(self.slm_blink_index, str_usb_port)
+        self.usb_port = str_usb_port.value
+
         if status == 0:
             raise RuntimeError(
                 "SLM not found. The Blink SDK has a few issues. Check connections and restart python and try again (..and again probably...)"
@@ -182,4 +184,4 @@ class SLMBlinkHDMI(SLM):
         if status == 0:
             raise RuntimeError("Getting the filename of the lookup table failed")
 
-        return filename
+        return filename.value
