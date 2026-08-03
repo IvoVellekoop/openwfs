@@ -492,11 +492,12 @@ class MotorizedFilterFlip(Actuator):
         from Thorlabs.MotionControl.FilterFlipperCLI import (
             FilterFlipper,
         )
-        from System import Int32
+        from System import Int32, UInt32
 
         self.DeviceManagerCLI = DeviceManagerCLI
         self.FilterFlipper = FilterFlipper
         self.Int32 = Int32
+        self.UInt32 = UInt32
 
         super().__init__(duration=np.inf * u.ms, latency=0 * u.ms)
 
@@ -522,7 +523,8 @@ class MotorizedFilterFlip(Actuator):
         Arguments:
             pos: int - Absolute position to move the device to.
         """
-        self.device.SetPosition(self.Int32(int(pos)), int(self.timeout.to(u.ms).value))
+        print(int(pos))
+        self.device.SetPosition(self.UInt32(int(pos)), int(self.timeout.to(u.ms).value))
 
     def home(self):
         """
@@ -535,10 +537,14 @@ class MotorizedFilterFlip(Actuator):
     @property
     def position(self) -> int:
         KinesisHandler.throw_error_if_moving(self)
-        return self.device.GetPosition()
+        kine_pos = self.device.Position
+        if kine_pos == 2:
+            return True
+        else:
+            return False
 
     @position.setter
-    def position(self, pos: int):
+    def position(self, pos: bool):
         """
             Moves the device to the specified absolute position.
 
@@ -547,7 +553,11 @@ class MotorizedFilterFlip(Actuator):
         """
         KinesisHandler.throw_error_if_moving(self)
         super()._start()
-        self._future = self._worker.submit(self._move_to, pos)
+        if pos:
+            pos_int = 2
+        else:
+            pos_int = 1
+        self._future = self._worker.submit(self._move_to, pos_int)
 
     def busy(self):
         """
