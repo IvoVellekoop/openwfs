@@ -1,14 +1,15 @@
 import openwfs.devices as ow_d
-import time
 
 stage = ow_d.MotorizedFilterFlip()
 
-stage.position = 1
+stage.position = True
 stage.wait()
+stage.position
 assert stage.position == 1
 
-stage.position = 0
+stage.position = False
 stage.wait()
+stage.position
 assert stage.position == 0
 
 del stage
