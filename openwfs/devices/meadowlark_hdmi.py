@@ -68,8 +68,8 @@ class SLMBlinkHDMI(SLM):
         blink_path (str): Path to the Blink DLL file.
         lookup_table (np.ndarray): Lookup table to be loaded on the SLM. (Or already loaded)
         slm_index (int, optional): Index of the SLM to be used. This index is the SLM index defined on Blink. Defaults to 0.
-        is_10bit (bool, optional): Whether the SLM is 10-bit or not. Defaults to False.
-        load_lookup_table (bool, optional): Whether to load the lookup table on initialization. Defaults to True. If False, the lookup table passed to the constructor must match the lookup table already loaded on the SLM.
+        is_10bit (bool, optional): Whether the SLM is 10-bit or not. If is_10bit, the default encoding of openwfs SLM used will be 10b_rb. If it is 8 bit, the default encoding is 8b_r. Defaults to False.
+        load_lookup_table (bool, optional): Whether to load the lookup table on initialization. Defaults to True. If False, the lookup table used will be the lookup table previously loaded on the slm. For correctness, the lookup_table passed to the constructor must match the lookup table already loaded on the SLM. If you are unsure, always set load_lookup_table to True.
     """
 
     def __init__(self, blink_path, lookup_table, slm_index=0, is_10bit=False, load_lookup_table=True, **kwargs):
@@ -77,8 +77,10 @@ class SLMBlinkHDMI(SLM):
         self.handler.add_dll(blink_path)
         self.slm_blink_index = slm_index
 
-        self.usb_port = ctypes.create_unicode_buffer(256)
-        status = self.handler.blink_lib.GetComPort(self.slm_blink_index, self.usb_port)
+        str_usb_port = ctypes.create_unicode_buffer(256)
+        status = self.handler.blink_lib.GetComPort(self.slm_blink_index, str_usb_port)
+        self.usb_port = str_usb_port.value
+
         if status == 0:
             raise RuntimeError(
                 "SLM not found. The Blink SDK has a few issues. Check connections and restart python and try again (..and again probably...)"
@@ -170,3 +172,16 @@ class SLMBlinkHDMI(SLM):
         bit_grey = np.arange(2**self.bit_depth)
         bit_voltage = bit_grey * 4  # Map the 8/10 bit grey values to the 10/12 bit voltage value
         return bit_voltage
+
+    def get_lookup_table_filename(self):
+        """
+        Returns the filename of the lookup table currently loaded on the SLM.
+        """
+
+        filename = ctypes.create_unicode_buffer(256)
+        status = self.handler.blink_lib.GetLUTFileName(self.slm_blink_index, filename)
+
+        if status == 0:
+            raise RuntimeError("Getting the filename of the lookup table failed")
+
+        return filename.value
