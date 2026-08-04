@@ -68,7 +68,7 @@ class SLMBlinkHDMI(SLM):
         blink_path (str): Path to the Blink DLL file.
         lookup_table (np.ndarray): Lookup table to be loaded on the SLM. (Or already loaded)
         slm_index (int, optional): Index of the SLM to be used. This index is the SLM index defined on Blink. Defaults to 0.
-        is_10bit (bool, optional): Whether the SLM is 10-bit or not. Defaults to False.
+        is_10bit (bool, optional): Whether the SLM is 10-bit or not. If is_10bit, the default encoding of openwfs SLM used will be 10b_rb. If it is 8 bit, the default encoding is 8b_r. Defaults to False.
         load_lookup_table (bool, optional): Whether to load the lookup table on initialization. Defaults to True. If False, the lookup table used will be the lookup table previously loaded on the slm. For correctness, the lookup_table passed to the constructor must match the lookup table already loaded on the SLM. If you are unsure, always set load_lookup_table to True.
     """
 
