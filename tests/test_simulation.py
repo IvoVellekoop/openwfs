@@ -340,6 +340,48 @@ def test_non_linear_microscope():
     assert np.allclose(img_2p, img_ref**2)
 
 
+def test_microscope_output_format():
+    mic, slm, src = get_test_microscope()
+    slm.set_phases(0)
+    mic.output_format = "pupil_field"
+    pupil_field = mic.read()
+
+    # field should be a disk of 1
+    assert np.allclose(pupil_field[256, 0:174], 0)
+    assert np.allclose(pupil_field[256, 174:338], 1)
+    assert np.allclose(pupil_field[256, 338:], 0)
+    assert pupil_field.shape == (512, 512)
+
+    mic.output_format = "image"
+    image = mic.read()
+    assert image.shape == (512, 512)
+
+    rand_phase = np.random.rand(512, 512) * 2 * np.pi
+
+    mic.output_format = "psf"
+    psf = mic.read()
+    assert psf.shape == (512, 512)
+    # PSF is the same as image because of delta function imaging target
+    assert np.allclose(psf, image)
+    slm.set_phases(rand_phase)
+    psf_rand = mic.read()
+
+    mic.output_format = "on_axis_intensity"
+    slm.set_phases(0)
+    on_axis_intensity = mic.read()
+    slm.set_phases(rand_phase)
+
+    on_axis_intensity_rand_phase = mic.read()
+    assert on_axis_intensity.shape == (1, 1)
+
+    # The ratio of on-axis intensities should be the same as the central pixel of the PSF (beucase the central pixel is the on-axis intensity)
+    # We could work to ensure that the on-axis intensity is exactly the central pixel of the PSF (instead of proportional to it)
+    assert np.isclose(on_axis_intensity_rand_phase / on_axis_intensity, psf_rand[256, 256] / psf[256, 256])
+
+    with pytest.raises(ValueError):
+        mic.output_format = "invalid_format"
+
+
 def test_microscope_z_stack():
     mic, slm, src = get_test_microscope()
     z = [10, -10] * u.um

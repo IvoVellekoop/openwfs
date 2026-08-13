@@ -49,6 +49,7 @@ class Microscope(Processor):
         aberrations: Union[Detector, np.ndarray, None] = None,
         aberration_transform: Optional[Transform] = None,
         multi_threaded: bool = True,
+        output_format: str = "image",
     ):
         """
         Args:
@@ -121,6 +122,7 @@ class Microscope(Processor):
         self.xy_stage = xy_stage or XYStage(0.1 * u.um, 0.1 * u.um)
         self.z_stage = z_stage or LinearStage(0.1 * u.um)
         self._psf = None
+        self._output_format = output_format
 
     def _fetch(
         self,
@@ -182,7 +184,9 @@ class Microscope(Processor):
         pupil_extent = self.wavelength / target_pixel_size / self.numerical_aperture
 
         # condition 2. Minimum number of pixels in x and y should be data_shape
-        pupil_shape = self.data_shape
+        pupil_shape = (
+            self._data_shape
+        )  # Needs to be _data_shape because when using on_axis_intensity should still be the sampling used for the computation, but the output shape is (1,1)
 
         # Compute the field in the pupil plane
         # The aberrations and the SLM phase pattern are both mapped to the pupil plane coordinates
@@ -231,14 +235,55 @@ class Microscope(Processor):
         # the pixel size matches that of the source (the specimen image).
         # Note: there is no need to `ifftshift` the pupil field, since we are taking the absolute value anyway
 
+        if self.output_format == "pupil_field":
+            return np.array(pupil_field.tolist())
+
+        if self.output_format == "on_axis_intensity":
+            return (
+                np.abs(np.sum(pupil_field, keepdims=True)) ** 2 * (pupil_field.size / pupil_area)
+            ) ** self.nonlinearity
+
         psf = np.abs(np.fft.ifft2(pupil_field)) ** 2
         psf = np.fft.ifftshift(psf) * (psf.size / pupil_area)
 
         psf = psf**self.nonlinearity  # added for 2 pm
-
         self._psf = psf  # store psf for later inspection
 
+        if self.output_format == "psf":
+            return psf
+
         return fftconvolve(source, psf, "same")
+
+    @property
+    def output_format(self) -> str:
+        """Returns the output format of the microscope.
+
+        Returns:
+            str: The output format. Can be one of:
+                - "image": The default. Returns the image on the camera sensor.
+                - "psf": Returns the point spread function (PSF) of the microscope.
+                - "pupil_field": Returns the complex field in the pupil plane.
+                - "on_axis_intensity": Returns the intensity of the on-axis point in the image plane. This value is propotional to the central pixel of the psf.
+        """
+        return self._output_format
+
+    @output_format.setter
+    def output_format(self, value: str):
+        """Sets the output format of the microscope.
+
+        Args:
+            value: The output format. Can be one of:
+                - "image": The default. Returns the image on the camera sensor.
+                - "psf": Returns the point spread function (PSF) of the microscope.
+                - "pupil_field": Returns the complex field in the pupil plane.
+                - "on_axis_intensity": Returns the intensity of the on-axis point in the image plane. This value is propotional to the central pixel of the psf.
+
+        Raises:
+            ValueError: If the value is not one of the allowed formats.
+        """
+        if value not in ["image", "psf", "pupil_field", "on_axis_intensity"]:
+            raise ValueError(f"Invalid output format: {value}. Must be one of 'image', 'psf', or 'pupil_field'.")
+        self._output_format = value
 
     @property
     def magnification(self) -> float:
@@ -285,6 +330,9 @@ class Microscope(Processor):
         Returns:
             tuple: The dimensions of the output image (height, width).
         """
+        if self.output_format == "on_axis_intensity":
+            return (1, 1)
+
         return self._data_shape
 
     def z_stack_read(self, z):
