@@ -26,9 +26,10 @@ VAL1 = 2 * np.pi / 256 * GVAL1
 VAL2 = 2 * np.pi / 256 * GVAL2
 
 
-@pytest.fixture
-def slm() -> SLM:
-    slm = SLM(monitor_id=0, shape=(100, 200), pos=(20, 10), coordinate_system="full")
+@pytest.fixture(params=[True, False])
+def slm(request) -> SLM:
+    hidden = request.param
+    slm = SLM(monitor_id=0, shape=(100, 200), pos=(20, 10), coordinate_system="full", hidden=hidden)
     return slm
 
 
