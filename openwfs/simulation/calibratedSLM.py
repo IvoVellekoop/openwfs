@@ -5,7 +5,8 @@ from openwfs.simulation.slm import PhaseToField
 from openwfs.utilities.patterns import coordinate_range
 from openwfs.core import Detector, Processor
 from typing import Callable
-from private_openwfs.devices.microscope_future import WFSSettings
+from openwfs.utilities.utilities import set_extent
+from private_openwfs.devices.microscope_future import WFSSettings, MicroscopeOfTheFuture
 
 
 class CalibratedSLM(SLM):
@@ -22,7 +23,6 @@ class CalibratedSLM(SLM):
         self,
         physical_size: tuple,
         wavelength: float,
-        filter: Callable[[np.ndarray], np.ndarray] = None,
         *args,
         **kwargs,
     ):
@@ -31,19 +31,17 @@ class CalibratedSLM(SLM):
         if not np.isscalar(self.amplitude) and self.amplitude.shape != self.shape:
             raise ValueError("amplitude must have the same shape as the SLM shape.")
 
-        self.filter = filter
         self.physical_size = physical_size
         self.wavelength = wavelength
 
 
 class FilterPropagate(Processor):
     """
-    Take a phase as input, build the field and filter it with the SLM filter.
-    Computes 'Filter[moduled_field_amplitude * exp(1j * phase) + non_modulated_field_fraction]'.
+    Computes 'Filter[slm.field]'.
     """
 
-    def __init__(self, incident_field: CalibratedSLM, system_properties: WFSSettings):
-        self.system_properties = system_properties
+    def __init__(self, incident_field: CalibratedSLM, Microscope: MicroscopeOfTheFuture):
+        self.microscope = Microscope
         self._incident_field = incident_field
         super().__init__(incident_field)
 
@@ -51,7 +49,6 @@ class FilterPropagate(Processor):
         """
         Compute the field at the SLM plane given the SLM phases.
         """
-        # compute coordinates from source SLM
-        x, y = self._incident_field._coordinates()
-        # propagation...
+        incident_field = set_extent(incident_field, self.microscope.wfs_module.settings.slm_physical_size)
+        incident_field = MicroscopeOfTheFuture.filter_hole(incident_field, self.microscope.wavelength, self.microscope.wfs_module.settings.distance_mic_galvo, self.microscope.wfs_module.settings.d_beam, self.microscope.wfs_module.settings.d_mic_tube)
         return self.slm_filter()
