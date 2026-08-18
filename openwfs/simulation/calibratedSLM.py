@@ -25,29 +25,6 @@ class CalibratedSLM(SLM):
         self.physical_size = physical_size
         self.wavelength = wavelength
 
-
-    # def pupil2kspace_coordinates(self):
-    #     """
-    #     Convert pupil coordinates to k-space coordinates.
-    #     """
-    #     # Assuming the SLM has a square shape
-    #     slm_shape = self.shape
-    #     transform = self.transform
-
-    #     # convert pupil coordinates to k-space coordiants
-    #     if self._coordiante_system == "full":
-    #         slm_pupil_coords = coordinate_range(slm_shape, extent = 2)
-    #         slm_pupil_coords_y = slm_pupil_coords[0]
-    #         slm_pupil_coords_x = slm_pupil_coords[1]
-    #         kx = None
-    #         ky = None
-    #     else: 
-    #         raise ValueError("Only full coordinate system is supported for pupil to k-space conversion.")
-
-    #         # convert pupil coordinates to k-space coordinates
-    #     return kx, ky    
-
-    
 class FilterPropagate(Processor):
     """
     Take a phase as input, build the field and filter it with the SLM filter.
