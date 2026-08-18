@@ -7,24 +7,34 @@ from openwfs.core import Detector, Processor
 from typing import Callable
 from private_openwfs.devices.microscope_future import WFSSettings
 
+
 class CalibratedSLM(SLM):
     """
     A callibrated SLM that matches the physics properties of the real SLM.
-    
+
     Args:
         filter: A callable that takes a field and returns the filtered field.
         physical_size: The physical size of the SLM using astropy units (width, height).
         wavelength: The wavelength of the light in meters.
     """
-    def __init__(self, physical_size: tuple, wavelength: float, filter: Callable[[np.ndarray], np.ndarray] = None,*args, **kwargs):           
+
+    def __init__(
+        self,
+        physical_size: tuple,
+        wavelength: float,
+        filter: Callable[[np.ndarray], np.ndarray] = None,
+        *args,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
 
         if not np.isscalar(self.amplitude) and self.amplitude.shape != self.shape:
             raise ValueError("amplitude must have the same shape as the SLM shape.")
-        
+
         self.filter = filter
         self.physical_size = physical_size
         self.wavelength = wavelength
+
 
 class FilterPropagate(Processor):
     """
