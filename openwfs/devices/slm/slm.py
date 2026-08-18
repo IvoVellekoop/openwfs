@@ -41,6 +41,7 @@ class SLM(Actuator, PhaseSLM):
         "_frame_buffer",
         "_monitor",
         "patches",
+        "amplitude",
         "primary_patch",
         "_coordinate_system",
         "_pixel_reader",
@@ -69,6 +70,7 @@ class SLM(Actuator, PhaseSLM):
         duration: TimeType = 1,
         coordinate_system: str = "short",
         transform: Optional[Transform] = None,
+        amplitude: ArrayLike = 1,
         hidden=True,
     ):
         """
@@ -118,6 +120,7 @@ class SLM(Actuator, PhaseSLM):
         self._globals = -1
         self._hidden = hidden
         self.patches = []
+        self.amplitude = amplitude
         self._context = None
         self._create_window()  # sets self._context, self._window and self._globals and self._frame_patch, self._monitor
         self._coordinate_system = coordinate_system
@@ -605,7 +608,7 @@ class SLM(Actuator, PhaseSLM):
              a detector that returns `self.amplitude * exp(1.0j * self.phases.read()`
         """
         if self._field_reader is None:
-            self._field_reader = PhaseToField(self.phases)
+            self._field_reader = PhaseToField(self.phases, self.amplitude)
         return self._field_reader
 
     @property
