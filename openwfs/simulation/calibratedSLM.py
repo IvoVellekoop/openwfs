@@ -16,13 +16,11 @@ class CalibratedSLM(SLM):
     Args:
         filter: A callable that takes a field and returns the filtered field.
         physical_size: The physical size of the SLM using astropy units (width, height).
-        wavelength: The wavelength of the light in meters.
     """
 
     def __init__(
         self,
         physical_size: tuple,
-        wavelength: float,
         *args,
         **kwargs,
     ):
@@ -32,8 +30,6 @@ class CalibratedSLM(SLM):
             raise ValueError("amplitude must have the same shape as the SLM shape.")
 
         self.physical_size = physical_size
-        self.wavelength = wavelength
-
 
 class FilterPropagate(Processor):
     """
