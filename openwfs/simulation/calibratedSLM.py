@@ -1,13 +1,5 @@
 from openwfs.devices.slm import SLM
 import numpy as np
-from openwfs.devices.slm.slm import FrameBufferReader
-from openwfs.simulation.slm import PhaseToField
-from openwfs.utilities.patterns import coordinate_range
-from openwfs.core import Detector, Processor
-from typing import Callable
-from openwfs.utilities.utilities import set_extent
-from private_openwfs.devices.microscope_future import WFSSettings, MicroscopeOfTheFuture
-
 
 class CalibratedSLM(SLM):
     """
