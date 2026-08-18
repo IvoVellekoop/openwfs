@@ -8,13 +8,11 @@ def test_calibrated_slm_initialization():
     Test the initialization of the CalibratedSLM class.
     """
     physical_size = (2 * u.um, 2 * u.um)
-    wavelength = 532 * u.nm
     shape = (100, 100)
 
-    cslm = CalibratedSLM(physical_size=physical_size, wavelength=wavelength, shape=shape, monitor_id=0)
+    cslm = CalibratedSLM(physical_size=physical_size, shape=shape, monitor_id=0)
 
     assert cslm.physical_size == physical_size
-    assert cslm.wavelength == wavelength
     assert cslm.shape == shape
     assert cslm.monitor_id == 0
 
@@ -33,10 +31,9 @@ def test_calibrated_slm_phases():
     Test setting and reading phases in the CalibratedSLM class.
     """
     physical_size = (2 * u.um, 2 * u.um)
-    wavelength = 532 * u.nm
     shape = (100, 100)
 
-    cslm = CalibratedSLM(physical_size=physical_size, wavelength=wavelength, shape=shape, monitor_id=0)
+    cslm = CalibratedSLM(physical_size=physical_size, shape=shape, monitor_id=0)
 
     # Set random phases
     rnd = np.random.RandomState(42)
@@ -61,7 +58,6 @@ def test_cslm_field_amplitude():
     field_amplitude[30:70, 30:70] = 0
     cslm = CalibratedSLM(
         physical_size=(2 * u.um, 2 * u.um),
-        wavelength=532 * u.nm,
         amplitude=field_amplitude,
         shape=(100, 100),
         monitor_id=0,
@@ -75,7 +71,6 @@ def test_cslm_field_amplitude():
         field_amplitude[30:70, 30:70] = 0
         cslm = CalibratedSLM(
             physical_size=(2 * u.um, 2 * u.um),
-            wavelength=532 * u.nm,
             amplitude=field_amplitude,
             shape=(100, 100),
             monitor_id=0,
