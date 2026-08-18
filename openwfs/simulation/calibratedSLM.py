@@ -9,6 +9,7 @@ from typing import Callable
 class CalibratedSLM(SLM):
     
     def __init__(self, filter: Callable[[np.ndarray], np.ndarray], physical_size: tuple, wavelength: float, modulated_field_amplitude: np.ndarray, non_modulated_field_fraction: float = 0.0, *args, **kwargs):           
+        # check if no coordinate system is given
         super().__init__(*args, **kwargs)
 
         if modulated_field_amplitude.shape != self.shape:
@@ -44,29 +45,25 @@ class CalibratedSLM(SLM):
         return kx, ky    
 
 
-    @property
-    def field(self) -> Detector:
-        """
-        Return a Detector that computes the field at the SLM plane given the SLM phases.
-        """
-        return FilteredPhaseToField(self.phases, self.modulated_field_amplitude, self.non_modulated_field_fraction, self.filter)
+    
 
-
-class FilteredPhaseToField(PhaseToField):
+class FilterPropagate(Processor):
     """
     Take a phase as input, build the field and filter it with the SLM filter.
     Computes 'Filter[moduled_field_amplitude * exp(1j * phase) + non_modulated_field_fraction]'.
-     """
+    """
 
-    def __init__(self, slm_phases: Detector, modulated_field_amplitude: np.ndarray, slm_filter: Callable[ [np.ndarray], np.ndarray ], non_modulated_field_fraction: float = 0.0):
-        self.slm_phases = slm_phases
-        self.modulated_field_amplitude = modulated_field_amplitude
-        self.non_modulated_field_fraction = non_modulated_field_fraction
-        self.slm_filter = slm_filter
-        super().__init__(slm_phases, modulated_field_amplitude, non_modulated_field_fraction, multiprocessing=False)
+    def __init__(self, incident_field: CalibratedSLM, distance, diameter):
+        self.distance = distance
+        self.diameter = diameter
+        self._incident_field = incident_field
+        super().__init__(incident_field)
 
-    def _fetch(self) -> np.ndarray:
+    def _fetch(self, incident_field: np.ndarray) -> np.ndarray:
         """
         Compute the field at the SLM plane given the SLM phases.
         """
+        # compute coordinates from source SLM
+        kx, ky = self._incident_field.pupil2kspace_coordinates()
+        # propagation...
         return self.slm_filter(PhaseToField.read())
