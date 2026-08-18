@@ -31,6 +31,7 @@ class CalibratedSLM(SLM):
 
         self.physical_size = physical_size
 
+
 class FilterPropagate(Processor):
     """
     Computes 'Filter[slm.field]'.
@@ -46,5 +47,12 @@ class FilterPropagate(Processor):
         Compute the field at the SLM plane given the SLM phases.
         """
         incident_field = set_extent(incident_field, self.microscope.wfs_module.settings.slm_physical_size)
-        incident_field = MicroscopeOfTheFuture.filter_hole(incident_field, self.microscope.wavelength, self.microscope.wfs_module.settings.distance_mic_galvo, self.microscope.wfs_module.settings.d_beam, self.microscope.wfs_module.settings.d_mic_tube)
-        return self.slm_filter()
+        incident_field = MicroscopeOfTheFuture.filter_hole(
+            incident_field,
+            self.microscope.wavelength,
+            self.microscope.wfs_module.settings.distance_mic_galvo,
+            self.microscope.wfs_module.settings.d_beam,
+            self.microscope.wfs_module.settings.d_mic_tube,
+        )
+        incident_field = set_extent(incident_field, self.microscope.wfs_module.settings.slm_physical_size)
+        return incident_field
