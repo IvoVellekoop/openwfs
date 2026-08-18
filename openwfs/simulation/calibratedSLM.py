@@ -5,6 +5,7 @@ from openwfs.simulation.slm import PhaseToField
 from openwfs.utilities.patterns import coordinate_range
 from openwfs.core import Detector, Processor
 from typing import Callable
+from private_openwfs.devices.microscope_future import WFSSettings
 
 class CalibratedSLM(SLM):
     """
@@ -31,9 +32,8 @@ class FilterPropagate(Processor):
     Computes 'Filter[moduled_field_amplitude * exp(1j * phase) + non_modulated_field_fraction]'.
     """
 
-    def __init__(self, incident_field: CalibratedSLM, distance, diameter):
-        self.distance = distance
-        self.diameter = diameter
+    def __init__(self, incident_field: CalibratedSLM, system_properties: WFSSettings):
+        self.system_properties = system_properties
         self._incident_field = incident_field
         super().__init__(incident_field)
 
@@ -44,5 +44,4 @@ class FilterPropagate(Processor):
         # compute coordinates from source SLM
         x, y = self._incident_field._coordinates()
         # propagation...
-
         return self.slm_filter()
