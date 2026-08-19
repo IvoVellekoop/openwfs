@@ -155,13 +155,6 @@ class Microscope(Processor):
         if np.any(source_pixel_size > target_pixel_size):
             warnings.warn("The resolution of the specimen image is worse than that of the output.")
 
-        # Note: there seems to be a bug (feature?) in `fftconvolve` that shifts the image by one pixel
-        # when the 'same' option is used. To compensate for this feature,
-        # the image is shifted by `-source_pixel_size` here.
-        # TODO: this seems to add an emtpy row and column to the image, which is not what we want.
-        shift = Quantity((self.xy_stage.y, self.xy_stage.x)) - source_pixel_size
-        source = place(self.data_shape, target_pixel_size, source, shift)
-
         # Calculate the field in the pupil plane.
         #
         # First, set up pupil coordinates such that:
@@ -232,7 +225,7 @@ class Microscope(Processor):
         # Note: there is no need to `ifftshift` the pupil field, since we are taking the absolute value anyway
 
         psf = np.abs(np.fft.ifft2(pupil_field)) ** 2
-        psf = np.fft.ifftshift(psf) * (psf.size / pupil_area)
+        psf = np.fft.fftshift(psf) * (psf.size / pupil_area)
 
         psf = psf**self.nonlinearity  # added for 2 pm
 
