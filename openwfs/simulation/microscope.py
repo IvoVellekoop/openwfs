@@ -114,7 +114,7 @@ class Microscope(Processor):
         self.numerical_aperture = numerical_aperture
         self.nonlinearity = nonlinearity
         self.aberration_transform = aberration_transform
-        self.slm_transform = incident_transform
+        self.incident_transform = incident_transform
         self.wavelength = wavelength.to(u.nm)
         self.immersion_refractive_index = immersion_refractive_index
         self.oversampling_factor = 2.0
@@ -223,7 +223,7 @@ class Microscope(Processor):
                 incident_field,
                 out_extent=pupil_extent,
                 out_shape=pupil_shape,
-                transform=self.slm_transform,
+                transform=self.incident_transform,
             )
         # Compute the point spread function
         # This is done by Fourier transforming the pupil field and taking the absolute value squared
