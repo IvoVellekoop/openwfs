@@ -67,8 +67,7 @@ def test_cslm_field_amplitude():
 
     # should throw an error if the amplitude shape does not match the SLM shape
     try:
-        field_amplitude = np.ones((99, 99)) * 10
-        field_amplitude[30:70, 30:70] = 0
+        field_amplitude = np.ones((99, 99))
         cslm = CalibratedSLM(
             physical_size=(2 * u.um, 2 * u.um),
             amplitude=field_amplitude,
