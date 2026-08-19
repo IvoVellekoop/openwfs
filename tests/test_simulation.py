@@ -354,3 +354,73 @@ def test_microscope_z_stack():
     assert np.allclose(imgs[0, :, :], img_z_first)
     assert np.allclose(imgs[1, :, :], img_z_second)
     assert imgs.shape == (z.size, img_z_second.shape[0], img_z_second.shape[1])
+
+
+def test_microscope_convolution():
+    slm = SLM(shape=(7, 7))
+    slm.set_phases(0)
+    data = np.ones((7, 7))
+    data[3, 3] = 0
+    source = StaticSource(data=data, pixel_size=1 * u.um)
+    mic = Microscope(
+        source=source,
+        numerical_aperture=0.8,
+        wavelength=500 * u.nm,
+        immersion_refractive_index=1.33,
+        incident_field=slm.field,
+    )
+    img = mic.read()
+    img == data
+
+    assert np.allclose(img, data)
+
+    slm = SLM(shape=(8, 8))
+    slm.set_phases(0)
+    data = np.ones((8, 8))
+    data[3, 3] = 0
+    source = StaticSource(data=data, pixel_size=1 * u.um)
+    mic = Microscope(
+        source=source,
+        numerical_aperture=0.8,
+        wavelength=500 * u.nm,
+        immersion_refractive_index=1.33,
+        incident_field=slm.field,
+    )
+    img = mic.read()
+    img == data
+
+    assert np.allclose(img, data)
+
+    slm = SLM(shape=(7, 8))
+    slm.set_phases(0)
+    data = np.ones((7, 8))
+    data[3, 3] = 0
+    source = StaticSource(data=data, pixel_size=1 * u.um)
+    mic = Microscope(
+        source=source,
+        numerical_aperture=0.8,
+        wavelength=500 * u.nm,
+        immersion_refractive_index=1.33,
+        incident_field=slm.field,
+    )
+    img = mic.read()
+    img == data
+
+    assert np.allclose(img, data)
+
+    slm = SLM(shape=(8, 7))
+    slm.set_phases(0)
+    data = np.ones((8, 7))
+    data[3, 3] = 0
+    source = StaticSource(data=data, pixel_size=1 * u.um)
+    mic = Microscope(
+        source=source,
+        numerical_aperture=0.8,
+        wavelength=500 * u.nm,
+        immersion_refractive_index=1.33,
+        incident_field=slm.field,
+    )
+    img = mic.read()
+    img == data
+
+    assert np.allclose(img, data)
