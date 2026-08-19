@@ -227,11 +227,20 @@ class Microscope(Processor):
         psf = np.abs(np.fft.ifft2(pupil_field)) ** 2
         psf = np.fft.fftshift(psf) * (psf.size / pupil_area)
 
-        psf = psf**self.nonlinearity  # added for 2 pm
+        psf = psf**self.nonlinearity  # added for higher order microscopy (e.g. two-photon)
 
-        self._psf = psf  # store psf for later inspection
+        # convolution shifts the whole array by 1 pixel if the kernel has an even number of pixels in any dimension.
+        # Compensate for this by rolling the kernel by 1 pixel in that dimension.
+        if psf.shape[0] % 2 == 0:
+            psf_conv = np.roll(psf, -1, axis=0)
+        else:
+            psf_conv = psf
+        if psf.shape[1] % 2 == 0:
+            psf_conv = np.roll(psf_conv, -1, axis=1)
 
-        return fftconvolve(source, psf, "same")
+        self._psf = psf_conv  # store psf for later inspection
+
+        return fftconvolve(source, psf_conv, mode="same")
 
     @property
     def magnification(self) -> float:
