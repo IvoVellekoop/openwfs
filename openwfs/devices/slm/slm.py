@@ -664,7 +664,7 @@ class FrontBufferReader(Detector):
         self._context = Context(slm)
         super().__init__(
             data_shape=None,
-            pixel_size=None,
+            pixel_size=Quantity(2.0 / np.min(slm.shape)),
             duration=0.0 * u.ms,
             latency=0.0 * u.ms,
             multi_threaded=False,
@@ -690,7 +690,7 @@ class FrameBufferReader(Detector):
         self._context = Context(slm)
         super().__init__(
             data_shape=None,
-            pixel_size=None,
+            pixel_size=Quantity(2.0 / np.min(slm.shape)),
             duration=0.0 * u.ms,
             latency=0.0 * u.ms,
             multi_threaded=False,
