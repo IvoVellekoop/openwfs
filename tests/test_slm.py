@@ -3,7 +3,7 @@ import time
 import astropy.units as u
 import cv2
 import glfw
-import numpy as np  # for debugging
+import numpy as np
 import pytest
 
 from openwfs.devices import is_loaded
@@ -286,3 +286,51 @@ def test_circular_geometry(slm):
         np.repeat(np.flip(np.arange(30, 70)), 1).reshape((-1, 1)),
         atol=1,
     )
+
+
+def test_calibrated_slm_initialization():
+    """
+    Test the initialization of the CalibratedSLM class.
+    """
+    physical_size = (2 * u.um, 2 * u.um)
+    shape = (100, 100)
+
+    slm = SLM(physical_size=physical_size, shape=shape, monitor_id=0)
+
+    assert slm.physical_size == physical_size
+    assert slm.shape == shape
+    assert slm.monitor_id == 0
+
+    slm.physical_size = (3 * u.um, 3 * u.um)
+    assert slm.physical_size == (
+        3 * u.um,
+        3 * u.um,
+    ), "Physical size setter did not update the physical size correctly."
+
+
+def test_cslm_field_amplitude():
+    """
+    Test the field amplitude of the CalibratedSLM class.
+    """
+    field_amplitude = np.ones((100, 100)) * 10
+    field_amplitude[30:70, 30:70] = 0
+    slm = SLM(
+        physical_size=(2 * u.um, 2 * u.um),
+        amplitude=field_amplitude,
+        shape=(100, 100),
+        monitor_id=0,
+    )
+
+    assert np.allclose(slm.amplitude, field_amplitude), "The field amplitude does not match the expected value."
+
+    # should throw an error if the amplitude shape does not match the SLM shape
+    try:
+        field_amplitude = np.ones((99, 99))
+        slm = SLM(
+            physical_size=(2 * u.um, 2 * u.um),
+            amplitude=field_amplitude,
+            shape=(100, 100),
+            monitor_id=0,
+        )
+    except ValueError as e:
+        assert str(e) == "amplitude must have the same shape as the SLM shape."
