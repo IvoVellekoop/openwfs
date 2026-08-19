@@ -12,7 +12,7 @@ import numpy as np
 from astropy.units import Quantity
 from numpy.typing import ArrayLike
 
-from .utilities import set_pixel_size
+from openwfs.utilities.utilities import get_pixel_size, set_pixel_size
 
 
 class Device(ABC):
@@ -415,7 +415,8 @@ class Detector(Device, ABC):
             awaited_kwargs = {key: (arg.result() if isinstance(arg, Future) else arg) for (key, arg) in kwargs_.items()}
             logging.debug("fetching data of %s ((tid: %i)).", self, threading.get_ident())
             data = np.array(self._fetch(*awaited_args, **awaited_kwargs))
-            data = set_pixel_size(data, self.pixel_size)
+            if get_pixel_size(data) is None:
+                data = set_pixel_size(data, self.pixel_size)
             if self.data_shape is not None and data.shape != self.data_shape:
                 raise ValueError(f"Data shape {data.shape} does not match expected shape {self.data_shape} for {self}.")
             if out_ is not None:
