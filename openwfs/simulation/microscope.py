@@ -228,10 +228,9 @@ class Microscope(Processor):
         psf = np.fft.ifftshift(psf) * (psf.size / pupil_area)
         # ifft_shift shifts psf by 1 pixel when off centre, both when the array is odd and even
         # Compensate for this by rolling the kernel by -1 pixel in both x and y directions
-        psf = np.roll(psf, -1, axis=(0,1))
-        
-        psf = psf**self.nonlinearity  # added for higher order microscopy (e.g. two-photon)
+        psf = np.roll(psf, -1, axis=(0, 1))
 
+        psf = psf**self.nonlinearity  # added for higher order microscopy (e.g. two-photon)
 
         self._psf = psf  # store psf for later inspection
 
