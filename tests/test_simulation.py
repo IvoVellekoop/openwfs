@@ -427,11 +427,15 @@ def test_microscope_convolution():
 
 
 from openwfs.devices.slm import SLM
-def test_mock_microscope_with_transform():
-    transform = Transform(np.eye(2) * 2, (0,0), (0.1,0.1))
 
-    slm = SLM(shape=(70, 140), monitor_id=0, transform = transform, coordinate_system = 'full')
-    slm_I = SLM(shape=(70, 140), monitor_id=0, coordinate_system = 'full') # slm without transform, to test that the transform is applied correctly
+
+def test_mock_microscope_with_transform():
+    transform = Transform(np.eye(2) * 2, (0, 0), (0.1, 0.1))
+
+    slm = SLM(shape=(70, 140), monitor_id=0, transform=transform, coordinate_system="full")
+    slm_I = SLM(
+        shape=(70, 140), monitor_id=0, coordinate_system="full"
+    )  # slm without transform, to test that the transform is applied correctly
 
     slm.set_phases(np.zeros((70, 140)))
     slm_I.set_phases(np.zeros((70, 140)))
@@ -443,15 +447,37 @@ def test_mock_microscope_with_transform():
     assert np.allclose(source.read(), data)
 
     # use random seed and set phases
-    phases = propagation((70,140), 100*u.um, 500*u.nm, 0.8, 1.33, 2, )
+    phases = propagation(
+        (70, 140),
+        100 * u.um,
+        500 * u.nm,
+        0.8,
+        1.33,
+        2,
+    )
 
     slm.set_phases(phases)
     slm_I.set_phases(phases)
 
-    assert not np.allclose(slm.phases.read(), slm_I.phases.read(), rtol=1e-2, atol=1e-2) # because of the transform the phases should be different
+    assert not np.allclose(
+        slm.phases.read(), slm_I.phases.read(), rtol=1e-2, atol=1e-2
+    )  # because of the transform the phases should be different
 
-    mic = Microscope(source=source, numerical_aperture=0.8, wavelength=500 * u.nm, immersion_refractive_index=1.33, incident_field = slm.field, incident_transform = transform)
-    mic_I = Microscope(source=source, numerical_aperture=0.8, wavelength=500 * u.nm, immersion_refractive_index=1.33, incident_field = slm_I.field)
+    mic = Microscope(
+        source=source,
+        numerical_aperture=0.8,
+        wavelength=500 * u.nm,
+        immersion_refractive_index=1.33,
+        incident_field=slm.field,
+        incident_transform=transform,
+    )
+    mic_I = Microscope(
+        source=source,
+        numerical_aperture=0.8,
+        wavelength=500 * u.nm,
+        immersion_refractive_index=1.33,
+        incident_field=slm_I.field,
+    )
 
     # assert that the following gives an error because the both arrays should be different, since the transform is applied to the incident field in mic instead of the inverse transform (which would have canceled out the transform in slm)
     assert not np.allclose(mic.read(), mic_I.read(), rtol=1e-2, atol=1e-2)
@@ -461,7 +487,14 @@ def test_mock_microscope_with_transform():
     assert not rel_l2 < 1e-1
 
     # when the inverse transform is applied to the incident field in mic, the two arrays should be the same
-    mic = Microscope(source=source, numerical_aperture=0.8, wavelength=500 * u.nm, immersion_refractive_index=1.33, incident_field = slm.field, incident_transform = transform.inverse())
+    mic = Microscope(
+        source=source,
+        numerical_aperture=0.8,
+        wavelength=500 * u.nm,
+        immersion_refractive_index=1.33,
+        incident_field=slm.field,
+        incident_transform=transform.inverse(),
+    )
     slm.set_phases(phases)
     x = mic.read()
     y = mic_I.read()
