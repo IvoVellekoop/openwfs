@@ -1,6 +1,7 @@
 import logging  # noqa
 
 import astropy.units as u
+import glfw
 import numpy as np
 import pytest
 import skimage
@@ -12,7 +13,10 @@ from openwfs.utilities import get_pixel_size, Transform
 from openwfs.utilities.patterns import tilt, gaussian, parabola, binary_grating, propagation
 from openwfs.utilities.tests import get_test_microscope
 
-
+glfw.init()
+if not glfw.get_monitors():
+    pytest.skip("No monitors found", allow_module_level=True)
+    
 def test_mock_camera_and_single_roi():
     """
     The MockCamera wraps a Detector producing 2-D data, so that the data can be read by MicroManager.
