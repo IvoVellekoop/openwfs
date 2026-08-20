@@ -65,7 +65,7 @@ class SLM(Actuator, PhaseSLM):
         self,
         monitor_id: int = WINDOWED,
         shape: Optional[tuple[int, int]] = None,
-        physical_size: Optional[tuple[float, float]] = None,
+        physical_size: Quantity["length"] | None = None,
         pos: tuple[int, int] = (0, 0),
         refresh_rate: Optional[Quantity[u.Hz]] = None,
         latency: TimeType = 2,
@@ -91,7 +91,7 @@ class SLM(Actuator, PhaseSLM):
                 Note that OpenGL does not seem to support non-integer refresh rates.
                 In these cases, it is better to set the refresh rate in the OS, and not
                 explicitly specify a refresh rate.
-            physical_size (tuple[float, float]): Physical size of the SLM with astropy units (height, width).
+            physical_size (Quantity["length"]): Physical size of the SLM with astropy units (height, width).
             latency (int): Time between the vertical retrace and the start of the SLM response to the new frame,
                 specified in milliseconds (u.ms) or multiples of the frame period (unitless).
                 see :py:attr:`~latency`
