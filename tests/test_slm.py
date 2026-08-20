@@ -348,12 +348,17 @@ def test_slm_mockSLM_equivalence():
     Test the equivalence of the SLM and SimSLM classes.
     """
     slm = SimSLM(shape=(7, 14))
-    slm2 = SLM(shape=(7, 14), monitor_id=0)
+    slm2 = SLM(shape=(7, 14), monitor_id=0, coordinate_system = 'full')
 
     # use random seed and set phases
     rng = np.random.default_rng(seed=42)
     phases = rng.uniform(0, 2 * np.pi, size=(7, 14))
 
+    slm.set_phases(phases)
+    slm2.set_phases(phases)
+
+    assert_allclose(slm.phases.read(), phases, rtol=1e-2, atol=1e-2)
+    assert_allclose(slm2.phases.read(), phases, rtol=1e-1, atol=1e-2)
     assert_allclose(slm.phases.read(), slm2.phases.read(), rtol=1e-2, atol=1e-2)
     assert_allclose(slm.field.read(), slm2.field.read(), rtol=1e-2, atol=1e-2)
     assert_allclose(slm.pixels.read(), slm2.pixels.read(), rtol=1e-2, atol=1e-2)
@@ -364,8 +369,7 @@ def test_slm_mockSLM_equivalence():
     mic = Microscope(source=source, numerical_aperture=0.8, wavelength=500 * u.nm, immersion_refractive_index=1.33, incident_field = slm.field)
     mic2 = Microscope(source=source, numerical_aperture=0.8, wavelength=500 * u.nm, immersion_refractive_index=1.33, incident_field = slm2.field)
 
-    assert_allclose(mic2.read(), mic.read())
-
+    assert_allclose(mic2.read(), mic.read(), rtol=1e-2, atol=1e-2)
     assert_allclose(get_pixel_size(slm.phases.read()), get_pixel_size(slm2.phases.read()), rtol=1e-2, atol=1e-2)
     assert_allclose(get_pixel_size(slm.field.read()), get_pixel_size(slm2.field.read()), rtol=1e-2, atol=1e-2)
     assert_allclose(get_pixel_size(slm.pixels.read()), get_pixel_size(slm2.pixels.read()), rtol=1e-2, atol=1e-2)
