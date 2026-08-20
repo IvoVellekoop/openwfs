@@ -116,7 +116,7 @@ class SLM(Actuator, PhaseSLM):
         self._monitor_id = monitor_id
         default_shape, default_rate, _ = SLM._current_mode(self._monitor_id)
         self._shape = default_shape if shape is None else shape
-        self.physical_size = physical_size
+        self.physical_size = physical_size.to(u.mm)
         self._refresh_rate = default_rate if refresh_rate is None else refresh_rate.to_value(u.Hz)
         self._frame_buffer = None
         self._monitor = None
