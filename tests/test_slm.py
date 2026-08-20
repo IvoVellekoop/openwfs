@@ -14,6 +14,7 @@ from numpy.testing import assert_allclose
 from openwfs.utilities.utilities import get_pixel_size
 from openwfs.simulation.microscope import Microscope
 from openwfs.simulation.mockdevices import StaticSource
+from astropy.units import Quantity
 
 if not is_loaded(glfw):
     pytest.skip(glfw.message, allow_module_level=True)
@@ -297,20 +298,20 @@ def test_calibrated_slm_initialization():
     """
     Test the initialization of the CalibratedSLM class.
     """
-    physical_size = (2 * u.um, 2 * u.um)
+    physical_size = Quantity((2 * u.um, 2 * u.um))
     shape = (100, 100)
 
     slm = SLM(physical_size=physical_size, shape=shape, monitor_id=0)
 
-    assert slm.physical_size == physical_size
+    assert np.allclose(slm.physical_size, physical_size)
     assert slm.shape == shape
     assert slm.monitor_id == 0
 
-    slm.physical_size = (3 * u.um, 3 * u.um)
-    assert slm.physical_size == (
+    slm.physical_size = Quantity((3 * u.um, 3 * u.um))
+    assert np.allclose(slm.physical_size, Quantity((
         3 * u.um,
         3 * u.um,
-    ), "Physical size setter did not update the physical size correctly."
+    ))), "Physical size setter did not update the physical size correctly."
 
 
 def test_cslm_field_amplitude():
