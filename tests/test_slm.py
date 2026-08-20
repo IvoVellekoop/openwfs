@@ -308,10 +308,15 @@ def test_calibrated_slm_initialization():
     assert slm.monitor_id == 0
 
     slm.physical_size = Quantity((3 * u.um, 3 * u.um))
-    assert np.allclose(slm.physical_size, Quantity((
-        3 * u.um,
-        3 * u.um,
-    ))), "Physical size setter did not update the physical size correctly."
+    assert np.allclose(
+        slm.physical_size,
+        Quantity(
+            (
+                3 * u.um,
+                3 * u.um,
+            )
+        ),
+    ), "Physical size setter did not update the physical size correctly."
 
 
 def test_cslm_field_amplitude():
