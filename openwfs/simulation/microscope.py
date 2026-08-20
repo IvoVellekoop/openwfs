@@ -232,15 +232,15 @@ class Microscope(Processor):
         # convolution shifts the whole array by 1 pixel if the kernel has an even number of pixels in any dimension.
         # Compensate for this by rolling the kernel by 1 pixel in that dimension.
         if psf.shape[0] % 2 == 0:
-            psf_conv = np.roll(psf, -1, axis=0)
+            psf = np.roll(psf, -1, axis=0)
         else:
-            psf_conv = psf
+            psf = psf
         if psf.shape[1] % 2 == 0:
-            psf_conv = np.roll(psf_conv, -1, axis=1)
+            psf = np.roll(psf, -1, axis=1)
 
-        self._psf = psf_conv  # store psf for later inspection
+        self._psf = psf  # store psf for later inspection
 
-        return fftconvolve(source, psf_conv, mode="same")
+        return fftconvolve(source, psf, mode="same")
 
     @property
     def magnification(self) -> float:
