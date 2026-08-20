@@ -124,7 +124,7 @@ class SLM(Actuator, PhaseSLM):
         self._globals = -1
         self._hidden = hidden
         self.patches = []
-        self.amplitude = amplitude
+        self.amplitude = np.asarray(amplitude)
         self._context = None
         self._create_window()  # sets self._context, self._window and self._globals and self._frame_patch, self._monitor
         self._coordinate_system = coordinate_system
