@@ -426,14 +426,14 @@ def test_microscope_convolution():
     assert np.allclose(img, data)
 
 
-from openwfs.devices.slm import SLM
+from openwfs.devices.slm import SLM as realSLM
 
 
 def test_mock_microscope_with_transform():
     transform = Transform(np.eye(2) * 2, (0, 0), (0.1, 0.1))
 
-    slm = SLM(shape=(70, 140), monitor_id=0, transform=transform, coordinate_system="full")
-    slm_I = SLM(
+    slm = realSLM(shape=(70, 140), monitor_id=0, transform=transform, coordinate_system="full")
+    slm_I = realSLM(
         shape=(70, 140), monitor_id=0, coordinate_system="full"
     )  # slm without transform, to test that the transform is applied correctly
 
