@@ -16,7 +16,8 @@ from openwfs.utilities.tests import get_test_microscope
 glfw.init()
 if not glfw.get_monitors():
     pytest.skip("No monitors found", allow_module_level=True)
-    
+
+
 def test_mock_camera_and_single_roi():
     """
     The MockCamera wraps a Detector producing 2-D data, so that the data can be read by MicroManager.
