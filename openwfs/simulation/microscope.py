@@ -225,18 +225,13 @@ class Microscope(Processor):
         # Note: there is no need to `ifftshift` the pupil field, since we are taking the absolute value anyway
 
         psf = np.abs(np.fft.ifft2(pupil_field)) ** 2
-        psf = np.fft.fftshift(psf) * (psf.size / pupil_area)
-
+        psf = np.fft.ifftshift(psf) * (psf.size / pupil_area)
+        # ifft_shift shifts psf by 1 pixel when off centre, both when the array is odd and even
+        # Compensate for this by rolling the kernel by -1 pixel in both x and y directions
+        psf = np.roll(psf, -1, axis=(0,1))
+        
         psf = psf**self.nonlinearity  # added for higher order microscopy (e.g. two-photon)
 
-        # convolution shifts the whole array by 1 pixel if the kernel has an even number of pixels in any dimension.
-        # Compensate for this by rolling the kernel by 1 pixel in that dimension.
-        if psf.shape[0] % 2 == 0:
-            psf = np.roll(psf, -1, axis=0)
-        else:
-            psf = psf
-        if psf.shape[1] % 2 == 0:
-            psf = np.roll(psf, -1, axis=1)
 
         self._psf = psf  # store psf for later inspection
 
