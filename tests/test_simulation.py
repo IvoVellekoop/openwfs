@@ -13,10 +13,6 @@ from openwfs.utilities import get_pixel_size, Transform
 from openwfs.utilities.patterns import tilt, gaussian, parabola, binary_grating, propagation
 from openwfs.utilities.tests import get_test_microscope
 
-glfw.init()
-if not glfw.get_monitors():
-    pytest.skip("No monitors found", allow_module_level=True)
-
 
 def test_mock_camera_and_single_roi():
     """
@@ -435,6 +431,10 @@ from openwfs.devices.slm import SLM as realSLM
 
 
 def test_mock_microscope_with_transform():
+    glfw.init()
+    if not glfw.get_monitors():
+        pytest.skip("No monitors found", allow_module_level=True)
+
     transform = Transform(np.eye(2) * 2, (0, 0), (0.1, 0.1))
 
     slm = realSLM(shape=(70, 140), monitor_id=0, transform=transform, coordinate_system="full")
