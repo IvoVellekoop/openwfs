@@ -8,10 +8,10 @@ import pytest
 
 from openwfs.devices import is_loaded
 from openwfs.devices.slm import SLM, Patch, geometry
-from openwfs.utilities import Transform
+from openwfs.utilities import Transform, project
 from openwfs.simulation.slm import SLM as SimSLM
 from numpy.testing import assert_allclose
-from openwfs.utilities.utilities import get_pixel_size
+from openwfs.utilities.utilities import get_pixel_size, set_extent
 from openwfs.simulation.microscope import Microscope
 from openwfs.simulation.mockdevices import StaticSource
 from astropy.units import Quantity
@@ -389,3 +389,58 @@ def test_slm_mockSLM_equivalence():
     assert_allclose(get_pixel_size(slm.phases.read()), get_pixel_size(slm2.phases.read()), rtol=1e-2, atol=1e-2)
     assert_allclose(get_pixel_size(slm.field.read()), get_pixel_size(slm2.field.read()), rtol=1e-2, atol=1e-2)
     assert_allclose(get_pixel_size(slm.pixels.read()), get_pixel_size(slm2.pixels.read()), rtol=1e-2, atol=1e-2)
+
+    # test that physical size is handled correctly and that transform in mock microscope is applied correctly:
+    slm2 = SLM(shape=(7, 14), monitor_id=0, coordinate_system="full", physical_size=(10, 5) * u.mm)
+
+    slm2.set_phases(phases)
+
+    assert_allclose(slm.phases.read(), phases, rtol=1e-2, atol=1e-2)
+    assert_allclose(slm2.phases.read(), phases, rtol=1e-1, atol=1e-2)
+    assert_allclose(slm.phases.read(), slm2.phases.read(), rtol=1e-2, atol=1e-2)
+    assert_allclose(slm.field.read(), slm2.field.read(), rtol=1e-2, atol=1e-2)
+    assert_allclose(slm.pixels.read(), slm2.pixels.read(), rtol=1e-2, atol=1e-2)
+
+    data = np.ones((7, 14))
+    data[3, 3] = 0
+    source = StaticSource(data=data, pixel_size=1 * u.um)
+    mic = Microscope(
+        source=source,
+        numerical_aperture=0.8,
+        wavelength=500 * u.nm,
+        immersion_refractive_index=1.33,
+        incident_field=slm.field,
+    )
+    mic2 = Microscope(
+        source=source,
+        numerical_aperture=0.8,
+        wavelength=500 * u.nm,
+        immersion_refractive_index=1.33,
+        incident_field=slm2.field,
+    )
+
+    assert_allclose(mic2.read(), mic.read(), rtol=1e-2, atol=1e-2)
+
+    # the following is used in the mock microscope to convert the physical size of the SLM to normalized coordinates.
+    # We test that this is done correctly.
+    extent_physical = Quantity((10, 5), u.mm)
+    x_physical = set_extent(phases, extent_physical)
+    x_norm = set_extent(phases, 2)
+
+    assert np.allclose(x_norm, x_physical, rtol=1e-2, atol=1e-2)
+    x_norm_projected = project(
+        x_norm,
+        out_extent=2,
+        out_shape=(7, 14),
+        interp=cv2.INTER_LINEAR,
+    )
+
+    x_physical_projected = project(
+        x_physical,
+        out_extent=2,
+        out_shape=(7, 14),
+        transform=Transform(np.diag(2 / extent_physical)),
+        interp=cv2.INTER_LINEAR,
+    )
+
+    assert np.allclose(x_norm_projected, x_physical_projected, rtol=1e-2, atol=1e-2)
