@@ -11,7 +11,7 @@ from scipy.signal import fftconvolve
 from ..core import Processor, Detector
 from ..plot_utilities import imshow  # noqa - for debugging
 from ..simulation.mockdevices import XYStage, LinearStage, StaticSource
-from ..utilities import project, place, Transform, get_pixel_size, patterns
+from ..utilities import project, place, Transform, get_pixel_size, patterns, get_extent
 from ..utilities.patterns import propagation
 
 
@@ -114,7 +114,12 @@ class Microscope(Processor):
         self.numerical_aperture = numerical_aperture
         self.nonlinearity = nonlinearity
         self.aberration_transform = aberration_transform
-        self.incident_transform = incident_transform
+        # if no transform is provided, assume that the incident field is already in normalized pupil coordinates
+        self.incident_transform = (
+            incident_transform
+            if incident_transform is not None or incident_field is None
+            else Transform(np.diag(2 / get_extent(incident_field.read())))
+        )
         self.wavelength = wavelength.to(u.nm)
         self.immersion_refractive_index = immersion_refractive_index
         self.oversampling_factor = 2.0
@@ -206,7 +211,7 @@ class Microscope(Processor):
                     out_extent=pupil_extent,
                     out_shape=pupil_shape,
                     transform=self.aberration_transform,
-                    interp=cv2.INTER_CUBIC,
+                    interp=cv2.INTER_LINEAR,
                 )
             )
 
@@ -225,22 +230,16 @@ class Microscope(Processor):
         # Note: there is no need to `ifftshift` the pupil field, since we are taking the absolute value anyway
 
         psf = np.abs(np.fft.ifft2(pupil_field)) ** 2
-        psf = np.fft.fftshift(psf) * (psf.size / pupil_area)
+        psf = np.fft.ifftshift(psf) * (psf.size / pupil_area)
+        # ifft_shift shifts psf by 1 pixel when off centre, both when the array is odd and even
+        # Compensate for this by rolling the kernel by -1 pixel in both x and y directions
+        psf = np.roll(psf, -1, axis=(0, 1))
 
         psf = psf**self.nonlinearity  # added for higher order microscopy (e.g. two-photon)
 
-        # convolution shifts the whole array by 1 pixel if the kernel has an even number of pixels in any dimension.
-        # Compensate for this by rolling the kernel by 1 pixel in that dimension.
-        if psf.shape[0] % 2 == 0:
-            psf_conv = np.roll(psf, -1, axis=0)
-        else:
-            psf_conv = psf
-        if psf.shape[1] % 2 == 0:
-            psf_conv = np.roll(psf_conv, -1, axis=1)
+        self._psf = psf  # store psf for later inspection
 
-        self._psf = psf_conv  # store psf for later inspection
-
-        return fftconvolve(source, psf_conv, mode="same")
+        return fftconvolve(source, psf, mode="same")
 
     @property
     def magnification(self) -> float:

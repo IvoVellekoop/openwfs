@@ -1,6 +1,7 @@
 import logging  # noqa
 
 import astropy.units as u
+import glfw
 import numpy as np
 import pytest
 import skimage
@@ -8,9 +9,10 @@ import skimage
 from openwfs.algorithms import StepwiseSequential
 from openwfs.processors import SingleRoi
 from openwfs.simulation import Microscope, Camera, StaticSource, SLM
-from openwfs.utilities import get_pixel_size, Transform
+from openwfs.utilities import get_pixel_size, Transform, set_extent, project
 from openwfs.utilities.patterns import tilt, gaussian, parabola, binary_grating, propagation
 from openwfs.utilities.tests import get_test_microscope
+import cv2
 
 
 def test_mock_camera_and_single_roi():
@@ -430,32 +432,25 @@ from openwfs.devices.slm import SLM as realSLM
 
 
 def test_mock_microscope_with_transform():
-    transform = Transform(np.eye(2) * 2, (0, 0), (0.1, 0.1))
+    # test that the transform is applied correctly to the incident field in the microscope, and that the inverse transform can be used to cancel out the transform in the SLM
+    glfw.init()
+    if not glfw.get_monitors():
+        pytest.skip("No monitors found", allow_module_level=True)
 
-    slm = realSLM(shape=(70, 140), monitor_id=0, transform=transform, coordinate_system="full")
-    slm_I = realSLM(
-        shape=(70, 140), monitor_id=0, coordinate_system="full"
-    )  # slm without transform, to test that the transform is applied correctly
+    transform = Transform(np.eye(2) * 1.2, (0, 0), (0.1, 0.05))
+    transform_I = Transform(np.eye(2), (0, 0), (0, 0))  # identity transform
 
-    slm.set_phases(np.zeros((70, 140)))
-    slm_I.set_phases(np.zeros((70, 140)))
+    slm = realSLM(shape=(700, 1400), monitor_id=0, transform=transform, coordinate_system="full")
+    # slm without transform, to test that the transform is applied correctly
+    slm_I = realSLM(shape=(700, 1400), monitor_id=0, coordinate_system="full", transform=transform_I)
 
-    data = np.ones((70, 140))
-    data[30:60, 30:60] = 0
-    source = StaticSource(data=data, pixel_size=1 * u.um)
+    data = np.ones((700, 1400))  # mock data for the source, with a rectangle in the middle
+    data[300:600, 300:1000] = 0
+    source = StaticSource(data=data, pixel_size=0.2 * u.um)
 
     assert np.allclose(source.read(), data)
 
-    # use random seed and set phases
-    phases = propagation(
-        (70, 140),
-        100 * u.um,
-        500 * u.nm,
-        0.8,
-        1.33,
-        2,
-    )
-
+    phases = parabola((700, 1400), alpha=1, extent=(2, 4)) * 30
     slm.set_phases(phases)
     slm_I.set_phases(phases)
 
@@ -477,6 +472,7 @@ def test_mock_microscope_with_transform():
         wavelength=500 * u.nm,
         immersion_refractive_index=1.33,
         incident_field=slm_I.field,
+        incident_transform=transform_I,
     )
 
     # assert that the following gives an error because the both arrays should be different, since the transform is applied to the incident field in mic instead of the inverse transform (which would have canceled out the transform in slm)
@@ -487,7 +483,7 @@ def test_mock_microscope_with_transform():
     assert not rel_l2 < 1e-1
 
     # when the inverse transform is applied to the incident field in mic, the two arrays should be the same
-    mic = Microscope(
+    mic_inverse = Microscope(
         source=source,
         numerical_aperture=0.8,
         wavelength=500 * u.nm,
@@ -496,7 +492,34 @@ def test_mock_microscope_with_transform():
         incident_transform=transform.inverse(),
     )
     slm.set_phases(phases)
-    x = mic.read()
-    y = mic_I.read()
-    rel_l2 = np.linalg.norm(x - y) / np.linalg.norm(x)
+    inverse = mic_inverse.read()
+
+    rel_l2 = np.linalg.norm(inverse - y) / np.linalg.norm(inverse)
     assert rel_l2 < 1e-1
+
+
+def test_transform_and_inverse_transform():
+    # example phase mask
+    phases = propagation(
+        (700, 1400),
+        30 * u.um,
+        500 * u.nm,
+        0.8,
+        1.33,
+        (2, 4),
+    )
+    phases = set_extent(phases, (2, 4))
+    transform = Transform(np.eye(2) * 1.2, (0, 0), (0.1, 0.1))
+
+    # move through a series of projections and back projections to test that the transform and inverse transform are applied correctly
+    out = project(phases, out_extent=3, out_shape=(500, 500), transform=transform, interp=cv2.INTER_LINEAR)
+    out2 = project(
+        out, out_extent=(2, 4), out_shape=phases.shape, transform=transform.inverse(), interp=cv2.INTER_LINEAR
+    )
+
+    out3 = project(out2, out_extent=1.5, out_shape=(300, 300), transform=None, interp=cv2.INTER_LINEAR)
+
+    phases3 = project(phases, out_extent=1.5, out_shape=(300, 300), transform=None, interp=cv2.INTER_LINEAR)
+
+    # compare the final output to the original phases projected directly to the final extent and shape
+    assert np.allclose(out3, phases3, atol=3e-2), "The projected fields do not match!"
