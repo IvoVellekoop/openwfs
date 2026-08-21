@@ -495,7 +495,6 @@ def test_mock_microscope_with_transform():
     inverse = mic_inverse.read()
 
     rel_l2 = np.linalg.norm(inverse - y) / np.linalg.norm(inverse)
-    print("relative L2 norm of difference between mic_inverse and mic_I:", rel_l2)
     assert rel_l2 < 1e-1
 
 
