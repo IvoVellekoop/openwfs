@@ -432,36 +432,25 @@ from openwfs.devices.slm import SLM as realSLM
 
 
 def test_mock_microscope_with_transform():
+    # test that the transform is applied correctly to the incident field in the microscope, and that the inverse transform can be used to cancel out the transform in the SLM
     glfw.init()
     if not glfw.get_monitors():
         pytest.skip("No monitors found", allow_module_level=True)
 
-    transform = Transform(np.eye(2) * 2, (0, 0), (0.1, 0.1))
+    transform = Transform(np.eye(2) * 1.2, (0, 0), (0.1, 0.05))
+    transform_I = Transform(np.eye(2), (0, 0), (0, 0))  # identity transform
 
-    slm = realSLM(shape=(70, 140), monitor_id=0, transform=transform, coordinate_system="full")
-    slm_I = realSLM(
-        shape=(70, 140), monitor_id=0, coordinate_system="full"
-    )  # slm without transform, to test that the transform is applied correctly
+    slm = realSLM(shape=(700, 1400), monitor_id=0, transform=transform, coordinate_system="full")
+    # slm without transform, to test that the transform is applied correctly
+    slm_I = realSLM(shape=(700, 1400), monitor_id=0, coordinate_system="full", transform=transform_I)
 
-    slm.set_phases(np.zeros((70, 140)))
-    slm_I.set_phases(np.zeros((70, 140)))
-
-    data = np.ones((70, 140))
-    data[30:60, 30:60] = 0
-    source = StaticSource(data=data, pixel_size=1 * u.um)
+    data = np.ones((700, 1400))  # mock data for the source, with a rectangle in the middle
+    data[300:600, 300:1000] = 0
+    source = StaticSource(data=data, pixel_size=0.2 * u.um)
 
     assert np.allclose(source.read(), data)
 
-    # use random seed and set phases
-    phases = propagation(
-        (70, 140),
-        100 * u.um,
-        500 * u.nm,
-        0.8,
-        1.33,
-        2,
-    )
-
+    phases = parabola((700, 1400), alpha=1, extent=(2, 4)) * 30
     slm.set_phases(phases)
     slm_I.set_phases(phases)
 
@@ -483,6 +472,7 @@ def test_mock_microscope_with_transform():
         wavelength=500 * u.nm,
         immersion_refractive_index=1.33,
         incident_field=slm_I.field,
+        incident_transform=transform_I,
     )
 
     # assert that the following gives an error because the both arrays should be different, since the transform is applied to the incident field in mic instead of the inverse transform (which would have canceled out the transform in slm)
@@ -493,7 +483,7 @@ def test_mock_microscope_with_transform():
     assert not rel_l2 < 1e-1
 
     # when the inverse transform is applied to the incident field in mic, the two arrays should be the same
-    mic = Microscope(
+    mic_inverse = Microscope(
         source=source,
         numerical_aperture=0.8,
         wavelength=500 * u.nm,
@@ -502,9 +492,10 @@ def test_mock_microscope_with_transform():
         incident_transform=transform.inverse(),
     )
     slm.set_phases(phases)
-    x = mic.read()
-    y = mic_I.read()
-    rel_l2 = np.linalg.norm(x - y) / np.linalg.norm(x)
+    inverse = mic_inverse.read()
+
+    rel_l2 = np.linalg.norm(inverse - y) / np.linalg.norm(inverse)
+    print("relative L2 norm of difference between mic_inverse and mic_I:", rel_l2)
     assert rel_l2 < 1e-1
 
 
