@@ -42,7 +42,7 @@ class SLM(Actuator, PhaseSLM):
         "_frame_buffer",
         "_monitor",
         "patches",
-        "amplitude",
+        "_amplitude",
         "primary_patch",
         "_coordinate_system",
         "_pixel_reader",
@@ -129,7 +129,7 @@ class SLM(Actuator, PhaseSLM):
         self._globals = -1
         self._hidden = hidden
         self.patches = []
-        self.amplitude = np.asarray(amplitude)
+        self._amplitude = np.asarray(amplitude)
         self._context = None
         self._create_window()  # sets self._context, self._window and self._globals and self._frame_patch, self._monitor
         self._coordinate_system = coordinate_system
@@ -629,6 +629,17 @@ class SLM(Actuator, PhaseSLM):
         if self._phase_reader is None:
             self._phase_reader = FrameBufferReader(self)
         return self._phase_reader
+
+    @property
+    def amplitude(self) -> float:
+        return self._amplitude
+
+    @amplitude.setter
+    def amplitude(self, value: float) -> None:
+        self._amplitude = value
+
+        if self._field_reader is not None:
+            self._field_reader.modulated_field_amplitude = value
 
     def clone(
         self,
