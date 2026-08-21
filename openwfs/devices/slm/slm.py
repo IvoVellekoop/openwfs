@@ -116,8 +116,12 @@ class SLM(Actuator, PhaseSLM):
         self._monitor_id = monitor_id
         default_shape, default_rate, _ = SLM._current_mode(self._monitor_id)
         self._shape = default_shape if shape is None else shape
-        # set extent to 2 for shortest axis if no physical size is provided. 
-        self.physical_size = 2/np.min(self._shape)*Quantity(self._shape) if physical_size is None else Quantity(physical_size).to(u.mm)
+        # set extent to 2 for shortest axis if no physical size is provided.
+        self.physical_size = (
+            2 / np.min(self._shape) * Quantity(self._shape)
+            if physical_size is None
+            else Quantity(physical_size).to(u.mm)
+        )
         self._refresh_rate = default_rate if refresh_rate is None else refresh_rate.to_value(u.Hz)
         self._frame_buffer = None
         self._monitor = None
