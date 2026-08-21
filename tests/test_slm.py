@@ -444,3 +444,19 @@ def test_slm_mockSLM_equivalence():
     )
 
     assert np.allclose(x_norm_projected, x_physical_projected, rtol=1e-2, atol=1e-2)
+
+
+def test_slm_update_amplitude():
+    # test if amplitude of field is correctly updated when changing the amplitude property of the SLM
+
+    # use random seed and set phases
+    rng = np.random.default_rng(seed=42)
+    amp = rng.uniform(size=(7, 14))
+    slm = SLM(monitor_id=0, shape=(7, 14), physical_size=(70, 140) * u.mm, amplitude=amp)
+
+    assert np.allclose(np.abs(slm.field.read()), amp)
+
+    amp = rng.uniform(size=(7, 14))
+    slm.amplitude = amp
+
+    assert np.allclose(np.abs(slm.field.read()), amp)
