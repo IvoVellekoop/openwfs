@@ -117,7 +117,7 @@ class Microscope(Processor):
         # if no transform is provided, assume that the incident field is already in normalized pupil coordinates
         self.incident_transform = (
             incident_transform
-            if incident_transform is not None
+            if incident_transform is not None or incident_field is None
             else Transform(np.diag(2 / get_extent(incident_field.read())))
         )
         self.wavelength = wavelength.to(u.nm)
