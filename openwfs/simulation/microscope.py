@@ -11,7 +11,7 @@ from scipy.signal import fftconvolve
 from ..core import Processor, Detector
 from ..plot_utilities import imshow  # noqa - for debugging
 from ..simulation.mockdevices import XYStage, LinearStage, StaticSource
-from ..utilities import project, place, Transform, get_pixel_size, patterns
+from ..utilities import project, place, Transform, get_pixel_size, patterns, get_extent
 from ..utilities.patterns import propagation
 
 
@@ -114,7 +114,12 @@ class Microscope(Processor):
         self.numerical_aperture = numerical_aperture
         self.nonlinearity = nonlinearity
         self.aberration_transform = aberration_transform
-        self.incident_transform = incident_transform
+        # if no transform is provided, assume that the incident field is already in normalized pupil coordinates
+        self.incident_transform = (
+            incident_transform
+            if incident_transform is not None
+            else Transform(np.diag(2 / get_extent(incident_field.read())))
+        )
         self.wavelength = wavelength.to(u.nm)
         self.immersion_refractive_index = immersion_refractive_index
         self.oversampling_factor = 2.0
@@ -206,7 +211,7 @@ class Microscope(Processor):
                     out_extent=pupil_extent,
                     out_shape=pupil_shape,
                     transform=self.aberration_transform,
-                    interp=cv2.INTER_CUBIC,
+                    interp=cv2.INTER_LINEAR,
                 )
             )
 
