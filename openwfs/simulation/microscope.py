@@ -8,6 +8,8 @@ from astropy.units import Quantity
 from numpy.typing import ArrayLike
 from scipy.signal import fftconvolve
 
+from openwfs.utilities.utilities import set_extent
+
 from ..core import Processor, Detector
 from ..plot_utilities import imshow  # noqa - for debugging
 from ..simulation.mockdevices import XYStage, LinearStage, StaticSource
@@ -130,7 +132,7 @@ class Microscope(Processor):
 
         # PSF of the microscope, which is used to convolve the source image
         self.psf = _PSF(
-            data_shape=data_shape,
+            data_shape=self._data_shape,
             pupil_extent = self.pupil_extent,
             numerical_aperture=numerical_aperture,
             wavelength=wavelength,
@@ -299,7 +301,17 @@ class _SLM_Aberration(Processor):
                 out_shape=self._pupil_shape,
                 transform=self.incident_transform,
             )
-        return pupil_field
+        return set_extent(pupil_field, self._pupil_extent)
+
+
+    @property
+    def data_shape(self) -> tuple:
+        """Returns the shape of the image in the pupil plane.
+
+        Returns:
+            tuple: The dimensions of the output image (height, width).
+        """
+        return self._pupil_shape
 
 class _PupilField(Processor):
     """
@@ -312,7 +324,6 @@ class _PupilField(Processor):
         *,
         pupil_shape=None,
         pupil_extent=None,
-        pixel_size: Quantity[u.um] = None,
         numerical_aperture: float = 1.0,
         wavelength: Quantity[u.nm],
         xy_stage=None,
@@ -366,7 +377,7 @@ class _PupilField(Processor):
         # Add defocus from z-stage
         if self.z_stage is not None:
             phase = propagation(
-                self._pupil_shape,
+                self._data_shape,
                 distance=self.z_stage.position,
                 wavelength=self.wavelength,
                 refractive_index=self.immersion_refractive_index,
@@ -375,7 +386,12 @@ class _PupilField(Processor):
             )
             pupil_field = pupil_field * np.exp(1j * phase)
 
-        return pupil_field
+        return set_extent(pupil_field, self._pupil_extent)
+
+    @property
+    def data_shape(self) -> tuple:
+        return self._data_shape
+    
 
 class _PSF(Processor):
     def __init__(
@@ -396,17 +412,10 @@ class _PSF(Processor):
         aberration_transform: Optional[Transform] = None,
         multi_threaded: bool = True,
     ):
-        self._magnification = magnification
-        self._data_shape = data_shape
-        self._pupil_extent = pupil_extent
-        self.numerical_aperture = numerical_aperture
-        self.nonlinearity = nonlinearity
-        self.wavelength = wavelength
-        self._psf = None
-
+        
         self.pupil_field = _PupilField(
             pupil_shape=data_shape,
-            pupil_extent = self._pupil_extent,
+            pupil_extent = pupil_extent,
             aberrations=aberrations,
             incident_field=incident_field,
             wavelength=wavelength,
@@ -417,7 +426,15 @@ class _PSF(Processor):
             xy_stage=xy_stage,
             z_stage=z_stage,
         )
+
         super().__init__(self.pupil_field, multi_threaded=multi_threaded)
+        self._magnification = magnification
+        self._data_shape = data_shape
+        self._pupil_extent = pupil_extent
+        self.numerical_aperture = numerical_aperture
+        self.nonlinearity = nonlinearity
+        self.wavelength = wavelength
+        self._psf = None
 
 
     def _fetch(
@@ -433,22 +450,21 @@ class _PSF(Processor):
         Returns:
             np.ndarray: The point spread function (PSF) of the microscope.
         """
-        # condition 2. Minimum number of pixels in x and y should be data_shape
-        pupil_shape = self._data_shape
-
-        # Compute the field in the pupil plane
-        # The aberrations and the SLM phase pattern are both mapped to the pupil plane coordinates
-        pupil_field = patterns.disk(pupil_shape, radius=1.0, extent=self._pupil_extent)
-        pupil_area = np.sum(pupil_field)  # TODO (efficiency): compute area directly from radius
+        # pupil area for normalization of the PSF, so that a pupil fully filled with a field strength of 1.0 will produce an image
+        # that has the same total intensity as the source image.
+        pupil_area = patterns.disk(self.data_shape, radius=1.0, extent=self._pupil_extent)
+        pupil_area = np.sum(pupil_area)  # TODO (efficiency): compute area directly from radius
 
         psf = np.abs(np.fft.ifft2(pupil_field)) ** 2
+
         psf = np.fft.ifftshift(psf) * (psf.size / pupil_area)
         # ifft_shift shifts psf by 1 pixel when off centre, both when the array is odd and even
         # Compensate for this by rolling the kernel by -1 pixel in both x and y directions
         psf = np.roll(psf, -1, axis=(0, 1))
 
         psf = psf**self.nonlinearity  # added for higher order microscopy (e.g. two-photon)
+        return set_extent(psf, self._pupil_extent)
 
-        return psf
-
-
+    @property
+    def data_shape(self) -> tuple:
+        return self._data_shape
