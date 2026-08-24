@@ -9,10 +9,12 @@ import skimage
 from openwfs.algorithms import StepwiseSequential
 from openwfs.processors import SingleRoi
 from openwfs.simulation import Microscope, Camera, StaticSource, SLM
+from openwfs.simulation.microscope import _PSF, _SLM_Aberration, _PupilField
 from openwfs.utilities import get_pixel_size, Transform, set_extent, project
-from openwfs.utilities.patterns import tilt, gaussian, parabola, binary_grating, propagation
+from openwfs.utilities.patterns import tilt, gaussian, parabola, binary_grating, propagation, disk
 from openwfs.utilities.tests import get_test_microscope
 import cv2
+from openwfs.devices.slm import SLM as realSLM
 
 
 def test_mock_camera_and_single_roi():
@@ -428,9 +430,6 @@ def test_microscope_convolution():
     assert np.allclose(img, data)
 
 
-from openwfs.devices.slm import SLM as realSLM
-
-
 def test_mock_microscope_with_transform():
     # test that the transform is applied correctly to the incident field in the microscope, and that the inverse transform can be used to cancel out the transform in the SLM
     glfw.init()
@@ -523,3 +522,41 @@ def test_transform_and_inverse_transform():
 
     # compare the final output to the original phases projected directly to the final extent and shape
     assert np.allclose(out3, phases3, atol=3e-2), "The projected fields do not match!"
+
+
+def test_mock_microscope_individual_components():
+    """
+    Test that the individual components of the microscope can be constructed and read out without exceptions being thrown.
+    """
+    slm = realSLM(shape=(700, 1400), monitor_id=0, coordinate_system="full")
+
+    data = np.ones((700, 1400))
+    data[300:600, 300:600] = 0
+    source = StaticSource(data=data, pixel_size=100 * u.um)
+    assert np.allclose(source.read(), data)
+
+    slm.set_phases(0)
+
+    source = source
+    data_shape=source.data_shape
+    numerical_aperture = 1
+    wavelength = 500 * u.nm
+    nonlinearity = 1
+    magnification = 1
+    immersion_refractive_index = 1.0
+    incident_field = slm.field
+    multi_threaded: bool = True
+
+    slm_aberrations = _SLM_Aberration(pupil_shape = data_shape, pupil_extent = 2, wavelength = wavelength, immersion_refractive_index = immersion_refractive_index, incident_field = incident_field)
+    expected = disk(shape=data_shape, radius=1.0, extent=2)
+
+    assert np.allclose(np.abs(slm_aberrations.read()), expected, atol=1e-2)
+
+    pupil_field = _PupilField(pupil_shape=data_shape, pupil_extent=2, numerical_aperture=numerical_aperture, wavelength=wavelength, immersion_refractive_index=immersion_refractive_index, incident_field=incident_field, multi_threaded=multi_threaded)
+
+    assert np.allclose(np.abs(pupil_field.read()), expected, atol=1e-2)
+
+    psf = _PSF(data_shape=data_shape, pupil_extent=0.1, numerical_aperture=numerical_aperture, wavelength=wavelength, immersion_refractive_index=immersion_refractive_index, incident_field=incident_field, multi_threaded=multi_threaded)
+    psf_expected = np.zeros(data_shape)
+    psf_expected[data_shape[0]//2-1, data_shape[1]//2-1] = 1
+    assert np.allclose(psf.read(), psf_expected, atol=1e-2)
