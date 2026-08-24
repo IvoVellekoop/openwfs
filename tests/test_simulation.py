@@ -538,7 +538,7 @@ def test_mock_microscope_individual_components():
     slm.set_phases(0)
 
     source = source
-    data_shape=source.data_shape
+    data_shape = source.data_shape
     numerical_aperture = 1
     wavelength = 500 * u.nm
     nonlinearity = 1
@@ -547,16 +547,38 @@ def test_mock_microscope_individual_components():
     incident_field = slm.field
     multi_threaded: bool = True
 
-    slm_aberrations = _SLM_Aberration(pupil_shape = data_shape, pupil_extent = 2, wavelength = wavelength, immersion_refractive_index = immersion_refractive_index, incident_field = incident_field)
+    slm_aberrations = _SLM_Aberration(
+        pupil_shape=data_shape,
+        pupil_extent=2,
+        wavelength=wavelength,
+        immersion_refractive_index=immersion_refractive_index,
+        incident_field=incident_field,
+    )
     expected = disk(shape=data_shape, radius=1.0, extent=2)
 
     assert np.allclose(np.abs(slm_aberrations.read()), expected, atol=1e-2)
 
-    pupil_field = _PupilField(pupil_shape=data_shape, pupil_extent=2, numerical_aperture=numerical_aperture, wavelength=wavelength, immersion_refractive_index=immersion_refractive_index, incident_field=incident_field, multi_threaded=multi_threaded)
+    pupil_field = _PupilField(
+        pupil_shape=data_shape,
+        pupil_extent=2,
+        numerical_aperture=numerical_aperture,
+        wavelength=wavelength,
+        immersion_refractive_index=immersion_refractive_index,
+        incident_field=incident_field,
+        multi_threaded=multi_threaded,
+    )
 
     assert np.allclose(np.abs(pupil_field.read()), expected, atol=1e-2)
 
-    psf = _PSF(data_shape=data_shape, pupil_extent=0.1, numerical_aperture=numerical_aperture, wavelength=wavelength, immersion_refractive_index=immersion_refractive_index, incident_field=incident_field, multi_threaded=multi_threaded)
+    psf = _PSF(
+        data_shape=data_shape,
+        pupil_extent=0.1,
+        numerical_aperture=numerical_aperture,
+        wavelength=wavelength,
+        immersion_refractive_index=immersion_refractive_index,
+        incident_field=incident_field,
+        multi_threaded=multi_threaded,
+    )
     psf_expected = np.zeros(data_shape)
-    psf_expected[data_shape[0]//2-1, data_shape[1]//2-1] = 1
+    psf_expected[data_shape[0] // 2 - 1, data_shape[1] // 2 - 1] = 1
     assert np.allclose(psf.read(), psf_expected, atol=1e-2)

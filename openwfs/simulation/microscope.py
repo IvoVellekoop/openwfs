@@ -103,14 +103,14 @@ class Microscope(Processor):
             if get_pixel_size(source) is None:
                 raise ValueError("The source must have a pixel_size attribute.")
             source = StaticSource(source)
-            
+
         self._source = source
         self._magnification = magnification
         # First crop and downscale the source image to have the same size as the output
         # todo: add some padding
         # todo: add option for oversampling
         source_pixel_size = source.pixel_size
-        
+
         if np.any(source_pixel_size > self.target_pixel_size):
             warnings.warn("The resolution of the specimen image is worse than that of the output.")
 
@@ -133,7 +133,7 @@ class Microscope(Processor):
         # PSF of the microscope, which is used to convolve the source image
         self.psf = _PSF(
             data_shape=self._data_shape,
-            pupil_extent = self.pupil_extent,
+            pupil_extent=self.pupil_extent,
             numerical_aperture=numerical_aperture,
             wavelength=wavelength,
             nonlinearity=nonlinearity,
@@ -148,15 +148,12 @@ class Microscope(Processor):
         )
 
         super().__init__(source, self.psf, multi_threaded=multi_threaded)
-        self.pupil_field = self.psf.pupil_field # detector that looks at the field in the pupil plane
-        self.slm_aberration = self.psf.pupil_field._slm_aberration # detector that looks at aberrations and slm phase in pupil plane
+        self.pupil_field = self.psf.pupil_field  # detector that looks at the field in the pupil plane
+        self.slm_aberration = (
+            self.psf.pupil_field._slm_aberration
+        )  # detector that looks at aberrations and slm phase in pupil plane
 
-        
-    def _fetch(
-        self,
-        source: np.ndarray,
-        psf: np.ndarray
-    ) -> np.ndarray:
+    def _fetch(self, source: np.ndarray, psf: np.ndarray) -> np.ndarray:
         """Updates the image on the camera sensor.
 
         To compute the image:
@@ -247,12 +244,13 @@ class Microscope(Processor):
             z_stack_images[ind, ...] = self.read()
         return z_stack_images
 
+
 class _SLM_Aberration(Processor):
     def __init__(
         self,
         *,
-        pupil_shape = None,
-        pupil_extent = None,
+        pupil_shape=None,
+        pupil_extent=None,
         wavelength: Quantity[u.nm],
         immersion_refractive_index: Optional[float] = 1.0,
         incident_field: Union[Detector, ArrayLike, None] = None,
@@ -303,7 +301,6 @@ class _SLM_Aberration(Processor):
             )
         return set_extent(pupil_field, self._pupil_extent)
 
-
     @property
     def data_shape(self) -> tuple:
         """Returns the shape of the image in the pupil plane.
@@ -313,12 +310,14 @@ class _SLM_Aberration(Processor):
         """
         return self._pupil_shape
 
+
 class _PupilField(Processor):
     """
     Computes the field in the pupil plane of the microscope, given the SLM phase pattern and aberrations.
-    The field is computed by multiplying the SLM phase pattern and aberrations and propagation due to z stage movement, 
+    The field is computed by multiplying the SLM phase pattern and aberrations and propagation due to z stage movement,
     and masking with the pupil function corresponding to the numerical aperture of the microscope objective.
     """
+
     def __init__(
         self,
         *,
@@ -344,14 +343,14 @@ class _PupilField(Processor):
 
         self._slm_aberration = _SLM_Aberration(
             pupil_shape=pupil_shape,
-            pupil_extent = pupil_extent,
+            pupil_extent=pupil_extent,
             wavelength=wavelength,
             immersion_refractive_index=immersion_refractive_index,
             incident_field=incident_field,
             incident_transform=incident_transform,
             aberrations=aberrations,
             aberration_transform=aberration_transform,
-            multi_threaded=multi_threaded
+            multi_threaded=multi_threaded,
         )
 
         super().__init__(self._slm_aberration, multi_threaded=multi_threaded)
@@ -391,14 +390,14 @@ class _PupilField(Processor):
     @property
     def data_shape(self) -> tuple:
         return self._data_shape
-    
+
 
 class _PSF(Processor):
     def __init__(
         self,
         *,
         data_shape=None,
-        pupil_extent = None,
+        pupil_extent=None,
         numerical_aperture: float = 1.0,
         wavelength: Quantity[u.nm],
         nonlinearity: int = 1,
@@ -412,10 +411,10 @@ class _PSF(Processor):
         aberration_transform: Optional[Transform] = None,
         multi_threaded: bool = True,
     ):
-        
+
         self.pupil_field = _PupilField(
             pupil_shape=data_shape,
-            pupil_extent = pupil_extent,
+            pupil_extent=pupil_extent,
             aberrations=aberrations,
             incident_field=incident_field,
             wavelength=wavelength,
@@ -435,7 +434,6 @@ class _PSF(Processor):
         self.nonlinearity = nonlinearity
         self.wavelength = wavelength
         self._psf = None
-
 
     def _fetch(
         self,
