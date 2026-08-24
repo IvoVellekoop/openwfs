@@ -131,6 +131,8 @@ class Microscope(Processor):
         self.slm_aberration = self.psf.pupil_field.slm_aberration
 
         super().__init__(source, self.psf, multi_threaded=multi_threaded)
+        self.pupil_field = self.psf.pupil_field # detector that looks at the field in the pupil plane
+        self.slm_aberration = self.psf.pupil_field.slm_aberration # detector that looks at aberrations and slm phase in pupil plane
 
         self._magnification = magnification
         self._data_shape = data_shape if data_shape is not None else source.data_shape
