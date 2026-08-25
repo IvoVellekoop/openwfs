@@ -595,3 +595,4 @@ def test_mock_microscope_individual_components():
     multi_threaded=multi_threaded)
 
     assert np.allclose(mic.read(), data)
+    assert np.allclose(mic.psf.read(), psf.read())
