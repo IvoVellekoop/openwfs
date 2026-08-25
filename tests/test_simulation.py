@@ -597,9 +597,9 @@ def test_mock_microscope_individual_components():
     assert np.allclose(mic.read(), data)
     assert np.allclose(mic.psf.read(), psf.read())
 
-@pytest.mark.parametrize("physical_size", [[2,2], [2,4]])
+@pytest.mark.parametrize("physical_size", [u.Quantity([2,2], u.mm), u.Quantity([2,4], u.mm), None])
 def test_transform_SLM_Aberration(physical_size):
-    slm = realSLM(shape=(700, 1400), monitor_id=0, coordinate_system="full", physical_size = u.Quantity(physical_size, u.mm))
+    slm = realSLM(shape=(700, 1400), monitor_id=0, coordinate_system="full", physical_size = physical_size)
     phi = disk((700, 1400), radius = 1 , extent = 2)
     data = np.ones((700, 1400))
     data[300:600, 300:600] = 0
@@ -635,3 +635,15 @@ def test_transform_SLM_Aberration(physical_size):
     slm.set_phases(phases)
 
     assert np.allclose(np.mod(phi*phases, 2*np.pi), np.mod(phi * np.angle(slm_aberrations.read()), 2*np.pi), rtol=1e-2, atol=1e-2)
+
+def test_transform_slm():
+    # check that transform shifts the SLM pattern correctly
+    extent = u.Quantity([2,7], u.mm)
+
+    transform = Transform(np.eye(2),  (0, 0), (0.0, 1))
+    slm = realSLM(shape=(700, 1400), monitor_id=0, transform=transform, coordinate_system="full", physical_size = extent)
+    slm.set_phases(disk((700, 1400), radius = 1 , extent = 3))
+
+    disk2 = disk((700, 1400), radius = 1 , extent = 3, offset= (0,1.5))
+
+    assert np.allclose(disk2 , np.angle(slm.field.read()), rtol=1e-2, atol=1e-2)
