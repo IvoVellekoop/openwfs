@@ -114,12 +114,11 @@ class Microscope(Processor):
         if np.any(source_pixel_size > self.target_pixel_size):
             warnings.warn("The resolution of the specimen image is worse than that of the output.")
 
-        self._data_shape = data_shape if data_shape is not None else source.data_shape
         self.numerical_aperture = numerical_aperture
         self.nonlinearity = nonlinearity
         self.aberration_transform = aberration_transform
         # if no transform is provided, assume that the incident field is already in normalized pupil coordinates
-        self.incident_transform = (
+        self._incident_transform = (
             incident_transform
             if incident_transform is not None or incident_field is None
             else Transform(np.diag(2 / get_extent(incident_field.read())))
@@ -130,24 +129,28 @@ class Microscope(Processor):
         self.z_stage = z_stage or LinearStage(0.1 * u.um)
         self._psf = None
 
+        output_shape = data_shape if data_shape is not None else source.data_shape
+
         # PSF of the microscope, which is used to convolve the source image
         self.psf = _PSF(
-            data_shape=self._data_shape,
+            data_shape=output_shape,
             pupil_extent=self.pupil_extent,
             numerical_aperture=numerical_aperture,
             wavelength=wavelength,
             nonlinearity=nonlinearity,
             magnification=magnification,
-            xy_stage=xy_stage,
-            z_stage=z_stage,
+            xy_stage=self.xy_stage,
+            z_stage=self.z_stage,
             immersion_refractive_index=immersion_refractive_index,
             incident_field=incident_field,
-            incident_transform=incident_transform,
+            incident_transform=self._incident_transform,
             aberrations=aberrations,
             aberration_transform=aberration_transform,
         )
 
         super().__init__(source, self.psf, multi_threaded=multi_threaded)
+        self._data_shape = output_shape
+
         self.pupil_field = self.psf.pupil_field  # detector that looks at the field in the pupil plane
         self.slm_aberration = (
             self.psf.pupil_field._slm_aberration
@@ -230,6 +233,17 @@ class Microscope(Processor):
     def target_pixel_size(self) -> Quantity:
         return self.pixel_size / self.magnification
 
+    @property
+    def incident_transform(self) -> Optional[Transform]:
+        return self._incident_transform
+
+    @incident_transform.setter
+    def incident_transform(self, value: Optional[Transform]):
+        self.pupil_field._incident_transform = value
+        self.psf.pupil_field._incident_transform = value
+        self.slm_aberration._incident_transform = value
+
+
     def z_stack_read(self, z):
         """Measures a z-stack by moving the z-stage to different positions and reading the corresponding images
         Args:
@@ -264,7 +278,7 @@ class _SLM_Aberration(Processor):
         self._pupil_shape = pupil_shape
         self._pupil_extent = pupil_extent
         self.aberration_transform = aberration_transform
-        self.incident_transform = incident_transform
+        self._incident_transform = incident_transform
         self.wavelength = wavelength.to(u.nm)
         self.immersion_refractive_index = immersion_refractive_index
 
@@ -297,7 +311,7 @@ class _SLM_Aberration(Processor):
                 incident_field,
                 out_extent=self._pupil_extent,
                 out_shape=self._pupil_shape,
-                transform=self.incident_transform,
+                transform=self._incident_transform,
             )
         return set_extent(pupil_field, self._pupil_extent)
 
@@ -358,7 +372,7 @@ class _PupilField(Processor):
         self._pupil_extent = pupil_extent
         self.numerical_aperture = numerical_aperture
         self.aberration_transform = aberration_transform
-        self.incident_transform = incident_transform
+        self._incident_transform = incident_transform
         self.wavelength = wavelength.to(u.nm)
         self.immersion_refractive_index = immersion_refractive_index
         self.xy_stage = xy_stage or XYStage(0.1 * u.um, 0.1 * u.um)
