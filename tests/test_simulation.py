@@ -10,7 +10,7 @@ from openwfs.algorithms import StepwiseSequential
 from openwfs.processors import SingleRoi
 from openwfs.simulation import Microscope, Camera, StaticSource, SLM
 from openwfs.simulation.microscope import _PSF, _SLM_Aberration, _PupilField
-from openwfs.utilities import get_pixel_size, Transform, set_extent, project
+from openwfs.utilities import get_pixel_size, Transform, set_extent, project, get_extent
 from openwfs.utilities.patterns import tilt, gaussian, parabola, binary_grating, propagation, disk
 from openwfs.utilities.tests import get_test_microscope
 import cv2
@@ -596,3 +596,42 @@ def test_mock_microscope_individual_components():
 
     assert np.allclose(mic.read(), data)
     assert np.allclose(mic.psf.read(), psf.read())
+
+@pytest.mark.parametrize("physical_size", [[2,2], [2,4]])
+def test_transform_SLM_Aberration(physical_size):
+    slm = realSLM(shape=(700, 1400), monitor_id=0, coordinate_system="full", physical_size = u.Quantity(physical_size, u.mm))
+    phi = disk((700, 1400), radius = 1 , extent = 2)
+    data = np.ones((700, 1400))
+    data[300:600, 300:600] = 0
+    source = StaticSource(data=data, pixel_size=100 * u.um)
+    assert np.allclose(source.read(), data)    
+    source = source
+    data_shape = source.data_shape
+    numerical_aperture = 0.8
+    wavelength = 500 * u.nm
+    immersion_refractive_index = 1.0
+    incident_field = slm.field
+    transform = Transform(np.diag(2 / get_extent(incident_field.read())))
+
+    slm_aberrations = _SLM_Aberration(
+        pupil_shape=data_shape,
+        pupil_extent=2,
+        wavelength=wavelength,
+        immersion_refractive_index=immersion_refractive_index,
+        incident_field=incident_field,
+        incident_transform=transform
+    )
+
+    # use random seed and set phases
+    phases = propagation(
+            (700, 1400),
+            10 * u.um,
+            wavelength=wavelength,
+            numerical_aperture=numerical_aperture,
+            refractive_index=immersion_refractive_index,
+            extent=2,
+        )
+
+    slm.set_phases(phases)
+
+    assert np.allclose(np.mod(phi*phases, 2*np.pi), np.mod(phi * np.angle(slm_aberrations.read()), 2*np.pi), rtol=1e-2, atol=1e-2)
