@@ -8,7 +8,7 @@ from astropy.units import Quantity
 from numpy.typing import ArrayLike
 from scipy.signal import fftconvolve
 
-from openwfs.utilities.utilities import set_extent
+from openwfs.utilities.utilities import set_extent, get_extent
 
 from ..core import Processor, Detector
 from ..plot_utilities import imshow  # noqa - for debugging
