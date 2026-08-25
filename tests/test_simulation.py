@@ -582,3 +582,16 @@ def test_mock_microscope_individual_components():
     psf_expected = np.zeros(data_shape)
     psf_expected[data_shape[0] // 2 - 1, data_shape[1] // 2 - 1] = 1
     assert np.allclose(psf.read(), psf_expected, atol=1e-2)
+
+    mic = Microscope(
+    source=source,
+    data_shape=data_shape,
+    numerical_aperture=numerical_aperture,
+    wavelength=wavelength,
+    nonlinearity=nonlinearity,
+    magnification=magnification,
+    immersion_refractive_index=immersion_refractive_index,
+    incident_field=incident_field,
+    multi_threaded=multi_threaded)
+
+    assert np.allclose(mic.read(), data)
