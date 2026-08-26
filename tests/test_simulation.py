@@ -673,3 +673,21 @@ def test_transform_slm():
     disk2 = disk((700, 1400), radius = 1 , extent = 3, offset= (0,1.5))
 
     assert np.allclose(disk2 , np.angle(slm.field.read()), rtol=1e-2, atol=1e-2)
+
+# test that xy stage in mock micrsocope shifts the image correctly
+def test_mock_microscope_xy_stage():
+    data = np.ones((70, 140))  # mock data for the source, with a rectangle in the middle
+    data[30:60, 30:100] = 0
+    source = StaticSource(data=data, pixel_size=0.1 * u.um)
+
+    mic = Microscope(
+        source=source,
+        numerical_aperture=0.8,
+        wavelength=500 * u.nm,
+        immersion_refractive_index=1.33,
+    )
+    # roll image to t right by 5/0.1 [pixels] = 50 pixels, which is 5 um
+    img_rolled = np.roll(mic.read(), 50, axis=1)
+    mic.xy_stage.x = 5 * u.um
+    # assert images are equal on the part from 51 to end, because the first 50 pixels are rolled in the second image
+    assert np.allclose(img_rolled[:, 51:-15], mic.read()[:, 51:-15], rtol=1e-2, atol=1e-2)
