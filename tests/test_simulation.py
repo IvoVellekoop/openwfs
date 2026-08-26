@@ -571,6 +571,10 @@ def test_mock_microscope_individual_components():
     """
     Test that the individual components of the microscope can be constructed and read out without exceptions being thrown.
     """
+        # test that the transform is applied correctly to the incident field in the microscope, and that the inverse transform can be used to cancel out the transform in the SLM
+    glfw.init()
+    if not glfw.get_monitors():
+        pytest.skip("No monitors found", allow_module_level=True)
     slm = realSLM(shape=(700, 1400), monitor_id=0, coordinate_system="full")
 
     data = np.ones((700, 1400))
@@ -644,6 +648,10 @@ def test_mock_microscope_individual_components():
 
 @pytest.mark.parametrize("physical_size", [u.Quantity([2, 2], u.mm), u.Quantity([2, 4], u.mm), None])
 def test_transform_SLM_Aberration(physical_size):
+        # test that the transform is applied correctly to the incident field in the microscope, and that the inverse transform can be used to cancel out the transform in the SLM
+    glfw.init()
+    if not glfw.get_monitors():
+        pytest.skip("No monitors found", allow_module_level=True)
     slm = realSLM(shape=(700, 1400), monitor_id=0, coordinate_system="full", physical_size=physical_size)
     phi = disk((700, 1400), radius=1, extent=2)
     data = np.ones((700, 1400))
@@ -685,6 +693,10 @@ def test_transform_SLM_Aberration(physical_size):
 
 
 def test_transform_slm():
+    # test that the transform is applied correctly to the incident field in the microscope, and that the inverse transform can be used to cancel out the transform in the SLM
+    glfw.init()
+    if not glfw.get_monitors():
+        pytest.skip("No monitors found", allow_module_level=True)
     # check that transform shifts the SLM pattern correctly
     extent = u.Quantity([2, 7], u.mm)
 
