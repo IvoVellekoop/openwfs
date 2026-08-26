@@ -437,10 +437,16 @@ def test_mock_microscope_with_transform():
         pytest.skip("No monitors found", allow_module_level=True)
 
     transform = Transform(np.eye(2) * 0.6)
-    slm = realSLM(shape=(700, 1400), monitor_id=0, transform=transform, coordinate_system="full", physical_size = u.Quantity([2, 7], u.mm))
+    slm = realSLM(
+        shape=(700, 1400),
+        monitor_id=0,
+        transform=transform,
+        coordinate_system="full",
+        physical_size=u.Quantity([2, 7], u.mm),
+    )
 
     # slm without transform, to test that the transform is applied correctly
-    slm_I = realSLM(shape=(700, 1400), monitor_id=0, coordinate_system="full", physical_size = u.Quantity([2, 7], u.mm))
+    slm_I = realSLM(shape=(700, 1400), monitor_id=0, coordinate_system="full", physical_size=u.Quantity([2, 7], u.mm))
 
     data = np.ones((700, 1400))  # mock data for the source, with a rectangle in the middle
     data[300:600, 300:1000] = 0
@@ -484,14 +490,20 @@ def test_mock_microscope_with_transform():
         wavelength=500 * u.nm,
         immersion_refractive_index=1.33,
         incident_field=slm.field,
-        incident_transform=transform.inverse().compose(transform2) 
+        incident_transform=transform.inverse().compose(transform2),
     )
     inverse = mic_inverse.read()
     assert np.allclose(inverse, img_I, rtol=1e-2, atol=1e-2)
 
     # add test with off centre transform
-    transform = Transform(np.eye(2) * 0.6, source_origin = (0,0), destination_origin = (-0.2, 0.3))
-    slm = realSLM(shape=(700, 1400), monitor_id=0, transform=transform, coordinate_system="full", physical_size = u.Quantity([2, 7], u.mm))
+    transform = Transform(np.eye(2) * 0.6, source_origin=(0, 0), destination_origin=(-0.2, 0.3))
+    slm = realSLM(
+        shape=(700, 1400),
+        monitor_id=0,
+        transform=transform,
+        coordinate_system="full",
+        physical_size=u.Quantity([2, 7], u.mm),
+    )
     slm.set_phases(phases)
     assert not np.allclose(
         slm.phases.read(), slm_I.phases.read(), rtol=1e-2, atol=1e-2
@@ -509,7 +521,11 @@ def test_mock_microscope_with_transform():
     img = mic.read()
     assert not np.allclose(img, img_I, rtol=1e-2, atol=1e-2)
 
-    transform2 = Transform(np.diag(2 / get_extent(slm.phases.read())), source_origin=u.Quantity([0, 0])*u.mm, destination_origin=u.Quantity([0, 0]))
+    transform2 = Transform(
+        np.diag(2 / get_extent(slm.phases.read())),
+        source_origin=u.Quantity([0, 0]) * u.mm,
+        destination_origin=u.Quantity([0, 0]),
+    )
     # when the inverse transform is applied to the incident field in mic, the two arrays should be the same
     mic_inverse = Microscope(
         source=source,
@@ -517,11 +533,12 @@ def test_mock_microscope_with_transform():
         wavelength=500 * u.nm,
         immersion_refractive_index=1.33,
         incident_field=slm.field,
-        incident_transform=transform.inverse().compose(transform2), 
+        incident_transform=transform.inverse().compose(transform2),
     )
 
     inverse = mic_inverse.read()
     assert np.allclose(inverse, img_I, rtol=1e-2, atol=1e-2)
+
 
 def test_transform_and_inverse_transform():
     # example phase mask
@@ -610,27 +627,29 @@ def test_mock_microscope_individual_components():
     assert np.allclose(psf.read(), psf_expected, atol=1e-2)
 
     mic = Microscope(
-    source=source,
-    data_shape=data_shape,
-    numerical_aperture=numerical_aperture,
-    wavelength=wavelength,
-    nonlinearity=nonlinearity,
-    magnification=magnification,
-    immersion_refractive_index=immersion_refractive_index,
-    incident_field=incident_field,
-    multi_threaded=multi_threaded)
+        source=source,
+        data_shape=data_shape,
+        numerical_aperture=numerical_aperture,
+        wavelength=wavelength,
+        nonlinearity=nonlinearity,
+        magnification=magnification,
+        immersion_refractive_index=immersion_refractive_index,
+        incident_field=incident_field,
+        multi_threaded=multi_threaded,
+    )
 
     assert np.allclose(mic.read(), data)
     assert np.allclose(mic.psf.read(), psf.read())
 
-@pytest.mark.parametrize("physical_size", [u.Quantity([2,2], u.mm), u.Quantity([2,4], u.mm), None])
+
+@pytest.mark.parametrize("physical_size", [u.Quantity([2, 2], u.mm), u.Quantity([2, 4], u.mm), None])
 def test_transform_SLM_Aberration(physical_size):
-    slm = realSLM(shape=(700, 1400), monitor_id=0, coordinate_system="full", physical_size = physical_size)
-    phi = disk((700, 1400), radius = 1 , extent = 2)
+    slm = realSLM(shape=(700, 1400), monitor_id=0, coordinate_system="full", physical_size=physical_size)
+    phi = disk((700, 1400), radius=1, extent=2)
     data = np.ones((700, 1400))
     data[300:600, 300:600] = 0
     source = StaticSource(data=data, pixel_size=100 * u.um)
-    assert np.allclose(source.read(), data)    
+    assert np.allclose(source.read(), data)
     source = source
     data_shape = source.data_shape
     numerical_aperture = 0.8
@@ -645,34 +664,38 @@ def test_transform_SLM_Aberration(physical_size):
         wavelength=wavelength,
         immersion_refractive_index=immersion_refractive_index,
         incident_field=incident_field,
-        incident_transform=transform
+        incident_transform=transform,
     )
 
     # use random seed and set phases
     phases = propagation(
-            (700, 1400),
-            10 * u.um,
-            wavelength=wavelength,
-            numerical_aperture=numerical_aperture,
-            refractive_index=immersion_refractive_index,
-            extent=2,
-        )
+        (700, 1400),
+        10 * u.um,
+        wavelength=wavelength,
+        numerical_aperture=numerical_aperture,
+        refractive_index=immersion_refractive_index,
+        extent=2,
+    )
 
     slm.set_phases(phases)
 
-    assert np.allclose(np.mod(phi*phases, 2*np.pi), np.mod(phi * np.angle(slm_aberrations.read()), 2*np.pi), rtol=1e-2, atol=1e-2)
+    assert np.allclose(
+        np.mod(phi * phases, 2 * np.pi), np.mod(phi * np.angle(slm_aberrations.read()), 2 * np.pi), rtol=1e-2, atol=1e-2
+    )
+
 
 def test_transform_slm():
     # check that transform shifts the SLM pattern correctly
-    extent = u.Quantity([2,7], u.mm)
+    extent = u.Quantity([2, 7], u.mm)
 
-    transform = Transform(np.eye(2),  (0, 0), (0.0, 1))
-    slm = realSLM(shape=(700, 1400), monitor_id=0, transform=transform, coordinate_system="full", physical_size = extent)
-    slm.set_phases(disk((700, 1400), radius = 1 , extent = 3))
+    transform = Transform(np.eye(2), (0, 0), (0.0, 1))
+    slm = realSLM(shape=(700, 1400), monitor_id=0, transform=transform, coordinate_system="full", physical_size=extent)
+    slm.set_phases(disk((700, 1400), radius=1, extent=3))
 
-    disk2 = disk((700, 1400), radius = 1 , extent = 3, offset= (0,1.5))
+    disk2 = disk((700, 1400), radius=1, extent=3, offset=(0, 1.5))
 
-    assert np.allclose(disk2 , np.angle(slm.field.read()), rtol=1e-2, atol=1e-2)
+    assert np.allclose(disk2, np.angle(slm.field.read()), rtol=1e-2, atol=1e-2)
+
 
 # test that xy stage in mock micrsocope shifts the image correctly
 def test_mock_microscope_xy_stage():
