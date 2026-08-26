@@ -474,7 +474,7 @@ def test_mock_microscope_with_transform():
     # assert that the following gives an error because the both arrays should be different, since the transform is applied to the incident field in mic instead of the inverse transform (which would have canceled out the transform in slm)
     img = mic.read()
     img_I = mic_I.read()
-    assert not np.allclose(mic.read(), mic_I.read(), rtol=1e-2, atol=1e-2)
+    assert not np.allclose(img, img_I, rtol=1e-2, atol=1e-2)
 
     transform2 = Transform(np.diag(2 / get_extent(slm.phases.read())))
     # when the inverse transform is applied to the incident field in mic, the two arrays should be the same
@@ -486,7 +486,40 @@ def test_mock_microscope_with_transform():
         incident_field=slm.field,
         incident_transform=transform.inverse().compose(transform2) 
     )
+    inverse = mic_inverse.read()
+    assert np.allclose(inverse, img_I, rtol=1e-2, atol=1e-2)
+
+    # add test with off centre transform
+    transform = Transform(np.eye(2) * 0.6, source_origin = (0,0), destination_origin = (-0.2, 0.3))
+    slm = realSLM(shape=(700, 1400), monitor_id=0, transform=transform, coordinate_system="full", physical_size = u.Quantity([2, 7], u.mm))
     slm.set_phases(phases)
+    assert not np.allclose(
+        slm.phases.read(), slm_I.phases.read(), rtol=1e-2, atol=1e-2
+    )  # because of the transform the phases should be different
+
+    mic = Microscope(
+        source=source,
+        numerical_aperture=0.8,
+        wavelength=500 * u.nm,
+        immersion_refractive_index=1.33,
+        incident_field=slm.field,
+    )
+
+    # assert that the following gives an error because the both arrays should be different, since the transform is applied to the incident field in mic instead of the inverse transform (which would have canceled out the transform in slm)
+    img = mic.read()
+    assert not np.allclose(img, img_I, rtol=1e-2, atol=1e-2)
+
+    transform2 = Transform(np.diag(2 / get_extent(slm.phases.read())), source_origin=u.Quantity([0, 0])*u.mm, destination_origin=u.Quantity([0, 0]))
+    # when the inverse transform is applied to the incident field in mic, the two arrays should be the same
+    mic_inverse = Microscope(
+        source=source,
+        numerical_aperture=0.8,
+        wavelength=500 * u.nm,
+        immersion_refractive_index=1.33,
+        incident_field=slm.field,
+        incident_transform=transform.inverse().compose(transform2), 
+    )
+
     inverse = mic_inverse.read()
     assert np.allclose(inverse, img_I, rtol=1e-2, atol=1e-2)
 
