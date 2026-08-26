@@ -175,6 +175,9 @@ class Microscope(Processor):
         Returns:
             np.ndarray: The resulting image as it would appear on a camera sensor.
         """
+        shift = Quantity((self.xy_stage.y, self.xy_stage.x))
+        source = place(self.data_shape, self.target_pixel_size, source, shift)
+
         self._psf = psf  # store psf for later inspection
         return fftconvolve(source, psf, mode="same")
 
