@@ -125,13 +125,11 @@ class Microscope(Processor):
             if incident_transform is not None or incident_field is None
             else Transform(np.diag(2 / (incident_field.pixel_size * incident_field.data_shape)))
         )
-
         self._wavelength = wavelength.to(u.nm)
         self._immersion_refractive_index = immersion_refractive_index
         self.xy_stage = xy_stage or XYStage(0.1 * u.um, 0.1 * u.um)
         self.z_stage = z_stage or LinearStage(0.1 * u.um)
         self._psf = None
-
         output_shape = data_shape if data_shape is not None else source.data_shape
 
         # PSF of the microscope, which is used to convolve the source image
@@ -151,12 +149,10 @@ class Microscope(Processor):
         )
 
         super().__init__(source, self.psf, multi_threaded=multi_threaded)
-        self._data_shape = output_shape
 
+        self._data_shape = output_shape
         self.pupil_field = self.psf.pupil_field  # detector that looks at the field in the pupil plane
-        self.slm_aberration = (
-            self.psf.pupil_field._slm_aberration
-        )  # detector that looks at aberrations and slm phase in pupil plane
+        self.slm_aberration = self.psf.pupil_field._slm_aberration  # detector that looks at aberrations and slm phase
 
     def _fetch(self, source: np.ndarray, psf: np.ndarray) -> np.ndarray:
         """Updates the image on the camera sensor.
