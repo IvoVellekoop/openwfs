@@ -147,29 +147,22 @@ class SLM(Actuator, PhaseSLM):
         Raises:
             Exception: If a full screen SLM is already present on the target monitor.
         """
+
+        def _assert_monitor_free(id):
+            if any(slm is not self and slm.monitor_id == id for slm in SLM._active_slms):
+                raise RuntimeError(f"Cannot create an SLM window because an SLM is already active on monitor {id}")
+            monitor_count = len(glfw.get_monitors())
+            if id > monitor_count:
+                raise IndexError(f"Monitor {monitor_id} not found, only {monitor_count} monitor(s) " f"are connected.")
+
         if monitor_id == SLM.WINDOWED:
-            if any([slm.monitor_id == 1 for slm in SLM._active_slms if slm is not self]):
-                raise RuntimeError(
-                    f"Cannot create an SLM window because a full-screen SLM is already active on monitor 1"
-                )
+            # windowed SLMs are put on monitor 1
+            _assert_monitor_free(1)
         else:
-            # we cannot have multiple full screen windows on the same monitor. Also, we cannot have
-            # a full screen window on monitor 1 if there are already windowed SLMs.
-            if any(
-                [
-                    slm.monitor_id == monitor_id or (monitor_id == 1 and slm.monitor_id == SLM.WINDOWED)
-                    for slm in SLM._active_slms
-                    if slm is not self
-                ]
-            ):
-                raise RuntimeError(
-                    f"Cannot create a full-screen SLM window on monitor {monitor_id} because a "
-                    f"window is already displayed on that monitor"
-                )
-            if monitor_id > len(glfw.get_monitors()):
-                raise IndexError(
-                    f"Monitor {monitor_id} not found, only {len(glfw.get_monitors())} monitor(s) " f"are connected."
-                )
+            _assert_monitor_free(monitor_id)
+            if monitor_id == 1:
+                # if we want to use monitor 1 full screen, check if there are no windowed SLMs shown on it
+                _assert_monitor_free(0)
 
     @staticmethod
     def _current_mode(monitor_id: int):

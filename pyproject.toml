@@ -59,6 +59,7 @@ dev = [
     "nidaqmx>=1.0.1",
     "black>=26.1.0",
     "uv>=0.9.0",
+    "complexipy>=7.0.1",
 ]
 docs = [
     "sphinx>=4.1.2",
@@ -86,6 +87,7 @@ in-project = true
 [build-system]
 requires = ["setuptools>=80", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
+
 
 [tool.setuptools_scm]
 version_file = "openwfs/_version.py"

@@ -170,9 +170,14 @@ def test_place():
     assert np.allclose(dst_resample, src_resample)
 
 
-def test_transform():
+@pytest.mark.parametrize("dtype", (np.float32, np.float64, np.complex64, np.complex128))
+def test_transform(dtype):
+    dtype = np.dtype(dtype)
     ps1 = (0.5, 2) * u.um
-    src = set_pixel_size(np.random.uniform(size=(7, 8)), ps1)
+    src = np.random.uniform(size=(7, 8)).astype(dtype)
+    if dtype.kind == "c":
+        src.imag = np.random.uniform(size=(7, 8))
+    src = set_pixel_size(src, ps1)
 
     identity = Transform()
     matrix = identity.cv2_matrix(src.shape, ps1, src.shape, ps1)

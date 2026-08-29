@@ -262,6 +262,9 @@ class Transform:
         return Transform()
 
 
+_real_dtype_from_complex = {"complex64": "float32", "complex128": "float64"}
+
+
 def place(
     out_shape: tuple[int, ...],
     out_pixel_size: Quantity,
@@ -308,75 +311,60 @@ def project(
     Args:
         source: input image.
         source_extent: extent of the source image in some physical unit.
-            If not given (``None``), the extent metadata of the input image is used.
-            see :func:`~get_extent`.
-        transform: optional transformed (rotate, translate, etc.)
-            to appy to the source image before placing it in the output
+            If given, it overrides the extent metadata of source (if present).
         out: optional array where the output image is stored in.
         out_extent: extent of the output image in some physical unit.
-            If not given, the extent metadata of the out image is used.
+            If given, it overrides the extent metadata of the out image (if present).
+        transform: optional transformed (rotate, translate, etc.)
+            to appy to the source image before placing it in the output
         out_shape: shape of the output image.
-            This value is ignored if `out` is specified.
+            Can only be provided if no output array is given (out=None)
         interp: interpolation method to use when rescaling the image. See OpenCV documentation for options.
 
     Returns:
         np.ndarray: the projected image (`out` if specified, otherwise a new array)
     """
-    transform = transform if transform is not None else Transform()
-    if out is not None:
-        if out_shape is not None and out_shape != out.shape:
-            raise ValueError("out_shape and out.shape must match. Note that out_shape may be omitted")
-        if out.dtype != source.dtype:
-            raise ValueError("out and source must have the same dtype")
+
+    if out is None:
+        out = np.empty(out_shape, dtype=str(source.dtype))  # erase metadata from dtype
+    else:
+        if out_shape is not None:
+            raise ValueError("out_shape should not be provided if an output array is already provided")
         out_shape = out.shape
-        out_extent = out_extent or get_extent(out)
-    if out_shape is None:
-        raise ValueError("Either out_shape or out must be specified")
-    if out_extent is None:
-        raise ValueError("Either out_extent or the pixel_size metadata of out must be specified")
-    source_extent = source_extent if source_extent is not None else get_extent(source)
+
+    if source_extent is None and (source_extent := get_extent(source)) is None:
+        raise ValueError(f"Missing source_extent, and source array has no extent metadata")
+    if out_extent is None and (out_extent := get_extent(out)) is None:
+        raise ValueError("Missing out_extent, and out array has no extent metadata")
+
+    transform = transform if transform is not None else Transform()
     source_ps = source_extent / np.array(source.shape)
     out_ps = out_extent / np.array(out_shape)
-
     t = transform.cv2_matrix(source.shape, source_ps, out_shape, out_ps)
-    # swap x and y in matrix and size, since cv2 uses the (x,y) convention.
-    out_size = (out_shape[1], out_shape[0])
-    if (source.dtype == np.complex128) or (source.dtype == np.complex64):
-        if out is None:
-            out = np.zeros(out_shape, dtype=source.dtype.str)
-        # real part
-        out.real = cv2.warpAffine(
-            source.real,
-            t,
-            out_size,
-            flags=interp,
-            borderMode=cv2.BORDER_CONSTANT,
-            borderValue=(0.0,),
-        )
-        # imaginary part
-        out.imag = cv2.warpAffine(
-            source.imag,
-            t,
-            out_size,
-            flags=interp,
-            borderMode=cv2.BORDER_CONSTANT,
-            borderValue=(0.0,),
-        )
 
-    else:
-        dst = cv2.warpAffine(
-            source,
+    def do_project(src, dst=None):
+        dst2 = cv2.warpAffine(
+            src,
             t,
-            out_size,
-            dst=out,
+            (out_shape[1], out_shape[0]),  # swap x and y in matrix and size, since cv2 uses the (x,y) convention.
+            dst=dst,
             flags=interp,
             borderMode=cv2.BORDER_CONSTANT,
             borderValue=(0.0,),
         )
-        if out is not None and out is not dst:
+        if dst2 is not dst:
             raise ValueError("OpenCV did not use the specified output array. This should not happen.")
-        out = dst
-    return set_pixel_size(out, out_ps)
+        return set_pixel_size(dst2, out_ps)
+
+    if source.dtype.kind == "c":
+        # opencv does not support complex numbers, but it does support pixels with 2 color component
+        # cast from complex array to real array with an extra dimension of size 2
+        real_type = _real_dtype_from_complex[str(source.dtype)]
+        s = source.view(dtype=real_type).reshape(*source.shape, 2)
+        o = out.view(dtype=real_type).reshape(*out_shape, 2)
+        return do_project(s, dst=o).view(dtype=out.dtype).reshape(out_shape)
+    else:
+        return do_project(source, dst=out)
 
 
 def set_pixel_size(data: ArrayLike, pixel_size: Optional[Quantity]) -> np.ndarray:
@@ -435,7 +423,7 @@ def get_pixel_size(data: np.ndarray) -> Optional[Quantity]:
     return data.dtype.metadata.get("pixel_size", None)
 
 
-def get_extent(data: np.ndarray) -> Quantity:
+def get_extent(data: np.ndarray, default=None) -> Quantity | None:
     """
     Extracts the extent from the data array.
     The extent is always equal to `shape * pixel_size`.

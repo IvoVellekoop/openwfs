@@ -10,52 +10,57 @@ from numpy import ndarray as nd
 from .core import Detector
 from .utilities import get_extent
 
-# TODO: needs review and documentation. Remove single-use functions, simplify code.
+# TODO: needs review, tests, and documentation. Remove single-use functions, simplify code.
 
 
 def grab_and_show(cam: Detector, axis=None):
     return imshow(cam.read(), axis=axis)
 
 
-def imshow(data, axis=None):
+def imshow(data: np.ndarray, axis=None):
+    """Version of imshow that automatically shows the correct axes based on the pixel size of the data"""
     extent = get_extent(data)
-    e0 = scale_prefix(extent[0])
-    e1 = scale_prefix(extent[1])
+    if extent is not None:
+        vy, uy = scale_prefix(extent[0])
+        vx, ux = scale_prefix(extent[1])
+    else:
+        vx, vy = data.shape
+        ux, uy = ("", "")
     if axis is None:
-        plt.imshow(data, extent=(0.0, e1.value, 0.0, e0.value), cmap="gray")
+        plt.imshow(data, extent=(0.0, vx, 0.0, vy), cmap="gray")
         plt.colorbar()
         axis = plt.gca()
     else:
-        axis.imshow(data, extent=(0.0, e1.value, 0.0, e0.value), cmap="gray")
-    plt.ylabel(e0.unit.to_string())
-    plt.xlabel(e1.unit.to_string())
+        axis.imshow(data, extent=(0.0, vx, 0.0, vy), cmap="gray")
+    plt.xlabel(ux)
+    plt.ylabel(uy)
     plt.show(block=False)
     plt.pause(0.1)
     return axis
 
 
-def scale_prefix(value: u.Quantity) -> u.Quantity:
-    """Scale a quantity to the most appropriate prefix unit."""
-    if value.unit.physical_type == "length":
-        if value < 100 * u.nm:
-            return value.to(u.nm)
-        if value < 100 * u.um:
-            return value.to(u.um)
-        if value < 100 * u.mm:
-            return value.to(u.mm)
-        else:
-            return value.to(u.m)
-    elif value.unit.physical_type == "time":
-        if value < 100 * u.ns:
-            return value.to(u.ns)
-        if value < 100 * u.us:
-            return value.to(u.us)
-        if value < 100 * u.ms:
-            return value.to(u.ms)
-        else:
-            return value.to(u.s)
+def scale_prefix(value: u.Quantity) -> tuple[float, str]:
+    """Scale a quantity to the most appropriate unit.
+    Returns:
+        Value (float) and unit (str)
+    """
+    v = float(value.value)
+    if value.unit is None:
+        return v, ""
+
+    base_unit = {"length": "m", "time": "s"}[str(value.unit.physical_type)]
+    if value < 100e-9:
+        return v * 1e9, "n" + base_unit
+    elif value < 100e-6:
+        return v * 1e6, "μ" + base_unit
+    elif value < 100e-3:
+        return v * 1e3, "m" + base_unit
+    elif value < 100:
+        return v, base_unit
+    elif value < 100e3:
+        return v / 1e3, "k" + base_unit
     else:
-        return value
+        return v / 1e6, "M" + base_unit
 
 
 def slope_step(a: nd, width: Union[nd, float]) -> nd:
