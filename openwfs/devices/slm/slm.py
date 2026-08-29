@@ -48,6 +48,7 @@ class SLM(Actuator, PhaseSLM):
         "_field_reader",
         "_context",
         "_clones",
+        "_hidden",
     ]
 
     _active_slms = WeakSet()
@@ -68,6 +69,7 @@ class SLM(Actuator, PhaseSLM):
         duration: TimeType = 1,
         coordinate_system: str = "short",
         transform: Optional[Transform] = None,
+        hidden=True,
     ):
         """
         Constructs a new SLM window.
@@ -96,6 +98,7 @@ class SLM(Actuator, PhaseSLM):
                 The `transform` determines how these vertex coordinates that make up the shape of a Patch (see
                 :class:`Patch`) are mapped to the SLM window.
                 By default, 'short' is used (see :attr:`transform`)
+            hidden: Requires `monitor_id=0`. When True, the SLM window is not shown. Useful for simulations (also see :py:attr:`~field`)
 
         Attributes:
             patches (list[Patch]): List of patches that are drawn on the SLM.
@@ -113,6 +116,7 @@ class SLM(Actuator, PhaseSLM):
         self._monitor = None
         self._window = None
         self._globals = -1
+        self._hidden = hidden
         self.patches = []
         self._context = None
         self._create_window()  # sets self._context, self._window and self._globals and self._frame_patch, self._monitor
@@ -297,7 +301,10 @@ class SLM(Actuator, PhaseSLM):
 
         if self._monitor_id == SLM.WINDOWED:
             self._monitor = None
+            glfw.window_hint(glfw.VISIBLE, glfw.FALSE if self._hidden else glfw.TRUE)
         else:
+            if self._hidden:
+                raise ValueError("Hidden SLM objects must always be windowed (monitor_id = SLM.WINDOWED)")
             self._monitor = glfw.get_monitors()[self._monitor_id - 1]
             glfw.set_monitor_user_pointer(self._monitor, self._monitor_id)
 

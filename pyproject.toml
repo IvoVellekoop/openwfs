@@ -27,9 +27,7 @@ classifiers = [
 dependencies = [
     "numpy>=1.25.2",
     "astropy>=6.0.0",
-#    "opencv-python>=4.9.0.80",
-#    "opencv-python=4.11.0.86",
-    "opencv-python>4.13",
+    "opencv-python>=4.9.0.80, != 4.13.0.*",
     "matplotlib>=3.7.3",
     "scipy>=1.11.3",
     "annotated-types>=0.7.0",
@@ -41,6 +39,7 @@ nidaq = ["nidaqmx>=1.0.1"]
 genicam = ["harvesters>=1.4.2; python_version < '3.12'"]
 opengl = ["PyOpenGL>=3.1.7", "glfw>=2.5.9"]
 zaber = ["zaber-motion>=4.0.0", "pyserial>=3.5"]
+thorlabs = ["pythonnet>=3.0.1"]
 all = [
     "nidaqmx>=1.0.1",
     "harvesters>=1.4.2; python_version < '3.12'",
@@ -48,6 +47,7 @@ all = [
     "glfw>=2.5.9",
     "zaber-motion>=4.0.0",
     "pyserial>=3.5",
+    "pythonnet>=3.0.1",
 ]
 
 # Development & documentation groups
@@ -55,6 +55,7 @@ dev = [
     "pre-commit>=2.20.0",
     "scikit-image>=0.21.0",
     "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
     "nidaqmx>=1.0.1",
     "black>=26.1.0",
     "uv>=0.9.0",

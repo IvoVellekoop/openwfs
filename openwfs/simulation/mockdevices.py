@@ -288,7 +288,7 @@ class Camera(ADCProcessor):
             TODO: move left-right-top-bottom to CropProcessor.
             Expose the properties of CropProcessor as properties of MockCamera automatically by copying from __dict__?
         """
-        self._crop = CropProcessor(source, shape=shape, pos=pos)
+        self._crop = CropProcessor(source, shape=shape if shape is not None else source.data_shape, pos=pos)
         super().__init__(source=self._crop, **kwargs)
         self._base_exposure = exposure
         self._exposure = exposure
@@ -436,6 +436,16 @@ class XYStage(Actuator):
     @y.setter
     def y(self, value: Quantity[u.um]):
         self._y = self.step_size_y * np.round(value.to(u.um) / self.step_size_y)
+
+    @property
+    def xy(self) -> tuple[Quantity, Quantity]:
+        # get current xy stage position
+        return self._x, self._y
+
+    @xy.setter
+    def xy(self, value: tuple[Quantity, Quantity]):
+        self._x = self.step_size_x * np.round(value[0].to(u.um) / self.step_size_x)
+        self._y = self.step_size_y * np.round(value[1].to(u.um) / self.step_size_y)
 
     def home(self):
         self._x = 0.0 * u.um
