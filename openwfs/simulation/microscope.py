@@ -122,7 +122,7 @@ class Microscope(Processor):
         # PSF of the microscope, which is used to convolve the source image
         self.psf = _PSF(
             data_shape=output_shape,
-            pupil_extent=self.pupil_extent,
+            pupil_extent=wavelength / self.pixel_size / numerical_aperture,
             numerical_aperture=numerical_aperture,
             wavelength=wavelength,
             nonlinearity=nonlinearity,
@@ -175,16 +175,6 @@ class Microscope(Processor):
             Quantity: The Abbe diffraction limit in length units.
         """
         return 0.5 * self.wavelength / self.numerical_aperture
-
-    @property
-    def pupil_extent(self) -> float:
-        return self.wavelength / self.pixel_size / self.numerical_aperture
-
-    @pupil_extent.setter
-    def pupil_extent(self, value: float):
-        self.psf._pupil_extent = value
-        self.pupil_field._pupil_extent = value
-        self.slm_aberration._pupil_extent = value
 
     @property
     def numerical_aperture(self) -> float:
@@ -431,7 +421,6 @@ class _PSF(Processor):
         super().__init__(self.pupil_field, multi_threaded=multi_threaded)
         self._data_shape = data_shape
         self._pupil_extent = pupil_extent
-        self.numerical_aperture = numerical_aperture
         self.nonlinearity = nonlinearity
         self.wavelength = wavelength
         self._psf = None
