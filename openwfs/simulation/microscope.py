@@ -42,7 +42,6 @@ class Microscope(Processor):
         numerical_aperture: float = 1.0,
         wavelength: Quantity[u.nm],
         nonlinearity: int = 1,
-        magnification: float = 1.0,
         xy_stage=None,
         z_stage=None,
         immersion_refractive_index: Optional[float] = 1.0,
@@ -63,11 +62,6 @@ class Microscope(Processor):
                 the wavelength and numerical_aperture together determine the resolution of the microscope.
             nonlinearity: Exponent to which the PSF is raised. This can be used to simulate two-photon microscopy (nonlinearity=2),
                 or multiphoton microscopy in general (nonlinearity > 2).
-            magnification: Scalar magnification factor between input and output image.
-                Note that this factor does not affect the effective image resolution.
-                Increasing the magnification will just produce a zoomed-in blurred image.
-                The default settings for data_shape, pixel_size and magnification cause the simulated microscope
-                to only convolve the source image with the point-spread function (PSF) without applying any scaling.
             xy_stage (XYStage): Optional stage object that can be used to move the sample laterally.
                 Defaults to a MockXYStage.
             z_stage (Stage): Optional stage object that moves the sample up and down to focus the microscope.
@@ -107,14 +101,10 @@ class Microscope(Processor):
             source = StaticSource(source)
 
         self._source = source
-        self._magnification = magnification
         # First crop and downscale the source image to have the same size as the output
         # todo: add some padding
         # todo: add option for oversampling
         source_pixel_size = source.pixel_size
-
-        if np.any(source_pixel_size > self.target_pixel_size):
-            warnings.warn("The resolution of the specimen image is worse than that of the output.")
 
         self._numerical_aperture = numerical_aperture
         self.aberration_transform = aberration_transform
@@ -173,26 +163,10 @@ class Microscope(Processor):
             np.ndarray: The resulting image as it would appear on a camera sensor.
         """
         shift = Quantity((self.xy_stage.y, self.xy_stage.x))
-        source = place(self.data_shape, self.target_pixel_size, source, shift)
+        source = place(self.data_shape, self.pixel_size, source, shift)
 
         self._psf = psf  # store psf for later inspection
         return fftconvolve(source, psf, mode="same")
-
-    @property
-    def magnification(self) -> float:
-        """Magnification from object plane to image plane.
-
-        Note that, as in a real microscope, the magnification does not affect the effective resolution of the image.
-        The resolution is determined by the Abbe diffraction limit λ/2NA.
-
-        Returns:
-            float: The current magnification factor.
-        """
-        return self._magnification
-
-    @magnification.setter
-    def magnification(self, value: float):
-        self._magnification = value
 
     @property
     def abbe_limit(self) -> Quantity:
@@ -209,12 +183,12 @@ class Microscope(Processor):
     def pixel_size(self) -> Quantity:
         """Returns the pixel size in the image plane.
 
-        This value is always equal to `source.pixel_size * magnification`.
+        This value is always equal to `source.pixel_size`.
 
         Returns:
             Quantity: The physical size of each pixel in the image plane.
         """
-        return self._source.pixel_size * self.magnification
+        return self._source.pixel_size
 
     @property
     def data_shape(self) -> tuple:
@@ -234,7 +208,7 @@ class Microscope(Processor):
 
     @property
     def pupil_extent(self) -> float:
-        return self.wavelength / self.target_pixel_size / self.numerical_aperture
+        return self.wavelength / self.pixel_size / self.numerical_aperture
 
     @pupil_extent.setter
     def pupil_extent(self, value: float):
@@ -281,10 +255,6 @@ class Microscope(Processor):
         self._immersion_refractive_index = value
         self.pupil_field.immersion_refractive_index = value
         self.slm_aberration.immersion_refractive_index = value
-
-    @property
-    def target_pixel_size(self) -> Quantity:
-        return self.pixel_size / self.magnification
 
     @property
     def incident_transform(self) -> Optional[Transform]:
