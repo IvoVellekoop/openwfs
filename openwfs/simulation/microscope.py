@@ -178,15 +178,6 @@ class Microscope(Processor):
         """
         return 0.5 * self.wavelength / self.numerical_aperture
 
-    @property
-    def data_shape(self) -> tuple:
-        """Returns the shape of the image in the image plane.
-
-        Returns:
-            tuple: The dimensions of the output image (height, width).
-        """
-        return self._data_shape
-
     @data_shape.setter
     def data_shape(self, value: tuple):
         self._data_shape = value
