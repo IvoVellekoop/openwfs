@@ -100,7 +100,6 @@ class Microscope(Processor):
                 raise ValueError("The source must have a pixel_size attribute.")
             source = StaticSource(source)
 
-        self._source = source
         # First crop and downscale the source image to have the same size as the output
         # todo: add some padding
         # todo: add option for oversampling
@@ -178,17 +177,6 @@ class Microscope(Processor):
             Quantity: The Abbe diffraction limit in length units.
         """
         return 0.5 * self.wavelength / self.numerical_aperture
-
-    @property
-    def pixel_size(self) -> Quantity:
-        """Returns the pixel size in the image plane.
-
-        This value is always equal to `source.pixel_size`.
-
-        Returns:
-            Quantity: The physical size of each pixel in the image plane.
-        """
-        return self._source.pixel_size
 
     @property
     def data_shape(self) -> tuple:
