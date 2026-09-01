@@ -5,7 +5,6 @@ import astropy.units as u
 import cv2
 import numpy as np
 from astropy.units import Quantity
-from numpy.typing import ArrayLike
 from scipy.signal import fftconvolve
 
 from openwfs.utilities.utilities import set_extent, get_extent
@@ -236,7 +235,7 @@ class _Pupil_Field(Processor):
         *,
         pupil_shape=None,
         pupil_extent=None,
-        incident_field: Detector | ArrayLike | None = None,
+        incident_field: Detector | None = None,
         incident_transform: Optional[Transform] = None,
         aberrations: Detector | np.ndarray | None = None,
         aberration_transform: Optional[Transform] = None,
@@ -309,7 +308,7 @@ class _Propagator(Processor):
         xy_stage=None,
         z_stage=None,
         immersion_refractive_index: Optional[float] = 1.0,
-        incident_field: Detector | ArrayLike | None = None,
+        incident_field: Detector | None = None,
         incident_transform: Optional[Transform] = None,
         aberrations: Detector | np.ndarray | None = None,
         aberration_transform: Optional[Transform] = None,
@@ -382,7 +381,7 @@ class _PSF(Processor):
         xy_stage=None,
         z_stage=None,
         immersion_refractive_index: Optional[float] = 1.0,
-        incident_field: Detector | ArrayLike | None = None,
+        incident_field: Detector | None = None,
         incident_transform: Optional[Transform] = None,
         aberrations: Detector | np.ndarray | None = None,
         aberration_transform: Optional[Transform] = None,
