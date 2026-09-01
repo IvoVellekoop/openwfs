@@ -117,7 +117,6 @@ class Microscope(Processor):
         self._immersion_refractive_index = immersion_refractive_index
         self.xy_stage = xy_stage or XYStage(0.1 * u.um, 0.1 * u.um)
         self.z_stage = z_stage or LinearStage(0.1 * u.um)
-        self._psf = None
         output_shape = data_shape if data_shape is not None else source.data_shape
 
         # PSF of the microscope, which is used to convolve the source image
@@ -164,7 +163,6 @@ class Microscope(Processor):
         shift = Quantity((self.xy_stage.y, self.xy_stage.x))
         source = place(self.data_shape, self.pixel_size, source, shift)
 
-        self._psf = psf  # store psf for later inspection
         return fftconvolve(source, psf, mode="same")
 
     @property
