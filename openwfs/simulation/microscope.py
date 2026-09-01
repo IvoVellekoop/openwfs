@@ -117,7 +117,6 @@ class Microscope(Processor):
             warnings.warn("The resolution of the specimen image is worse than that of the output.")
 
         self._numerical_aperture = numerical_aperture
-        self._nonlinearity = nonlinearity
         self.aberration_transform = aberration_transform
         # if no transform is provided, assume that the incident field is already in normalized pupil coordinates
         self._incident_transform = (
@@ -267,11 +266,10 @@ class Microscope(Processor):
 
     @property
     def nonlinearity(self) -> int:
-        return self._nonlinearity
+        return self.psf.nonlinearity
 
     @nonlinearity.setter
     def nonlinearity(self, value: int):
-        self._nonlinearity = value
         self.psf.nonlinearity = value
 
     @property
