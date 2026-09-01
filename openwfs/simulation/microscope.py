@@ -176,13 +176,6 @@ class Microscope(Processor):
         """
         return 0.5 * self.wavelength / self.numerical_aperture
 
-    @data_shape.setter
-    def data_shape(self, value: tuple):
-        self._data_shape = value
-        self.psf._data_shape = value
-        self.pupil_field._incident_transformdata_shape = value
-        self.slm_aberration._pupil_shape = value
-
     @property
     def pupil_extent(self) -> float:
         return self.wavelength / self.pixel_size / self.numerical_aperture
