@@ -137,7 +137,7 @@ class Microscope(Processor):
 
         self._data_shape = output_shape
         self.pupil_field = self.psf.pupil_field  # detector that looks at the field in the pupil plane
-        self.slm_aberration = self.psf.pupil_field._slm_aberration  # detector that looks at aberrations and slm phase
+        self.slm_aberration = self.psf.pupil_field._Pupil_Field  # detector that looks at aberrations and slm phase
 
     def _fetch(self, source: np.ndarray, psf: np.ndarray) -> np.ndarray:
         """Updates the image on the camera sensor.
@@ -230,7 +230,7 @@ class Microscope(Processor):
         return z_stack_images
 
 
-class _SLM_Aberration(Processor):
+class _Pupil_Field(Processor):
     def __init__(
         self,
         *,
@@ -292,7 +292,7 @@ class _SLM_Aberration(Processor):
         return self._pupil_shape
 
 
-class _PupilField(Processor):
+class _Propagator(Processor):
     """
     Computes the field in the pupil plane of the microscope, given the SLM phase pattern and aberrations.
     The field is computed by multiplying the SLM phase pattern and aberrations and propagation due to z stage movement,
@@ -322,7 +322,7 @@ class _PupilField(Processor):
             else:
                 aberrations = StaticSource(aberrations, pixel_size=get_pixel_size(aberrations))
 
-        self._slm_aberration = _SLM_Aberration(
+        self._Pupil_Field = _Pupil_Field(
             pupil_shape=pupil_shape,
             pupil_extent=pupil_extent,
             incident_field=incident_field,
@@ -332,7 +332,7 @@ class _PupilField(Processor):
             multi_threaded=multi_threaded,
         )
 
-        super().__init__(self._slm_aberration, multi_threaded=multi_threaded)
+        super().__init__(self._Pupil_Field, multi_threaded=multi_threaded)
         self._data_shape = pupil_shape
         self._pupil_extent = pupil_extent
         self.numerical_aperture = numerical_aperture
@@ -389,7 +389,7 @@ class _PSF(Processor):
         multi_threaded: bool = True,
     ):
 
-        self.pupil_field = _PupilField(
+        self.pupil_field = _Propagator(
             pupil_shape=data_shape,
             pupil_extent=pupil_extent,
             aberrations=aberrations,
