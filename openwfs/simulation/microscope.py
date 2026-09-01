@@ -305,7 +305,6 @@ class _Propagator(Processor):
         pupil_extent=None,
         numerical_aperture: float = 1.0,
         wavelength: Quantity[u.nm],
-        xy_stage=None,
         z_stage=None,
         immersion_refractive_index: Optional[float] = 1.0,
         incident_field: Detector | None = None,
@@ -341,12 +340,8 @@ class _Propagator(Processor):
 
     def _fetch(
         self,
-        slm_aberration: np.ndarray,
+        pupil_field: np.ndarray,
     ) -> np.ndarray:
-
-        # Compute the field in the pupil plane
-        # The aberrations and the SLM phase pattern are both mapped to the pupil plane coordinates
-        pupil_field = slm_aberration
 
         # Add defocus from z-stage
         if self.z_stage is not None:
