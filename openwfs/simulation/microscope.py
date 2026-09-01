@@ -98,7 +98,7 @@ class Microscope(Processor):
             if get_pixel_size(source) is None:
                 raise ValueError("The source must have a pixel_size attribute.")
             source = StaticSource(source)
-
+        
         # First crop and downscale the source image to have the same size as the output
         # todo: add some padding
         # todo: add option for oversampling
@@ -335,10 +335,8 @@ class _Propagator(Processor):
         self._data_shape = pupil_shape
         self._pupil_extent = pupil_extent
         self.numerical_aperture = numerical_aperture
-        self.aberration_transform = aberration_transform
         self.wavelength = wavelength.to(u.nm)
         self.immersion_refractive_index = immersion_refractive_index
-        self.xy_stage = xy_stage or XYStage(0.1 * u.um, 0.1 * u.um)
         self.z_stage = z_stage or LinearStage(0.1 * u.um)
 
     def _fetch(
