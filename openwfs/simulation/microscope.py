@@ -113,7 +113,6 @@ class Microscope(Processor):
             else Transform(np.diag(2 / (incident_field.pixel_size * incident_field.data_shape)))
         )
 
-        self._immersion_refractive_index = immersion_refractive_index
         self.xy_stage = xy_stage or XYStage(0.1 * u.um, 0.1 * u.um)
         self.z_stage = z_stage or LinearStage(0.1 * u.um)
         output_shape = data_shape if data_shape is not None else source.data_shape
@@ -202,13 +201,11 @@ class Microscope(Processor):
 
     @property
     def immersion_refractive_index(self) -> float:
-        return self._immersion_refractive_index
+        return self.pupil_field.immersion_refractive_index
 
     @immersion_refractive_index.setter
     def immersion_refractive_index(self, value: float):
-        self._immersion_refractive_index = value
         self.pupil_field.immersion_refractive_index = value
-        self.slm_aberration.immersion_refractive_index = value
 
     @property
     def incident_transform(self) -> Optional[Transform]:
@@ -239,7 +236,6 @@ class _SLM_Aberration(Processor):
         *,
         pupil_shape=None,
         pupil_extent=None,
-        immersion_refractive_index: Optional[float] = 1.0,
         incident_field: Detector | ArrayLike | None = None,
         incident_transform: Optional[Transform] = None,
         aberrations: Detector | np.ndarray | None = None,
@@ -252,7 +248,6 @@ class _SLM_Aberration(Processor):
         self._pupil_extent = pupil_extent
         self.aberration_transform = aberration_transform
         self._incident_transform = incident_transform
-        self.immersion_refractive_index = immersion_refractive_index
 
     def _fetch(
         self,
@@ -330,7 +325,6 @@ class _PupilField(Processor):
         self._slm_aberration = _SLM_Aberration(
             pupil_shape=pupil_shape,
             pupil_extent=pupil_extent,
-            immersion_refractive_index=immersion_refractive_index,
             incident_field=incident_field,
             incident_transform=incident_transform,
             aberrations=aberrations,
