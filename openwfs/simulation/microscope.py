@@ -105,7 +105,6 @@ class Microscope(Processor):
         # todo: add option for oversampling
         source_pixel_size = source.pixel_size
 
-        self._numerical_aperture = numerical_aperture
         self.aberration_transform = aberration_transform
         # if no transform is provided, assume that the incident field is already in normalized pupil coordinates
         self._incident_transform = (
@@ -113,7 +112,7 @@ class Microscope(Processor):
             if incident_transform is not None or incident_field is None
             else Transform(np.diag(2 / (incident_field.pixel_size * incident_field.data_shape)))
         )
-        self._wavelength = wavelength.to(u.nm)
+
         self._immersion_refractive_index = immersion_refractive_index
         self.xy_stage = xy_stage or XYStage(0.1 * u.um, 0.1 * u.um)
         self.z_stage = z_stage or LinearStage(0.1 * u.um)
@@ -124,7 +123,7 @@ class Microscope(Processor):
             data_shape=output_shape,
             pupil_extent=wavelength / self.pixel_size / numerical_aperture,
             numerical_aperture=numerical_aperture,
-            wavelength=wavelength,
+            wavelength=wavelength.to(u.nm),
             nonlinearity=nonlinearity,
             xy_stage=self.xy_stage,
             z_stage=self.z_stage,
@@ -178,25 +177,20 @@ class Microscope(Processor):
 
     @property
     def numerical_aperture(self) -> float:
-        return self._numerical_aperture
+        return self.pupil_field.numerical_aperture
 
     @numerical_aperture.setter
     def numerical_aperture(self, value: float):
-        self._numerical_aperture = value
-        self.psf.numerical_aperture = value
         self.pupil_field.numerical_aperture = value
 
     @property
     def wavelength(self) -> Quantity:
-        return self._wavelength
+        return self.pupil_field.wavelength
 
     @wavelength.setter
     def wavelength(self, value: Quantity):
         value = value.to(u.nm)
-        self._wavelength = value
-        self.psf.wavelength = value
         self.pupil_field.wavelength = value
-        self.slm_aberration.wavelength = value
 
     @property
     def nonlinearity(self) -> int:
@@ -245,7 +239,6 @@ class _SLM_Aberration(Processor):
         *,
         pupil_shape=None,
         pupil_extent=None,
-        wavelength: Quantity[u.nm],
         immersion_refractive_index: Optional[float] = 1.0,
         incident_field: Detector | ArrayLike | None = None,
         incident_transform: Optional[Transform] = None,
@@ -259,7 +252,6 @@ class _SLM_Aberration(Processor):
         self._pupil_extent = pupil_extent
         self.aberration_transform = aberration_transform
         self._incident_transform = incident_transform
-        self.wavelength = wavelength.to(u.nm)
         self.immersion_refractive_index = immersion_refractive_index
 
     def _fetch(
@@ -338,7 +330,6 @@ class _PupilField(Processor):
         self._slm_aberration = _SLM_Aberration(
             pupil_shape=pupil_shape,
             pupil_extent=pupil_extent,
-            wavelength=wavelength,
             immersion_refractive_index=immersion_refractive_index,
             incident_field=incident_field,
             incident_transform=incident_transform,
@@ -422,7 +413,6 @@ class _PSF(Processor):
         self._data_shape = data_shape
         self._pupil_extent = pupil_extent
         self.nonlinearity = nonlinearity
-        self.wavelength = wavelength
         self._psf = None
 
     def _fetch(
