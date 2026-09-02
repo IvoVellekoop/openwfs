@@ -720,6 +720,11 @@ def test_mock_microscope_xy_stage():
 
 
 def test_microscope_incident_field_extent_units():
+    # skip if no monitors are found
+    glfw.init()
+    if not glfw.get_monitors():
+        pytest.skip("No monitors found", allow_module_level=True)
+        
     # test that a transform is required when incident field has physical units instead of
     # normalized units.
     transform = Transform(np.eye(2) * 0.6, source_origin=(0, 0), destination_origin=(-0.2, 0.3))
