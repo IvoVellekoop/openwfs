@@ -5,8 +5,9 @@ import astropy.units as u
 import cv2
 import numpy as np
 from astropy.units import Quantity
-from numpy.typing import ArrayLike
 from scipy.signal import fftconvolve
+
+from openwfs.utilities.utilities import set_extent, get_extent
 
 from ..core import Processor, Detector
 from ..plot_utilities import imshow  # noqa - for debugging
@@ -22,8 +23,8 @@ class Microscope(Processor):
     wavefront shaping microscope: a spatial light modulator, translation stages, and a camera.
     This simulation is designed to test algorithms for wavefront shaping and alignment.
 
-    The microscope uses pupil coordinates, defined such that the numerical aperture of the microscope objective 
-    corresponds to a disk of radius 1 and 0 at the centre of the pupil. 
+    The microscope uses pupil coordinates, defined such that the numerical aperture of the microscope objective
+    corresponds to a disk of radius 1 and 0 at the centre of the pupil.
 
     The simulation takes the field at the SLM, applies the phase aberrations, and masks the field with
     a pupil function corresponding to the numerical aperture of the microscope objective.
@@ -37,20 +38,19 @@ class Microscope(Processor):
 
     def __init__(
         self,
-        source: Union[Detector, np.ndarray],
+        source: Detector,
         *,
         data_shape=None,
         numerical_aperture: float = 1.0,
         wavelength: Quantity[u.nm],
         nonlinearity: int = 1,
-        magnification: float = 1.0,
         xy_stage=None,
         z_stage=None,
-        immersion_refractive_index: Optional[float] = 1.0,
-        incident_field: Union[Detector, ArrayLike, None] = None,
-        incident_transform: Optional[Transform] = None,
-        aberrations: Union[Detector, np.ndarray, None] = None,
-        aberration_transform: Optional[Transform] = None,
+        immersion_refractive_index: float = 1.0,
+        incident_field: Detector | None = None,
+        incident_transform: Transform | None = None,
+        aberrations: Detector | None = None,
+        aberration_transform: Transform | None = None,
         multi_threaded: bool = True,
     ):
         """
@@ -64,11 +64,6 @@ class Microscope(Processor):
                 the wavelength and numerical_aperture together determine the resolution of the microscope.
             nonlinearity: Exponent to which the PSF is raised. This can be used to simulate two-photon microscopy (nonlinearity=2),
                 or multiphoton microscopy in general (nonlinearity > 2).
-            magnification: Scalar magnification factor between input and output image.
-                Note that this factor does not affect the effective image resolution.
-                Increasing the magnification will just produce a zoomed-in blurred image.
-                The default settings for data_shape, pixel_size and magnification cause the simulated microscope
-                to only convolve the source image with the point-spread function (PSF) without applying any scaling.
             xy_stage (XYStage): Optional stage object that can be used to move the sample laterally.
                 Defaults to a MockXYStage.
             z_stage (Stage): Optional stage object that moves the sample up and down to focus the microscope.
@@ -83,11 +78,16 @@ class Microscope(Processor):
                 Optional Transform that transforms the incident field to pupil coordinates.
                 Typically, the slm image is already in normalized pupil coordinates,
                 but this transform can be used to mimic SLM misalignment.
+                Default if no transform is provided: Transform(np.diag(2 / (incident_field.pixel_size * incident_field.data_shape)))
+                such that the incident is assumed to have an extent of 2.0 in normalized pupil coordinates.
             aberrations: 2-D image containing the phase (in radians) of aberrations observed
                 in the back pupil of the microscope objective, or a Detector object that automatically produces such
                 images. The `extent` attribute corresponds to normalized pupil coordinates. For example, with a
                 numerical aperture of 0.6, the extent of the image should be 1.2. If a 2-D image without pixel_size
                 metadata is provided, the extent is automatically set to 2.0 * numerical_aperture.
+                Linear interpolation is used to project the aberration image to the pupil plane of the microscope objective.
+                This means that the aberration phase pattern should not be phase wrapped, otherwise this would give problems
+                with the interpolation. e.g. the middle of 0 and 2π is π, but the middle of 0 and 2π-ε is 0, not π-ε/2.
             aberration_transform (Optional[Transform]):
                 Optional Transform that transforms the phase pattern from the aberration object
                 (in slm.pixel_size units) to normalized pupil coordinates.
@@ -100,41 +100,59 @@ class Microscope(Processor):
             scaled to have the same pixel resolution so that they can be added.
         """
         if not isinstance(source, Detector):
-            if get_pixel_size(source) is None:
-                raise ValueError("The source must have a pixel_size attribute.")
-            source = StaticSource(source)
+            raise ValueError("The source must be a Detector object.")
 
         if aberrations is not None and not isinstance(aberrations, Detector):
-            if get_pixel_size(aberrations) is None:
-                aberrations = StaticSource(aberrations)
-            else:
-                aberrations = StaticSource(aberrations, pixel_size=get_pixel_size(aberrations))
+            raise ValueError("The aberrations must be a Detector object or None.")
 
-        super().__init__(source, aberrations, incident_field, multi_threaded=multi_threaded)
-        self._magnification = magnification
-        self._data_shape = data_shape if data_shape is not None else source.data_shape
-        self.numerical_aperture = numerical_aperture
-        self.nonlinearity = nonlinearity
+        # First crop and downscale the source image to have the same size as the output
+        # todo: add some padding
+        # todo: add option for oversampling
+
         self.aberration_transform = aberration_transform
         # if no transform is provided, assume that the incident field is already in normalized pupil coordinates
-        self.incident_transform = (
+        self._incident_transform = (
             incident_transform
             if incident_transform is not None or incident_field is None
-            else Transform(np.diag(2 / get_extent(incident_field.read())))
+            else Transform(np.diag(2 / (incident_field.pixel_size * incident_field.data_shape)))
         )
-        self.wavelength = wavelength.to(u.nm)
-        self.immersion_refractive_index = immersion_refractive_index
-        self.oversampling_factor = 2.0
+
         self.xy_stage = xy_stage or XYStage(0.1 * u.um, 0.1 * u.um)
         self.z_stage = z_stage or LinearStage(0.1 * u.um)
-        self._psf = None
+        output_shape = data_shape if data_shape is not None else source.data_shape
 
-    def _fetch(
-        self,
-        source: np.ndarray,
-        aberrations: np.ndarray,  # noqa
-        incident_field: np.ndarray,
-    ) -> np.ndarray:
+        domain_extent = wavelength / source.pixel_size / numerical_aperture
+
+        self.pupil_field = _Pupil_Field(
+            pupil_shape=output_shape,
+            pupil_extent=domain_extent,
+            incident_field=incident_field,
+            incident_transform=incident_transform,
+            aberrations=aberrations,
+            aberration_transform=aberration_transform,
+            multi_threaded=multi_threaded,
+        )
+        self.propagated_pupil_field = _Propagator(
+            pupil_field=self.pupil_field,
+            pupil_shape=output_shape,
+            pupil_extent=domain_extent,
+            wavelength=wavelength,
+            numerical_aperture=numerical_aperture,
+            immersion_refractive_index=immersion_refractive_index,
+            z_stage=self.z_stage,
+        )
+        # PSF of the microscope, which is used to convolve the source image
+        self.psf = _PSF(
+            pupil_field=self.propagated_pupil_field,
+            data_shape=output_shape,
+            pupil_extent=domain_extent,
+            nonlinearity=nonlinearity,
+        )
+
+        super().__init__(source, self.psf, multi_threaded=multi_threaded)
+        self._data_shape = output_shape
+
+    def _fetch(self, source: np.ndarray, psf: np.ndarray) -> np.ndarray:
         """Updates the image on the camera sensor.
 
         To compute the image:
@@ -153,111 +171,10 @@ class Microscope(Processor):
         Returns:
             np.ndarray: The resulting image as it would appear on a camera sensor.
         """
-
-        # First crop and downscale the source image to have the same size as the output
-        # todo: add some padding
-        # todo: add option for oversampling
-        source_pixel_size = get_pixel_size(source)
-        target_pixel_size = self.pixel_size / self.magnification
-        if np.any(source_pixel_size > target_pixel_size):
-            warnings.warn("The resolution of the specimen image is worse than that of the output.")
-
-        # Calculate the field in the pupil plane.
-        #
-        # First, set up pupil coordinates such that:
-        # 1. the Fourier transform of the pupil has a resolution
-        #    that exactly matches the resolution of the specimen image.
-        # 2. the resolution in the pupil plane is high enough such that
-        #    the Fourier transform of the pupil field has a size that is at least equal to the fov of the microscope.
-        #    This means that then number of pixels should be at least as high as the number of points in the fov
-        #    (at the resolution of the specimen image).
-        #
-        # The NA of the pupil corresponds to a disk that is contained in this pupil plane.
-        # We compute the aberrations over the full pupil plane, and clip to the NA by using a disk function.
-        # TODO: think about what happens when the requested output resolution is lower than the diffraction limit
-        #       at the moment, not the full pupil is used.
-        # TODO: think about what happens when the slm is smaller than the pupil
-
-        # condition 1. Extent of pupil in pupil coordinates: Abbe limit should give pixel_size resolution
-        pupil_extent = self.wavelength / target_pixel_size / self.numerical_aperture
-
-        # condition 2. Minimum number of pixels in x and y should be data_shape
-        pupil_shape = self.data_shape
-
-        # Compute the field in the pupil plane
-        # The aberrations and the SLM phase pattern are both mapped to the pupil plane coordinates
-        pupil_field = patterns.disk(pupil_shape, radius=1.0, extent=pupil_extent)
-        pupil_area = np.sum(pupil_field)  # TODO (efficiency): compute area directly from radius
-
-        # Add defocus from z-stage
-        if self.z_stage is not None:
-            phase = propagation(
-                pupil_shape,
-                distance=self.z_stage.position,
-                wavelength=self.wavelength,
-                refractive_index=self.immersion_refractive_index,
-                extent=pupil_extent,
-                numerical_aperture=self.numerical_aperture,
-            )
-            pupil_field = pupil_field * np.exp(1j * phase)
-
-        # Project aberrations
-        if aberrations is not None:
-            # use default of 2.0 for the extent of the aberration map if no pixel size is provided
-            aberration_extent = (2.0, 2.0) if get_pixel_size(aberrations) is None else None
-            pupil_field = pupil_field * np.exp(
-                1.0j
-                * project(
-                    aberrations,
-                    source_extent=aberration_extent,
-                    out_extent=pupil_extent,
-                    out_shape=pupil_shape,
-                    transform=self.aberration_transform,
-                    interp=cv2.INTER_LINEAR,
-                )
-            )
-
-        # Project SLM fields
-        if incident_field is not None:
-            pupil_field = pupil_field * project(
-                incident_field,
-                out_extent=pupil_extent,
-                out_shape=pupil_shape,
-                transform=self.incident_transform,
-            )
-        # Compute the point spread function
-        # This is done by Fourier transforming the pupil field and taking the absolute value squared
-        # Due to condition 1, after the Fourier transform,
-        # the pixel size matches that of the source (the specimen image).
-        # Note: there is no need to `ifftshift` the pupil field, since we are taking the absolute value anyway
-
-        psf = np.abs(np.fft.ifft2(pupil_field)) ** 2
-        psf = np.fft.ifftshift(psf) * (psf.size / pupil_area)
-        # ifft_shift shifts psf by 1 pixel when off centre, both when the array is odd and even
-        # Compensate for this by rolling the kernel by -1 pixel in both x and y directions
-        psf = np.roll(psf, -1, axis=(0, 1))
-
-        psf = psf**self.nonlinearity  # added for higher order microscopy (e.g. two-photon)
-
-        self._psf = psf  # store psf for later inspection
+        shift = Quantity((self.xy_stage.y, self.xy_stage.x))
+        source = place(self.data_shape, self.pixel_size, source, shift)
 
         return fftconvolve(source, psf, mode="same")
-
-    @property
-    def magnification(self) -> float:
-        """Magnification from object plane to image plane.
-
-        Note that, as in a real microscope, the magnification does not affect the effective resolution of the image.
-        The resolution is determined by the Abbe diffraction limit λ/2NA.
-
-        Returns:
-            float: The current magnification factor.
-        """
-        return self._magnification
-
-    @magnification.setter
-    def magnification(self, value: float):
-        self._magnification = value
 
     @property
     def abbe_limit(self) -> Quantity:
@@ -271,26 +188,54 @@ class Microscope(Processor):
         return 0.5 * self.wavelength / self.numerical_aperture
 
     @property
-    def pixel_size(self) -> Quantity:
-        """Returns the pixel size in the image plane.
+    def numerical_aperture(self) -> float:
+        return self.propagated_pupil_field.numerical_aperture
 
-        This value is always equal to `source.pixel_size * magnification`.
-
-        Returns:
-            Quantity: The physical size of each pixel in the image plane.
-        """
-        return self._sources[0].pixel_size * self.magnification
+    @numerical_aperture.setter
+    def numerical_aperture(self, value: float):
+        self.pupil_field.numerical_aperture = value
 
     @property
-    def data_shape(self) -> tuple:
-        """Returns the shape of the image in the image plane.
+    def wavelength(self) -> Quantity:
+        return self.propagated_pupil_field.wavelength
 
-        Returns:
-            tuple: The dimensions of the output image (height, width).
+    @wavelength.setter
+    def wavelength(self, value: Quantity):
+        value = value.to(u.nm)
+        self.pupil_field.wavelength = value
+
+    @property
+    def nonlinearity(self) -> int:
+        return self.psf.nonlinearity
+
+    @nonlinearity.setter
+    def nonlinearity(self, value: int):
+        self.psf.nonlinearity = value
+
+    @property
+    def immersion_refractive_index(self) -> float:
+        return self.propagated_pupil_field.immersion_refractive_index
+
+    @immersion_refractive_index.setter
+    def immersion_refractive_index(self, value: float):
+        self.propagated_pupil_field.immersion_refractive_index = value
+
+    @property
+    def incident_transform(self) -> Optional[Transform]:
         """
-        return self._data_shape
+        incident_transform:
+        Optional Transform that transforms the phase pattern from the slm object
+        (in slm.pixel_size units) to normalized pupil coordinates.
+        Typically, the slm image is already in normalized pupil coordinates,
+        but this transform can be used to mimic SLM misalignment.
+        """
+        return self._incident_transform
 
-    def z_stack_read(self, z):
+    @incident_transform.setter
+    def incident_transform(self, value: Optional[Transform]):
+        self.pupil_field._incident_transform = value
+
+    def z_stack_read(self, z: Quantity["length"]) -> np.ndarray:
         """Measures a z-stack by moving the z-stage to different positions and reading the corresponding images
         Args:
             z: Array of z positions to read at.
@@ -303,3 +248,165 @@ class Microscope(Processor):
             self.z_stage.position = val
             z_stack_images[ind, ...] = self.read()
         return z_stack_images
+
+
+class _Pupil_Field(Processor):
+    def __init__(
+        self,
+        *,
+        pupil_shape: tuple | None = None,
+        pupil_extent: float | tuple | None = None,
+        incident_field: Detector | None = None,
+        incident_transform: Optional[Transform] = None,
+        aberrations: Detector | None = None,
+        aberration_transform: Optional[Transform] = None,
+        multi_threaded: bool = True,
+    ):
+
+        super().__init__(aberrations, incident_field, multi_threaded=multi_threaded)
+        self._pupil_shape = pupil_shape
+        self._pupil_extent = pupil_extent
+        self.aberration_transform = aberration_transform
+        self._incident_transform = incident_transform
+
+    def _fetch(
+        self,
+        aberrations: np.ndarray,  # noqa
+        incident_field: np.ndarray,
+    ) -> np.ndarray:
+
+        # The aberrations and the SLM phase pattern are both mapped to the pupil plane coordinates
+        pupil_field = patterns.disk(self._pupil_shape, radius=1.0, extent=self._pupil_extent)
+
+        # Project aberrations
+        if aberrations is not None:
+            pupil_field = pupil_field * np.exp(
+                1.0j
+                * project(
+                    aberrations,
+                    source_extent=get_extent(aberrations),
+                    out_extent=self._pupil_extent,
+                    out_shape=self._pupil_shape,
+                    transform=self.aberration_transform,
+                    interp=cv2.INTER_LINEAR,
+                )
+            )
+
+        # Project SLM fields
+        if incident_field is not None:
+            pupil_field = pupil_field * project(
+                incident_field,
+                out_extent=self._pupil_extent,
+                out_shape=self._pupil_shape,
+                transform=self._incident_transform,
+            )
+        return set_extent(pupil_field, self._pupil_extent)
+
+    @property
+    def data_shape(self) -> tuple:
+        """Returns the shape of the image in the pupil plane.
+
+        Returns:
+            tuple: The dimensions of the output image (height, width).
+        """
+        return self._pupil_shape
+
+
+class _Propagator(Processor):
+    """
+    Computes the field in the pupil plane of the microscope, given the SLM phase pattern and aberrations.
+    The field is computed by multiplying the SLM phase pattern and aberrations and propagation due to z stage movement,
+    and masking with the pupil function corresponding to the numerical aperture of the microscope objective.
+    """
+
+    def __init__(
+        self,
+        *,
+        pupil_field: Detector | Processor,
+        pupil_shape=None,
+        pupil_extent=None,
+        numerical_aperture: float = 1.0,
+        wavelength: Quantity[u.nm],
+        z_stage=None,
+        immersion_refractive_index: float = 1.0,
+        multi_threaded: bool = True,
+    ):
+        self._pupil_field = pupil_field
+
+        super().__init__(self._pupil_field, multi_threaded=multi_threaded)
+        self._data_shape = pupil_shape
+        self._pupil_extent = pupil_extent
+        self.numerical_aperture = numerical_aperture
+        self.wavelength = wavelength.to(u.nm)
+        self.immersion_refractive_index = immersion_refractive_index
+        self.z_stage = z_stage or LinearStage(0.1 * u.um)
+
+    def _fetch(
+        self,
+        pupil_field: np.ndarray,
+    ) -> np.ndarray:
+
+        # Add defocus from z-stage
+        if self.z_stage is not None:
+            phase = propagation(
+                self._data_shape,
+                distance=self.z_stage.position,
+                wavelength=self.wavelength,
+                refractive_index=self.immersion_refractive_index,
+                extent=self._pupil_extent,
+                numerical_aperture=self.numerical_aperture,
+            )
+            pupil_field = pupil_field * np.exp(1j * phase)
+
+        return set_extent(pupil_field, self._pupil_extent)
+
+    @property
+    def data_shape(self) -> tuple:
+        return self._data_shape
+
+
+class _PSF(Processor):
+    def __init__(
+        self,
+        *,
+        pupil_field: Detector | Processor,
+        data_shape=None,
+        pupil_extent=None,
+        nonlinearity: int = 1,
+        multi_threaded: bool = True,
+    ):
+
+        self.pupil_field = pupil_field
+
+        super().__init__(self.pupil_field, multi_threaded=multi_threaded)
+        self._data_shape = data_shape
+        self._pupil_extent = pupil_extent
+        self.nonlinearity = nonlinearity
+        self._psf = None
+
+    def _fetch(
+        self,
+        pupil_field: np.ndarray,
+    ) -> np.ndarray:
+        """
+        Calculates the point spread function (PSF) of the microscope by performing a Fourier transform of the pupil field.
+
+        Args:
+            pupil_field: The field in the back focal plane of the microscope objective, which includes the effects of aberrations, SLM phase pattern.
+
+        Returns:
+            np.ndarray: The point spread function (PSF) of the microscope.
+        """
+        psf = np.abs(np.fft.ifft2(pupil_field)) ** 2
+
+        psf = np.fft.ifftshift(psf)
+        # ifft_shift shifts psf by 1 pixel when off centre, both when the array is odd and even
+        # Compensate for this by rolling the kernel by -1 pixel in both x and y directions
+        psf = np.roll(psf, -1, axis=(0, 1))
+
+        psf = psf**self.nonlinearity  # added for higher order microscopy (e.g. two-photon)
+        return set_extent(psf, self._pupil_extent)
+
+    @property
+    def data_shape(self) -> tuple:
+        return self._data_shape

@@ -9,10 +9,12 @@ import skimage
 from openwfs.algorithms import StepwiseSequential
 from openwfs.processors import SingleRoi
 from openwfs.simulation import Microscope, Camera, StaticSource, SLM
-from openwfs.utilities import get_pixel_size, Transform, set_extent, project
-from openwfs.utilities.patterns import tilt, gaussian, parabola, binary_grating, propagation
+from openwfs.simulation.microscope import _PSF, _Pupil_Field, _Propagator
+from openwfs.utilities import get_pixel_size, Transform, set_extent, project, get_extent
+from openwfs.utilities.patterns import tilt, gaussian, parabola, binary_grating, propagation, disk
 from openwfs.utilities.tests import get_test_microscope
 import cv2
+from openwfs.devices.slm import SLM as realSLM
 
 
 def test_mock_camera_and_single_roi():
@@ -41,7 +43,7 @@ def test_microscope_without_magnification(shape):
     src = Camera(StaticSource(img, pixel_size=400 * u.nm), analog_max=0xFFFF)
 
     # construct microscope
-    sim = Microscope(source=src, magnification=1, numerical_aperture=1, wavelength=800 * u.nm)
+    sim = Microscope(source=src, numerical_aperture=1, wavelength=800 * u.nm)
     cam = Camera(sim, analog_max=None)
     img = cam.read()
     assert img[256, 256] == 2**16 - 1
@@ -61,7 +63,6 @@ def test_microscope_and_aberration():
 
     sim = Microscope(
         source=src,
-        magnification=1,
         incident_field=slm.field,
         numerical_aperture=1,
         wavelength=800 * u.nm,
@@ -428,21 +429,23 @@ def test_microscope_convolution():
     assert np.allclose(img, data)
 
 
-from openwfs.devices.slm import SLM as RealSLM
-
-
 def test_mock_microscope_with_transform():
     # test that the transform is applied correctly to the incident field in the microscope, and that the inverse transform can be used to cancel out the transform in the SLM
     glfw.init()
     if not glfw.get_monitors():
         pytest.skip("No monitors found", allow_module_level=True)
 
-    transform = Transform(np.eye(2) * 1.2, (0, 0), (0.1, 0.05))
-    transform_I = Transform(np.eye(2), (0, 0), (0, 0))  # identity transform
+    transform = Transform(np.eye(2) * 0.6)
+    slm = realSLM(
+        shape=(700, 1400),
+        monitor_id=0,
+        transform=transform,
+        coordinate_system="full",
+        physical_size=u.Quantity([2, 7], u.mm),
+    )
 
-    slm = RealSLM(shape=(700, 1400), monitor_id=0, transform=transform, coordinate_system="full")
     # slm without transform, to test that the transform is applied correctly
-    slm_I = RealSLM(shape=(700, 1400), monitor_id=0, coordinate_system="full", transform=transform_I)
+    slm_I = realSLM(shape=(700, 1400), monitor_id=0, coordinate_system="full", physical_size=u.Quantity([2, 7], u.mm))
 
     data = np.ones((700, 1400))  # mock data for the source, with a rectangle in the middle
     data[300:600, 300:1000] = 0
@@ -450,7 +453,7 @@ def test_mock_microscope_with_transform():
 
     assert np.allclose(source.read(), data)
 
-    phases = parabola((700, 1400), alpha=1, extent=(2, 4)) * 30
+    phases = parabola((700, 1400), alpha=1, extent=(3, 4)) * 30
     slm.set_phases(phases)
     slm_I.set_phases(phases)
 
@@ -464,7 +467,6 @@ def test_mock_microscope_with_transform():
         wavelength=500 * u.nm,
         immersion_refractive_index=1.33,
         incident_field=slm.field,
-        incident_transform=transform,
     )
     mic_I = Microscope(
         source=source,
@@ -472,16 +474,14 @@ def test_mock_microscope_with_transform():
         wavelength=500 * u.nm,
         immersion_refractive_index=1.33,
         incident_field=slm_I.field,
-        incident_transform=transform_I,
     )
 
     # assert that the following gives an error because the both arrays should be different, since the transform is applied to the incident field in mic instead of the inverse transform (which would have canceled out the transform in slm)
-    assert not np.allclose(mic.read(), mic_I.read(), rtol=1e-2, atol=1e-2)
-    x = mic.read()
-    y = mic_I.read()
-    rel_l2 = np.linalg.norm(x - y) / np.linalg.norm(x)
-    assert not rel_l2 < 1e-1
+    img = mic.read()
+    img_I = mic_I.read()
+    assert not np.allclose(img, img_I, rtol=1e-2, atol=1e-2)
 
+    transform2 = Transform(np.diag(2 / get_extent(slm.phases.read())))
     # when the inverse transform is applied to the incident field in mic, the two arrays should be the same
     mic_inverse = Microscope(
         source=source,
@@ -489,10 +489,230 @@ def test_mock_microscope_with_transform():
         wavelength=500 * u.nm,
         immersion_refractive_index=1.33,
         incident_field=slm.field,
-        incident_transform=transform.inverse(),
+        incident_transform=transform.inverse().compose(transform2),
+    )
+    inverse = mic_inverse.read()
+    assert np.allclose(inverse, img_I, rtol=1e-2, atol=1e-2)
+
+    # add test with off centre transform
+    transform = Transform(np.eye(2) * 0.6, source_origin=(0, 0), destination_origin=(-0.2, 0.3))
+    slm = realSLM(
+        shape=(700, 1400),
+        monitor_id=0,
+        transform=transform,
+        coordinate_system="full",
+        physical_size=u.Quantity([2, 7], u.mm),
     )
     slm.set_phases(phases)
-    inverse = mic_inverse.read()
+    assert not np.allclose(
+        slm.phases.read(), slm_I.phases.read(), rtol=1e-2, atol=1e-2
+    )  # because of the transform the phases should be different
 
-    rel_l2 = np.linalg.norm(inverse - y) / np.linalg.norm(inverse)
-    assert rel_l2 < 1e-1
+    mic = Microscope(
+        source=source,
+        numerical_aperture=0.8,
+        wavelength=500 * u.nm,
+        immersion_refractive_index=1.33,
+        incident_field=slm.field,
+    )
+
+    # assert that the following gives an error because the both arrays should be different, since the transform is applied to the incident field in mic instead of the inverse transform (which would have canceled out the transform in slm)
+    img = mic.read()
+    assert not np.allclose(img, img_I, rtol=1e-2, atol=1e-2)
+
+    transform2 = Transform(
+        np.diag(2 / get_extent(slm.phases.read())),
+        source_origin=u.Quantity([0, 0]) * u.mm,
+        destination_origin=u.Quantity([0, 0]),
+    )
+    # when the inverse transform is applied to the incident field in mic, the two arrays should be the same
+    mic_inverse = Microscope(
+        source=source,
+        numerical_aperture=0.8,
+        wavelength=500 * u.nm,
+        immersion_refractive_index=1.33,
+        incident_field=slm.field,
+        incident_transform=transform.inverse().compose(transform2),
+    )
+
+    inverse = mic_inverse.read()
+    assert np.allclose(inverse, img_I, rtol=1e-2, atol=1e-2)
+
+
+def test_transform_and_inverse_transform():
+    # example phase mask
+    phases = propagation(
+        (700, 1400),
+        30 * u.um,
+        500 * u.nm,
+        0.8,
+        1.33,
+        (2, 4),
+    )
+    phases = set_extent(phases, (2, 4))
+    transform = Transform(np.eye(2) * 1.2, (0, 0), (0.1, 0.1))
+
+    # move through a series of projections and back projections to test that the transform and inverse transform are applied correctly
+    out = project(phases, out_extent=3, out_shape=(500, 500), transform=transform, interp=cv2.INTER_LINEAR)
+    out2 = project(
+        out, out_extent=(2, 4), out_shape=phases.shape, transform=transform.inverse(), interp=cv2.INTER_LINEAR
+    )
+
+    out3 = project(out2, out_extent=1.5, out_shape=(300, 300), transform=None, interp=cv2.INTER_LINEAR)
+
+    phases3 = project(phases, out_extent=1.5, out_shape=(300, 300), transform=None, interp=cv2.INTER_LINEAR)
+
+    # compare the final output to the original phases projected directly to the final extent and shape
+    assert np.allclose(out3, phases3, atol=3e-2), "The projected fields do not match!"
+
+
+def test_mock_microscope_individual_components():
+    """
+    Test that the individual components of the microscope can be constructed and read out without exceptions being thrown.
+    """
+    # test that the transform is applied correctly to the incident field in the microscope, and that the inverse transform can be used to cancel out the transform in the SLM
+    glfw.init()
+    if not glfw.get_monitors():
+        pytest.skip("No monitors found", allow_module_level=True)
+    slm = realSLM(shape=(700, 1400), monitor_id=0, coordinate_system="full")
+
+    data = np.ones((700, 1400))
+    data[300:600, 300:600] = 0
+    source = StaticSource(data=data, pixel_size=100 * u.um)
+    assert np.allclose(source.read(), data)
+
+    slm.set_phases(0)
+
+    source = source
+    data_shape = source.data_shape
+    numerical_aperture = 1
+    wavelength = 500 * u.nm
+    nonlinearity = 1
+    immersion_refractive_index = 1.0
+    incident_field = slm.field
+    multi_threaded: bool = True
+
+    slm_aberrations = _Pupil_Field(
+        pupil_shape=data_shape,
+        pupil_extent=2,
+        incident_field=incident_field,
+    )
+    expected = disk(shape=data_shape, radius=1.0, extent=2)
+
+    assert np.allclose(np.abs(slm_aberrations.read()), expected, atol=1e-2)
+
+    pupil_field = _Propagator(
+        pupil_field=slm_aberrations,
+        pupil_shape=data_shape,
+        pupil_extent=2,
+        numerical_aperture=numerical_aperture,
+        wavelength=wavelength,
+        immersion_refractive_index=immersion_refractive_index,
+        multi_threaded=multi_threaded,
+    )
+
+    assert np.allclose(np.abs(pupil_field.read()), expected, atol=1e-2)
+
+    psf = _PSF(
+        pupil_field=pupil_field,
+        data_shape=data_shape,
+        pupil_extent=0.1,
+        multi_threaded=multi_threaded,
+    )
+    psf_expected = np.zeros(data_shape)
+    psf_expected[data_shape[0] // 2 - 1, data_shape[1] // 2 - 1] = 1
+    assert np.allclose(psf.read(), psf_expected, atol=1e-2)
+
+    mic = Microscope(
+        source=source,
+        data_shape=data_shape,
+        numerical_aperture=numerical_aperture,
+        wavelength=wavelength,
+        nonlinearity=nonlinearity,
+        immersion_refractive_index=immersion_refractive_index,
+        incident_field=incident_field,
+        multi_threaded=multi_threaded,
+    )
+
+    assert np.allclose(mic.read(), data)
+    assert np.allclose(mic.psf.read(), psf.read())
+
+
+@pytest.mark.parametrize("physical_size", [u.Quantity([2, 2], u.mm), u.Quantity([2, 4], u.mm), None])
+def test_transform_Pupil_Field(physical_size):
+    # test that the transform is applied correctly to the incident field in the microscope, and that the inverse transform can be used to cancel out the transform in the SLM
+    glfw.init()
+    if not glfw.get_monitors():
+        pytest.skip("No monitors found", allow_module_level=True)
+    slm = realSLM(shape=(700, 1400), monitor_id=0, coordinate_system="full", physical_size=physical_size)
+    phi = disk((700, 1400), radius=1, extent=2)
+    data = np.ones((700, 1400))
+    data[300:600, 300:600] = 0
+    source = StaticSource(data=data, pixel_size=100 * u.um)
+    assert np.allclose(source.read(), data)
+    source = source
+    data_shape = source.data_shape
+    numerical_aperture = 0.8
+    wavelength = 500 * u.nm
+    immersion_refractive_index = 1.0
+    incident_field = slm.field
+    transform = Transform(np.diag(2 / get_extent(incident_field.read())))
+
+    slm_aberrations = _Pupil_Field(
+        pupil_shape=data_shape,
+        pupil_extent=2,
+        incident_field=incident_field,
+        incident_transform=transform,
+    )
+
+    # use random seed and set phases
+    phases = propagation(
+        (700, 1400),
+        10 * u.um,
+        wavelength=wavelength,
+        numerical_aperture=numerical_aperture,
+        refractive_index=immersion_refractive_index,
+        extent=2,
+    )
+
+    slm.set_phases(phases)
+
+    assert np.allclose(
+        np.mod(phi * phases, 2 * np.pi), np.mod(phi * np.angle(slm_aberrations.read()), 2 * np.pi), rtol=1e-2, atol=1e-2
+    )
+
+
+def test_transform_slm():
+    # test that the transform is applied correctly to the incident field in the microscope, and that the inverse transform can be used to cancel out the transform in the SLM
+    glfw.init()
+    if not glfw.get_monitors():
+        pytest.skip("No monitors found", allow_module_level=True)
+    # check that transform shifts the SLM pattern correctly
+    extent = u.Quantity([2, 7], u.mm)
+
+    transform = Transform(np.eye(2), (0, 0), (0.0, 1))
+    slm = realSLM(shape=(700, 1400), monitor_id=0, transform=transform, coordinate_system="full", physical_size=extent)
+    slm.set_phases(disk((700, 1400), radius=1, extent=3))
+
+    disk2 = disk((700, 1400), radius=1, extent=3, offset=(0, 1.5))
+
+    assert np.allclose(disk2, np.angle(slm.field.read()), rtol=1e-2, atol=1e-2)
+
+
+# test that xy stage in mock micrsocope shifts the image correctly
+def test_mock_microscope_xy_stage():
+    data = np.ones((70, 140))  # mock data for the source, with a rectangle in the middle
+    data[30:60, 30:100] = 0
+    source = StaticSource(data=data, pixel_size=0.1 * u.um)
+
+    mic = Microscope(
+        source=source,
+        numerical_aperture=0.8,
+        wavelength=500 * u.nm,
+        immersion_refractive_index=1.33,
+    )
+    # roll image to t right by 5/0.1 [pixels] = 50 pixels, which is 5 um
+    img_rolled = np.roll(mic.read(), 50, axis=1)
+    mic.xy_stage.x = 5 * u.um
+    # assert images are equal on the part from 51 to end, because the first 50 pixels are rolled in the second image
+    assert np.allclose(img_rolled[:, 51:-15], mic.read()[:, 51:-15], rtol=1e-2, atol=1e-2)
