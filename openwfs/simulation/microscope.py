@@ -267,8 +267,8 @@ class _Pupil_Field(Processor):
     def __init__(
         self,
         *,
-        pupil_shape=None,
-        pupil_extent=None,
+        pupil_shape: tuple | None = None,
+        pupil_extent: float | tuple | None = None,
         incident_field: Detector | None = None,
         incident_transform: Optional[Transform] = None,
         aberrations: Detector | None = None,
