@@ -561,7 +561,7 @@ class Processor(Detector, ABC):
 
     def __init__(
         self,
-        *args: Detector,
+        *args: Detector | None,
         data_shape: Optional[tuple[int, ...]] | EllipsisType = ...,
         pixel_size: Quantity | None | EllipsisType = ...,
         multi_threaded: bool = True,
