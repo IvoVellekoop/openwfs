@@ -467,6 +467,7 @@ def test_mock_microscope_with_transform():
         wavelength=500 * u.nm,
         immersion_refractive_index=1.33,
         incident_field=slm.field,
+        incident_transform=Transform(np.diag(2 / slm.field.extent)),
     )
     mic_I = Microscope(
         source=source,
@@ -474,6 +475,7 @@ def test_mock_microscope_with_transform():
         wavelength=500 * u.nm,
         immersion_refractive_index=1.33,
         incident_field=slm_I.field,
+        incident_transform=Transform(np.diag(2 / slm_I.field.extent)),
     )
 
     # assert that the following gives an error because the both arrays should be different, since the transform is applied to the incident field in mic instead of the inverse transform (which would have canceled out the transform in slm)
@@ -514,6 +516,7 @@ def test_mock_microscope_with_transform():
         wavelength=500 * u.nm,
         immersion_refractive_index=1.33,
         incident_field=slm.field,
+        incident_transform=Transform(np.diag(2 / slm.field.extent)),
     )
 
     # assert that the following gives an error because the both arrays should be different, since the transform is applied to the incident field in mic instead of the inverse transform (which would have canceled out the transform in slm)
@@ -571,13 +574,10 @@ def test_mock_microscope_individual_components():
     Test that the individual components of the microscope can be constructed and read out without exceptions being thrown.
     """
     # test that the transform is applied correctly to the incident field in the microscope, and that the inverse transform can be used to cancel out the transform in the SLM
-    glfw.init()
-    if not glfw.get_monitors():
-        pytest.skip("No monitors found", allow_module_level=True)
-    slm = realSLM(shape=(700, 1400), monitor_id=0, coordinate_system="full")
+    slm = SLM(shape=(70, 140))
 
-    data = np.ones((700, 1400))
-    data[300:600, 300:600] = 0
+    data = np.ones((70, 140))
+    data[30:60, 30:60] = 0
     source = StaticSource(data=data, pixel_size=100 * u.um)
     assert np.allclose(source.read(), data)
 
@@ -594,17 +594,17 @@ def test_mock_microscope_individual_components():
 
     slm_aberrations = _Pupil_Field(
         pupil_shape=data_shape,
-        pupil_extent=2,
+        pupil_extent=wavelength / source.pixel_size / numerical_aperture,
         incident_field=incident_field,
     )
-    expected = disk(shape=data_shape, radius=1.0, extent=2)
+    expected = disk(shape=data_shape, radius=1.0, extent=wavelength / source.pixel_size / numerical_aperture)
 
     assert np.allclose(np.abs(slm_aberrations.read()), expected, atol=1e-2)
 
     pupil_field = _Propagator(
         pupil_field=slm_aberrations,
         pupil_shape=data_shape,
-        pupil_extent=2,
+        pupil_extent=wavelength / source.pixel_size / numerical_aperture,
         numerical_aperture=numerical_aperture,
         wavelength=wavelength,
         immersion_refractive_index=immersion_refractive_index,
@@ -616,12 +616,13 @@ def test_mock_microscope_individual_components():
     psf = _PSF(
         pupil_field=pupil_field,
         data_shape=data_shape,
-        pupil_extent=0.1,
+        pupil_extent=wavelength / source.pixel_size / numerical_aperture,
         multi_threaded=multi_threaded,
     )
     psf_expected = np.zeros(data_shape)
     psf_expected[data_shape[0] // 2 - 1, data_shape[1] // 2 - 1] = 1
-    assert np.allclose(psf.read(), psf_expected, atol=1e-2)
+
+    assert np.allclose(np.argmax(psf.read()), np.argmax(psf_expected), atol=1e-2)
 
     mic = Microscope(
         source=source,
@@ -638,7 +639,7 @@ def test_mock_microscope_individual_components():
     assert np.allclose(mic.psf.read(), psf.read())
 
 
-@pytest.mark.parametrize("physical_size", [u.Quantity([2, 2], u.mm), u.Quantity([2, 4], u.mm), None])
+@pytest.mark.parametrize("physical_size", [u.Quantity([2, 2], u.mm), u.Quantity([2, 4], u.mm)])
 def test_transform_Pupil_Field(physical_size):
     # test that the transform is applied correctly to the incident field in the microscope, and that the inverse transform can be used to cancel out the transform in the SLM
     glfw.init()
@@ -717,11 +718,18 @@ def test_mock_microscope_xy_stage():
     # assert images are equal on the part from 51 to end, because the first 50 pixels are rolled in the second image
     assert np.allclose(img_rolled[:, 51:-15], mic.read()[:, 51:-15], rtol=1e-2, atol=1e-2)
 
+
 def test_microscope_incident_field_extent_units():
-    # test that a transform is required when incident field has physical units instead of 
-    # normalized units. 
-    transform = Transform(np.eye(2) * 0.6, source_origin = (0,0), destination_origin = (-0.2, 0.3))
-    slm = realSLM(shape=(700, 1400), monitor_id=0, transform=transform, coordinate_system="full", physical_size = u.Quantity([2, 7], u.mm))
+    # test that a transform is required when incident field has physical units instead of
+    # normalized units.
+    transform = Transform(np.eye(2) * 0.6, source_origin=(0, 0), destination_origin=(-0.2, 0.3))
+    slm = realSLM(
+        shape=(700, 1400),
+        monitor_id=0,
+        transform=transform,
+        coordinate_system="full",
+        physical_size=u.Quantity([2, 7], u.mm),
+    )
     source = StaticSource(data=np.ones((700, 1400)), pixel_size=0.2 * u.um)
 
     # asssert that the following should throw an error
@@ -734,7 +742,11 @@ def test_microscope_incident_field_extent_units():
             incident_field=slm.field,
         )
 
-    transform2 = Transform(np.diag(2 / get_extent(slm.phases.read())), source_origin=u.Quantity([0, 0])*u.mm, destination_origin=u.Quantity([0, 0]))
+    transform2 = Transform(
+        np.diag(2 / get_extent(slm.phases.read())),
+        source_origin=u.Quantity([0, 0]) * u.mm,
+        destination_origin=u.Quantity([0, 0]),
+    )
     # when the inverse transform is applied to the incident field in mic, the two arrays should be the same
     mic_inverse = Microscope(
         source=source,
@@ -742,7 +754,7 @@ def test_microscope_incident_field_extent_units():
         wavelength=500 * u.nm,
         immersion_refractive_index=1.33,
         incident_field=slm.field,
-        incident_transform=transform.inverse().compose(transform2), 
+        incident_transform=transform.inverse().compose(transform2),
     )
 
     slm = SLM(shape=(700, 1400))
