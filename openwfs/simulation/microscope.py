@@ -80,8 +80,7 @@ class Microscope(Processor):
                  correspond to normalized pupil coordinates
                 (e.g. with a disk of radius 1.0, i.e. an extent of 2.0, corresponding to an NA of 1.0)
             incident_transform (Optional[Transform]):
-                Optional Transform that transforms the phase pattern from the slm object
-                (in slm.pixel_size units) to normalized pupil coordinates.
+                Optional Transform that transforms the incident field to pupil coordinates.
                 Typically, the slm image is already in normalized pupil coordinates,
                 but this transform can be used to mimic SLM misalignment.
             aberrations: 2-D image containing the phase (in radians) of aberrations observed
