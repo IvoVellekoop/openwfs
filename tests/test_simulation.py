@@ -662,8 +662,6 @@ def test_transform_Pupil_Field(physical_size):
     slm_aberrations = _Pupil_Field(
         pupil_shape=data_shape,
         pupil_extent=2,
-        wavelength=wavelength,
-        immersion_refractive_index=immersion_refractive_index,
         incident_field=incident_field,
         incident_transform=transform,
     )
