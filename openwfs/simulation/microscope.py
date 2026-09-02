@@ -83,6 +83,9 @@ class Microscope(Processor):
                 images. The `extent` attribute corresponds to normalized pupil coordinates. For example, with a
                 numerical aperture of 0.6, the extent of the image should be 1.2. If a 2-D image without pixel_size
                 metadata is provided, the extent is automatically set to 2.0 * numerical_aperture.
+                Linear interpolation is used to project the aberration image to the pupil plane of the microscope objective.
+                This means that the aberration phase pattern should not be phase wrapped, otherwise this would give problems
+                with the interpolation. e.g. the middle of 0 and 2π is π, but the middle of 0 and 2π-ε is 0, not π-ε/2.
             aberration_transform (Optional[Transform]):
                 Optional Transform that transforms the phase pattern from the aberration object
                 (in slm.pixel_size units) to normalized pupil coordinates.
