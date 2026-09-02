@@ -99,7 +99,7 @@ class Microscope(Processor):
 
         if aberrations is not None and not isinstance(aberrations, Detector):
             raise ValueError("The aberrations must be a Detector object or None.")
-        
+
         # First crop and downscale the source image to have the same size as the output
         # todo: add some padding
         # todo: add option for oversampling
@@ -235,7 +235,7 @@ class Microscope(Processor):
 
     @property
     def incident_transform(self) -> Optional[Transform]:
-        """   
+        """
         incident_transform:
         Optional Transform that transforms the phase pattern from the slm object
         (in slm.pixel_size units) to normalized pupil coordinates.
