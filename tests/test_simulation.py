@@ -603,7 +603,7 @@ def test_mock_microscope_individual_components():
     assert np.allclose(np.abs(slm_aberrations.read()), expected, atol=1e-2)
 
     pupil_field = _Propagator(
-        pupil_field = slm_aberrations,
+        pupil_field=slm_aberrations,
         pupil_shape=data_shape,
         pupil_extent=2,
         numerical_aperture=numerical_aperture,
