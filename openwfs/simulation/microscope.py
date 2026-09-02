@@ -117,7 +117,7 @@ class Microscope(Processor):
         self.z_stage = z_stage or LinearStage(0.1 * u.um)
         output_shape = data_shape if data_shape is not None else source.data_shape
 
-        domain_extent = wavelength / self.pixel_size / numerical_aperture
+        domain_extent = wavelength / source.pixel_size / numerical_aperture
                 
 
         self.pupil_field = _Pupil_Field(
