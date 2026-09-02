@@ -105,6 +105,13 @@ class Microscope(Processor):
         # todo: add some padding
         # todo: add option for oversampling
         self.aberration_transform = aberration_transform
+        self._incident_field = incident_field
+        # if incident_field.physical_pixel_size is not None and incident transform is None: throw an error
+        if incident_field is not None:
+            if incident_field.extent is not None and incident_transform is None:
+                raise ValueError(
+                    "If the incident field has physical units (mm), an incident transform must be provided to convert the incident field to normalized pupil coordinates."
+                )
         self._incident_transform = incident_transform
         self.xy_stage = xy_stage or XYStage(0.1 * u.um, 0.1 * u.um)
         self.z_stage = z_stage or LinearStage(0.1 * u.um)
