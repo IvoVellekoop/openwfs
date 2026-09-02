@@ -104,11 +104,7 @@ class Microscope(Processor):
         # First crop and downscale the source image to have the same size as the output
         # todo: add some padding
         # todo: add option for oversampling
-
         self.aberration_transform = aberration_transform
-        # if no transform is provided, assume that the incident field is already in normalized pupil coordinates
-
-        # if 
         self._incident_transform = incident_transform
         self.xy_stage = xy_stage or XYStage(0.1 * u.um, 0.1 * u.um)
         self.z_stage = z_stage or LinearStage(0.1 * u.um)
