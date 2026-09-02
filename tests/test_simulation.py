@@ -589,7 +589,6 @@ def test_mock_microscope_individual_components():
     numerical_aperture = 1
     wavelength = 500 * u.nm
     nonlinearity = 1
-    magnification = 1
     immersion_refractive_index = 1.0
     incident_field = slm.field
     multi_threaded: bool = True
@@ -597,8 +596,6 @@ def test_mock_microscope_individual_components():
     slm_aberrations = _Pupil_Field(
         pupil_shape=data_shape,
         pupil_extent=2,
-        wavelength=wavelength,
-        immersion_refractive_index=immersion_refractive_index,
         incident_field=incident_field,
     )
     expected = disk(shape=data_shape, radius=1.0, extent=2)
@@ -606,24 +603,21 @@ def test_mock_microscope_individual_components():
     assert np.allclose(np.abs(slm_aberrations.read()), expected, atol=1e-2)
 
     pupil_field = _Propagator(
+        pupil_field = slm_aberrations,
         pupil_shape=data_shape,
         pupil_extent=2,
         numerical_aperture=numerical_aperture,
         wavelength=wavelength,
         immersion_refractive_index=immersion_refractive_index,
-        incident_field=incident_field,
         multi_threaded=multi_threaded,
     )
 
     assert np.allclose(np.abs(pupil_field.read()), expected, atol=1e-2)
 
     psf = _PSF(
+        pupil_field=pupil_field,
         data_shape=data_shape,
         pupil_extent=0.1,
-        numerical_aperture=numerical_aperture,
-        wavelength=wavelength,
-        immersion_refractive_index=immersion_refractive_index,
-        incident_field=incident_field,
         multi_threaded=multi_threaded,
     )
     psf_expected = np.zeros(data_shape)
@@ -636,7 +630,6 @@ def test_mock_microscope_individual_components():
         numerical_aperture=numerical_aperture,
         wavelength=wavelength,
         nonlinearity=nonlinearity,
-        magnification=magnification,
         immersion_refractive_index=immersion_refractive_index,
         incident_field=incident_field,
         multi_threaded=multi_threaded,
