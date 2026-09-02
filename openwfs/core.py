@@ -414,7 +414,7 @@ class Detector(Device, ABC):
             awaited_args = [(arg.result() if isinstance(arg, Future) else arg) for arg in args_]
             awaited_kwargs = {key: (arg.result() if isinstance(arg, Future) else arg) for (key, arg) in kwargs_.items()}
             logging.debug("fetching data of %s ((tid: %i)).", self, threading.get_ident())
-            data = np.array(self._fetch(*awaited_args, **awaited_kwargs))
+            data = np.asarray(self._fetch(*awaited_args, **awaited_kwargs))
             if get_pixel_size(data) is None:
                 data = set_pixel_size(data, self.pixel_size)
             if self.data_shape is not None and data.shape != self.data_shape:

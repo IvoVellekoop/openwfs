@@ -23,6 +23,9 @@ class Microscope(Processor):
     wavefront shaping microscope: a spatial light modulator, translation stages, and a camera.
     This simulation is designed to test algorithms for wavefront shaping and alignment.
 
+    The microscope uses pupil coordinates, defined such that the numerical aperture of the microscope objective 
+    corresponds to a disk of radius 1 and 0 at the centre of the pupil. 
+
     The simulation takes the field at the SLM, applies the phase aberrations, and masks the field with
     a pupil function corresponding to the numerical aperture of the microscope objective.
     This field is then Fourier transformed to obtain the intensity point spread function,
@@ -72,8 +75,7 @@ class Microscope(Processor):
                  correspond to normalized pupil coordinates
                 (e.g. with a disk of radius 1.0, i.e. an extent of 2.0, corresponding to an NA of 1.0)
             incident_transform (Optional[Transform]):
-                Optional Transform that transforms the phase pattern from the slm object
-                (in slm.pixel_size units) to normalized pupil coordinates.
+                Optional Transform that transforms the incident field to pupil coordinates.
                 Typically, the slm image is already in normalized pupil coordinates,
                 but this transform can be used to mimic SLM misalignment.
                 Default if no transform is provided: Transform(np.diag(2 / (incident_field.pixel_size * incident_field.data_shape)))
