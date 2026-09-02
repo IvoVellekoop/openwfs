@@ -111,12 +111,7 @@ class Microscope(Processor):
 
         self.aberration_transform = aberration_transform
         # if no transform is provided, assume that the incident field is already in normalized pupil coordinates
-        self._incident_transform = (
-            incident_transform
-            if incident_transform is not None or incident_field is None
-            else Transform(np.diag(2 / (incident_field.pixel_size * incident_field.data_shape)))
-        )
-
+        self._incident_transform = incident_transform
         self.xy_stage = xy_stage or XYStage(0.1 * u.um, 0.1 * u.um)
         self.z_stage = z_stage or LinearStage(0.1 * u.um)
         output_shape = data_shape if data_shape is not None else source.data_shape
