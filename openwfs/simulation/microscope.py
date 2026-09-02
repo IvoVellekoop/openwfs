@@ -134,7 +134,7 @@ class Microscope(Processor):
             wavelength=wavelength,
             numerical_aperture=numerical_aperture,
             immersion_refractive_index=immersion_refractive_index,
-            z_stage=z_stage,
+            z_stage=self.z_stage,
         )
         # PSF of the microscope, which is used to convolve the source image
         self.psf = _PSF(
