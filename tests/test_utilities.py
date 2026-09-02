@@ -1,4 +1,5 @@
 import astropy.units as u
+import cv2
 import numpy as np
 import pytest
 
@@ -11,7 +12,7 @@ from openwfs.utilities import (
     set_extent,
 )
 
-from openwfs.utilities.patterns import parabola
+from openwfs.utilities.patterns import parabola, propagation
 
 
 def test_to_matrix():
@@ -251,3 +252,30 @@ def test_utilities_microscope():
     assert type(mic) == owf_s.Microscope
     assert type(slm) == owf_s.SLM
     assert type(src) == owf_s.StaticSource
+
+
+def test_transform_and_inverse_transform():
+    # example phase mask
+    phases = propagation(
+        (700, 1400),
+        30 * u.um,
+        500 * u.nm,
+        0.8,
+        1.33,
+        (2, 4),
+    )
+    phases = set_extent(phases, (2, 4))
+    transform = Transform(np.eye(2) * 1.2, (0, 0), (0.1, 0.1))
+
+    # move through a series of projections and back projections to test that the transform and inverse transform are applied correctly
+    out = project(phases, out_extent=3, out_shape=(500, 500), transform=transform, interp=cv2.INTER_LINEAR)
+    out2 = project(
+        out, out_extent=(2, 4), out_shape=phases.shape, transform=transform.inverse(), interp=cv2.INTER_LINEAR
+    )
+
+    out3 = project(out2, out_extent=1.5, out_shape=(300, 300), transform=None, interp=cv2.INTER_LINEAR)
+
+    phases3 = project(phases, out_extent=1.5, out_shape=(300, 300), transform=None, interp=cv2.INTER_LINEAR)
+
+    # compare the final output to the original phases projected directly to the final extent and shape
+    assert np.allclose(out3, phases3, atol=3e-2), "The projected fields do not match!"
