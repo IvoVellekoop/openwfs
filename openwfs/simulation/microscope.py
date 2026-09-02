@@ -394,7 +394,7 @@ class _PSF(Processor):
         """
         psf = np.abs(np.fft.ifft2(pupil_field)) ** 2
 
-        psf = np.fft.ifftshift(psf) * (psf.size / pupil_area)
+        psf = np.fft.ifftshift(psf)
         # ifft_shift shifts psf by 1 pixel when off centre, both when the array is odd and even
         # Compensate for this by rolling the kernel by -1 pixel in both x and y directions
         psf = np.roll(psf, -1, axis=(0, 1))
