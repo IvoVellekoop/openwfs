@@ -73,7 +73,7 @@ class Microscope(Processor):
             incident_field: Produces 2-D complex images containing the field output of the SLM.
                 The incident field has an extent in units mm or is None. If the incident has units of mm,
                 an incident transform must be provided to transform the incident field to normalized pupil coordinates.
-                If the incident transform is not provided, the incident field is assumed to be in normalized pupil coordinates with an extent of 2.
+                If the incident transform is not provided, the incident field is assumed to be in normalized pupil coordinates.
             incident_transform (Optional[Transform]):
                 Converts the incident field with physical units (mm) to normalized pupil coordinates. 
             aberrations: 2-D image containing the phase (in radians) of aberrations observed
@@ -108,7 +108,7 @@ class Microscope(Processor):
         self._incident_field = incident_field
         # if incident_field.physical_pixel_size is not None and incident transform is None: throw an error
         if incident_field is not None:
-            if incident_field.extent is not None and incident_transform is None:
+            if incident_field.extent is not None and incident_field.extent.unit is not None and incident_transform is None:
                 raise ValueError(
                     "If the incident field has physical units (mm), an incident transform must be provided to convert the incident field to normalized pupil coordinates."
                 )
