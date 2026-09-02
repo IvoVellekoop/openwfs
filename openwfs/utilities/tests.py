@@ -60,7 +60,6 @@ def get_test_microscope(
     slm = owf_s.SLM(**slm_args)
 
     default_mic_args = {
-        "magnification": 1,
         "numerical_aperture": 0.85,
         "wavelength": 532.8 * u.nm,
         "incident_field": slm.field,
