@@ -233,7 +233,6 @@ def test_fidelity_phase_calibration_ssa_with_noise(n_y, n_x, phase_steps, gaussi
     sim = Microscope(
         source=src,
         incident_field=slm.field,
-        magnification=1,
         numerical_aperture=numerical_aperture,
         aberrations=aberration,
         wavelength=800 * u.nm,
@@ -286,7 +285,6 @@ def test_measure_modulated_light_dual_phase_stepping_with_noise_and_blocks(
     sim = Microscope(
         source=src,
         incident_field=slm.field,
-        magnification=1,
         numerical_aperture=1.0,
         wavelength=800 * u.nm,
     )
