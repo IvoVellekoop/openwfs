@@ -132,14 +132,9 @@ class Microscope(Processor):
             pupil_field=self._Pupil_Field,
             pupil_shape=output_shape,
             pupil_extent=domain_extent,
-            aberrations=aberrations,
-            incident_field=incident_field,
             wavelength=wavelength,
             numerical_aperture=numerical_aperture,
             immersion_refractive_index=immersion_refractive_index,
-            incident_transform=incident_transform,
-            aberration_transform=aberration_transform,
-            xy_stage=xy_stage,
             z_stage=z_stage,
         )
         # PSF of the microscope, which is used to convolve the source image
@@ -147,23 +142,12 @@ class Microscope(Processor):
             pupil_field=self.pupil_field,
             data_shape=output_shape,
             pupil_extent=domain_extent,
-            numerical_aperture=numerical_aperture,
-            wavelength=wavelength.to(u.nm),
             nonlinearity=nonlinearity,
-            xy_stage=self.xy_stage,
-            z_stage=self.z_stage,
-            immersion_refractive_index=immersion_refractive_index,
-            incident_field=incident_field,
-            incident_transform=self._incident_transform,
-            aberrations=aberrations,
-            aberration_transform=aberration_transform,
         )
 
         super().__init__(source, self.psf, multi_threaded=multi_threaded)
-
         self._data_shape = output_shape
-        self.pupil_field = self.psf.pupil_field  # detector that looks at the field in the pupil plane
-        self.slm_aberration = self.psf.pupil_field._Pupil_Field  # detector that looks at aberrations and slm phase
+
 
     def _fetch(self, source: np.ndarray, psf: np.ndarray) -> np.ndarray:
         """Updates the image on the camera sensor.
