@@ -747,8 +747,9 @@ def test_microscope_incident_field_extent_units():
         source_origin=u.Quantity([0, 0]) * u.mm,
         destination_origin=u.Quantity([0, 0]),
     )
-    # when the inverse transform is applied to the incident field in mic, the two arrays should be the same
-    mic_inverse = Microscope(
+    # when the inverse transform is applied to the incident field in mic, the two arrays should be the same,
+    # just test that there is no error
+    Microscope(
         source=source,
         numerical_aperture=0.8,
         wavelength=500 * u.nm,
@@ -759,7 +760,7 @@ def test_microscope_incident_field_extent_units():
 
     slm = SLM(shape=(700, 1400))
 
-    test_mic = Microscope(
+    Microscope(
         source=source,
         numerical_aperture=0.8,
         wavelength=500 * u.nm,
