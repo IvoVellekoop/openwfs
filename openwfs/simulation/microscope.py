@@ -148,7 +148,6 @@ class Microscope(Processor):
 
         super().__init__(source, self.psf, multi_threaded=multi_threaded)
         self._data_shape = output_shape
-        self.pixel_size = source.pixel_size
 
     def _fetch(self, source: np.ndarray, psf: np.ndarray) -> np.ndarray:
         """Updates the image on the camera sensor.
