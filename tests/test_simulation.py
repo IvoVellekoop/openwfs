@@ -9,7 +9,7 @@ import skimage
 from openwfs.algorithms import StepwiseSequential
 from openwfs.processors import SingleRoi
 from openwfs.simulation import Microscope, Camera, StaticSource, SLM
-from openwfs.simulation.microscope import _PSF, _SLM_Aberration, _PupilField
+from openwfs.simulation.microscope import _PSF, _Pupil_Field, _Propagator
 from openwfs.utilities import get_pixel_size, Transform, set_extent, project, get_extent
 from openwfs.utilities.patterns import tilt, gaussian, parabola, binary_grating, propagation, disk
 from openwfs.utilities.tests import get_test_microscope
@@ -594,7 +594,7 @@ def test_mock_microscope_individual_components():
     incident_field = slm.field
     multi_threaded: bool = True
 
-    slm_aberrations = _SLM_Aberration(
+    slm_aberrations = _Pupil_Field(
         pupil_shape=data_shape,
         pupil_extent=2,
         wavelength=wavelength,
@@ -605,7 +605,7 @@ def test_mock_microscope_individual_components():
 
     assert np.allclose(np.abs(slm_aberrations.read()), expected, atol=1e-2)
 
-    pupil_field = _PupilField(
+    pupil_field = _Propagator(
         pupil_shape=data_shape,
         pupil_extent=2,
         numerical_aperture=numerical_aperture,
@@ -647,7 +647,7 @@ def test_mock_microscope_individual_components():
 
 
 @pytest.mark.parametrize("physical_size", [u.Quantity([2, 2], u.mm), u.Quantity([2, 4], u.mm), None])
-def test_transform_SLM_Aberration(physical_size):
+def test_transform_Pupil_Field(physical_size):
     # test that the transform is applied correctly to the incident field in the microscope, and that the inverse transform can be used to cancel out the transform in the SLM
     glfw.init()
     if not glfw.get_monitors():
@@ -666,7 +666,7 @@ def test_transform_SLM_Aberration(physical_size):
     incident_field = slm.field
     transform = Transform(np.diag(2 / get_extent(incident_field.read())))
 
-    slm_aberrations = _SLM_Aberration(
+    slm_aberrations = _Pupil_Field(
         pupil_shape=data_shape,
         pupil_extent=2,
         wavelength=wavelength,
