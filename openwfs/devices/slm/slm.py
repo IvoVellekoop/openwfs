@@ -117,11 +117,7 @@ class SLM(Actuator, PhaseSLM):
         default_shape, default_rate, _ = SLM._current_mode(self._monitor_id)
         self._shape = default_shape if shape is None else shape
         # set extent to 2 for shortest axis if no physical size is provided.
-        self.physical_size = (
-            2 / np.min(self._shape) * Quantity(self._shape)
-            if physical_size is None
-            else Quantity(physical_size).to(u.mm)
-        )
+        self.physical_pixel_size = None if physical_size is None else Quantity(physical_size).to(u.mm) / self._shape
         self._refresh_rate = default_rate if refresh_rate is None else refresh_rate.to_value(u.Hz)
         self._frame_buffer = None
         self._monitor = None
@@ -680,7 +676,7 @@ class FrontBufferReader(Detector):
         self._context = Context(slm)
         super().__init__(
             data_shape=None,
-            pixel_size=slm.physical_size / slm.shape,
+            pixel_size=slm.physical_pixel_size,
             duration=0.0 * u.ms,
             latency=0.0 * u.ms,
             multi_threaded=False,
@@ -706,7 +702,7 @@ class FrameBufferReader(Detector):
         self._context = Context(slm)
         super().__init__(
             data_shape=None,
-            pixel_size=slm.physical_size / slm.shape,
+            pixel_size=slm.physical_pixel_size,
             duration=0.0 * u.ms,
             latency=0.0 * u.ms,
             multi_threaded=False,
