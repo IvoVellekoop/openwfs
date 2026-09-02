@@ -43,11 +43,11 @@ class Microscope(Processor):
         nonlinearity: int = 1,
         xy_stage=None,
         z_stage=None,
-        immersion_refractive_index: Optional[float] = 1.0,
+        immersion_refractive_index: float = 1.0,
         incident_field: Detector | None = None,
-        incident_transform: Optional[Transform] = None,
+        incident_transform: Transform | None = None,
         aberrations: Detector | None = None,
-        aberration_transform: Optional[Transform] = None,
+        aberration_transform: Transform | None = None,
         multi_threaded: bool = True,
     ):
         """
@@ -119,7 +119,7 @@ class Microscope(Processor):
 
         domain_extent = wavelength / self.pixel_size / numerical_aperture
 
-        self._Pupil_Field = _Pupil_Field(
+        self.pupil_field = _Pupil_Field(
             pupil_shape=output_shape,
             pupil_extent=domain_extent,
             incident_field=incident_field,
@@ -128,8 +128,8 @@ class Microscope(Processor):
             aberration_transform=aberration_transform,
             multi_threaded=multi_threaded,
         )
-        self.pupil_field = _Propagator(
-            pupil_field=self._Pupil_Field,
+        self.propagated_pupil_field = _Propagator(
+            pupil_field=self.pupil_field,
             pupil_shape=output_shape,
             pupil_extent=domain_extent,
             wavelength=wavelength,
@@ -139,7 +139,7 @@ class Microscope(Processor):
         )
         # PSF of the microscope, which is used to convolve the source image
         self.psf = _PSF(
-            pupil_field=self.pupil_field,
+            pupil_field=self.propagated_pupil_field,
             data_shape=output_shape,
             pupil_extent=domain_extent,
             nonlinearity=nonlinearity,
@@ -186,7 +186,7 @@ class Microscope(Processor):
 
     @property
     def numerical_aperture(self) -> float:
-        return self.pupil_field.numerical_aperture
+        return self.propagated_pupil_field.numerical_aperture
 
     @numerical_aperture.setter
     def numerical_aperture(self, value: float):
@@ -194,7 +194,7 @@ class Microscope(Processor):
 
     @property
     def wavelength(self) -> Quantity:
-        return self.pupil_field.wavelength
+        return self.propagated_pupil_field.wavelength
 
     @wavelength.setter
     def wavelength(self, value: Quantity):
@@ -211,11 +211,11 @@ class Microscope(Processor):
 
     @property
     def immersion_refractive_index(self) -> float:
-        return self.propagator.immersion_refractive_index
+        return self.propagated_pupil_field.immersion_refractive_index
 
     @immersion_refractive_index.setter
     def immersion_refractive_index(self, value: float):
-        self.pupil_field.immersion_refractive_index = value
+        self.propagated_pupil_field.immersion_refractive_index = value
 
     @property
     def incident_transform(self) -> Optional[Transform]:
@@ -325,7 +325,7 @@ class _Propagator(Processor):
         numerical_aperture: float = 1.0,
         wavelength: Quantity[u.nm],
         z_stage=None,
-        immersion_refractive_index: Optional[float] = 1.0,
+        immersion_refractive_index: float = 1.0,
         multi_threaded: bool = True,
     ):
         self._pupil_field = pupil_field
