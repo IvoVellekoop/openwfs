@@ -103,7 +103,7 @@ class Microscope(Processor):
         # First crop and downscale the source image to have the same size as the output
         # todo: add some padding
         # todo: add option for oversampling
-        source_pixel_size = source.pixel_size
+        self.pixel_size = source.pixel_size
 
         self.aberration_transform = aberration_transform
         # if no transform is provided, assume that the incident field is already in normalized pupil coordinates
@@ -211,7 +211,7 @@ class Microscope(Processor):
 
     @property
     def immersion_refractive_index(self) -> float:
-        return self.pupil_field.immersion_refractive_index
+        return self.propagator.immersion_refractive_index
 
     @immersion_refractive_index.setter
     def immersion_refractive_index(self, value: float):
@@ -230,7 +230,7 @@ class Microscope(Processor):
 
     @incident_transform.setter
     def incident_transform(self, value: Optional[Transform]):
-        self.slm_aberration._incident_transform = value
+        self.pupil_field._incident_transform = value
 
     def z_stack_read(self, z: Quantity["length"]) -> np.ndarray:
         """Measures a z-stack by moving the z-stage to different positions and reading the corresponding images
