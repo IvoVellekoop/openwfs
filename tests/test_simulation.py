@@ -716,3 +716,41 @@ def test_mock_microscope_xy_stage():
     mic.xy_stage.x = 5 * u.um
     # assert images are equal on the part from 51 to end, because the first 50 pixels are rolled in the second image
     assert np.allclose(img_rolled[:, 51:-15], mic.read()[:, 51:-15], rtol=1e-2, atol=1e-2)
+
+def test_microscope_incident_field_extent_units():
+    # test that a transform is required when incident field has physical units instead of 
+    # normalized units. 
+    transform = Transform(np.eye(2) * 0.6, source_origin = (0,0), destination_origin = (-0.2, 0.3))
+    slm = realSLM(shape=(700, 1400), monitor_id=0, transform=transform, coordinate_system="full", physical_size = u.Quantity([2, 7], u.mm))
+    source = StaticSource(data=np.ones((700, 1400)), pixel_size=0.2 * u.um)
+
+    # asssert that the following should throw an error
+    with pytest.raises(ValueError, match="incident field"):
+        Microscope(
+            source=source,
+            numerical_aperture=0.8,
+            wavelength=500 * u.nm,
+            immersion_refractive_index=1.33,
+            incident_field=slm.field,
+        )
+
+    transform2 = Transform(np.diag(2 / get_extent(slm.phases.read())), source_origin=u.Quantity([0, 0])*u.mm, destination_origin=u.Quantity([0, 0]))
+    # when the inverse transform is applied to the incident field in mic, the two arrays should be the same
+    mic_inverse = Microscope(
+        source=source,
+        numerical_aperture=0.8,
+        wavelength=500 * u.nm,
+        immersion_refractive_index=1.33,
+        incident_field=slm.field,
+        incident_transform=transform.inverse().compose(transform2), 
+    )
+
+    slm = SLM(shape=(700, 1400))
+
+    test_mic = Microscope(
+        source=source,
+        numerical_aperture=0.8,
+        wavelength=500 * u.nm,
+        immersion_refractive_index=1.33,
+        incident_field=slm.field,
+    )
