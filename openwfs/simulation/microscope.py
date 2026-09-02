@@ -23,8 +23,8 @@ class Microscope(Processor):
     wavefront shaping microscope: a spatial light modulator, translation stages, and a camera.
     This simulation is designed to test algorithms for wavefront shaping and alignment.
 
-    The microscope uses pupil coordinates, defined such that the numerical aperture of the microscope objective 
-    corresponds to a disk of radius 1 and 0 at the centre of the pupil. 
+    The microscope uses pupil coordinates, defined such that the numerical aperture of the microscope objective
+    corresponds to a disk of radius 1 and 0 at the centre of the pupil.
 
     The simulation takes the field at the SLM, applies the phase aberrations, and masks the field with
     a pupil function corresponding to the numerical aperture of the microscope objective.
