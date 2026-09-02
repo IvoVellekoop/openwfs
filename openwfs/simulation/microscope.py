@@ -71,9 +71,9 @@ class Microscope(Processor):
                 Defaults to a MockStage.
             immersion_refractive_index: The refractive index of the immersion medium.
             incident_field: Produces 2-D complex images containing the field output of the SLM.
-                If no `slm_transform` is specified, the `pixel_size` attribute should
-                 correspond to normalized pupil coordinates
-                (e.g. with a disk of radius 1.0, i.e. an extent of 2.0, corresponding to an NA of 1.0)
+                The incident field has an extent in units mm or is None. If the incident has units of mm,
+                an incident transform must be provided to transform the incident field to normalized pupil coordinates.
+                If the incident transform is not provided, the incident field is assumed to be in normalized pupil coordinates with an extent of 2.
             incident_transform (Optional[Transform]):
                 Optional Transform that transforms the incident field to pupil coordinates.
                 Typically, the slm image is already in normalized pupil coordinates,
@@ -111,6 +111,8 @@ class Microscope(Processor):
 
         self.aberration_transform = aberration_transform
         # if no transform is provided, assume that the incident field is already in normalized pupil coordinates
+
+        # if 
         self._incident_transform = incident_transform
         self.xy_stage = xy_stage or XYStage(0.1 * u.um, 0.1 * u.um)
         self.z_stage = z_stage or LinearStage(0.1 * u.um)
