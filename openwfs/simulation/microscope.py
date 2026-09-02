@@ -75,11 +75,7 @@ class Microscope(Processor):
                 an incident transform must be provided to transform the incident field to normalized pupil coordinates.
                 If the incident transform is not provided, the incident field is assumed to be in normalized pupil coordinates with an extent of 2.
             incident_transform (Optional[Transform]):
-                Optional Transform that transforms the incident field to pupil coordinates.
-                Typically, the slm image is already in normalized pupil coordinates,
-                but this transform can be used to mimic SLM misalignment.
-                Default if no transform is provided: Transform(np.diag(2 / (incident_field.pixel_size * incident_field.data_shape)))
-                such that the incident is assumed to have an extent of 2.0 in normalized pupil coordinates.
+                Converts the incident field with physical units (mm) to normalized pupil coordinates. 
             aberrations: 2-D image containing the phase (in radians) of aberrations observed
                 in the back pupil of the microscope objective, or a Detector object that automatically produces such
                 images. The `extent` attribute corresponds to normalized pupil coordinates. For example, with a
