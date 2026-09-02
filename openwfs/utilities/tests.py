@@ -14,7 +14,6 @@ def get_test_microscope(
     - Numerical aperture: 0.85
     - Wavelength: 532.8 nm
     - Incident field: SLM with shape (512, 512).
-    - Magnification: 1
 
     Any setting can be customized by passing the desired arguments to the function. The arguments are passed as dictionaries, which are then passed to the respective openwfs function. Three dictionaries can be used as input which control the arguments to the StaticSource, SLM, and Microscope. The keys of the dictionaries are the variable name which are passed to the StaticSource, SLM and Microscope construtor.
 
