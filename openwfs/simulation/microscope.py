@@ -75,7 +75,7 @@ class Microscope(Processor):
                 an incident transform must be provided to transform the incident field to normalized pupil coordinates.
                 If the incident transform is not provided, the incident field is assumed to be in normalized pupil coordinates.
             incident_transform (Optional[Transform]):
-                Converts the incident field with physical units (mm) to normalized pupil coordinates. 
+                Converts the incident field with physical units (mm) to normalized pupil coordinates.
             aberrations: 2-D image containing the phase (in radians) of aberrations observed
                 in the back pupil of the microscope objective, or a Detector object that automatically produces such
                 images. The `extent` attribute corresponds to normalized pupil coordinates. For example, with a
@@ -107,7 +107,11 @@ class Microscope(Processor):
         self.aberration_transform = aberration_transform
         self._incident_field = incident_field
         if incident_field is not None:
-            if incident_field.extent is not None and incident_field.extent.unit != u.dimensionless_unscaled and incident_transform is None:
+            if (
+                incident_field.extent is not None
+                and incident_field.extent.unit != u.dimensionless_unscaled
+                and incident_transform is None
+            ):
                 raise ValueError(
                     "If the incident field has physical units (mm), an incident transform must be provided to convert the incident field to normalized pupil coordinates."
                 )
