@@ -43,7 +43,7 @@ def test_microscope_without_magnification(shape):
     src = Camera(StaticSource(img, pixel_size=400 * u.nm), analog_max=0xFFFF)
 
     # construct microscope
-    sim = Microscope(source=src, magnification=1, numerical_aperture=1, wavelength=800 * u.nm)
+    sim = Microscope(source=src, numerical_aperture=1, wavelength=800 * u.nm)
     cam = Camera(sim, analog_max=None)
     img = cam.read()
     assert img[256, 256] == 2**16 - 1
@@ -63,7 +63,6 @@ def test_microscope_and_aberration():
 
     sim = Microscope(
         source=src,
-        magnification=1,
         incident_field=slm.field,
         numerical_aperture=1,
         wavelength=800 * u.nm,
