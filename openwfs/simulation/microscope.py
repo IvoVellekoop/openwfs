@@ -46,7 +46,7 @@ class Microscope(Processor):
         immersion_refractive_index: Optional[float] = 1.0,
         incident_field: Detector | None = None,
         incident_transform: Optional[Transform] = None,
-        aberrations: Detector | np.ndarray | None = None,
+        aberrations: Detector | None = None,
         aberration_transform: Optional[Transform] = None,
         multi_threaded: bool = True,
     ):
@@ -95,9 +95,10 @@ class Microscope(Processor):
             scaled to have the same pixel resolution so that they can be added.
         """
         if not isinstance(source, Detector):
-            if get_pixel_size(source) is None:
-                raise ValueError("The source must have a pixel_size attribute.")
-            source = StaticSource(source)
+            raise ValueError("The source must be a Detector object.")
+
+        if aberrations is not None and not isinstance(aberrations, Detector):
+            raise ValueError("The aberrations must be a Detector object or None.")
         
         # First crop and downscale the source image to have the same size as the output
         # todo: add some padding
@@ -116,10 +117,36 @@ class Microscope(Processor):
         self.z_stage = z_stage or LinearStage(0.1 * u.um)
         output_shape = data_shape if data_shape is not None else source.data_shape
 
+        domain_extent = wavelength / self.pixel_size / numerical_aperture
+
+        self._Pupil_Field = _Pupil_Field(
+            pupil_shape=output_shape,
+            pupil_extent=domain_extent,
+            incident_field=incident_field,
+            incident_transform=incident_transform,
+            aberrations=aberrations,
+            aberration_transform=aberration_transform,
+            multi_threaded=multi_threaded,
+        )
+        self.pupil_field = _Propagator(
+            pupil_field=self._Pupil_Field,
+            pupil_shape=output_shape,
+            pupil_extent=domain_extent,
+            aberrations=aberrations,
+            incident_field=incident_field,
+            wavelength=wavelength,
+            numerical_aperture=numerical_aperture,
+            immersion_refractive_index=immersion_refractive_index,
+            incident_transform=incident_transform,
+            aberration_transform=aberration_transform,
+            xy_stage=xy_stage,
+            z_stage=z_stage,
+        )
         # PSF of the microscope, which is used to convolve the source image
         self.psf = _PSF(
+            pupil_field=self.pupil_field,
             data_shape=output_shape,
-            pupil_extent=wavelength / self.pixel_size / numerical_aperture,
+            pupil_extent=domain_extent,
             numerical_aperture=numerical_aperture,
             wavelength=wavelength.to(u.nm),
             nonlinearity=nonlinearity,
@@ -208,13 +235,20 @@ class Microscope(Processor):
 
     @property
     def incident_transform(self) -> Optional[Transform]:
+        """   
+        incident_transform:
+        Optional Transform that transforms the phase pattern from the slm object
+        (in slm.pixel_size units) to normalized pupil coordinates.
+        Typically, the slm image is already in normalized pupil coordinates,
+        but this transform can be used to mimic SLM misalignment.
+        """
         return self._incident_transform
 
     @incident_transform.setter
     def incident_transform(self, value: Optional[Transform]):
         self.slm_aberration._incident_transform = value
 
-    def z_stack_read(self, z):
+    def z_stack_read(self, z: Quantitiy["length"]) -> np.ndarray:
         """Measures a z-stack by moving the z-stage to different positions and reading the corresponding images
         Args:
             z: Array of z positions to read at.
@@ -237,7 +271,7 @@ class _Pupil_Field(Processor):
         pupil_extent=None,
         incident_field: Detector | None = None,
         incident_transform: Optional[Transform] = None,
-        aberrations: Detector | np.ndarray | None = None,
+        aberrations: Detector | None = None,
         aberration_transform: Optional[Transform] = None,
         multi_threaded: bool = True,
     ):
@@ -301,36 +335,18 @@ class _Propagator(Processor):
     def __init__(
         self,
         *,
+        pupil_field: Detector | Processor,
         pupil_shape=None,
         pupil_extent=None,
         numerical_aperture: float = 1.0,
         wavelength: Quantity[u.nm],
         z_stage=None,
         immersion_refractive_index: Optional[float] = 1.0,
-        incident_field: Detector | None = None,
-        incident_transform: Optional[Transform] = None,
-        aberrations: Detector | np.ndarray | None = None,
-        aberration_transform: Optional[Transform] = None,
         multi_threaded: bool = True,
     ):
+        self._pupil_field = pupil_field
 
-        if aberrations is not None and not isinstance(aberrations, Detector):
-            if get_pixel_size(aberrations) is None:
-                aberrations = StaticSource(aberrations)
-            else:
-                aberrations = StaticSource(aberrations, pixel_size=get_pixel_size(aberrations))
-
-        self._Pupil_Field = _Pupil_Field(
-            pupil_shape=pupil_shape,
-            pupil_extent=pupil_extent,
-            incident_field=incident_field,
-            incident_transform=incident_transform,
-            aberrations=aberrations,
-            aberration_transform=aberration_transform,
-            multi_threaded=multi_threaded,
-        )
-
-        super().__init__(self._Pupil_Field, multi_threaded=multi_threaded)
+        super().__init__(self._pupil_field, multi_threaded=multi_threaded)
         self._data_shape = pupil_shape
         self._pupil_extent = pupil_extent
         self.numerical_aperture = numerical_aperture
@@ -366,34 +382,14 @@ class _PSF(Processor):
     def __init__(
         self,
         *,
+        pupil_field: Detector | Processor,
         data_shape=None,
         pupil_extent=None,
-        numerical_aperture: float = 1.0,
-        wavelength: Quantity[u.nm],
         nonlinearity: int = 1,
-        xy_stage=None,
-        z_stage=None,
-        immersion_refractive_index: Optional[float] = 1.0,
-        incident_field: Detector | None = None,
-        incident_transform: Optional[Transform] = None,
-        aberrations: Detector | np.ndarray | None = None,
-        aberration_transform: Optional[Transform] = None,
         multi_threaded: bool = True,
     ):
 
-        self.pupil_field = _Propagator(
-            pupil_shape=data_shape,
-            pupil_extent=pupil_extent,
-            aberrations=aberrations,
-            incident_field=incident_field,
-            wavelength=wavelength,
-            numerical_aperture=numerical_aperture,
-            immersion_refractive_index=immersion_refractive_index,
-            incident_transform=incident_transform,
-            aberration_transform=aberration_transform,
-            xy_stage=xy_stage,
-            z_stage=z_stage,
-        )
+        self.pupil_field = pupil_field
 
         super().__init__(self.pupil_field, multi_threaded=multi_threaded)
         self._data_shape = data_shape
