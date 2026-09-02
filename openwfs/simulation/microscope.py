@@ -103,7 +103,7 @@ class Microscope(Processor):
         # First crop and downscale the source image to have the same size as the output
         # todo: add some padding
         # todo: add option for oversampling
-        self.pixel_size = source.pixel_size
+
 
         self.aberration_transform = aberration_transform
         # if no transform is provided, assume that the incident field is already in normalized pupil coordinates
@@ -118,6 +118,7 @@ class Microscope(Processor):
         output_shape = data_shape if data_shape is not None else source.data_shape
 
         domain_extent = wavelength / self.pixel_size / numerical_aperture
+                
 
         self.pupil_field = _Pupil_Field(
             pupil_shape=output_shape,
@@ -147,6 +148,7 @@ class Microscope(Processor):
 
         super().__init__(source, self.psf, multi_threaded=multi_threaded)
         self._data_shape = output_shape
+        self.pixel_size = source.pixel_size
 
     def _fetch(self, source: np.ndarray, psf: np.ndarray) -> np.ndarray:
         """Updates the image on the camera sensor.
