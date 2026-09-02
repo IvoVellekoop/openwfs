@@ -248,7 +248,7 @@ class Microscope(Processor):
     def incident_transform(self, value: Optional[Transform]):
         self.slm_aberration._incident_transform = value
 
-    def z_stack_read(self, z: Quantitiy["length"]) -> np.ndarray:
+    def z_stack_read(self, z: Quantity["length"]) -> np.ndarray:
         """Measures a z-stack by moving the z-stage to different positions and reading the corresponding images
         Args:
             z: Array of z positions to read at.
