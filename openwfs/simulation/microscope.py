@@ -104,7 +104,6 @@ class Microscope(Processor):
         # todo: add some padding
         # todo: add option for oversampling
 
-
         self.aberration_transform = aberration_transform
         # if no transform is provided, assume that the incident field is already in normalized pupil coordinates
         self._incident_transform = (
@@ -118,7 +117,6 @@ class Microscope(Processor):
         output_shape = data_shape if data_shape is not None else source.data_shape
 
         domain_extent = wavelength / source.pixel_size / numerical_aperture
-                
 
         self.pupil_field = _Pupil_Field(
             pupil_shape=output_shape,
