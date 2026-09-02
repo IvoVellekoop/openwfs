@@ -392,11 +392,6 @@ class _PSF(Processor):
         Returns:
             np.ndarray: The point spread function (PSF) of the microscope.
         """
-        # pupil area for normalization of the PSF, so that a pupil fully filled with a field strength of 1.0 will produce an image
-        # that has the same total intensity as the source image.
-        pupil_area = patterns.disk(self.data_shape, radius=1.0, extent=self._pupil_extent)
-        pupil_area = np.sum(pupil_area)  # TODO (efficiency): compute area directly from radius
-
         psf = np.abs(np.fft.ifft2(pupil_field)) ** 2
 
         psf = np.fft.ifftshift(psf) * (psf.size / pupil_area)
