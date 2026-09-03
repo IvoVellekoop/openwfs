@@ -288,7 +288,7 @@ def test_measure_modulated_light_dual_phase_stepping_with_noise_and_blocks(
         numerical_aperture=1.0,
         wavelength=800 * u.nm,
     )
-    cam = Camera(sim, analog_max=1e4, gaussian_noise_std=gaussian_noise_std)
+    cam = Camera(sim, analog_max=1e4, gaussian_noise_std=gaussian_noise_std, generator=np.random.default_rng(42))
     roi_detector = SingleRoi(cam, radius=0)  # Only measure that specific point
 
     # Measure the amount of modulated light (no non-modulated light present)
