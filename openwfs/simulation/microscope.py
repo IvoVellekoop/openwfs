@@ -405,7 +405,7 @@ class _PSF(Processor):
         pupil_field = patterns.disk(self._data_shape, radius=1.0, extent=self._pupil_extent)
         pupil_area = np.sum(pupil_field)  # TODO (efficiency): compute area directly from radius
 
-        psf = np.fft.ifftshift(psf)  * (psf.size / pupil_area)
+        psf = np.fft.ifftshift(psf) * (psf.size / pupil_area)
 
         # assuming focal length etc... of objective are the same, the area of the back focal plane should scale quadratically with
         # the numerical aperture, so the PSF should be scaled by the square of the numerical aperture to account for this.
