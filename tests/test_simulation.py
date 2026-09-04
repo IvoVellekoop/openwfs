@@ -367,7 +367,7 @@ def test_microscope_convolution():
     source = StaticSource(data=data, pixel_size=1 * u.um)
     mic = Microscope(
         source=source,
-        numerical_aperture=0.8,
+        numerical_aperture=1.0,
         wavelength=500 * u.nm,
         immersion_refractive_index=1.33,
         incident_field=slm.field,
@@ -384,13 +384,12 @@ def test_microscope_convolution():
     source = StaticSource(data=data, pixel_size=1 * u.um)
     mic = Microscope(
         source=source,
-        numerical_aperture=0.8,
+        numerical_aperture=1.0,
         wavelength=500 * u.nm,
         immersion_refractive_index=1.33,
         incident_field=slm.field,
     )
     img = mic.read()
-    img == data
 
     assert np.allclose(img, data)
 
@@ -401,13 +400,12 @@ def test_microscope_convolution():
     source = StaticSource(data=data, pixel_size=1 * u.um)
     mic = Microscope(
         source=source,
-        numerical_aperture=0.8,
+        numerical_aperture=1.0,
         wavelength=500 * u.nm,
         immersion_refractive_index=1.33,
         incident_field=slm.field,
     )
     img = mic.read()
-    img == data
 
     assert np.allclose(img, data)
 
@@ -418,13 +416,12 @@ def test_microscope_convolution():
     source = StaticSource(data=data, pixel_size=1 * u.um)
     mic = Microscope(
         source=source,
-        numerical_aperture=0.8,
+        numerical_aperture=1.0,
         wavelength=500 * u.nm,
         immersion_refractive_index=1.33,
         incident_field=slm.field,
     )
     img = mic.read()
-    img == data
 
     assert np.allclose(img, data)
 
