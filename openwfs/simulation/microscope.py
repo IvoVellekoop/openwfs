@@ -402,12 +402,14 @@ class _PSF(Processor):
         """
         psf = np.abs(np.fft.ifft2(pupil_field)) ** 2
 
-        psf = np.fft.ifftshift(psf)
-        psf /= psf.sum()  # normalize the PSF to have a total intensity of 1
+        pupil_field = patterns.disk(self._data_shape, radius=1.0, extent=self._pupil_extent)
+        pupil_area = np.sum(pupil_field)  # TODO (efficiency): compute area directly from radius
+
+        psf = np.fft.ifftshift(psf)  * (psf.size / pupil_area)
 
         # assuming focal length etc... of objective are the same, the area of the back focal plane should scale quadratically with
         # the numerical aperture, so the PSF should be scaled by the square of the numerical aperture to account for this.
-        # this means that if the NA = 1 the PSF is normalized to 1. For other NA's, the PSF area scales correspond to a smaller
+        # this means that if the NA = 1 the PSF is normalized to 1 if incident field strength is 1. For other NA's, the PSF area scales correspond to a smaller
         # or larger area in the back focal plane, and the same illumination intensity.
         psf *= self._numerical_aperture**2
 
