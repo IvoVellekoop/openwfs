@@ -36,11 +36,14 @@ class SLM(Actuator, PhaseSLM):
         "_refresh_rate",
         "_transform",
         "_shape",
+        "physical_size",
+        "physical_pixel_size",
         "_window",
         "_globals",
         "_frame_buffer",
         "_monitor",
         "patches",
+        "_amplitude",
         "primary_patch",
         "_coordinate_system",
         "_pixel_reader",
@@ -63,12 +66,14 @@ class SLM(Actuator, PhaseSLM):
         self,
         monitor_id: int = WINDOWED,
         shape: Optional[tuple[int, int]] = None,
+        physical_size: Quantity["length"] | None = None,
         pos: tuple[int, int] = (0, 0),
         refresh_rate: Optional[Quantity[u.Hz]] = None,
         latency: TimeType = 2,
         duration: TimeType = 1,
         coordinate_system: str = "short",
         transform: Optional[Transform] = None,
+        amplitude: ArrayLike = 1,
         hidden=True,
     ):
         """
@@ -87,6 +92,7 @@ class SLM(Actuator, PhaseSLM):
                 Note that OpenGL does not seem to support non-integer refresh rates.
                 In these cases, it is better to set the refresh rate in the OS, and not
                 explicitly specify a refresh rate.
+            physical_size (Quantity["length"]): Physical size of the SLM with astropy units (height, width).
             latency (int): Time between the vertical retrace and the start of the SLM response to the new frame,
                 specified in milliseconds (u.ms) or multiples of the frame period (unitless).
                 see :py:attr:`~latency`
@@ -111,6 +117,9 @@ class SLM(Actuator, PhaseSLM):
         self._monitor_id = monitor_id
         default_shape, default_rate, _ = SLM._current_mode(self._monitor_id)
         self._shape = default_shape if shape is None else shape
+        # set extent to 2 for shortest axis if no physical size is provided.
+        self.physical_size = physical_size
+        self.physical_pixel_size = None if physical_size is None else Quantity(physical_size).to(u.mm) / self._shape
         self._refresh_rate = default_rate if refresh_rate is None else refresh_rate.to_value(u.Hz)
         self._frame_buffer = None
         self._monitor = None
@@ -118,6 +127,7 @@ class SLM(Actuator, PhaseSLM):
         self._globals = -1
         self._hidden = hidden
         self.patches = []
+        self._amplitude = np.asarray(amplitude)
         self._context = None
         self._create_window()  # sets self._context, self._window and self._globals and self._frame_patch, self._monitor
         self._coordinate_system = coordinate_system
@@ -605,7 +615,7 @@ class SLM(Actuator, PhaseSLM):
              a detector that returns `self.amplitude * exp(1.0j * self.phases.read()`
         """
         if self._field_reader is None:
-            self._field_reader = PhaseToField(self.phases)
+            self._field_reader = PhaseToField(self.phases, self.amplitude)
         return self._field_reader
 
     @property
@@ -617,6 +627,17 @@ class SLM(Actuator, PhaseSLM):
         if self._phase_reader is None:
             self._phase_reader = FrameBufferReader(self)
         return self._phase_reader
+
+    @property
+    def amplitude(self) -> float:
+        return self._amplitude
+
+    @amplitude.setter
+    def amplitude(self, value: float) -> None:
+        self._amplitude = value
+
+        if self._field_reader is not None:
+            self._field_reader.modulated_field_amplitude = value
 
     def clone(
         self,
@@ -657,7 +678,7 @@ class FrontBufferReader(Detector):
         self._context = Context(slm)
         super().__init__(
             data_shape=None,
-            pixel_size=None,
+            pixel_size=slm.physical_pixel_size,
             duration=0.0 * u.ms,
             latency=0.0 * u.ms,
             multi_threaded=False,
@@ -683,7 +704,7 @@ class FrameBufferReader(Detector):
         self._context = Context(slm)
         super().__init__(
             data_shape=None,
-            pixel_size=None,
+            pixel_size=slm.physical_pixel_size,
             duration=0.0 * u.ms,
             latency=0.0 * u.ms,
             multi_threaded=False,

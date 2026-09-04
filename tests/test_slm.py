@@ -3,12 +3,20 @@ import time
 import astropy.units as u
 import cv2
 import glfw
-import numpy as np  # for debugging
+import numpy as np
 import pytest
 
 from openwfs.devices import is_loaded
 from openwfs.devices.slm import SLM, Patch, geometry
-from openwfs.utilities import Transform
+from openwfs.utilities import Transform, project
+from openwfs.simulation.slm import SLM as SimSLM
+from numpy.testing import assert_allclose
+from openwfs.utilities.patterns import propagation
+from openwfs.utilities.patterns import propagation
+from openwfs.utilities.utilities import get_pixel_size, set_extent
+from openwfs.simulation.microscope import Microscope
+from openwfs.simulation.mockdevices import StaticSource
+from astropy.units import Quantity
 
 if not is_loaded(glfw):
     pytest.skip(glfw.message, allow_module_level=True)
@@ -286,3 +294,166 @@ def test_circular_geometry(slm):
         np.repeat(np.flip(np.arange(30, 70)), 1).reshape((-1, 1)),
         atol=1,
     )
+
+
+def test_calibrated_slm_initialization():
+    """
+    Test the initialization of the CalibratedSLM class.
+    """
+    physical_size = Quantity((2 * u.um, 2 * u.um))
+    shape = (100, 100)
+
+    slm = SLM(physical_size=physical_size, shape=shape, monitor_id=0)
+
+    assert np.allclose(slm.physical_size, physical_size)
+    assert slm.shape == shape
+    assert slm.monitor_id == 0
+
+    slm.physical_size = Quantity((3 * u.um, 3 * u.um))
+    assert np.allclose(
+        slm.physical_size,
+        Quantity(
+            (
+                3 * u.um,
+                3 * u.um,
+            )
+        ),
+    ), "Physical size setter did not update the physical size correctly."
+
+
+def test_cslm_field_amplitude():
+    """
+    Test the field amplitude of the CalibratedSLM class.
+    """
+    field_amplitude = np.ones((100, 100)) * 10
+    field_amplitude[30:70, 30:70] = 0
+    slm = SLM(
+        physical_size=(2 * u.um, 2 * u.um),
+        amplitude=field_amplitude,
+        shape=(100, 100),
+        monitor_id=0,
+    )
+
+    assert np.allclose(slm.amplitude, field_amplitude), "The field amplitude does not match the expected value."
+
+    # should throw an error if the amplitude shape does not match the SLM shape
+    try:
+        field_amplitude = np.ones((99, 99))
+        slm = SLM(
+            physical_size=(2 * u.um, 2 * u.um),
+            amplitude=field_amplitude,
+            shape=(100, 100),
+            monitor_id=0,
+        )
+    except ValueError as e:
+        assert str(e) == "amplitude must have the same shape as the SLM shape."
+
+
+def test_slm_mockSLM_equivalence():
+    """
+    Test the equivalence of the SLM and SimSLM classes.
+    """
+    slm = SimSLM(shape=(70, 140))
+    slm2 = SLM(shape=(70, 140), monitor_id=0, coordinate_system="full", physical_size=(Quantity([2, 2], u.mm)))
+    # use random seed and set phases
+
+    phases = np.mod(
+        propagation((70, 140), distance=-4 * u.um, wavelength=500 * u.nm, numerical_aperture=0.8, extent=2), 2 * np.pi
+    )
+
+    slm.set_phases(phases)
+    slm2.set_phases(phases)
+
+    assert_allclose(slm.field.read(), slm2.field.read(), rtol=1e-2, atol=1e-2)
+    assert_allclose(slm.pixels.read(), slm2.pixels.read(), rtol=1e-2, atol=1e-2)
+
+    data = np.ones((70, 140))
+    data[30, 30] = 0
+    source = StaticSource(data=data, pixel_size=1 * u.um)
+    mic = Microscope(
+        source=source,
+        numerical_aperture=0.8,
+        wavelength=500 * u.nm,
+        immersion_refractive_index=1.33,
+        incident_field=slm.field,
+    )
+
+    mic2 = Microscope(
+        source=source,
+        numerical_aperture=0.8,
+        wavelength=500 * u.nm,
+        immersion_refractive_index=1.33,
+        incident_field=slm2.field,
+        incident_transform=Transform(np.diag(2 / (Quantity([2, 1], u.mm)))),
+    )
+
+    assert_allclose(
+        np.angle(mic.propagated_pupil_field.read()), np.angle(mic2.propagated_pupil_field.read()), rtol=1e-1, atol=1e-2
+    )
+    assert_allclose(mic2.read(), mic.read(), rtol=1e-2, atol=1e-2)
+
+    # test that physical size is handled correctly and that transform in mock microscope is applied correctly:
+    slm2 = SLM(shape=(70, 140), monitor_id=0, coordinate_system="full", physical_size=(10, 5) * u.mm)
+
+    slm2.set_phases(phases)
+
+    assert_allclose(slm.field.read(), slm2.field.read(), rtol=1e-2, atol=1e-2)
+    assert_allclose(slm.pixels.read(), slm2.pixels.read(), rtol=1e-2, atol=1e-2)
+
+    mic = Microscope(
+        source=source,
+        numerical_aperture=0.8,
+        wavelength=500 * u.nm,
+        immersion_refractive_index=1.33,
+        incident_field=slm.field,
+    )
+    mic2 = Microscope(
+        source=source,
+        numerical_aperture=0.8,
+        wavelength=500 * u.nm,
+        immersion_refractive_index=1.33,
+        incident_field=slm2.field,
+        incident_transform=Transform(np.diag(2 / (Quantity([10, 2.5], u.mm)))),
+    )
+
+    assert_allclose(mic2.read(), mic.read(), rtol=1e-2, atol=1e-2)
+
+    # the following is used in the mock microscope to convert the physical size of the SLM to normalized coordinates.
+    # We test that this is done correctly.
+    extent_physical = Quantity((10, 5), u.mm)
+    x_physical = set_extent(phases, extent_physical)
+    x_norm = set_extent(phases, 2)
+
+    assert np.allclose(x_norm, x_physical, rtol=1e-2, atol=1e-2)
+    x_norm_projected = project(
+        x_norm,
+        out_extent=2,
+        out_shape=(70, 140),
+        interp=cv2.INTER_LINEAR,
+    )
+
+    x_physical_projected = project(
+        x_physical,
+        out_extent=2,
+        out_shape=(70, 140),
+        transform=Transform(np.diag(2 / extent_physical)),
+        interp=cv2.INTER_LINEAR,
+    )
+
+    assert np.allclose(x_norm_projected, x_physical_projected, rtol=1e-2, atol=1e-2)
+
+
+def test_slm_update_amplitude():
+    # test if amplitude of field is correctly updated when changing the amplitude property of the SLM
+
+    # use random seed and set phases
+    rng = np.random.default_rng(seed=42)
+    amp = rng.uniform(size=(7, 14))
+    slm = SLM(monitor_id=0, shape=(7, 14), physical_size=(70, 140) * u.mm, amplitude=amp)
+
+    assert np.allclose(np.abs(slm.field.read()), amp)
+
+    amp = rng.uniform(size=(7, 14))
+    slm.amplitude = amp
+
+    assert np.allclose(np.abs(slm.field.read()), amp)

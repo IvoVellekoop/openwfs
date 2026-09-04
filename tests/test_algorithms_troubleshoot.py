@@ -233,7 +233,6 @@ def test_fidelity_phase_calibration_ssa_with_noise(n_y, n_x, phase_steps, gaussi
     sim = Microscope(
         source=src,
         incident_field=slm.field,
-        magnification=1,
         numerical_aperture=numerical_aperture,
         aberrations=aberration,
         wavelength=800 * u.nm,
@@ -286,11 +285,10 @@ def test_measure_modulated_light_dual_phase_stepping_with_noise_and_blocks(
     sim = Microscope(
         source=src,
         incident_field=slm.field,
-        magnification=1,
         numerical_aperture=1.0,
         wavelength=800 * u.nm,
     )
-    cam = Camera(sim, analog_max=1e4, gaussian_noise_std=gaussian_noise_std)
+    cam = Camera(sim, analog_max=1e4, gaussian_noise_std=gaussian_noise_std, generator=np.random.default_rng(42))
     roi_detector = SingleRoi(cam, radius=0)  # Only measure that specific point
 
     # Measure the amount of modulated light (no non-modulated light present)
