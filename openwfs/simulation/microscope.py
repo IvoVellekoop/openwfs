@@ -402,14 +402,14 @@ class _PSF(Processor):
         """
         psf = np.abs(np.fft.ifft2(pupil_field)) ** 2
 
-        psf = np.fft.ifftshift(psf) 
-        psf/= psf.sum()  # normalize the PSF to have a total intensity of 1
+        psf = np.fft.ifftshift(psf)
+        psf /= psf.sum()  # normalize the PSF to have a total intensity of 1
 
         # assuming focal length etc... of objective are the same, the area of the back focal plane should scale quadratically with
         # the numerical aperture, so the PSF should be scaled by the square of the numerical aperture to account for this.
-        # this means that if the NA = 1 the PSF is normalized to 1. For other NA's, the PSF area scales correspond to a smaller 
-        # or larger area in the back focal plane, and the same illumination intensity. 
-        psf*= self._numerical_aperture**2  
+        # this means that if the NA = 1 the PSF is normalized to 1. For other NA's, the PSF area scales correspond to a smaller
+        # or larger area in the back focal plane, and the same illumination intensity.
+        psf *= self._numerical_aperture**2
 
         # ifft_shift shifts psf by 1 pixel when off centre, both when the array is odd and even
         # Compensate for this by rolling the kernel by -1 pixel in both x and y directions
