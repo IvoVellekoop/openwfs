@@ -772,3 +772,47 @@ def test_microscope_incident_field_extent_units():
         immersion_refractive_index=1.33,
         incident_field=slm.field,
     )
+
+
+def test_psf_area_scaling_with_na():
+    #  If the coordinates of the back focal plane are the same, then the area of the back focal plane should scale quadratically with the numerical aperture.
+    # This means that if the NA = 1, the PSF is normalized to 1. For other NA's, the PSF area scales correspond to a smaller or larger area in the
+    # back focal plane, and the same illumination intensity.
+    data = np.ones((700, 1400))
+    data[30:60, 30:60] = 0
+    source = StaticSource(data=data, pixel_size=0.01 * u.um)
+    data_shape = source.data_shape
+    numerical_aperture = 1
+    wavelength = 500 * u.nm
+    nonlinearity = 1
+    immersion_refractive_index = 1.0
+    multi_threaded: bool = True
+
+    mic = Microscope(
+        source=source,
+        data_shape=data_shape,
+        numerical_aperture=numerical_aperture,
+        wavelength=wavelength,
+        nonlinearity=nonlinearity,
+        immersion_refractive_index=immersion_refractive_index,
+        multi_threaded=multi_threaded,
+    )
+
+    psf = mic.psf.read()
+    psf_area = np.sum(psf)
+
+    low_na = 0.8
+    mic = Microscope(
+        source=source,
+        data_shape=data_shape,
+        numerical_aperture=low_na,
+        wavelength=wavelength,
+        nonlinearity=nonlinearity,
+        immersion_refractive_index=immersion_refractive_index,
+        multi_threaded=multi_threaded,
+    )
+
+    psf_low_na = mic.psf.read()
+    psf_low_na_area = np.sum(psf_low_na)
+
+    assert np.isclose(psf_low_na_area / psf_area, (low_na / numerical_aperture) ** 2, rtol=1e-2)
