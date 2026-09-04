@@ -145,6 +145,7 @@ class Microscope(Processor):
             pupil_field=self.propagated_pupil_field,
             data_shape=output_shape,
             pupil_extent=domain_extent,
+            numerical_aperture=numerical_aperture,
             nonlinearity=nonlinearity,
         )
 
@@ -193,6 +194,7 @@ class Microscope(Processor):
     @numerical_aperture.setter
     def numerical_aperture(self, value: float):
         self.pupil_field.numerical_aperture = value
+        self.psf._numerical_aperture = value
 
     @property
     def wavelength(self) -> Quantity:
@@ -371,6 +373,7 @@ class _PSF(Processor):
         pupil_field: Detector | Processor,
         data_shape: tuple | None = None,
         pupil_extent: float | tuple = None,
+        numerical_aperture: float = 1.0,
         nonlinearity: int = 1,
         multi_threaded: bool = True,
     ):
@@ -380,6 +383,7 @@ class _PSF(Processor):
         super().__init__(self.pupil_field, multi_threaded=multi_threaded)
         self._data_shape = data_shape
         self._pupil_extent = pupil_extent
+        self._numerical_aperture = numerical_aperture
         self.nonlinearity = nonlinearity
         self._psf = None
 
@@ -398,7 +402,15 @@ class _PSF(Processor):
         """
         psf = np.abs(np.fft.ifft2(pupil_field)) ** 2
 
-        psf = np.fft.ifftshift(psf)
+        psf = np.fft.ifftshift(psf) 
+        psf/= psf.sum()  # normalize the PSF to have a total intensity of 1
+
+        # assuming focal length etc... of objective are the same, the area of the back focal plane should scale quadratically with
+        # the numerical aperture, so the PSF should be scaled by the square of the numerical aperture to account for this.
+        # this means that if the NA = 1 the PSF is normalized to 1. For other NA's, the PSF area scales correspond to a smaller 
+        # or larger area in the back focal plane, and the same illumination intensity. 
+        psf*= self._numerical_aperture**2  
+
         # ifft_shift shifts psf by 1 pixel when off centre, both when the array is odd and even
         # Compensate for this by rolling the kernel by -1 pixel in both x and y directions
         psf = np.roll(psf, -1, axis=(0, 1))
