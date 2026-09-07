@@ -523,7 +523,6 @@ class MotorizedFilterFlip(Actuator):
         Arguments:
             pos: int - Absolute position to move the device to.
         """
-        print(int(pos))
         self.device.SetPosition(self.UInt32(int(pos)), int(self.timeout.to(u.ms).value))
 
     def home(self):
@@ -549,7 +548,7 @@ class MotorizedFilterFlip(Actuator):
             Moves the device to the specified absolute position.
 
         Arguments:
-            pos: int - Absolute position to move the device to.
+            pos: bool - Position to move the device to. True for the flipper to be up, False for the flipper to be down.
         """
         KinesisHandler.throw_error_if_moving(self)
         super()._start()
