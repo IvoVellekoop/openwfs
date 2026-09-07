@@ -49,6 +49,7 @@ class SLM(Actuator, PhaseSLM):
         "_context",
         "_clones",
         "encoding",
+        "_hidden",
     ]
 
     _active_slms = WeakSet()
@@ -70,6 +71,7 @@ class SLM(Actuator, PhaseSLM):
         coordinate_system: str = "short",
         transform: Optional[Transform] = None,
         encoding="8b_r",
+        hidden=True,
     ):
         """
         Constructs a new SLM window.
@@ -101,6 +103,7 @@ class SLM(Actuator, PhaseSLM):
             enconding: String defining how the phases values are enconded into phases values. Possible values are:
                 - '8b_r': 8-bit encoding, where the 8 bit enconding will be store in the red, green and blue channels of the frame buffer.
                 - '10b_rb': 10-bit enconding, where 8-bits are encoded in the red channel and the remaining 2-bits are encoded in the least significant bits of the blue channel. This encoding can be used to control 10-bit SLM from Meadowlark Optics.
+            hidden: Requires `monitor_id=0`. When True, the SLM window is not shown. Useful for simulations (also see :py:attr:`~field`)
 
         Attributes:
             patches (list[Patch]): List of patches that are drawn on the SLM.
@@ -118,6 +121,7 @@ class SLM(Actuator, PhaseSLM):
         self._monitor = None
         self._window = None
         self._globals = -1
+        self._hidden = hidden
         self.patches = []
         self.encoding = encoding
         self._context = None
@@ -311,7 +315,10 @@ class SLM(Actuator, PhaseSLM):
 
         if self._monitor_id == SLM.WINDOWED:
             self._monitor = None
+            glfw.window_hint(glfw.VISIBLE, glfw.FALSE if self._hidden else glfw.TRUE)
         else:
+            if self._hidden:
+                raise ValueError("Hidden SLM objects must always be windowed (monitor_id = SLM.WINDOWED)")
             self._monitor = glfw.get_monitors()[self._monitor_id - 1]
             glfw.set_monitor_user_pointer(self._monitor, self._monitor_id)
 
