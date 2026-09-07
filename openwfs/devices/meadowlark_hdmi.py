@@ -155,8 +155,12 @@ class SLMBlinkHDMI(SLM):
         Args:
             voltage_bits: The lookup table to be loaded. The lookup table must have 2**bit_depth values, and tells how each grey value is mapped to the voltage value. The values of the lookup table must be in the range of 0 to 2**(bit_depth + 2) - 1. For example, for a 10-bit SLM, the values must be in the range of 0 to 4095.
         """
-        if not np.allclose(self.lookup_table, voltage_bits):
+        if self.lookup_table is None:
             self.load_lookup_table(voltage_bits)
+        else:
+            if not np.allclose(self.lookup_table, voltage_bits):
+                self.load_lookup_table(voltage_bits)
+
 
     @property
     def temperature(self):
