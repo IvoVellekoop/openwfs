@@ -161,7 +161,6 @@ class SLMBlinkHDMI(SLM):
             if not np.allclose(self.lookup_table, voltage_bits):
                 self.load_lookup_table(voltage_bits)
 
-
     @property
     def temperature(self):
         """
