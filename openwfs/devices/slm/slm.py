@@ -100,9 +100,9 @@ class SLM(Actuator, PhaseSLM):
                 The `transform` determines how these vertex coordinates that make up the shape of a Patch (see
                 :class:`Patch`) are mapped to the SLM window.
                 By default, 'short' is used (see :attr:`transform`)
-            enconding: String defining how the phases values are enconded into phases values. Possible values are:
-                - '8b_r': 8-bit encoding, where the 8 bit enconding will be store in the red, green and blue channels of the frame buffer.
-                - '10b_rb': 10-bit enconding, where 8-bits are encoded in the red channel and the remaining 2-bits are encoded in the least significant bits of the blue channel. This encoding can be used to control 10-bit SLM from Meadowlark Optics.
+            encoding: String defining how the phases values are encoded into the color images send to the screen. Possible values are:
+                - '8b_r': 8-bit encoding, where the 8 bit encoding will be stored in the red, green and blue channels of the frame buffer.
+                - '10b_rb': 10-bit encoding, where 8-bits are encoded in the red channel and the remaining 2-bits are encoded in the least significant bits of the blue channel. This encoding can be used to control 10-bit SLM from Meadowlark Optics.
             hidden: Requires `monitor_id=0`. When True, the SLM window is not shown. Useful for simulations (also see :py:attr:`~field`)
 
         Attributes:
@@ -110,7 +110,7 @@ class SLM(Actuator, PhaseSLM):
         """
 
         if encoding not in ["8b_r", "10b_rb"]:
-            raise ValueError(f"Unsupported encoding {self.encoding}. Supported values are '8b_r' and '10b_rb'")
+            raise ValueError(f"Unsupported encoding {encoding}. Supported values are '8b_r' and '10b_rb'")
 
         # construct window for displaying the SLM pattern
         SLM._init_glfw()
@@ -653,7 +653,7 @@ class SLM(Actuator, PhaseSLM):
         clone = _Clone(slm=SLM(monitor_id=monitor_id, shape=shape, pos=pos))
         self._clones.add(clone)
         return clone
-    
+
     @staticmethod
     def bitdepth_from_encoding(encoding: str) -> int:
         """
