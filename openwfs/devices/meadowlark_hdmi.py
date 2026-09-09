@@ -67,10 +67,10 @@ class SLMBlinkHDMI(SLM):
     Class to control a Meadowlark SLM using the Blink software. The SLMBlinkHDMI has 2 different lookup tables namely hardware_lookup_table and lookup_table. The hardware_lookup_table operates within the SLM and maps the screen image to the voltage DAC values of the SLM screen. The lookup_table is the fast lookup_table available within the openwfs SLM class. 
 
     Args:
-        blink_path (str): Path to the Blink DLL file.
-        hardware_lookup_table (np.ndarray): Lookup table to be loaded on the hardware of the SLM. (Or pre-loaded if the load_lookup_table is set to False)
-        slm_index (int, optional): Index of the SLM to be used. This index is the SLM index defined on Blink. Defaults to 0.
-        load_lookup_table (bool, optional): Whether to load the hardware lookup table on initialization. Defaults to True. If False, the lookup table used will be the lookup table previously loaded on the slm. For correctness, the hardware_lookup_table passed to the constructor must match the lookup table loaded on the memory of the  SLM. If you are unsure, always set _load_lookup_table to True.
+        blink_path: Path to the Blink DLL file.
+        hardware_lookup_table: Lookup table to be loaded on the hardware of the SLM. (Or pre-loaded if the load_lookup_table is set to False)
+        slm_index: Index of the SLM to be used. This index is the SLM index defined on Blink. Defaults to 0.
+        load_lookup_table: Whether to load the hardware lookup table on initialization. Defaults to True. If False, the lookup table used will be the lookup table previously loaded on the slm. For correctness, the hardware_lookup_table passed to the constructor must match the lookup table loaded on the memory of the  SLM. If you are unsure, always set _load_lookup_table to True.
         **kwargs: Additional keyword arguments to be passed to the SLM class. The default value of enconding is set to "10b_rb" if the SLM is 10-bit and "8b_r" if the SLM is 8-bit. This can be overridden by passing an encoding argument in kwargs.
     """
 
