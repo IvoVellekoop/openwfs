@@ -695,7 +695,7 @@ class FrontBufferReader(Detector):
             return data[::-1, :]
 
     @staticmethod
-    def bitdepth_from_encoding(encoding):
+    def bitdepth_from_encoding(encoding: str) -> int:
         """
             Returns the bit depth of the based SLM based on the encoding used.
         """
