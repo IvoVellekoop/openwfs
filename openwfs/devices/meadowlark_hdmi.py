@@ -1,5 +1,6 @@
 import ctypes
 import weakref
+from typing import Optional
 from openwfs.devices import SLM
 import numpy as np
 import tempfile
@@ -16,7 +17,7 @@ class BlinkHDMIHandler:
         self.path = None
         self.sdk_created = False
 
-    def add_dll(self, path):
+    def add_dll(self, path: str) -> None:
         """
         Add a file to the Blink software.
         :param file_path: The path to the file to be added.
@@ -35,7 +36,7 @@ class BlinkHDMIHandler:
             self.sdk_created = True
 
     @staticmethod
-    def get_handler(path):
+    def get_handler(path: str) -> BlinkHDMIHandler:
         global global_blinkhdmi_handler
         if type(global_blinkhdmi_handler) is weakref.ReferenceType:
             if global_blinkhdmi_handler is None:
@@ -49,7 +50,7 @@ class BlinkHDMIHandler:
         handler.add_dll(path)
         return handler
 
-    def __del__(self):
+    def __del__(self) -> None:
         """
         Destructor for the BlinkHDMIHandler class. This method is called when the object is deleted and ensures that the Blink software is properly closed.
         """
@@ -73,7 +74,7 @@ class SLMBlinkHDMI(SLM):
         **kwargs: Additional keyword arguments to be passed to the SLM class. The default value of enconding is set to "10b_rb" if the SLM is 10-bit and "8b_r" if the SLM is 8-bit. This can be overridden by passing an encoding argument in kwargs.
     """
 
-    def __init__(self, blink_path, hardware_lookup_table, hardware_lookup_table = None, slm_index=0, load_hardware_lookup_table=True, **kwargs):
+    def __init__(self, blink_path: str, hardware_lookup_table: np.ndarray, slm_index: int = 0, load_hardware_lookup_table: bool = True, **kwargs) -> None:
         self.handler = BlinkHDMIHandler.get_handler(blink_path)
         self.slm_blink_index = slm_index
 
@@ -97,7 +98,7 @@ class SLMBlinkHDMI(SLM):
 
         super().__init__(**(default_encoding | kwargs))
 
-    def _create_lut_file(self, voltage_bits):
+    def _create_lut_file(self, voltage_bits: np.ndarray) -> str:
         """
         Create a lookup table temporary file to be uploaded to the SLM. The filename is returned.
 
@@ -121,7 +122,7 @@ class SLMBlinkHDMI(SLM):
 
         return filename
 
-    def _load_lookup_table(self, voltage_bits):
+    def _load_lookup_table(self, voltage_bits: np.ndarray) -> None:
         """
         See the hardware_lookup_table property for more information on how to use this method.
         """
@@ -136,11 +137,11 @@ class SLMBlinkHDMI(SLM):
         self._lookup_table = voltage_bits
     
     @property
-    def hardware_lookup_table(self):
+    def hardware_lookup_table(self) -> np.ndarray:
         return self._hardware_lookup_table
 
-    @setter.hardware_lookup_table
-    def hardware_lookup_table(self, voltage_bits, to_permament_memory=False):
+    @hardware_lookup_table.setter
+    def hardware_lookup_table(self, voltage_bits: np.ndarray, to_permament_memory: bool = False) -> None:
         """
         Load a lookup table on the SLM using the Blink software. This lookup table is unloaded when the SLM is turned off. If to_permament_memory is set to True, the lookup table will be stored in the permanent memory of the SLM and will be kept even after the SLM is turned off.
 
@@ -156,13 +157,13 @@ class SLMBlinkHDMI(SLM):
         self._hardware_lookup_table = voltage_bits
 
     @property
-    def temperature(self):
+    def temperature(self) -> u.Quantity:
         """
         Returns the temperature of the SLM in degrees Celsius. The temperature is read from the SLM using the Blink software.
         """
         return self.handler.blink_lib.Get_SLMTemp(self.slm_blink_index) * u.deg_C
 
-    def get_lookup_table_filename(self):
+    def get_lookup_table_filename(self) -> str:
         """
         Returns the filename of the lookup table currently loaded on the SLM.
         """
