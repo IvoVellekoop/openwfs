@@ -653,6 +653,18 @@ class SLM(Actuator, PhaseSLM):
         clone = _Clone(slm=SLM(monitor_id=monitor_id, shape=shape, pos=pos))
         self._clones.add(clone)
         return clone
+    
+    @staticmethod
+    def bitdepth_from_encoding(encoding: str) -> int:
+        """
+        Returns the bit depth of the based SLM based on the encoding used.
+        """
+        if encoding == "8b_r":
+            return 8
+        elif encoding == "10b_rb":
+            return 10
+        else:
+            raise ValueError(f"Unsupported encoding {encoding}")
 
 
 class _Clone:
@@ -693,18 +705,6 @@ class FrontBufferReader(Detector):
             # flip data upside down, because the OpenGL convention is to have the origin at the bottom left,
             # but we want it at the top left (like in numpy)
             return data[::-1, :]
-
-    @staticmethod
-    def bitdepth_from_encoding(encoding: str) -> int:
-        """
-        Returns the bit depth of the based SLM based on the encoding used.
-        """
-        if encoding == "8b_r":
-            return 8
-        elif encoding == "10b_rb":
-            return 10
-        else:
-            raise ValueError(f"Unsupported encoding {encoding}")
 
 
 class FrameBufferReader(Detector):

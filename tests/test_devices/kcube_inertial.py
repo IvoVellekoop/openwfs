@@ -5,7 +5,7 @@ import astropy.units as u
 import numpy as np
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def stage():
     """Fixture to create KCubeInertial stage instance for testing."""
     stage_instance = ow_d.KCubeInertial()

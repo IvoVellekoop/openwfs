@@ -39,7 +39,7 @@ class BlinkHDMIHandler:
     def get_handler(path: str) -> "BlinkHDMIHandler":
         global global_blinkhdmi_handler
         if type(global_blinkhdmi_handler) is weakref.ReferenceType:
-            if global_blinkhdmi_handler is None:
+            if global_blinkhdmi_handler() is None:
                 handler = BlinkHDMIHandler()
                 global_blinkhdmi_handler = weakref.ref(handler)
             else:
@@ -96,14 +96,23 @@ class SLMBlinkHDMI(SLM):
                 "SLM not found. The Blink SDK has a few issues. Check connections and restart python and try again (..and again probably...). A common issue is the corrupted Preferences.ini file in the Blink software folder. Try reseting the Preferences.ini file to the settings of a new installation."
             )
 
+        default_encoding = {"encoding": "10b_rb" if bit_depth == 10 else "8b_r"}
+
+        super().__init__(**(default_encoding | kwargs))
+
         if load_hardware_lookup_table:
             self._load_lookup_table(hardware_lookup_table)
         else:
             self._hardware_lookup_table = hardware_lookup_table
 
-        default_encoding = {"encoding": "10b_rb" if bit_depth == 10 else "8b_r"}
 
-        super().__init__(**(default_encoding | kwargs))
+    @staticmethod
+    def num_devices(blink_path: str) -> int:
+        """
+        Returns the number of SLMs connected to the computer using the Blink software.
+        """
+        handler = BlinkHDMIHandler.get_handler(blink_path)
+        return handler.blink_lib.GetNumCOMsFound()
 
     def _create_lut_file(self, voltage_bits: np.ndarray) -> str:
         """
