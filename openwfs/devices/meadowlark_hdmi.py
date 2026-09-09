@@ -36,7 +36,7 @@ class BlinkHDMIHandler:
             self.sdk_created = True
 
     @staticmethod
-    def get_handler(path: str) -> BlinkHDMIHandler:
+    def get_handler(path: str) -> "BlinkHDMIHandler":
         global global_blinkhdmi_handler
         if type(global_blinkhdmi_handler) is weakref.ReferenceType:
             if global_blinkhdmi_handler is None:
@@ -157,7 +157,7 @@ class SLMBlinkHDMI(SLM):
         self._hardware_lookup_table = voltage_bits
 
     @property
-    def temperature(self) -> u.Quantity:
+    def temperature(self) -> u.Quantity[u.deg_C]:
         """
         Returns the temperature of the SLM in degrees Celsius. The temperature is read from the SLM using the Blink software.
         """
