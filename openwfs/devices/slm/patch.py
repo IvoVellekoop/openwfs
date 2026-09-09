@@ -27,7 +27,6 @@ class Patch(PhaseSLM):
         geometry=None,
         vertex_shader=default_vertex_shader,
         fragment_shader=default_fragment_shader,
-        encoding="8b_r",
     ):
         """
         Constructs a new patch (a shape) that can be drawn on the screen.
@@ -46,7 +45,6 @@ class Patch(PhaseSLM):
         self.additive_blend = True
         self.enabled = True
         self.context = Context(slm)
-        self.encoding = encoding
 
         # construct vertex shader, fragment shader and program
         with self.context:
@@ -148,24 +146,19 @@ class FrameBufferPatch(Patch):
     _LUT_TEXTURE = 1
     _textures: list[Texture]
 
-    def __init__(self, slm, lookup_table: Optional[Sequence[int]], bit_depth: int):
+    def __init__(self, slm, lookup_table: Optional[Sequence[int]]):
         """
 
         Args:
             slm: SLM object that this patch belongs to
             lookup_table: 1-D array of gray values that will be used to map the phase values to the gray-scale output.
                 see :attr:`~SLM.lookup_table` for details.
-            bit_depth: The bit depth of the SLM. The maximum value in the lookup table can be 2**bit_depth - 1.
-                Note: this maximum value is mapped to 1.0 in the opengl shader, and converted back to 2**bit_depth by
-                the opengl hardware.
         """
 
         if slm.encoding == "8b_r":
             fragment_shader = post_process_fragment_shader
-        elif slm.encoding == "10b_rb":
+        else: #"10b_rb"
             fragment_shader = post_process_fragment_shader_10b_rb
-        else:
-            raise ValueError(f"Encoding {slm.encoding} not supported for FrameBufferPatch")
 
         super().__init__(
             slm,
@@ -190,7 +183,7 @@ class FrameBufferPatch(Patch):
             raise Exception("Could not construct frame buffer")
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
 
-        self._bit_depth = bit_depth
+        self._bit_depth = SLM.bitdepth_from_encoding(slm.encoding)
         self._textures.append(Texture(self.context, GL.GL_TEXTURE_1D))  # create texture for lookup table
         self._lookup_table = None
         self.lookup_table = lookup_table

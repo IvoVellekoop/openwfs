@@ -109,6 +109,9 @@ class SLM(Actuator, PhaseSLM):
             patches (list[Patch]): List of patches that are drawn on the SLM.
         """
 
+        if encoding not in ["8b_r", "10b_rb"]:
+            raise ValueError(f"Unsupported encoding {self.encoding}. Supported values are '8b_r' and '10b_rb'")
+
         # construct window for displaying the SLM pattern
         SLM._init_glfw()
         self._assert_window_available(monitor_id)
@@ -123,6 +126,7 @@ class SLM(Actuator, PhaseSLM):
         self._globals = -1
         self._hidden = hidden
         self.patches = []
+
         self.encoding = encoding
         self._context = None
         self._create_window()  # sets self._context, self._window and self._globals and self._frame_patch, self._monitor
@@ -134,7 +138,7 @@ class SLM(Actuator, PhaseSLM):
         # Create a single patch for displaying phase.
         # this default patch is square 1.0, and can be accessed through the 'primary_phase_patch' attribute
         # In advanced scenarios, the geometry of this patch may be modified, or it may be replaced altogether.
-        self.patches.append(Patch(self._context, encoding=self.encoding))
+        self.patches.append(Patch(self._context))
         self.primary_patch = self.patches[0]
         SLM._active_slms.add(self)
 
@@ -215,12 +219,7 @@ class SLM(Actuator, PhaseSLM):
 
         This function also sets the viewport to the full window size and creates a frame buffer.
         """
-        current_size, current_rate, current_bit_depth = SLM._current_mode(self._monitor_id)
-        # verify that the bit depth is at least 8 bit
-        if current_bit_depth < 8:
-            warnings.warn(
-                f"Bit depth is less than 8 bits " f"You may not be able to use the full phase resolution of your SLM."
-            )
+        current_size, current_rate, _ = SLM._current_mode(self._monitor_id)
 
         # verify the refresh rate is correct
         # Then update the refresh rate to the actual value
@@ -234,10 +233,7 @@ class SLM(Actuator, PhaseSLM):
         # re-use the lookup table if possible, otherwise create a default one ranging from 0 to 2 ** bit_depth-1.
         old_lut = self._frame_buffer.lookup_table if self._frame_buffer is not None else None
 
-        if self.encoding == "10b_rb":
-            current_bit_depth = 10
-
-        self._frame_buffer = FrameBufferPatch(self, old_lut, current_bit_depth)
+        self._frame_buffer = FrameBufferPatch(self, old_lut)
         GL.glViewport(0, 0, self._shape[1], self._shape[0])
         # tell openGL to wait for the vertical retrace when swapping buffers (it appears need to do this
         # after creating the frame buffer)
@@ -601,16 +597,6 @@ class SLM(Actuator, PhaseSLM):
     def lookup_table(self, value: Sequence[int]):
         self._frame_buffer.lookup_table = value[:]
 
-    def linear_lookup_table(self):
-        """Returns a linear lookup table that maps the wrapped phase range of 0-2pi to gray values.
-
-        The gray values are represented in the range from 0 to 2**bit_depth - 1). For an 8-bit video mode, this is 0-255.
-        """
-        if self.encoding == "10b_rb":
-            return np.arange(1024)
-        else:
-            return np.arange(256)
-
     def set_phases(self, values: ArrayLike, update=True):
         self.primary_patch.set_phases(values, update)
 
@@ -706,7 +692,19 @@ class FrontBufferReader(Detector):
 
             # flip data upside down, because the OpenGL convention is to have the origin at the bottom left,
             # but we want it at the top left (like in numpy)
-            return data[::-1, ...]
+            return data[::-1, :]
+
+    @staticmethod
+    def bitdepth_from_encoding(encoding):
+        """
+            Returns the bit depth of the based SLM based on the encoding used.
+        """
+        if encoding == "8b_r":
+            return 8
+        elif encoding == "10b_rb":
+            return 10
+        else:
+            raise ValueError(f"Unsupported encoding {encoding}")
 
 
 class FrameBufferReader(Detector):

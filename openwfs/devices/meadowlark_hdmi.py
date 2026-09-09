@@ -35,7 +35,7 @@ class BlinkHDMIHandler:
             self.sdk_created = True
 
     @staticmethod
-    def get_handler():
+    def get_handler(path):
         global global_blinkhdmi_handler
         if type(global_blinkhdmi_handler) is weakref.ReferenceType:
             if global_blinkhdmi_handler is None:
@@ -46,6 +46,7 @@ class BlinkHDMIHandler:
         else:
             handler = BlinkHDMIHandler()
             global_blinkhdmi_handler = weakref.ref(handler)
+        handler.add_dll(path)
         return handler
 
     def __del__(self):
@@ -62,36 +63,37 @@ global_blinkhdmi_handler = None
 
 class SLMBlinkHDMI(SLM):
     """
-    Class to control a Meadowlark SLM using the Blink software. The SLM uses the Blink software to mainly load lookup tables on the SLM which allows to achieve a higher bit depth than when using the software lookup table available on the openwfs SLM class. The SLM screen is still controlled using the openwfs SLM class.
+    Class to control a Meadowlark SLM using the Blink software. The SLMBlinkHDMI has 2 different lookup tables namely hardware_lookup_table and lookup_table. The hardware_lookup_table operates within the SLM and maps the screen image to the voltage DAC values of the SLM screen. The lookup_table is the fast lookup_table available within the openwfs SLM class. 
 
     Args:
         blink_path (str): Path to the Blink DLL file.
-        lookup_table (np.ndarray): Lookup table to be loaded on the SLM. (Or already loaded)
+        hardware_lookup_table (np.ndarray): Lookup table to be loaded on the hardware of the SLM. (Or pre-loaded if the load_lookup_table is set to False)
         slm_index (int, optional): Index of the SLM to be used. This index is the SLM index defined on Blink. Defaults to 0.
-        is_10bit (bool, optional): Whether the SLM is 10-bit or not. If is_10bit, the default encoding of openwfs SLM used will be 10b_rb. If it is 8 bit, the default encoding is 8b_r. Defaults to False.
-        load_lookup_table (bool, optional): Whether to load the lookup table on initialization. Defaults to True. If False, the lookup table used will be the lookup table previously loaded on the slm. For correctness, the lookup_table passed to the constructor must match the lookup table already loaded on the SLM. If you are unsure, always set load_lookup_table to True.
+        load_lookup_table (bool, optional): Whether to load the hardware lookup table on initialization. Defaults to True. If False, the lookup table used will be the lookup table previously loaded on the slm. For correctness, the hardware_lookup_table passed to the constructor must match the lookup table loaded on the memory of the  SLM. If you are unsure, always set _load_lookup_table to True.
+        **kwargs: Additional keyword arguments to be passed to the SLM class. The default value of enconding is set to "10b_rb" if the SLM is 10-bit and "8b_r" if the SLM is 8-bit. This can be overridden by passing an encoding argument in kwargs.
     """
 
-    def __init__(self, blink_path, lookup_table, slm_index=0, is_10bit=False, load_lookup_table=True, **kwargs):
-        self.handler = BlinkHDMIHandler.get_handler()
-        self.handler.add_dll(blink_path)
+    def __init__(self, blink_path, hardware_lookup_table, hardware_lookup_table = None, slm_index=0, load_hardware_lookup_table=True, **kwargs):
+        self.handler = BlinkHDMIHandler.get_handler(blink_path)
         self.slm_blink_index = slm_index
 
         str_usb_port = ctypes.create_unicode_buffer(256)
         status = self.handler.blink_lib.GetComPort(self.slm_blink_index, str_usb_port)
         self.usb_port = str_usb_port.value
 
+        bit_depth = self.handler.blink_lib.Get_Depth(self.slm_blink_index)
+
         if status == 0:
             raise RuntimeError(
-                "SLM not found. The Blink SDK has a few issues. Check connections and restart python and try again (..and again probably...)"
+                "SLM not found. The Blink SDK has a few issues. Check connections and restart python and try again (..and again probably...). A common issue is the corrupted Preferences.ini file in the Blink software folder. Try reseting the Preferences.ini file to the settings of a new installation."
             )
 
-        if load_lookup_table:
-            self.load_lookup_table(lookup_table)
+        if load_hardware_lookup_table:
+            self._load_lookup_table(hardware_lookup_table)
         else:
-            self._lookup_table = lookup_table
+            self._hardware_lookup_table = hardware_lookup_table
 
-        default_encoding = {"encoding": "10b_rb" if is_10bit else "8b_r"}
+        default_encoding = {"encoding": "10b_rb" if bit_depth==10 else "8b_r"}
 
         super().__init__(**(default_encoding | kwargs))
 
@@ -119,13 +121,12 @@ class SLMBlinkHDMI(SLM):
 
         return filename
 
-    def load_lookup_table(self, voltage_bits):
+    def _load_lookup_table(self, voltage_bits):
         """
-        See the lookup_table property for more information on how to use this method.
+        See the hardware_lookup_table property for more information on how to use this method.
         """
         # Create file
         # load file into blink software
-
         filename = self._create_lut_file(voltage_bits)
 
         status = self.handler.blink_lib.Load_lut(self.slm_blink_index, filename)
@@ -133,33 +134,26 @@ class SLMBlinkHDMI(SLM):
             raise RuntimeError("Loading the table on the SLM failed")
 
         self._lookup_table = voltage_bits
-
-    def store_lookup_table(self):
-        """
-        Store the currently loaded lookup table on the SLM into the permanent memory of the SLM. This allows to keep the lookup table even after the SLM is turned off.
-        """
-        status = self.handler.blink_lib.Store_lut(self.slm_blink_index)
-        if status == 0:
-            raise RuntimeError("Storing the table on the SLM failed")
-
+    
     @property
-    def lookup_table(self):
+    def hardware_lookup_table(self):
+        return self._hardware_lookup_table
 
-        return self._lookup_table
-
-    @lookup_table.setter
-    def lookup_table(self, voltage_bits):
+    @setter.hardware_lookup_table
+    def hardware_lookup_table(self, voltage_bits, to_permament_memory=False):
         """
-        Load the lookup table on the SLM using the Blink software.
+        Load a lookup table on the SLM using the Blink software. This lookup table is unloaded when the SLM is turned off. If to_permament_memory is set to True, the lookup table will be stored in the permanent memory of the SLM and will be kept even after the SLM is turned off.
 
         Args:
-            voltage_bits: The lookup table to be loaded. The lookup table must have 2**bit_depth values, and tells how each grey value is mapped to the voltage value. The values of the lookup table must be in the range of 0 to 2**(bit_depth + 2) - 1. For example, for a 10-bit SLM, the values must be in the range of 0 to 4095.
+            voltage_bits: The lookup table to be loaded. The lookup table must have 2**bit_depth values, and tells how each grey value is mapped to the voltage value. The values of the lookup table must be in the range of 0 to 2**(bit_depth + 2) - 1. For example, for a 10-bit SLM, the values must be in the range of 0 to 4095. For example to load a linear lookup table, voltage_bits = np.arange(2**slm.bit_depth) * 4.
         """
-        if self.lookup_table is None:
-            self.load_lookup_table(voltage_bits)
-        else:
-            if not np.allclose(self.lookup_table, voltage_bits):
-                self.load_lookup_table(voltage_bits)
+        self._load_lookup_table(voltage_bits)
+        if to_permament_memory:
+            self._store_lookup_table()
+            status = self.handler.blink_lib.Store_lut(self.slm_blink_index)
+            if status == 0:
+                raise RuntimeError("Storing the table on the SLM failed")
+        self._hardware_lookup_table = voltage_bits
 
     @property
     def temperature(self):
@@ -167,14 +161,6 @@ class SLMBlinkHDMI(SLM):
         Returns the temperature of the SLM in degrees Celsius. The temperature is read from the SLM using the Blink software.
         """
         return self.handler.blink_lib.Get_SLMTemp(self.slm_blink_index) * u.deg_C
-
-    def linear_lookup_table(self):
-        """
-        Returns a linear lookup table for the SLM. The linear lookup table maps the grey values to the voltage values linearly. The voltage values are in the range of 0 to 2**(bit_depth + 2) - 1. For example, for a 10-bit SLM, the voltage values are in the range of 0 to 4095.
-        """
-        bit_grey = np.arange(2**self.bit_depth)
-        bit_voltage = bit_grey * 4  # Map the 8/10 bit grey values to the 10/12 bit voltage value
-        return bit_voltage
 
     def get_lookup_table_filename(self):
         """
