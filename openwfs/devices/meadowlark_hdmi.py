@@ -64,7 +64,7 @@ global_blinkhdmi_handler = None
 
 class SLMBlinkHDMI(SLM):
     """
-    Class to control a Meadowlark SLM using the Blink software. The SLMBlinkHDMI has 2 different lookup tables namely hardware_lookup_table and lookup_table. The hardware_lookup_table operates within the SLM and maps the screen image to the voltage DAC values of the SLM screen. The lookup_table is the fast lookup_table available within the openwfs SLM class. 
+    Class to control a Meadowlark SLM using the Blink software. The SLMBlinkHDMI has 2 different lookup tables namely hardware_lookup_table and lookup_table. The hardware_lookup_table operates within the SLM and maps the screen image to the voltage DAC values of the SLM screen. The lookup_table is the fast lookup_table available within the openwfs SLM class.
 
     Args:
         blink_path: Path to the Blink DLL file.
@@ -74,7 +74,14 @@ class SLMBlinkHDMI(SLM):
         **kwargs: Additional keyword arguments to be passed to the SLM class. The default value of enconding is set to "10b_rb" if the SLM is 10-bit and "8b_r" if the SLM is 8-bit. This can be overridden by passing an encoding argument in kwargs.
     """
 
-    def __init__(self, blink_path: str, hardware_lookup_table: np.ndarray, slm_index: int = 0, load_hardware_lookup_table: bool = True, **kwargs) -> None:
+    def __init__(
+        self,
+        blink_path: str,
+        hardware_lookup_table: np.ndarray,
+        slm_index: int = 0,
+        load_hardware_lookup_table: bool = True,
+        **kwargs,
+    ) -> None:
         self.handler = BlinkHDMIHandler.get_handler(blink_path)
         self.slm_blink_index = slm_index
 
@@ -94,7 +101,7 @@ class SLMBlinkHDMI(SLM):
         else:
             self._hardware_lookup_table = hardware_lookup_table
 
-        default_encoding = {"encoding": "10b_rb" if bit_depth==10 else "8b_r"}
+        default_encoding = {"encoding": "10b_rb" if bit_depth == 10 else "8b_r"}
 
         super().__init__(**(default_encoding | kwargs))
 
@@ -135,7 +142,7 @@ class SLMBlinkHDMI(SLM):
             raise RuntimeError("Loading the table on the SLM failed")
 
         self._lookup_table = voltage_bits
-    
+
     @property
     def hardware_lookup_table(self) -> np.ndarray:
         return self._hardware_lookup_table

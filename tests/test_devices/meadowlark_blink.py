@@ -31,7 +31,6 @@ def test_slm_set_phases(slm):
     assert phi.shape == (slm.height, slm.width)
 
 
-
 def test_slm_temperature(slm):
     """Test that SLM temperature is above 5°C."""
     assert 5 * u.deg_C < slm.temperature
