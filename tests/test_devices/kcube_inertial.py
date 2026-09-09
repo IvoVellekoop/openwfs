@@ -1,3 +1,4 @@
+# Caution: This test file moves KCubeInertial stages. Ensure that the stages are clear of any obstructions before running these tests. 
 import pytest
 import openwfs.devices as ow_d
 import astropy.units as u

@@ -7,6 +7,7 @@ from openwfs.devices import SLMBlinkHDMI
 @pytest.fixture
 def slm():
     """Fixture to create SLMBlinkHDMI instance for testing."""
+    # Does not load the hardware_lookup_table. This is because otherwise we would not have a way to put the device as it was.
     slm_instance = SLMBlinkHDMI(
         blink_path=r"C:\Program Files\Meadowlark Optics\Blink 1920 HDMI\SDK\Blink_C_wrapper.dll",
         monitor_id=2,
