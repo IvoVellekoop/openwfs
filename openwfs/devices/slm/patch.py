@@ -183,7 +183,6 @@ class FrameBufferPatch(Patch):
             raise Exception("Could not construct frame buffer")
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
 
-
         self._bit_depth = slm.bitdepth_from_encoding(slm.encoding)
         self._textures.append(Texture(self.context, GL.GL_TEXTURE_1D))  # create texture for lookup table
         self._lookup_table = None

@@ -105,7 +105,6 @@ class SLMBlinkHDMI(SLM):
         else:
             self._hardware_lookup_table = hardware_lookup_table
 
-
     @staticmethod
     def num_devices(blink_path: str) -> int:
         """

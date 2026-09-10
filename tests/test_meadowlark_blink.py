@@ -5,13 +5,14 @@ from openwfs.devices import SLMBlinkHDMI
 import os.path
 
 blink_path = r"C:\Program Files\Meadowlark Optics\Blink 1920 HDMI\SDK\Blink_C_wrapper.dll"
-os.path.isfile(blink_path) 
+os.path.isfile(blink_path)
 if not os.path.isfile(blink_path):
     pytest.skip("Blink SDK not found. Skipping tests.", allow_module_level=True)
 
 num_slm = SLMBlinkHDMI.num_devices(blink_path)
 if num_slm < 1:
     pytest.skip("No Meadowlark blink SLMs are connected. Skipping tests.", allow_module_level=True)
+
 
 @pytest.fixture(scope="module")
 def slm():
@@ -23,7 +24,7 @@ def slm():
         coordinate_system="full",
         load_hardware_lookup_table=False,
         hardware_lookup_table=np.arange(1024),
-        hidden=False
+        hidden=False,
     )
     yield slm_instance
     del slm_instance
