@@ -38,6 +38,5 @@ jobs:
           uv build
 
       - name: Run tests
-        run:
-          DISPLAY=:0 xvfb-run -s '-screen 0 1024x768x24' -r 60
-          uv run pytest
+        run: |
+          xvfb-run -a bash -c 'xrandr --output VIRTUAL1 --mode 1024x768 --rate 60; uv run pytest'

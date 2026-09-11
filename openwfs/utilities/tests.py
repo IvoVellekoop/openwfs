@@ -48,7 +48,7 @@ def get_test_microscope(
         "shape": (512, 512),
         "hidden": True,
         "physical_size": (5.12 * u.mm, 5.12 * u.mm),
-        "transform": owf_u.Transform(np.diag(np.ones(2)))
+        "transform": owf_u.Transform(np.diag(np.ones(2))),
     }
     slm_args = default_slm_args | slm_args
 
