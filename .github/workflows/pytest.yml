@@ -39,4 +39,4 @@ jobs:
 
       - name: Run tests
         run:
-          xvfb-run -a bash -c 'xrandr --output VIRTUAL1 --mode 1024x768 --rate 60; uv run pytest'
+          xvfb-run -a bash -c 'xrandr --auto --mode 1024x768 --rate 60; uv run pytest'
