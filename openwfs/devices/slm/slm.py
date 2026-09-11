@@ -20,6 +20,7 @@ from ...utilities import Transform
 TimeType = Union[Quantity[u.ms], int]
 
 import platform
+
 is_linux = platform.system() == "Linux"
 
 
@@ -695,7 +696,7 @@ class FrontBufferReader(Detector):
         with self._context:
             if is_linux:
                 # On Linux, glReadPixels is bugged and returns an image of 0.
-                # Instead, as a work aroung we calculate the gray values from the phase values based on the lookup table 
+                # Instead, as a work aroung we calculate the gray values from the phase values based on the lookup table
                 slm = self._context.slm
                 data = slm.phases.read()
                 lut = slm.lookup_table

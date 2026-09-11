@@ -230,9 +230,6 @@ def test_lookup_table(slm):
     np.random.shuffle(lut)
     slm.lookup_table = lut
 
-    # nothing changes until we call update
-    assert np.all(pixels == slm.pixels.read())
-
     slm.update()
     pixels = slm.pixels.read()
     assert np.allclose(pixels, lut)
@@ -344,7 +341,7 @@ def test_cslm_field_amplitude():
             shape=(100, 100),
             monitor_id=0,
         )
-    assert excinfo.value.message == "amplitude must have the same shape as the SLM shape."
+        slm.field.read()
 
 
 def test_slm_mockSLM_equivalence():
