@@ -8,13 +8,13 @@ def get_test_microscope(
     mic_args={},
 ):
     """
-    Convenience function returning a basic microscope (simulation) setup for testing purposes. The microscope has a static source representing a point source, and an SLM as incident field. The default settings are:
+    Convenience function returning a basic microscope (simulation) setup for testing purposes. The microscope has a static source representing a point source, and an SLM as incident field. With default settings, the SLM and microscope transforms are loaded such that the full extent of the SLM is mapped to the full extent of the pupil plane. The default settings are:
     - Specimen resolution: (512, 512) pixels
     - Specimen pixel size: 100 nm
     - Numerical aperture: 0.85
     - Wavelength: 532.8 nm
     - Incident field: SLM with shape (512, 512).
-    - Magnification: 1
+    - SLM physical size: (5.12 mm, 5.12 mm)
 
     Any setting can be customized by passing the desired arguments to the function. The arguments are passed as dictionaries, which are then passed to the respective openwfs function. Three dictionaries can be used as input which control the arguments to the StaticSource, SLM, and Microscope. The keys of the dictionaries are the variable name which are passed to the StaticSource, SLM and Microscope construtor.
 
@@ -41,9 +41,14 @@ def get_test_microscope(
             The static source object representing the specimen.
     """
     import openwfs.simulation as owf_s
+    import openwfs.devices as owf_d
+    import openwfs.utilities as owf_u
 
     default_slm_args = {
         "shape": (512, 512),
+        "hidden": True,
+        "physical_size": (5.12 * u.mm, 5.12 * u.mm),
+        "transform": owf_u.Transform(np.diag(np.ones(2))),
     }
     slm_args = default_slm_args | slm_args
 
@@ -57,13 +62,14 @@ def get_test_microscope(
 
     src = owf_s.StaticSource(**src_args)
 
-    slm = owf_s.SLM(**slm_args)
+    slm = owf_d.SLM(**slm_args)
 
+    transform_2 = owf_u.Transform(np.diag(2 / owf_u.get_extent(slm.phases.read())))
     default_mic_args = {
-        "magnification": 1,
         "numerical_aperture": 0.85,
         "wavelength": 532.8 * u.nm,
         "incident_field": slm.field,
+        "incident_transform": default_slm_args["transform"].inverse().compose(transform_2),
     }
     mic_args = default_mic_args | mic_args
 
