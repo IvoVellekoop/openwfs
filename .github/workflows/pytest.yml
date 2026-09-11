@@ -22,7 +22,43 @@ jobs:
       - name: Install system dependencies for display
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb x11-xserver-utils libxkbcommon-x11-0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0
+          sudo apt-get install -y xserver-xorg-video-dummy x11-xserver-utils
+
+      - name: Generate 60Hz Xorg Dummy Configuration
+        run: |
+          cat << 'EOF' > xorg-dummy.conf
+          Section "Device"
+              Identifier  "DummyDevice"
+              Driver      "dummy"
+          EndSection
+
+          Section "Monitor"
+              Identifier  "DummyMonitor"
+              HorizSync   15.0-100.0
+              VertRefresh 15.0-100.0
+              # Custom Modeline for 1920x1080 @ 60.00 Hz
+              Modeline    "1920x1080_60.00"  173.00  1920 2048 2248 2576  1080 1083 1088 1120 -hsync +vsync
+          EndSection
+
+          Section "Screen"
+              Identifier  "DummyScreen"
+              Device      "DummyDevice"
+              Monitor     "DummyMonitor"
+              DefaultDepth 24
+              SubSection "Display"
+                  Depth       24
+                  Modes       "1920x1080_60.00"
+              EndSubSection
+          EndSection
+          EOF
+
+      - name: Start Xorg 60Hz Server
+        run: |
+          # Launch Xorg headless on display :99 in the background
+          sudo Xorg -noreset +extension GLX +extension RANDR +extension RENDER -config ./xorg-dummy.conf :99 &
+          
+          # Give the X server a moment to spin up safely
+          sleep 3
 
          # Install uv
       - name: Install uv
@@ -38,5 +74,6 @@ jobs:
           uv build
 
       - name: Run tests
-        run:
-          xvfb-run -a bash -c 'xrandr --output screen --mode 1024x768x24 --rate 60; uv run pytest'
+        run: |
+          export DISPLAY=:99
+          uv run pytest
