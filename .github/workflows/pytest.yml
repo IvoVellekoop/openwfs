@@ -39,5 +39,5 @@ jobs:
 
       - name: Run tests
         run:
-          DISPLAY=:0 xvfb-run -s '-screen 0 1024x768x24'
+          DISPLAY=:0 xvfb-run -s '-screen 0 1024x768x24' -r 60
           uv run pytest
