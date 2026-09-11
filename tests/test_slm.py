@@ -337,16 +337,14 @@ def test_cslm_field_amplitude():
     assert np.allclose(slm.amplitude, field_amplitude), "The field amplitude does not match the expected value."
 
     # should throw an error if the amplitude shape does not match the SLM shape
-    try:
-        field_amplitude = np.ones((99, 99))
+    with pytest.raises(ValueError):
         slm = SLM(
             physical_size=(2 * u.um, 2 * u.um),
-            amplitude=field_amplitude,
+            amplitude=np.ones((99, 99)),
             shape=(100, 100),
             monitor_id=0,
         )
-    except ValueError as e:
-        assert str(e) == "amplitude must have the same shape as the SLM shape."
+    assert excinfo.value.message == "amplitude must have the same shape as the SLM shape."
 
 
 def test_slm_mockSLM_equivalence():

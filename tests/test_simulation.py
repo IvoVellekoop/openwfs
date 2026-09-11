@@ -278,7 +278,7 @@ def test_parabola_shift(extent):
     )
     phi = parabola((1024, 1024), extent, coef_parabola)
     slm.set_phases(phi)
-    mic.incident_transform = Transform(np.eye(2) * extent / 2, np.zeros(2), np.zeros(2))
+    slm.transform = Transform(np.eye(2) * extent / 2, np.zeros(2), np.zeros(2))
     img_1 = mic.read()
 
     phi = parabola((1024, 1024), extent, coef_parabola, offset=pupil_offset)
@@ -301,7 +301,7 @@ def test_binary_gratting(extent):
 
     phi = binary_grating((512, 512), extent=extent, period=periodicity, values=(0, np.pi), angle=45 * u.deg)
 
-    mic.incident_transform = Transform(np.eye(2) * extent / 2, np.zeros(2), np.zeros(2))
+    slm.transform = Transform(np.eye(2) * extent / 2, np.zeros(2), np.zeros(2))
     slm.set_phases(0)
     img_ref = mic.read()
     slm.set_phases(phi)
