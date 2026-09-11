@@ -38,6 +38,6 @@ jobs:
           uv build
 
       - name: Run tests
-        run: |
+        run:
           DISPLAY=:0 xvfb-run -s '-screen 0 1024x768x24'
           uv run pytest
