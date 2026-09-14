@@ -5,6 +5,8 @@ import astropy.units as u
 import numpy as np
 import os.path
 
+pytestmark = pytest.mark.kinesis_inertial
+
 kinesis_folder = r"C:\Program Files\Thorlabs\Kinesis"
 if not os.path.isdir(kinesis_folder):
     pytest.skip("Kinesis not found. Skipping tests.", allow_module_level=True)
