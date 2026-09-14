@@ -723,7 +723,6 @@ class FrontBufferReader(Detector):
                 slm = self._context.slm
                 data = slm.phases.read()
                 lut = slm.lookup_table
-                bit_depth = 8
                 max_value = 2**slm.bit_depth
                 tx = data * (1 / (2 * np.pi)) + (0.5 / max_value)
                 tx = tx - np.floor(tx)
