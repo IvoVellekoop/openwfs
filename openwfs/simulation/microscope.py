@@ -195,6 +195,7 @@ class Microscope(Processor):
     def numerical_aperture(self, value: float):
         self.pupil_field.numerical_aperture = value
         self.psf._numerical_aperture = value
+        self.propagated_pupil_field.numerical_aperture = value
 
     @property
     def wavelength(self) -> Quantity:
@@ -203,7 +204,7 @@ class Microscope(Processor):
     @wavelength.setter
     def wavelength(self, value: Quantity):
         value = value.to(u.nm)
-        self.pupil_field.wavelength = value
+        self.propagated_pupil_field.wavelength = value
 
     @property
     def nonlinearity(self) -> int:
