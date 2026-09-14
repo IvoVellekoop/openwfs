@@ -241,12 +241,6 @@ class SLM(PhaseSLM, Actuator):
         """
         return 8
 
-    def linear_lookup_table(self):
-        """
-        Returns a linear lookup table for the SLM.
-        """
-        return np.arange(2**self.bit_depth)
-
     @property
     def lookup_table(self) -> Sequence[int]:
         """Lookup table that is used to map the wrapped phase range of 0-2pi to gray values
