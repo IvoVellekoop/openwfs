@@ -55,6 +55,7 @@ class SLM(Actuator, PhaseSLM):
         "_field_reader",
         "_context",
         "_clones",
+        "encoding",
         "_hidden",
     ]
 
@@ -78,6 +79,7 @@ class SLM(Actuator, PhaseSLM):
         coordinate_system: str = "short",
         transform: Optional[Transform] = None,
         amplitude: ArrayLike = 1,
+        encoding="8b_r",
         hidden=True,
     ):
         """
@@ -108,11 +110,17 @@ class SLM(Actuator, PhaseSLM):
                 The `transform` determines how these vertex coordinates that make up the shape of a Patch (see
                 :class:`Patch`) are mapped to the SLM window.
                 By default, 'short' is used (see :attr:`transform`)
+            encoding: String defining how the phases values are encoded into the color images send to the screen. Possible values are:
+                - '8b_r': 8-bit encoding, where the 8 bit encoding will be stored in the red, green and blue channels of the frame buffer.
+                - '10b_rb': 10-bit encoding, where 8-bits are encoded in the red channel and the remaining 2-bits are encoded in the least significant bits of the blue channel. This encoding can be used to control 10-bit SLM from Meadowlark Optics.
             hidden: Requires `monitor_id=0`. When True, the SLM window is not shown. Useful for simulations (also see :py:attr:`~field`)
 
         Attributes:
             patches (list[Patch]): List of patches that are drawn on the SLM.
         """
+
+        if encoding not in ["8b_r", "10b_rb"]:
+            raise ValueError(f"Unsupported encoding {encoding}. Supported values are '8b_r' and '10b_rb'")
 
         # construct window for displaying the SLM pattern
         SLM._init_glfw()
@@ -132,6 +140,7 @@ class SLM(Actuator, PhaseSLM):
         self._hidden = hidden
         self.patches = []
         self._amplitude = np.asarray(amplitude)
+        self.encoding = encoding
         self._context = None
         self._create_window()  # sets self._context, self._window and self._globals and self._frame_patch, self._monitor
         self._coordinate_system = coordinate_system
@@ -223,12 +232,7 @@ class SLM(Actuator, PhaseSLM):
 
         This function also sets the viewport to the full window size and creates a frame buffer.
         """
-        current_size, current_rate, current_bit_depth = SLM._current_mode(self._monitor_id)
-        # verify that the bit depth is at least 8 bit
-        if current_bit_depth < 8:
-            warnings.warn(
-                f"Bit depth is less than 8 bits " f"You may not be able to use the full phase resolution of your SLM."
-            )
+        current_size, current_rate, _ = SLM._current_mode(self._monitor_id)
 
         # verify the refresh rate is correct
         # Then update the refresh rate to the actual value
@@ -241,7 +245,8 @@ class SLM(Actuator, PhaseSLM):
         # create a new frame buffer
         # re-use the lookup table if possible, otherwise create a default one ranging from 0 to 2 ** bit_depth-1.
         old_lut = self._frame_buffer.lookup_table if self._frame_buffer is not None else None
-        self._frame_buffer = FrameBufferPatch(self, old_lut, current_bit_depth)
+
+        self._frame_buffer = FrameBufferPatch(self, old_lut)
         GL.glViewport(0, 0, self._shape[1], self._shape[0])
         # tell openGL to wait for the vertical retrace when swapping buffers (it appears need to do this
         # after creating the frame buffer)
@@ -253,6 +258,10 @@ class SLM(Actuator, PhaseSLM):
         if self._shape != fb_shape:
             warnings.warn(f"Actual resolution {fb_shape} does not match requested resolution {self._shape}.")
             self._shape = fb_shape
+
+    @property
+    def bit_depth(self):
+        return self._frame_buffer._bit_depth
 
     @staticmethod
     def _init_glfw():
@@ -585,7 +594,7 @@ class SLM(Actuator, PhaseSLM):
             GL.glBindBufferBase(GL.GL_UNIFORM_BUFFER, 1, self._globals)  # connect buffer to binding point 1
 
     @property
-    def lookup_table(self) -> Sequence[int]:
+    def lookup_table(self) -> Sequence[int] | None:
         """Lookup table that is used to map the wrapped phase range of 0-2pi to gray values
 
         The gray values are represented in the range from 0 to 2**bit_depth - 1). For an 8-bit video mode, this is 0-255.
@@ -594,11 +603,13 @@ class SLM(Actuator, PhaseSLM):
         Note: lookup table need not contain 2**bit_depth elements.
         A typical scenario is to use something like `slm.lookup_table=range(142)` to map the 0-2pi range
         to only the first 142 gray values.
+
+        A value of None can be used to use a linear lookup table of the full range of gray values (2**bit_depth).
         """
         return self._frame_buffer.lookup_table
 
     @lookup_table.setter
-    def lookup_table(self, value: Sequence[int]):
+    def lookup_table(self, value: Sequence[int] | None):
         self._frame_buffer.lookup_table = value[:]
 
     def set_phases(self, values: ArrayLike, update=True):
@@ -669,6 +680,18 @@ class SLM(Actuator, PhaseSLM):
         self._clones.add(clone)
         return clone
 
+    @staticmethod
+    def bitdepth_from_encoding(encoding: str) -> int:
+        """
+        Returns the bit depth of the based SLM based on the encoding used.
+        """
+        if encoding == "8b_r":
+            return 8
+        elif encoding == "10b_rb":
+            return 10
+        else:
+            raise ValueError(f"Unsupported encoding {encoding}")
+
 
 class _Clone:
     slm: SLM
@@ -701,7 +724,7 @@ class FrontBufferReader(Detector):
                 data = slm.phases.read()
                 lut = slm.lookup_table
                 bit_depth = 8
-                max_value = 2**bit_depth
+                max_value = 2**slm.bit_depth
                 tx = data * (1 / (2 * np.pi)) + (0.5 / max_value)
                 tx = tx - np.floor(tx)
                 lookup_index = (lut.shape[0] * tx).astype(int)
@@ -712,8 +735,15 @@ class FrontBufferReader(Detector):
             else:
                 GL.glReadBuffer(GL.GL_FRONT)
                 shape = self.data_shape
-                data = np.empty(shape, dtype="uint8")
-                GL.glReadPixels(0, 0, shape[1], shape[0], GL.GL_RED, GL.GL_UNSIGNED_BYTE, data)
+                if self._context.slm.encoding == "8b_r":
+                    data = np.empty(shape, dtype="uint8")
+                    GL.glReadPixels(0, 0, shape[1], shape[0], GL.GL_RED, GL.GL_UNSIGNED_BYTE, data)
+                elif self._context.slm.encoding == "10b_rb":
+                    data = np.ones(shape + (3,), dtype="uint8")
+                    GL.glReadPixels(0, 0, shape[1], shape[0], GL.GL_RGB, GL.GL_UNSIGNED_BYTE, data)
+                    data_int16 = data.astype(np.int16)
+                    data = data_int16[..., 0] << 2 | data_int16[..., 2]
+
                 # flip data upside down, because the OpenGL convention is to have the origin at the bottom left,
                 # but we want it at the top left (like in numpy)
                 return data[::-1, :]
