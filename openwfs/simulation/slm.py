@@ -235,6 +235,19 @@ class SLM(PhaseSLM, Actuator):
         self._hardware_timing.send(grey_values)
 
     @property
+    def bit_depth(self):
+        """
+        Returns the bit depth of the SLM. This is used to determine how many gray values are available.
+        """
+        return 8
+
+    def linear_lookup_table(self):
+        """
+        Returns a linear lookup table for the SLM.
+        """
+        return np.arange(2**self.bit_depth)
+
+    @property
     def lookup_table(self) -> Sequence[int]:
         """Lookup table that is used to map the wrapped phase range of 0-2pi to gray values
         (represented in a range from 0 to 256). By default, this is just range(256).
