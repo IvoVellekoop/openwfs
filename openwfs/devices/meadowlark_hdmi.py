@@ -70,7 +70,7 @@ class SLMBlinkHDMI(SLM):
         blink_path: Path to the Blink DLL file.
         hardware_lookup_table: Lookup table to be loaded on the hardware of the SLM. (Or pre-loaded if the load_lookup_table is set to False)
         slm_index: Index of the SLM to be used. This index is the SLM index defined on Blink. Defaults to 0.
-        load_lookup_table: Whether to load the hardware lookup table on initialization. Defaults to True. If False, the lookup table used will be the lookup table previously loaded on the slm. For correctness, the hardware_lookup_table passed to the constructor must match the lookup table loaded on the memory of the  SLM. If you are unsure, always set _load_lookup_table to True.
+        load_lookup_table: Whether to load the hardware lookup table on initialization. Defaults to True. If False, the lookup table used will be the lookup table previously loaded on the slm. For correctness, the hardware_lookup_table passed to the constructor must match the lookup table loaded on the memory of the  SLM. If you are unsure, always set load_hardware_lookup_table to True.
         **kwargs: Additional keyword arguments to be passed to the SLM class. The default value of enconding is set to "10b_rb" if the SLM is 10-bit and "8b_r" if the SLM is 8-bit. This can be overridden by passing an encoding argument in kwargs.
     """
 
@@ -101,7 +101,7 @@ class SLMBlinkHDMI(SLM):
         super().__init__(**(default_encoding | kwargs))
 
         if load_hardware_lookup_table:
-            self._load_lookup_table(hardware_lookup_table)
+            self.hardware_lookup_table = hardware_lookup_table
         else:
             self._hardware_lookup_table = hardware_lookup_table
 
@@ -137,20 +137,6 @@ class SLMBlinkHDMI(SLM):
 
         return filename
 
-    def _load_lookup_table(self, voltage_bits: np.ndarray) -> None:
-        """
-        See the hardware_lookup_table property for more information on how to use this method.
-        """
-        # Create file
-        # load file into blink software
-        filename = self._create_lut_file(voltage_bits)
-
-        status = self.handler.blink_lib.Load_lut(self.slm_blink_index, filename)
-        if status == 0:
-            raise RuntimeError("Loading the table on the SLM failed")
-
-        self._hardware_lookup_table = voltage_bits
-
     @property
     def hardware_lookup_table(self) -> np.ndarray:
         return self._hardware_lookup_table
@@ -163,7 +149,14 @@ class SLMBlinkHDMI(SLM):
         Args:
             voltage_bits: The lookup table to be loaded. The lookup table must have 2**bit_depth values, and tells how each grey value is mapped to the voltage value. The values of the lookup table must be in the range of 0 to 2**(bit_depth + 2) - 1. For example, for a 10-bit SLM, the values must be in the range of 0 to 4095. For example to load a linear lookup table, voltage_bits = np.arange(2**slm.bit_depth) * 4.
         """
-        self._load_lookup_table(voltage_bits)
+        # Create file
+        # load file into blink software
+        filename = self._create_lut_file(voltage_bits)
+
+        status = self.handler.blink_lib.Load_lut(self.slm_blink_index, filename)
+        if status == 0:
+            raise RuntimeError("Loading the table on the SLM failed")
+
         self._hardware_lookup_table = voltage_bits
 
     def store_hardware_lookup_table(self) -> None:
