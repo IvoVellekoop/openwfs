@@ -54,7 +54,7 @@ class Texture:
                 # check if data has the correct dimension, convert scalars to arrays of correct dimension
                 if value.ndim == 0:
                     value = value.reshape((1,))
-                if value.ndim != 1:
+                elif value.ndim != 1:
                     raise ValueError("Data should be a 1-d array or a scalar")
 
                 if value.shape != self._data_shape:
