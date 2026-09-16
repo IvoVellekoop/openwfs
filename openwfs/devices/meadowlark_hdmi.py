@@ -149,7 +149,7 @@ class SLMBlinkHDMI(SLM):
         if status == 0:
             raise RuntimeError("Loading the table on the SLM failed")
 
-        self._lookup_table = voltage_bits
+        self._hardware_lookup_table = voltage_bits
 
     @property
     def hardware_lookup_table(self) -> np.ndarray:
