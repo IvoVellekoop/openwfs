@@ -156,20 +156,23 @@ class SLMBlinkHDMI(SLM):
         return self._hardware_lookup_table
 
     @hardware_lookup_table.setter
-    def hardware_lookup_table(self, voltage_bits: np.ndarray, to_permament_memory: bool = False) -> None:
+    def hardware_lookup_table(self, voltage_bits: np.ndarray) -> None:
         """
-        Load a lookup table on the SLM using the Blink software. This lookup table is unloaded when the SLM is turned off. If to_permament_memory is set to True, the lookup table will be stored in the permanent memory of the SLM and will be kept even after the SLM is turned off.
+        Load a lookup table on the SLM using the Blink software. This lookup table is unloaded when the SLM is turned off. When turning on, the lookup table loaded will be the saved on the permanent memory of the SLM. To save the lookup table on the permanent memory of the SLM, use the store_hardware_lookup_table method.
 
         Args:
             voltage_bits: The lookup table to be loaded. The lookup table must have 2**bit_depth values, and tells how each grey value is mapped to the voltage value. The values of the lookup table must be in the range of 0 to 2**(bit_depth + 2) - 1. For example, for a 10-bit SLM, the values must be in the range of 0 to 4095. For example to load a linear lookup table, voltage_bits = np.arange(2**slm.bit_depth) * 4.
         """
         self._load_lookup_table(voltage_bits)
-        if to_permament_memory:
-            self._store_lookup_table()
-            status = self.handler.blink_lib.Store_lut(self.slm_blink_index)
-            if status == 0:
-                raise RuntimeError("Storing the table on the SLM failed")
         self._hardware_lookup_table = voltage_bits
+
+    def store_hardware_lookup_table(self) -> None:
+        """
+        Store the hardware lookup table currently loaded on the SLM to the permanent memory of the SLM. This lookup table will be loaded when the SLM is turned on.
+        """
+        status = self.handler.blink_lib.Store_lut(self.slm_blink_index)
+        if status == 0:
+            raise RuntimeError("Storing the table on the SLM failed")
 
     @property
     def temperature(self) -> u.Quantity[u.deg_C]:
