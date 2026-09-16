@@ -30,4 +30,3 @@ def test_position_false(stage):
     stage.position = False
     stage.wait()
     assert stage.position == 0
-
