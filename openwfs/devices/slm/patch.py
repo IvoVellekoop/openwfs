@@ -183,6 +183,32 @@ class FrameBufferPatch(Patch):
             raise Exception("Could not construct frame buffer")
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
 
+        # Create an off-screen buffer to store the final rendered output (after post-processing with lookup table)
+        # This avoids the need to read from the front buffer, which some OSes don't allow
+        self._output_buffer = GL.glGenFramebuffers(1)
+        self._output_texture = Texture(self.context)
+
+        # Initialize output texture with the correct size
+        shape = self.context.slm.shape
+        with self.context:
+            GL.glBindTexture(GL.GL_TEXTURE_2D, self._output_texture.handle)
+            internal_format = GL.GL_R8 if slm.encoding == "8b_r" else GL.GL_RGB8
+            format_type = GL.GL_RED if slm.encoding == "8b_r" else GL.GL_RGB
+            data_type = GL.GL_UNSIGNED_BYTE
+            GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, internal_format, shape[1], shape[0], 0, format_type, data_type, None)
+            self._output_texture._data_shape = shape
+            GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self._output_buffer)
+            GL.glFramebufferTexture2D(
+                GL.GL_FRAMEBUFFER,
+                GL.GL_COLOR_ATTACHMENT0,
+                GL.GL_TEXTURE_2D,
+                self._output_texture.handle,
+                0,
+            )
+            if GL.glCheckFramebufferStatus(GL.GL_FRAMEBUFFER) != GL.GL_FRAMEBUFFER_COMPLETE:
+                raise Exception("Could not construct output buffer")
+            GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
+
         self._bit_depth = slm.bitdepth_from_encoding(slm.encoding)
         self._textures.append(Texture(self.context, GL.GL_TEXTURE_1D))  # create texture for lookup table
         self._lookup_table = None
@@ -192,7 +218,7 @@ class FrameBufferPatch(Patch):
     def __del__(self):
         with self.context as slm:
             if slm:
-                GL.glDeleteFramebuffers(1, [self._frame_buffer])
+                GL.glDeleteFramebuffers(1, [self._frame_buffer, self._output_buffer])
 
     @property
     def lookup_table(self):
@@ -218,6 +244,46 @@ class FrameBufferPatch(Patch):
         # flip data upside down, because the OpenGL convention is to have the origin at the bottom left,
         # but we want it at the top left (like in numpy)
         return data[::-1, :]
+
+    def get_output_pixels(self):
+        """Read the final rendered output (after lookup table) from the output buffer.
+
+        This reads from an off-screen buffer instead of the front buffer, which works
+        on systems that don't allow reading from the screen.
+        """
+        with self.context:
+            shape = self.context.slm.shape
+            if self.context.slm.encoding == "8b_r":
+                data = np.empty(shape, dtype="uint8")
+                GL.glBindTexture(GL.GL_TEXTURE_2D, self._output_texture.handle)
+                GL.glGetTexImage(GL.GL_TEXTURE_2D, 0, GL.GL_RED, GL.GL_UNSIGNED_BYTE, data)
+            else:  # "10b_rb"
+                data = np.ones(shape + (3,), dtype="uint8")
+                GL.glBindTexture(GL.GL_TEXTURE_2D, self._output_texture.handle)
+                GL.glGetTexImage(GL.GL_TEXTURE_2D, 0, GL.GL_RGB, GL.GL_UNSIGNED_BYTE, data)
+                data_int16 = data.astype(np.int16)
+                data = data_int16[..., 0] << 2 | data_int16[..., 2]
+
+            # flip data upside down, because the OpenGL convention is to have the origin at the bottom left,
+            # but we want it at the top left (like in numpy)
+            return data[::-1, :]
+
+    def _draw_to_target(self, target_fbo=0):
+        """Draw the frame buffer to a specific target.
+
+        Args:
+            target_fbo: OpenGL framebuffer object ID. 0 means the screen (default).
+        """
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, target_fbo)
+        GL.glViewport(0, 0, self.context.slm.shape[1], self.context.slm.shape[0])
+        super()._draw()  # Call parent's _draw method
+
+    def _draw(self):
+        """Draw to both the screen and the output buffer."""
+        # Draw to the output buffer
+        self._draw_to_target(self._output_buffer)
+        # Draw to the screen
+        self._draw_to_target(0)
 
 
 class VertexArray:
