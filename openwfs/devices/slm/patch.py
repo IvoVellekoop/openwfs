@@ -187,7 +187,7 @@ class FrameBufferPatch(Patch):
         # This avoids the need to read from the front buffer, which some OSes don't allow
         self._output_buffer = GL.glGenFramebuffers(1)
         self._output_texture = Texture(self.context)
-        
+
         # Initialize output texture with the correct size
         shape = self.context.slm.shape
         with self.context:
@@ -195,9 +195,7 @@ class FrameBufferPatch(Patch):
             internal_format = GL.GL_R8 if slm.encoding == "8b_r" else GL.GL_RGB8
             format_type = GL.GL_RED if slm.encoding == "8b_r" else GL.GL_RGB
             data_type = GL.GL_UNSIGNED_BYTE
-            GL.glTexImage2D(
-                GL.GL_TEXTURE_2D, 0, internal_format, shape[1], shape[0], 0, format_type, data_type, None
-            )
+            GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, internal_format, shape[1], shape[0], 0, format_type, data_type, None)
             self._output_texture._data_shape = shape
             GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self._output_buffer)
             GL.glFramebufferTexture2D(
@@ -249,7 +247,7 @@ class FrameBufferPatch(Patch):
 
     def get_output_pixels(self):
         """Read the final rendered output (after lookup table) from the output buffer.
-        
+
         This reads from an off-screen buffer instead of the front buffer, which works
         on systems that don't allow reading from the screen.
         """
@@ -265,14 +263,14 @@ class FrameBufferPatch(Patch):
                 GL.glGetTexImage(GL.GL_TEXTURE_2D, 0, GL.GL_RGB, GL.GL_UNSIGNED_BYTE, data)
                 data_int16 = data.astype(np.int16)
                 data = data_int16[..., 0] << 2 | data_int16[..., 2]
-            
+
             # flip data upside down, because the OpenGL convention is to have the origin at the bottom left,
             # but we want it at the top left (like in numpy)
             return data[::-1, :]
 
     def _draw_to_target(self, target_fbo=0):
         """Draw the frame buffer to a specific target.
-        
+
         Args:
             target_fbo: OpenGL framebuffer object ID. 0 means the screen (default).
         """
