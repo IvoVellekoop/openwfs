@@ -3,7 +3,6 @@ import pytest
 import openwfs.devices as ow_d
 import os.path
 
-
 pytestmark = [pytest.mark.kinesis_motorized_flipper, pytest.mark.devices]
 
 kinesis_folder = r"C:\Program Files\Thorlabs\Kinesis"

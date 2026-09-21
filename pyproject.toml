@@ -93,8 +93,8 @@ version_file = "openwfs/_version.py"
 [tool.pytest.ini_options]
 markers = [
     "devices: mark tests that require hardware devices",
-    "meadowlark_hdmi: Meadowlark blink for HDMI SLM"),
-    "kinesis_inertial: Thorlabs Kinesis device control for the inertial stage"), 
+    "meadowlark_hdmi: Meadowlark blink for HDMI SLM",
+    "kinesis_inertial: Thorlabs Kinesis device control for the inertial stage", 
     "kinesis_motorized_flipper: Thorlabs Kinesis device control for the motorized flipper stage",
     "camera: Camera device control",
 ]
