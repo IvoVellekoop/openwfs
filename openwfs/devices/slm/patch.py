@@ -186,28 +186,21 @@ class FrameBufferPatch(Patch):
         # Create an off-screen buffer to store the final rendered output (after post-processing with lookup table)
         # This avoids the need to read from the front buffer, which some OSes don't allow
         self._output_buffer = GL.glGenFramebuffers(1)
-        self._output_texture = Texture(self.context)
 
-        # Initialize output texture with the correct size
+        internal_format = GL.GL_R8 if slm.encoding == "8b_r" else GL.GL_RGB8
+        format_type = GL.GL_RED if slm.encoding == "8b_r" else GL.GL_RGB
+        data_type = GL.GL_UNSIGNED_BYTE
         shape = self.context.slm.shape
-        with self.context:
-            GL.glBindTexture(GL.GL_TEXTURE_2D, self._output_texture.handle)
-            internal_format = GL.GL_R8 if slm.encoding == "8b_r" else GL.GL_RGB8
-            format_type = GL.GL_RED if slm.encoding == "8b_r" else GL.GL_RGB
-            data_type = GL.GL_UNSIGNED_BYTE
-            GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, internal_format, shape[1], shape[0], 0, format_type, data_type, None)
-            self._output_texture._data_shape = shape
-            GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self._output_buffer)
-            GL.glFramebufferTexture2D(
-                GL.GL_FRAMEBUFFER,
-                GL.GL_COLOR_ATTACHMENT0,
-                GL.GL_TEXTURE_2D,
-                self._output_texture.handle,
-                0,
-            )
-            if GL.glCheckFramebufferStatus(GL.GL_FRAMEBUFFER) != GL.GL_FRAMEBUFFER_COMPLETE:
-                raise Exception("Could not construct output buffer")
-            GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
+        self._output_texture = Texture(self.context, GL.GL_TEXTURE_2D, internal_format, format_type, data_type)
+        self._output_texture.set_data(np.zeros(shape, dtype=np.uint8))
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self._output_buffer)
+        GL.glFramebufferTexture2D(
+            GL.GL_FRAMEBUFFER,
+            GL.GL_COLOR_ATTACHMENT0,
+            GL.GL_TEXTURE_2D,
+            self._output_texture.handle,
+            0,
+        )
 
         self._bit_depth = slm.bitdepth_from_encoding(slm.encoding)
         self._textures.append(Texture(self.context, GL.GL_TEXTURE_1D))  # create texture for lookup table

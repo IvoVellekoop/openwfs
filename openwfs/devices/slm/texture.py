@@ -2,15 +2,21 @@ import OpenGL.GL as GL
 import numpy as np
 
 from .context import Context
+from OpenGL.arrays.numpymodule import GL_TYPE_TO_ARRAY_MAPPING
 
 
 class Texture:
-    def __init__(self, slm, texture_type=None):
+    def __init__(self, slm, texture_type=None, internal_format=GL.GL_R32F, format_type=GL.GL_RED, data_type=GL.GL_FLOAT):
         self.context = Context(slm)
         self.handle = GL.glGenTextures(1)
         self.type = texture_type if texture_type is not None else GL.GL_TEXTURE_2D
         self.synchronized = False  # self.data is not yet synchronized with texture in GPU memory
         self._data_shape = None  # current size of the texture, to see if we need to make a new texture or
+
+        self._internal_format = internal_format
+        self._format_type = format_type
+        self._data_type = data_type
+
         # overwrite the exiting one
 
         # create a single pixel texture as default (also activates the OpenGL context and binds the texture
@@ -43,12 +49,8 @@ class Texture:
         with self.context:
             GL.glBindTexture(self.type, self.handle)
             GL.glPixelStorei(GL.GL_UNPACK_ALIGNMENT, 4)  # alignment is at least four bytes since we use float32
-            internal_format, data_format, data_type = (
-                GL.GL_R32F,
-                GL.GL_RED,
-                GL.GL_FLOAT,
-            )
-            value = np.asarray(value, dtype=np.float32, order="C")
+
+            value = np.asarray(value, dtype=GL_TYPE_TO_ARRAY_MAPPING[self._data_type], order="C")
 
             if self.type == GL.GL_TEXTURE_1D:
                 # check if data has the correct dimension, convert scalars to arrays of correct dimension
@@ -62,11 +64,11 @@ class Texture:
                     GL.glTexImage1D(
                         GL.GL_TEXTURE_1D,
                         0,
-                        internal_format,
+                        self._internal_format,
                         value.shape[0],
                         0,
-                        data_format,
-                        data_type,
+                        self._format_type,
+                        self._data_type,
                         value,
                     )
                     self._data_shape = value.shape
@@ -77,8 +79,8 @@ class Texture:
                         0,
                         0,
                         value.shape[0],
-                        data_format,
-                        data_type,
+                        self._format_type,
+                        self._data_type,
                         value,
                     )
 
@@ -92,12 +94,12 @@ class Texture:
                     GL.glTexImage2D(
                         GL.GL_TEXTURE_2D,
                         0,
-                        internal_format,
+                        self._internal_format,
                         value.shape[1],
                         value.shape[0],
                         0,
-                        data_format,
-                        data_type,
+                        self._format_type,
+                        self._data_type,
                         value,
                     )
                     self._data_shape = value.shape
@@ -109,8 +111,8 @@ class Texture:
                         0,
                         value.shape[1],
                         value.shape[0],
-                        data_format,
-                        data_type,
+                        self._format_type,
+                        self._data_type,
                         value,
                     )
             else:
@@ -118,6 +120,6 @@ class Texture:
 
     def get_data(self):
         with self.context:
-            data = np.empty(self._data_shape, dtype="float32")
-            GL.glGetTextureImage(self.handle, 0, GL.GL_RED, GL.GL_FLOAT, data.size * 4, data)
+            data = np.empty(self._data_shape, dtype=GL_TYPE_TO_ARRAY_MAPPING[self._data_type])
+            GL.glGetTextureImage(self.handle, 0, self._format_type, self._data_type, data.size * 4, data)
             return data
