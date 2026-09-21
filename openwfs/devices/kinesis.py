@@ -125,7 +125,7 @@ class KinesisHandler:
 
         Arguments:
             folder_path: str or Path or None - Path to the Thorlabs Kinesis folder. If None,
-                defaults to C:\Program Files\Thorlabs\Kinesis.
+                defaults to C:\\Program Files\\Thorlabs\\Kinesis.
             required_dll_names: list of str - Names of required DLL files (e.g.,
                 ['Thorlabs.MotionControl.DeviceManagerCLI.dll', ...])
 
