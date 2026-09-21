@@ -454,6 +454,8 @@ class KCubeInertial(Actuator):
         """
         # This function works because the thread will be locked by kinesis while a movement
         # is ongoing.
+        if self._future.exception() is not None:
+            raise self._future.exception()
         return not self._future.done()
 
 
@@ -559,4 +561,6 @@ class MotorizedFilterFlip(Actuator):
         """
         # This function works because the thread will be locked by kinesis while a movement
         # is ongoing.
+        if self._future.exception() is not None:
+            raise self._future.exception()
         return not self._future.done()
