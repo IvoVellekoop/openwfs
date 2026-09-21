@@ -114,11 +114,6 @@ class KinesisHandler:
                 "Device is busy. Use self.wait() to wait for the device to finish moving or use self.stop() to stop the device."
             )
 
-    @staticmethod
-    def disconnect(device):
-        device.device.StopPolling()
-        device.device.Disconnect()
-
     def _find_kinesis_dlls(required_dll_names, folder_path=None):
         """
         Find Kinesis DLL files in a folder.
@@ -534,7 +529,7 @@ class MotorizedFilterFlip(Actuator):
         self._future = self._worker.submit(self.device.Home, int(self.timeout.to(u.ms).value))
 
     @property
-    def position(self) -> int:
+    def position(self) -> bool:
         KinesisHandler.throw_error_if_moving(self)
         kine_pos = self.device.Position
         if kine_pos == 2:
