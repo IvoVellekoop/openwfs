@@ -6,7 +6,9 @@ from OpenGL.arrays.numpymodule import GL_TYPE_TO_ARRAY_MAPPING
 
 
 class Texture:
-    def __init__(self, slm, texture_type=None, internal_format=GL.GL_R32F, format_type=GL.GL_RED, data_type=GL.GL_FLOAT):
+    def __init__(
+        self, slm, texture_type=None, internal_format=GL.GL_R32F, format_type=GL.GL_RED, data_type=GL.GL_FLOAT
+    ):
         self.context = Context(slm)
         self.handle = GL.glGenTextures(1)
         self.type = texture_type if texture_type is not None else GL.GL_TEXTURE_2D
@@ -120,6 +122,11 @@ class Texture:
 
     def get_data(self):
         with self.context:
-            data = np.empty(self._data_shape, dtype=GL_TYPE_TO_ARRAY_MAPPING[self._data_type])
+            if self._format_type == GL.GL_RED:
+                shape = self._data_shape
+            else:  # self._format_type == GL.GL_RGB
+                shape = self._data_shape + (3,)
+
+            data = np.empty(shape, dtype=GL_TYPE_TO_ARRAY_MAPPING[self._data_type])
             GL.glGetTextureImage(self.handle, 0, self._format_type, self._data_type, data.size * 4, data)
             return data

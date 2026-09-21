@@ -246,14 +246,8 @@ class FrameBufferPatch(Patch):
         """
         with self.context:
             shape = self.context.slm.shape
-            if self.context.slm.encoding == "8b_r":
-                data = np.empty(shape, dtype="uint8")
-                GL.glBindTexture(GL.GL_TEXTURE_2D, self._output_texture.handle)
-                GL.glGetTexImage(GL.GL_TEXTURE_2D, 0, GL.GL_RED, GL.GL_UNSIGNED_BYTE, data)
-            else:  # "10b_rb"
-                data = np.ones(shape + (3,), dtype="uint8")
-                GL.glBindTexture(GL.GL_TEXTURE_2D, self._output_texture.handle)
-                GL.glGetTexImage(GL.GL_TEXTURE_2D, 0, GL.GL_RGB, GL.GL_UNSIGNED_BYTE, data)
+            data = self._output_texture.get_data()
+            if self.context.slm.encoding == "10b_rb":
                 data_int16 = data.astype(np.int16)
                 data = data_int16[..., 0] << 2 | data_int16[..., 2]
 
