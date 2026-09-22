@@ -49,70 +49,8 @@ class KinesisHandler:
         else:
             return global_kinesis_handler
 
-    @staticmethod
-    def disconnect(device):
-        device.StopPolling()
-        device.Disconnect()
 
-    @staticmethod
-    def connect(device):
-        device.device.Connect(device.serial_number)
-        if not device.device.IsConnected:
-            raise ValueError(f"Failed to connect to device with serial number {device.serial_number}.")
 
-        time.sleep(0.25)
-
-        # Ensure that the device settings have been initialized
-        if not device.device.IsSettingsInitialized():
-            device.device.WaitForSettingsInitialized(10000)  # 10 second timeout
-            if not device.device.IsSettingsInitialized():
-                raise RuntimeError(
-                    f"Device settings failed to initialize within timeout for device with serial number {device.serial_number}."
-                )
-
-        # Start polling and enable channel
-        device.device.StartPolling(250)  # 250ms polling rate
-        time.sleep(0.25)
-
-        device.device.EnableDevice()
-        time.sleep(0.25)  # Wait for device to enable
-
-    @staticmethod
-    def look_for_serialnumber(DeviceManagerCLI, device_codes, serial_number):
-        DeviceManagerCLI.BuildDeviceList()
-
-        serial_number_list = []
-        for device_code in device_codes:
-            serial_number_list.append(list(map(str, DeviceManagerCLI.GetDeviceList(device_code))))
-
-        serial_number_list = [item for sublist in serial_number_list for item in sublist]
-
-        if serial_number is None:
-            if len(serial_number_list) == 1:
-                serial_number = serial_number_list[0]
-            elif len(serial_number_list) > 1:
-                raise ValueError(
-                    f"Multiple devices found. Please specify a serial number. Available devices: {serial_number_list}"
-                )
-            else:
-                raise ValueError("No devices found.")
-
-        if serial_number not in serial_number_list:
-            raise ValueError(
-                f"Device with serial number {serial_number} not found. Available devices: {serial_number_list}"
-            )
-
-        return str(serial_number)
-
-    @staticmethod
-    def throw_error_if_moving(device):
-        """
-        Convenience function to throw an error if the device is moving or if communication thread is communicating with the device.
-        """
-        if device.busy():
-            raise RuntimeError(
-                "Device is busy. Use self.wait() to wait for the device to finish moving or use self.stop() to stop the device."
-            )
 
     def _find_kinesis_dlls(required_dll_names, folder_path=None):
         """
@@ -163,11 +101,102 @@ class KinesisHandler:
 
         return found_dlls
 
+    @staticmethod
+    def look_for_serialnumber(DeviceManagerCLI, device_codes, serial_number):
+        DeviceManagerCLI.BuildDeviceList()
+
+        serial_number_list = []
+        for device_code in device_codes:
+            serial_number_list.append(list(map(str, DeviceManagerCLI.GetDeviceList(device_code))))
+
+        serial_number_list = [item for sublist in serial_number_list for item in sublist]
+
+        if serial_number is None:
+            if len(serial_number_list) == 1:
+                serial_number = serial_number_list[0]
+            elif len(serial_number_list) > 1:
+                raise ValueError(
+                    f"Multiple devices found. Please specify a serial number. Available devices: {serial_number_list}"
+                )
+            else:
+                raise ValueError("No devices found.")
+
+        if serial_number not in serial_number_list:
+            raise ValueError(
+                f"Device with serial number {serial_number} not found. Available devices: {serial_number_list}"
+            )
+
+        return str(serial_number)
+
 
 global_kinesis_handler = None
 
+class KinesisDevice(Actuator):
 
-class KCubeInertial(Actuator):
+    def __init__(self, duration, latency, kinesis_folder, serial_number, device_codes):
+        super().__init__(duration=duration, latency=latency)
+
+        required_dlls = [
+            "Thorlabs.MotionControl.DeviceManagerCLI.dll",
+        ]
+        kinesis_files = KinesisHandler._find_kinesis_dlls(required_dlls, kinesis_folder)
+        kinesis_handler = KinesisHandler.get_handler()
+        kinesis_handler.add_files(kinesis_files)
+
+
+        from Thorlabs.MotionControl.DeviceManagerCLI import DeviceManagerCLI
+        self.DeviceManagerCLI = DeviceManagerCLI
+
+        self._worker = ThreadPoolExecutor(max_workers=1)
+        self._future = self._worker.submit(lambda: None)
+
+        DeviceManagerCLI.BuildDeviceList()
+
+        self.serial_number = KinesisHandler.look_for_serialnumber(
+            DeviceManagerCLI,
+            device_codes=device_codes,
+            serial_number=serial_number,
+        )
+
+    def throw_error_if_moving(self):
+        """
+        Convenience function to throw an error if the device is moving or if communication thread is communicating with the device.
+        """
+        if self.busy():
+            raise RuntimeError(
+                "Device is busy. Use self.wait() to wait for the device to finish moving or use self.stop() to stop the device."
+            )
+
+
+    def disconnect(self):
+        self.device.StopPolling()
+        self.device.Disconnect()
+
+    def connect(self):
+        self.device.Connect(self.serial_number)
+        if not self.device.IsConnected:
+            raise ValueError(f"Failed to connect to device with serial number {self.serial_number}.")
+
+        time.sleep(0.25)
+
+        # Ensure that the device settings have been initialized
+        if not self.device.IsSettingsInitialized():
+            self.device.WaitForSettingsInitialized(10000)  # 10 second timeout
+            if not self.device.IsSettingsInitialized():
+                raise RuntimeError(
+                    f"Device settings failed to initialize within timeout for device with serial number {self.serial_number}."
+                )
+
+        # Start polling and enable channel
+        self.device.StartPolling(250)  # 250ms polling rate
+        time.sleep(0.25)
+
+        self.device.EnableDevice()
+        time.sleep(0.25)  # Wait for device to enable
+
+
+
+class KCubeInertial(KinesisDevice):
     """
     Class to control KCube KIM001 and KIM101 from Thorlabs. To use this class the thorlabs Kinesis software must be installed. The software can be downloaded from https://www.thorlabs.com/kinesis-software. The communication with Kinesis is done using pythonnet (clr) which needs to be installed in the python environment.
 
@@ -192,7 +221,6 @@ class KCubeInertial(Actuator):
     ):
 
         required_dlls = [
-            "Thorlabs.MotionControl.DeviceManagerCLI.dll",
             "Thorlabs.MotionControl.GenericMotorCLI.dll",
             "Thorlabs.MotionControl.KCube.InertialMotorCLI.dll",
         ]
@@ -201,7 +229,6 @@ class KCubeInertial(Actuator):
         kinesis_handler = KinesisHandler.get_handler()
         kinesis_handler.add_files(kinesis_files)
 
-        from Thorlabs.MotionControl.DeviceManagerCLI import DeviceManagerCLI
         from Thorlabs.MotionControl.KCube.InertialMotorCLI import (
             KCubeInertialMotor,
             ThorlabsInertialMotorSettings,
@@ -209,29 +236,17 @@ class KCubeInertial(Actuator):
         )
         from System import Int32
 
-        self.DeviceManagerCLI = DeviceManagerCLI
         self.KCubeInertialMotor = KCubeInertialMotor
         self.ThorlabsInertialMotorSettings = ThorlabsInertialMotorSettings
         self.InertialMotorStatus = InertialMotorStatus
         self.Int32 = Int32
 
-        super().__init__(duration=np.inf * u.ms, latency=0 * u.ms)
-
-        DeviceManagerCLI.BuildDeviceList()
-
-        self.serial_number = KinesisHandler.look_for_serialnumber(
-            DeviceManagerCLI,
-            device_codes=[KCubeInertialMotor.DevicePrefix_KIM101, KCubeInertialMotor.DevicePrefix_KIM001],
-            serial_number=serial_number,
-        )
+        super().__init__(duration=np.inf * u.ms, latency=0 * u.ms, kinesis_folder=kinesis_folder, serial_number=serial_number, device_codes=[KCubeInertialMotor.DevicePrefix_KIM101, KCubeInertialMotor.DevicePrefix_KIM001])
 
         self.device = KCubeInertialMotor.CreateKCubeInertialMotor(self.serial_number)
         self.timeout = timeout
         # Connect
-        KinesisHandler.connect(self)
-
-        self._worker = ThreadPoolExecutor(max_workers=1)
-        self._future = self._worker.submit(lambda: None)
+        self.connect()
 
         num_channel = 1 if self.device.IsSingleChannelDevice() else 4
 
@@ -251,9 +266,6 @@ class KCubeInertial(Actuator):
         self.pair_channels = pair_channels
         self._get_velocity_acceleration()
 
-    def __del__(self):
-        KinesisHandler.disconnect(self)
-
     @property
     def pair_channels(self) -> bool:
         """
@@ -262,7 +274,7 @@ class KCubeInertial(Actuator):
         Returns:
             bool - True if the channels 1 and 2, and 3 and 4 are paired. False otherwise.
         """
-        KinesisHandler.throw_error_if_moving(self)
+        self.throw_error_if_moving()
         return self.device.IsDualChannelMode()
 
     @pair_channels.setter
@@ -274,7 +286,7 @@ class KCubeInertial(Actuator):
             val: bool - True to pair channels 1 with 2, and 3 with 4. False otherwise.
         """
 
-        KinesisHandler.throw_error_if_moving(self)
+        self.throw_error_if_moving()
         self.device.SetDualChannelMode(val)
         time.sleep(0.2)
 
@@ -316,7 +328,7 @@ class KCubeInertial(Actuator):
         self._set_velocity_acceleration(self._velocity, val)
 
     def _set_velocity_acceleration(self, velocity, acceleration):
-        KinesisHandler.throw_error_if_moving(self)
+        self.throw_error_if_moving()
         config = self.device.GetInertialMotorConfiguration(self.serial_number)
         settings = self.ThorlabsInertialMotorSettings.GetSettings(config)
         for i, ch_i in enumerate(self.channels_array):
@@ -326,7 +338,7 @@ class KCubeInertial(Actuator):
         self._get_velocity_acceleration()
 
     def _get_velocity_acceleration(self):
-        KinesisHandler.throw_error_if_moving(self)
+        self.throw_error_if_moving()
         config = self.device.GetInertialMotorConfiguration(self.serial_number)
         settings = self.ThorlabsInertialMotorSettings.GetSettings(config)
         vel = []
@@ -340,7 +352,7 @@ class KCubeInertial(Actuator):
 
     @property
     def position(self) -> np.ndarray:
-        KinesisHandler.throw_error_if_moving(self)
+        self.throw_error_if_moving()
         out = np.zeros(self.channels_array.size, dtype=np.int32)
         for i, ch_i in enumerate(self.channels_array):
             out[i] = self.device.GetPosition(ch_i)
@@ -360,7 +372,7 @@ class KCubeInertial(Actuator):
                 f"Size of position array ({arr.size}) does not match number of channels ({self.channels_array.size})."
             )
 
-        KinesisHandler.throw_error_if_moving(self)
+        self.throw_error_if_moving()
         super()._start()
         self._future = self._worker.submit(self._move_to, arr, self.position, self.pair_channels, True)
 
@@ -434,7 +446,7 @@ class KCubeInertial(Actuator):
                 f"Size of deltas array ({deltas.size}) does not match number of channels ({self.channels_array.size})."
             )
         super()._start()
-        KinesisHandler.throw_error_if_moving(self)
+        self.throw_error_if_moving()
         self._future = self._worker.submit(self._move_to, deltas, self.position, self.pair_channels, False)
 
     def stop(self):
@@ -458,8 +470,11 @@ class KCubeInertial(Actuator):
             raise self._future.exception()
         return not self._future.done()
 
+    def __del__(self):
+        self.disconnect()
 
-class MotorizedFilterFlip(Actuator):
+
+class MotorizedFilterFlip(KinesisDevice):
     """
     Class to control Motorized Filter Flip (MFF101) from Thorlabs. To use this class the thorlabs Kinesis software must be installed. The software can be downloaded from https://www.thorlabs.com/kinesis-software. The communication with Kinesis is done using pythonnet (clr) which needs to be installed in the python environment.
 
@@ -470,48 +485,38 @@ class MotorizedFilterFlip(Actuator):
         timeout: Quantity [u.s] - Defines the timeout time for the stage when performing
             movement. Defaults to 20 seconds.
         kinesis_folder: str - Path to the Thorlabs Kinesis installation folder. If not provided,
-            defaults to C:\Program Files\Thorlabs\Kinesis.
+            defaults to C:\\Program Files\\Thorlabs\\Kinesis.
     """
 
     def __init__(self, serial_number: str = None, timeout: u.Quantity = 20 * u.s, kinesis_folder: str = None):
 
         required_dlls = [
-            "Thorlabs.MotionControl.DeviceManagerCLI.dll",
             "Thorlabs.MotionControl.GenericMotorCLI.dll",
             "Thorlabs.MotionControl.FilterFlipperCLI.dll",
         ]
+
         kinesis_files = KinesisHandler._find_kinesis_dlls(required_dlls, kinesis_folder)
 
         kinesis_handler = KinesisHandler.get_handler()
         kinesis_handler.add_files(kinesis_files)
 
-        from Thorlabs.MotionControl.DeviceManagerCLI import DeviceManagerCLI
         from Thorlabs.MotionControl.FilterFlipperCLI import (
             FilterFlipper,
         )
         from System import Int32, UInt32
 
-        self.DeviceManagerCLI = DeviceManagerCLI
         self.FilterFlipper = FilterFlipper
         self.Int32 = Int32
         self.UInt32 = UInt32
 
-        super().__init__(duration=np.inf * u.ms, latency=0 * u.ms)
+        super().__init__(duration=np.inf * u.ms, latency=0 * u.ms, kinesis_folder=kinesis_folder, serial_number=serial_number, device_codes=[FilterFlipper.DevicePrefix])
 
         # create new device
-        self.serial_number = KinesisHandler.look_for_serialnumber(
-            DeviceManagerCLI, device_codes=[FilterFlipper.DevicePrefix], serial_number=serial_number
-        )
         self.device = FilterFlipper.CreateFilterFlipper(self.serial_number)
         self.timeout = timeout
 
-        KinesisHandler.connect(self)
+        self.connect()
 
-        self._worker = ThreadPoolExecutor(max_workers=1)
-        self._future = self._worker.submit(lambda: None)
-
-    def __del__(self):
-        KinesisHandler.disconnect(self)
 
     def _move_to(self, pos):
         """
@@ -526,13 +531,13 @@ class MotorizedFilterFlip(Actuator):
         """
         Moves the device to the home position (0).
         """
-        KinesisHandler.throw_error_if_moving(self)
+        self.throw_error_if_moving()
         super()._start()
         self._future = self._worker.submit(self.device.Home, int(self.timeout.to(u.ms).value))
 
     @property
     def position(self) -> bool:
-        KinesisHandler.throw_error_if_moving(self)
+        self.throw_error_if_moving()
         kine_pos = self.device.Position
         if kine_pos == 2:
             return True
@@ -547,7 +552,7 @@ class MotorizedFilterFlip(Actuator):
         Arguments:
             pos: bool - Position to move the device to. True for the flipper to be up, False for the flipper to be down.
         """
-        KinesisHandler.throw_error_if_moving(self)
+        self.throw_error_if_moving()
         super()._start()
         if pos:
             pos_int = 2
