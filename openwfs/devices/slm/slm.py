@@ -693,20 +693,7 @@ class FrontBufferReader(Detector):
 
     def _fetch(self, *args, **kwargs) -> np.ndarray:
         with self._context:
-            GL.glReadBuffer(GL.GL_FRONT)
-            shape = self.data_shape
-            if self._context.slm.encoding == "8b_r":
-                data = np.empty(shape, dtype="uint8")
-                GL.glReadPixels(0, 0, shape[1], shape[0], GL.GL_RED, GL.GL_UNSIGNED_BYTE, data)
-            elif self._context.slm.encoding == "10b_rb":
-                data = np.ones(shape + (3,), dtype="uint8")
-                GL.glReadPixels(0, 0, shape[1], shape[0], GL.GL_RGB, GL.GL_UNSIGNED_BYTE, data)
-                data_int16 = data.astype(np.int16)
-                data = data_int16[..., 0] << 2 | data_int16[..., 2]
-
-            # flip data upside down, because the OpenGL convention is to have the origin at the bottom left,
-            # but we want it at the top left (like in numpy)
-            return data[::-1, :]
+            return self._context.slm._frame_buffer.get_output_pixels()  # noqa - ok to access 'friend class'
 
 
 class FrameBufferReader(Detector):
@@ -726,4 +713,6 @@ class FrameBufferReader(Detector):
 
     def _fetch(self, *args, **kwargs) -> np.ndarray:
         with self._context as slm:
-            return slm._frame_buffer.get_pixels()  # noqa - ok to access 'friend class'
+            data = slm._frame_buffer.get_pixels()
+            # Has to reshape to 2D array because one of the dimensions is the color channel of the texture
+            return np.reshape(data, data.shape[0:2])  # noqa - ok to access 'friend class'
