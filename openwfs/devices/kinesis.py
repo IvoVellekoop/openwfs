@@ -192,6 +192,19 @@ class KinesisDevice(Actuator):
         self.device.EnableDevice()
         time.sleep(0.25)  # Wait for device to enable
 
+    def busy(self):
+        """
+        Returns True if the device is currently moving or communicating with the device.
+        """
+        # This function works because the thread will be locked by kinesis while a movement
+        # is ongoing.
+        if self._future.exception() is not None:
+            raise self._future.exception()
+        return not self._future.done()
+
+    def __del__(self):
+        self.disconnect()
+
 
 class KCubeInertial(KinesisDevice):
     """
@@ -376,8 +389,8 @@ class KCubeInertial(KinesisDevice):
             )
 
         self.throw_error_if_moving()
-        super()._start()
         self._future = self._worker.submit(self._move_to, arr, self.position, self.pair_channels, True)
+        super()._start()
 
     @staticmethod
     def movement_time(
@@ -463,18 +476,6 @@ class KCubeInertial(KinesisDevice):
         for ch_i in self.channels_array:
             self.device.Stop(ch_i)
 
-    def busy(self):
-        """
-        Returns True if the device is currently moving or communicating with the device.
-        """
-        # This function works because the thread will be locked by kinesis while a movement
-        # is ongoing.
-        if self._future.exception() is not None:
-            raise self._future.exception()
-        return not self._future.done()
-
-    def __del__(self):
-        self.disconnect()
 
 
 class MotorizedFilterFlip(KinesisDevice):
