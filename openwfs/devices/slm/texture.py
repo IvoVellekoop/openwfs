@@ -123,7 +123,7 @@ class Texture:
     def get_data(self):
         with self.context:
             if self._format_type == GL.GL_RED:
-                shape = self._data_shape
+                shape = self._data_shape + (1,)
             else:  # self._format_type == GL.GL_RGB
                 shape = self._data_shape + (3,)
 

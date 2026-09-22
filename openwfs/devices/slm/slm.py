@@ -713,4 +713,6 @@ class FrameBufferReader(Detector):
 
     def _fetch(self, *args, **kwargs) -> np.ndarray:
         with self._context as slm:
-            return slm._frame_buffer.get_pixels()  # noqa - ok to access 'friend class'
+            data = slm._frame_buffer.get_pixels()
+            # Has to reshape to 2D array because one of the dimensions is the color channel of the texture
+            return np.reshape(data, data.shape[0:2])  # noqa - ok to access 'friend class'
