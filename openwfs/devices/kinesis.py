@@ -102,7 +102,7 @@ class KinesisHandler:
 global_kinesis_handler = None
 
 
-class KinesisDevice(Actuator):
+class KinesisActuator(Actuator):
 
     def __init__(self, duration, latency, kinesis_folder, serial_number, device_codes):
         super().__init__(duration=duration, latency=latency)
@@ -206,7 +206,7 @@ class KinesisDevice(Actuator):
         self.disconnect()
 
 
-class KCubeInertial(KinesisDevice):
+class KCubeInertial(KinesisActuator):
     """
     Class to control KCube KIM001 and KIM101 from Thorlabs. To use this class the thorlabs Kinesis software must be installed. The software can be downloaded from https://www.thorlabs.com/kinesis-software. The communication with Kinesis is done using pythonnet (clr) which needs to be installed in the python environment.
 
@@ -477,8 +477,7 @@ class KCubeInertial(KinesisDevice):
             self.device.Stop(ch_i)
 
 
-
-class MotorizedFilterFlip(KinesisDevice):
+class MotorizedFilterFlip(KinesisActuator):
     """
     Class to control Motorized Filter Flip (MFF101) from Thorlabs. To use this class the thorlabs Kinesis software must be installed. The software can be downloaded from https://www.thorlabs.com/kinesis-software. The communication with Kinesis is done using pythonnet (clr) which needs to be installed in the python environment.
 
