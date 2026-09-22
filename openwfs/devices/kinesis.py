@@ -5,6 +5,7 @@ import time
 import clr
 import os
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 # General notes about the implementation of this class:
 # This code uses the DotNET interface from Thorlabs Kinesis to control
@@ -17,7 +18,7 @@ from concurrent.futures import ThreadPoolExecutor
 # A consequence of the use of a separate thread is that the main
 # process cannot try to communicate with the device while the move thread
 # is communicating with the device. For this, function communicating with the
-# device use the function throw_error_if_moving()
+# device use the function KinesisHandler.throw_error_if_moving()
 
 
 class KinesisHandler:
@@ -48,79 +49,128 @@ class KinesisHandler:
         else:
             return global_kinesis_handler
 
+    def _find_kinesis_dlls(required_dll_names, folder_path=None):
+        """
+        Find Kinesis DLL files in a folder.
+
+        Arguments:
+            folder_path: str or Path or None - Path to the Thorlabs Kinesis folder. If None,
+                defaults to C:\\Program Files\\Thorlabs\\Kinesis.
+            required_dll_names: list of str - Names of required DLL files (e.g.,
+                ['Thorlabs.MotionControl.DeviceManagerCLI.dll', ...])
+
+        Returns:
+            list of str - Full paths to found DLL files in the same order as required_dll_names
+
+        Raises:
+            FileNotFoundError - If folder does not exist or required DLLs are not found
+        """
+        if folder_path is None:
+            folder_path = r"C:\Program Files\Thorlabs\Kinesis"
+
+        folder = Path(folder_path)
+
+        if not folder.is_dir():
+            raise FileNotFoundError(
+                f"Thorlabs Kinesis folder not found: {folder_path}. Ensure that the correct path to "
+                "the Kinesis installation is provided. The software can be downloaded from "
+                "https://www.thorlabs.com/kinesis-software."
+            )
+
+        found_dlls = []
+        missing_dlls = []
+
+        for dll_name in required_dll_names:
+            dll_path = folder / dll_name
+            if dll_path.is_file():
+                found_dlls.append(str(dll_path))
+            else:
+                missing_dlls.append(dll_name)
+
+        if missing_dlls:
+            missing_str = ", ".join(missing_dlls)
+            raise FileNotFoundError(
+                f"Required Thorlabs Kinesis DLL files not found in {folder_path}. "
+                f"Missing files: {missing_str}. Ensure that the Kinesis software "
+                "is installed in this location. The software can be downloaded from "
+                "https://www.thorlabs.com/kinesis-software."
+            )
+
+        return found_dlls
+
 
 global_kinesis_handler = None
 
 
-class KCubeInertial(Actuator):
-    """
-    Class to control KCube KIM001 and KIM101 from Thorlabs. To use this class the thorlabs Kinesis software must be installed. The software can be downloaded from https://www.thorlabs.com/kinesis-software. The communication with Kinesis is done using pythonnet (clr) which needs to be installed in the python environment.
+class KinesisActuator(Actuator):
 
-    Arguments:
-        serial_number: str - Serial number of the device to control. If not provided, the code
-            will try to find a single connected device. If multiple devices are connected,
-            an error is raised.
-        pair_channels: bool defining if the motor 1 and 2, and 3 and 4 should be paired
-            (i.e. moving simultaneously). Only important for KIM101.
-        timeout: Quantity [u.s] - Defines the timeout time for the stage when performing
-            movement. Defaults to 20 seconds.
-    """
+    def __init__(self, duration, latency, kinesis_folder, serial_number, device_codes):
+        super().__init__(duration=duration, latency=latency)
 
-    def __init__(
-        self, serial_number: str = None, pair_channels: bool = False, timeout: u.Quantity = 20 * u.s, kinesis_files=None
-    ):
-
-        if kinesis_files == None:
-            kinesis_files = [
-                r"C:\Program Files\Thorlabs\Kinesis\Thorlabs.MotionControl.DeviceManagerCLI.dll",
-                r"C:\Program Files\Thorlabs\Kinesis\Thorlabs.MotionControl.GenericMotorCLI.dll",
-                r"C:\Program Files\Thorlabs\Kinesis\Thorlabs.MotionControl.KCube.InertialMotorCLI.dll",
-            ]
-
+        required_dlls = [
+            "Thorlabs.MotionControl.DeviceManagerCLI.dll",
+        ]
+        kinesis_files = KinesisHandler._find_kinesis_dlls(required_dlls, kinesis_folder)
         kinesis_handler = KinesisHandler.get_handler()
         kinesis_handler.add_files(kinesis_files)
 
         from Thorlabs.MotionControl.DeviceManagerCLI import DeviceManagerCLI
-        from Thorlabs.MotionControl.KCube.InertialMotorCLI import (
-            KCubeInertialMotor,
-            ThorlabsInertialMotorSettings,
-            InertialMotorStatus,
-        )
-        from System import Int32
 
         self.DeviceManagerCLI = DeviceManagerCLI
-        self.KCubeInertialMotor = KCubeInertialMotor
-        self.ThorlabsInertialMotorSettings = ThorlabsInertialMotorSettings
-        self.InertialMotorStatus = InertialMotorStatus
-        self.Int32 = Int32
 
-        super().__init__(duration=np.inf * u.ms, latency=0 * u.ms)
+        self._worker = ThreadPoolExecutor(max_workers=1)
+        self._future = self._worker.submit(lambda: None)
 
         DeviceManagerCLI.BuildDeviceList()
 
-        # The 97 code corresponds to the Kinesis internal code for the KCube Inertial Motor.
-        serial_number_list = list(map(str, DeviceManagerCLI.GetDeviceList(Int32(97))))
+        self.serial_number = self.look_for_serialnumber(
+            device_codes=device_codes,
+            serial_number=serial_number,
+        )
+
+    def look_for_serialnumber(self, device_codes, serial_number):
+        """
+        Looks for the serial number of the device. If the serial number is not provided, it will look for a single device connected. If multiple devices are connected, it will raise an error.
+        """
+        self.DeviceManagerCLI.BuildDeviceList()
+
+        serial_number_list = []
+        for device_code in device_codes:
+            serial_number_list.append(list(map(str, self.DeviceManagerCLI.GetDeviceList(device_code))))
+
+        serial_number_list = [item for sublist in serial_number_list for item in sublist]
 
         if serial_number is None:
             if len(serial_number_list) == 1:
                 serial_number = serial_number_list[0]
             elif len(serial_number_list) > 1:
                 raise ValueError(
-                    f"Multiple KCube Inertial Motor devices found. Please specify a serial number. Available devices: {serial_number_list}"
+                    f"Multiple devices found. Please specify a serial number. Available devices: {serial_number_list}"
                 )
             else:
-                raise ValueError("No KCube Inertial Motor devices found.")
+                raise ValueError("No devices found.")
 
         if serial_number not in serial_number_list:
             raise ValueError(
                 f"Device with serial number {serial_number} not found. Available devices: {serial_number_list}"
             )
 
-        # create new device
-        self.serial_number = str(serial_number)  # Serial number of device
-        self.device = KCubeInertialMotor.CreateKCubeInertialMotor(self.serial_number)
-        self.timeout = timeout
-        # Connect
+        return str(serial_number)
+
+    def throw_error_if_moving(self):
+        """
+        Convenience function to throw an error if the device is moving or if communication thread is communicating with the device.
+        """
+        if self.busy():
+            raise RuntimeError(
+                "Device is busy. Use self.wait() to wait for the device to finish moving or use self.stop() to stop the device."
+            )
+
+    def disconnect(self):
+        self.device.StopPolling()
+        self.device.Disconnect()
+
+    def connect(self):
         self.device.Connect(self.serial_number)
         if not self.device.IsConnected:
             raise ValueError(f"Failed to connect to device with serial number {self.serial_number}.")
@@ -135,14 +185,84 @@ class KCubeInertial(Actuator):
                     f"Device settings failed to initialize within timeout for device with serial number {self.serial_number}."
                 )
 
-        self._worker = ThreadPoolExecutor(max_workers=1)
-        self._future = self._worker.submit(lambda: None)
-
         # Start polling and enable channel
         self.device.StartPolling(250)  # 250ms polling rate
         time.sleep(0.25)
+
         self.device.EnableDevice()
         time.sleep(0.25)  # Wait for device to enable
+
+    def busy(self):
+        """
+        Returns True if the device is currently moving or communicating with the device.
+        """
+        # This function works because the thread will be locked by kinesis while a movement
+        # is ongoing.
+        if self._future.exception() is not None:
+            raise self._future.exception()
+        return not self._future.done()
+
+    def __del__(self):
+        self.disconnect()
+
+
+class KCubeInertial(KinesisActuator):
+    """
+    Class to control KCube KIM001 and KIM101 from Thorlabs. To use this class the thorlabs Kinesis software must be installed. The software can be downloaded from https://www.thorlabs.com/kinesis-software. The communication with Kinesis is done using pythonnet (clr) which needs to be installed in the python environment.
+
+    Arguments:
+        serial_number: str - Serial number of the device to control. If not provided, the code
+            will try to find a single connected device. If multiple devices are connected,
+            an error is raised.
+        pair_channels: bool defining if the motor 1 and 2, and 3 and 4 should be paired
+            (i.e. moving simultaneously). Only important for KIM101.
+        timeout: Quantity [u.s] - Defines the timeout time for the stage when performing
+            movement. Defaults to 20 seconds.
+        kinesis_folder: str - Path to the Thorlabs Kinesis installation folder. If not provided,
+            defaults to C:\\Program Files\\Thorlabs\\Kinesis.
+    """
+
+    def __init__(
+        self,
+        serial_number: str = None,
+        pair_channels: bool = False,
+        timeout: u.Quantity = 20 * u.s,
+        kinesis_folder: str = None,
+    ):
+
+        required_dlls = [
+            "Thorlabs.MotionControl.GenericMotorCLI.dll",
+            "Thorlabs.MotionControl.KCube.InertialMotorCLI.dll",
+        ]
+        kinesis_files = KinesisHandler._find_kinesis_dlls(required_dlls, kinesis_folder)
+
+        kinesis_handler = KinesisHandler.get_handler()
+        kinesis_handler.add_files(kinesis_files)
+
+        from Thorlabs.MotionControl.KCube.InertialMotorCLI import (
+            KCubeInertialMotor,
+            ThorlabsInertialMotorSettings,
+            InertialMotorStatus,
+        )
+        from System import Int32
+
+        self.KCubeInertialMotor = KCubeInertialMotor
+        self.ThorlabsInertialMotorSettings = ThorlabsInertialMotorSettings
+        self.InertialMotorStatus = InertialMotorStatus
+        self.Int32 = Int32
+
+        super().__init__(
+            duration=np.inf * u.ms,
+            latency=0 * u.ms,
+            kinesis_folder=kinesis_folder,
+            serial_number=serial_number,
+            device_codes=[KCubeInertialMotor.DevicePrefix_KIM101, KCubeInertialMotor.DevicePrefix_KIM001],
+        )
+
+        self.device = KCubeInertialMotor.CreateKCubeInertialMotor(self.serial_number)
+        self.timeout = timeout
+        # Connect
+        self.connect()
 
         num_channel = 1 if self.device.IsSingleChannelDevice() else 4
 
@@ -161,10 +281,6 @@ class KCubeInertial(Actuator):
         self.device.SetSettings(settings, True, True)
         self.pair_channels = pair_channels
         self._get_velocity_acceleration()
-
-    def __del__(self):
-        self.device.StopPolling()
-        self.device.Disconnect()
 
     @property
     def pair_channels(self) -> bool:
@@ -273,17 +389,8 @@ class KCubeInertial(Actuator):
             )
 
         self.throw_error_if_moving()
-        super()._start()
         self._future = self._worker.submit(self._move_to, arr, self.position, self.pair_channels, True)
-
-    def throw_error_if_moving(self):
-        """
-        Convenience function to throw an error if the device is moving or if communication thread is communicating with the device.
-        """
-        if self.busy():
-            raise RuntimeError(
-                "Device is busy. Use self.wait() to wait for the device to finish moving or use self.stop() to stop the device."
-            )
+        super()._start()
 
     @staticmethod
     def movement_time(
@@ -369,10 +476,104 @@ class KCubeInertial(Actuator):
         for ch_i in self.channels_array:
             self.device.Stop(ch_i)
 
+
+class MotorizedFilterFlip(KinesisActuator):
+    """
+    Class to control Motorized Filter Flip (MFF101) from Thorlabs. To use this class the thorlabs Kinesis software must be installed. The software can be downloaded from https://www.thorlabs.com/kinesis-software. The communication with Kinesis is done using pythonnet (clr) which needs to be installed in the python environment.
+
+    Arguments:
+        serial_number: str - Serial number of the device to control. If not provided, the code
+            will try to find a single connected device. If multiple devices are connected,
+            an error is raised.
+        timeout: Quantity [u.s] - Defines the timeout time for the stage when performing
+            movement. Defaults to 20 seconds.
+        kinesis_folder: str - Path to the Thorlabs Kinesis installation folder. If not provided,
+            defaults to C:\\Program Files\\Thorlabs\\Kinesis.
+    """
+
+    def __init__(self, serial_number: str = None, timeout: u.Quantity = 20 * u.s, kinesis_folder: str = None):
+
+        required_dlls = [
+            "Thorlabs.MotionControl.GenericMotorCLI.dll",
+            "Thorlabs.MotionControl.FilterFlipperCLI.dll",
+        ]
+
+        kinesis_files = KinesisHandler._find_kinesis_dlls(required_dlls, kinesis_folder)
+
+        kinesis_handler = KinesisHandler.get_handler()
+        kinesis_handler.add_files(kinesis_files)
+
+        from Thorlabs.MotionControl.FilterFlipperCLI import (
+            FilterFlipper,
+        )
+        from System import Int32, UInt32
+
+        self.FilterFlipper = FilterFlipper
+        self.Int32 = Int32
+        self.UInt32 = UInt32
+
+        super().__init__(
+            duration=np.inf * u.ms,
+            latency=0 * u.ms,
+            kinesis_folder=kinesis_folder,
+            serial_number=serial_number,
+            device_codes=[FilterFlipper.DevicePrefix],
+        )
+
+        # create new device
+        self.device = FilterFlipper.CreateFilterFlipper(self.serial_number)
+        self.timeout = timeout
+
+        self.connect()
+
+    def _move_to(self, pos):
+        """
+            Function to be ran by the thread to move the stage to an absolute position
+
+        Arguments:
+            pos: int - Absolute position to move the device to.
+        """
+        self.device.SetPosition(self.UInt32(int(pos)), int(self.timeout.to(u.ms).value))
+
+    def home(self):
+        """
+        Moves the device to the home position (0).
+        """
+        self.throw_error_if_moving()
+        super()._start()
+        self._future = self._worker.submit(self.device.Home, int(self.timeout.to(u.ms).value))
+
+    @property
+    def position(self) -> bool:
+        self.throw_error_if_moving()
+        kine_pos = self.device.Position
+        if kine_pos == 2:
+            return True
+        else:
+            return False
+
+    @position.setter
+    def position(self, pos: bool):
+        """
+            Moves the device to the specified absolute position.
+
+        Arguments:
+            pos: bool - Position to move the device to. True for the flipper to be up, False for the flipper to be down.
+        """
+        self.throw_error_if_moving()
+        super()._start()
+        if pos:
+            pos_int = 2
+        else:
+            pos_int = 1
+        self._future = self._worker.submit(self._move_to, pos_int)
+
     def busy(self):
         """
         Returns True if the device is currently moving or communicating with the device.
         """
         # This function works because the thread will be locked by kinesis while a movement
         # is ongoing.
+        if self._future.exception() is not None:
+            raise self._future.exception()
         return not self._future.done()
