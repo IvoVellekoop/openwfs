@@ -2,7 +2,12 @@ import pytest
 import numpy as np
 from astropy import units as u
 from openwfs.devices import SLMBlinkHDMI
+from openwfs.devices.meadowlark_hdmi import BlinkHDMIHandler
 import os.path
+from sys import platform
+
+if platform == "linux" or platform == "linux2":
+    pytest.skip("Meadowlark Blink is not supported on Linux. Skipping tests.", allow_module_level=True)
 
 blink_path = BlinkHDMIHandler.default_path()
 os.path.isfile(blink_path)
