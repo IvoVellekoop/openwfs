@@ -245,14 +245,14 @@ def test_inverse():
 
 
 def test_utilities_microscope():
-    import openwfs.utilities as owf_u
-    import openwfs.simulation as owf_s
-    import openwfs.devices as owf_d
+    from openwfs.utilities.tests import get_test_microscope
+    from openwfs.devices import SLM
+    from openwfs.simulation import Microscope, StaticSource
 
-    mic, slm, src = owf_u.tests.get_test_microscope()
-    assert type(mic) == owf_s.Microscope
-    assert type(slm) == owf_d.SLM
-    assert type(src) == owf_s.StaticSource
+    mic, slm, src = get_test_microscope()
+    assert type(mic) == Microscope
+    assert type(slm) == SLM
+    assert type(src) == StaticSource
 
 
 def test_transform_and_inverse_transform():

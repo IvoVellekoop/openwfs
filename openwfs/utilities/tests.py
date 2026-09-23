@@ -1,5 +1,8 @@
 import numpy as np
 import astropy.units as u
+from .utilities import Transform, get_extent
+from ..simulation import Microscope, StaticSource
+from ..devices import SLM
 
 
 def get_test_microscope(
@@ -40,15 +43,12 @@ def get_test_microscope(
         src: StaticSource
             The static source object representing the specimen.
     """
-    import openwfs.simulation as owf_s
-    import openwfs.devices as owf_d
-    import openwfs.utilities as owf_u
 
     default_slm_args = {
         "shape": (512, 512),
         "hidden": True,
         "physical_size": (5.12 * u.mm, 5.12 * u.mm),
-        "transform": owf_u.Transform(np.diag(np.ones(2))),
+        "transform": Transform(np.diag(np.ones(2))),
     }
     slm_args = default_slm_args | slm_args
 
@@ -60,11 +60,11 @@ def get_test_microscope(
     }
     src_args = default_src_args | src_args
 
-    src = owf_s.StaticSource(**src_args)
+    src = StaticSource(**src_args)
 
-    slm = owf_d.SLM(**slm_args)
+    slm = SLM(**slm_args)
 
-    transform_2 = owf_u.Transform(np.diag(2 / owf_u.get_extent(slm.phases.read())))
+    transform_2 = Transform(np.diag(2 / get_extent(slm.phases.read())))
     default_mic_args = {
         "numerical_aperture": 0.85,
         "wavelength": 532.8 * u.nm,
@@ -73,5 +73,5 @@ def get_test_microscope(
     }
     mic_args = default_mic_args | mic_args
 
-    mic = owf_s.Microscope(src, **mic_args)
+    mic = Microscope(src, **mic_args)
     return mic, slm, src
