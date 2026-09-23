@@ -119,7 +119,7 @@ class Microscope(Processor):
         self.xy_stage = xy_stage or XYStage(0.1 * u.um, 0.1 * u.um)
         self.z_stage = z_stage or LinearStage(0.1 * u.um)
         output_shape = data_shape if data_shape is not None else source.data_shape
-
+        self._source = source
         domain_extent = wavelength / source.pixel_size / numerical_aperture
 
         self.pupil_field = _Pupil_Field(
@@ -197,6 +197,10 @@ class Microscope(Processor):
         self.psf._numerical_aperture = value
         self.propagated_pupil_field.numerical_aperture = value
 
+        self.pupil_field._pupil_extent = self.wavelength / self._source.pixel_size / self.numerical_aperture
+        self.psf._pupil_extent = self.wavelength / self._source.pixel_size / self.numerical_aperture
+        self.propagated_pupil_field._pupil_extent = self.wavelength / self._source.pixel_size / self.numerical_aperture
+
     @property
     def wavelength(self) -> Quantity:
         return self.propagated_pupil_field.wavelength
@@ -205,6 +209,10 @@ class Microscope(Processor):
     def wavelength(self, value: Quantity):
         value = value.to(u.nm)
         self.propagated_pupil_field.wavelength = value
+
+        self.pupil_field._pupil_extent = self.wavelength / self._source.pixel_size / self.numerical_aperture
+        self.psf._pupil_extent = self.wavelength / self._source.pixel_size / self.numerical_aperture
+        self.propagated_pupil_field._pupil_extent = self.wavelength / self._source.pixel_size / self.numerical_aperture
 
     @property
     def nonlinearity(self) -> int:
