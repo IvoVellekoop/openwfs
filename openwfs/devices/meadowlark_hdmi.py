@@ -5,6 +5,8 @@ from openwfs.devices import SLM
 import numpy as np
 import tempfile
 import astropy.units as u
+import os
+from pathlib import Path
 
 
 class BlinkHDMIHandler:
@@ -23,6 +25,8 @@ class BlinkHDMIHandler:
         :param file_path: The path to the file to be added.
         """
         if self.path is None:
+            if path is None:
+                path = BlinkHDMIHandler.default_path()
             self.path = path
             ctypes.cdll.LoadLibrary(self.path)
             self.blink_lib = ctypes.CDLL("Blink_C_wrapper")
@@ -49,6 +53,24 @@ class BlinkHDMIHandler:
             global_blinkhdmi_handler = weakref.ref(handler)
         handler.add_dll(path)
         return handler
+
+    @staticmethod
+    def default_path() -> str:
+        """
+        Returns the default path to the Blink DLL file. This path is used if no path is provided when creating a BlinkHDMIHandler object.
+        """
+        if "ProgramFiles" in os.environ:
+            return (
+                Path(os.environ["ProgramFiles"])
+                / "Meadowlark Optics"
+                / "Blink 1920 HDMI"
+                / "SDK"
+                / "Blink_C_wrapper.dll"
+            )
+        else:
+            raise RuntimeError(
+                "ProgramFiles environment variable not found. Cannot determine default path to Blink DLL."
+            )
 
     def __del__(self) -> None:
         """
