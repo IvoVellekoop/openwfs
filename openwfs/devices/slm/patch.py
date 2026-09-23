@@ -157,8 +157,10 @@ class FrameBufferPatch(Patch):
 
         if slm.encoding == "8b_r":
             fragment_shader = post_process_fragment_shader
-        else:  # "10b_rb"
+        elif  slm.encoding == "10b_rb":
             fragment_shader = post_process_fragment_shader_10b_rb
+        else:
+            raise ValueError(f"Unsupported encoding {slm.encoding}. Supported encodings are '8b_r' and '10b_rb'.")
 
         super().__init__(
             slm,

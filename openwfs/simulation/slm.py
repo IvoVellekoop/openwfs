@@ -252,7 +252,12 @@ class SLM(PhaseSLM, Actuator):
         return self._lookup_table
 
     @lookup_table.setter
-    def lookup_table(self, value: Sequence[int]):
+    def lookup_table(self, value: Sequence[int] | None):
+        max_value = 2**self.bit_depth - 1
+        if value == None:
+            self._lookup_table = range(max_value + 1)
+        elif np.min(value) < 0 or np.max(value) > max_value:
+            raise ValueError(f"Lookup table values must be in the range [0, {max_value}]")
         self._lookup_table = np.asarray(value)
 
     @property

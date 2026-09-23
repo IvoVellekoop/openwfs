@@ -28,8 +28,7 @@ def slm():
         hardware_lookup_table=np.arange(1024),
         hidden=False,
     )
-    yield slm_instance
-    del slm_instance
+    return slm_instance
 
 
 def test_slm_lookup_table_set(slm):

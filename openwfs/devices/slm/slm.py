@@ -594,7 +594,7 @@ class SLM(Actuator, PhaseSLM):
             GL.glBindBufferBase(GL.GL_UNIFORM_BUFFER, 1, self._globals)  # connect buffer to binding point 1
 
     @property
-    def lookup_table(self) -> Sequence[int] | None:
+    def lookup_table(self) -> Sequence[int]:
         """Lookup table that is used to map the wrapped phase range of 0-2pi to gray values
 
         The gray values are represented in the range from 0 to 2**bit_depth - 1). For an 8-bit video mode, this is 0-255.
@@ -609,8 +609,8 @@ class SLM(Actuator, PhaseSLM):
         return self._frame_buffer.lookup_table
 
     @lookup_table.setter
-    def lookup_table(self, value: Sequence[int] | None):
-        self._frame_buffer.lookup_table = value[:]
+    def lookup_table(self, value: Sequence[int]):
+        self._frame_buffer.lookup_table = value
 
     def set_phases(self, values: ArrayLike, update=True):
         self.primary_patch.set_phases(values, update)

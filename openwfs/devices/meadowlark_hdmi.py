@@ -68,18 +68,15 @@ class SLMBlinkHDMI(SLM):
 
     Args:
         blink_path: Path to the Blink DLL file.
-        hardware_lookup_table: Lookup table to be loaded on the hardware of the SLM. (Or pre-loaded if the load_lookup_table is set to False)
         slm_index: Index of the SLM to be used. This index is the SLM index defined on Blink. Defaults to 0.
-        load_lookup_table: Whether to load the hardware lookup table on initialization. Defaults to True. If False, the lookup table used will be the lookup table previously loaded on the slm. For correctness, the hardware_lookup_table passed to the constructor must match the lookup table loaded on the memory of the  SLM. If you are unsure, always set _load_lookup_table to True.
+        monitor_id (int): Monitor id, see :py:attr:`~monitor_id`
         **kwargs: Additional keyword arguments to be passed to the SLM class. The default value of enconding is set to "10b_rb" if the SLM is 10-bit and "8b_r" if the SLM is 8-bit. This can be overridden by passing an encoding argument in kwargs.
     """
 
     def __init__(
         self,
         blink_path: str,
-        hardware_lookup_table: np.ndarray,
         slm_index: int = 0,
-        load_hardware_lookup_table: bool = True,
         **kwargs,
     ) -> None:
         self.handler = BlinkHDMIHandler.get_handler(blink_path)
@@ -99,11 +96,7 @@ class SLMBlinkHDMI(SLM):
         default_encoding = {"encoding": "10b_rb" if bit_depth == 10 else "8b_r"}
 
         super().__init__(**(default_encoding | kwargs))
-
-        if load_hardware_lookup_table:
-            self._load_lookup_table(hardware_lookup_table)
-        else:
-            self._hardware_lookup_table = hardware_lookup_table
+        self._hardware_lookup_table = None
 
     @staticmethod
     def num_devices(blink_path: str) -> int:
@@ -137,39 +130,35 @@ class SLMBlinkHDMI(SLM):
 
         return filename
 
-    def _load_lookup_table(self, voltage_bits: np.ndarray) -> None:
-        """
-        See the hardware_lookup_table property for more information on how to use this method.
-        """
-        # Create file
-        # load file into blink software
-        filename = self._create_lut_file(voltage_bits)
-
-        status = self.handler.blink_lib.Load_lut(self.slm_blink_index, filename)
-        if status == 0:
-            raise RuntimeError("Loading the table on the SLM failed")
-
-        self._hardware_lookup_table = voltage_bits
-
     @property
     def hardware_lookup_table(self) -> np.ndarray:
+        if self._hardware_lookup_table is None:
+            raise RuntimeError("The hardware lookup table has not been set in this session. A previously uploaded lookup table is being used. The Blink software does not provide a way to read the lookup table from the SLM. Use set the hardware lookup table using the set_hardware_lookup_table method to be known by the class.")
+
         return self._hardware_lookup_table
 
-    @hardware_lookup_table.setter
-    def hardware_lookup_table(self, voltage_bits: np.ndarray, to_permament_memory: bool = False) -> None:
+
+    def set_hardware_lookup_table(self, voltage_bits: np.ndarray, to_permament_memory: bool = False) -> None:
         """
         Load a lookup table on the SLM using the Blink software. This lookup table is unloaded when the SLM is turned off. If to_permament_memory is set to True, the lookup table will be stored in the permanent memory of the SLM and will be kept even after the SLM is turned off.
 
         Args:
             voltage_bits: The lookup table to be loaded. The lookup table must have 2**bit_depth values, and tells how each grey value is mapped to the voltage value. The values of the lookup table must be in the range of 0 to 2**(bit_depth + 2) - 1. For example, for a 10-bit SLM, the values must be in the range of 0 to 4095. For example to load a linear lookup table, voltage_bits = np.arange(2**slm.bit_depth) * 4.
         """
-        self._load_lookup_table(voltage_bits)
+
+        filename = self._create_lut_file(voltage_bits)
+
+        status = self.handler.blink_lib.Load_lut(self.slm_blink_index, filename)
+        if status == 0:
+            raise RuntimeError("Loading the table on the SLM failed")
+        self._hardware_lookup_table = voltage_bits
+
         if to_permament_memory:
             self._store_lookup_table()
             status = self.handler.blink_lib.Store_lut(self.slm_blink_index)
             if status == 0:
                 raise RuntimeError("Storing the table on the SLM failed")
-        self._hardware_lookup_table = voltage_bits
+
 
     @property
     def temperature(self) -> u.Quantity[u.deg_C]:
