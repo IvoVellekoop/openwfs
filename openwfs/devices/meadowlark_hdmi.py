@@ -133,10 +133,11 @@ class SLMBlinkHDMI(SLM):
     @property
     def hardware_lookup_table(self) -> np.ndarray:
         if self._hardware_lookup_table is None:
-            raise RuntimeError("The hardware lookup table has not been set in this session. A previously uploaded lookup table is being used. The Blink software does not provide a way to read the lookup table from the SLM. Use set the hardware lookup table using the set_hardware_lookup_table method to be known by the class.")
+            raise RuntimeError(
+                "The hardware lookup table has not been set in this session. A previously uploaded lookup table is being used. The Blink software does not provide a way to read the lookup table from the SLM. Use set the hardware lookup table using the set_hardware_lookup_table method to be known by the class."
+            )
 
         return self._hardware_lookup_table
-
 
     def set_hardware_lookup_table(self, voltage_bits: np.ndarray, to_permament_memory: bool = False) -> None:
         """
@@ -158,7 +159,6 @@ class SLMBlinkHDMI(SLM):
             status = self.handler.blink_lib.Store_lut(self.slm_blink_index)
             if status == 0:
                 raise RuntimeError("Storing the table on the SLM failed")
-
 
     @property
     def temperature(self) -> u.Quantity[u.deg_C]:
