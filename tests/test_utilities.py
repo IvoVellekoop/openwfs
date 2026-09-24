@@ -280,3 +280,42 @@ def test_transform_and_inverse_transform():
 
     # compare the final output to the original phases projected directly to the final extent and shape
     assert np.allclose(out3, phases3, atol=3e-2), "The projected fields do not match!"
+
+
+def test_compose_requires_origin_information():
+    transform2 = Transform(np.diag(2 / Quantity((5 * u.mm, 10 * u.mm))))
+    transform = Transform(
+        np.eye(2),
+        np.zeros(2),
+        np.array([0.2, 0.3]),
+    )
+
+    with pytest.raises(ValueError):
+        transform.inverse().compose(transform2).to_matrix(
+            source_pixel_size=(1 * u.mm, 1 * u.mm),
+            destination_pixel_size=(1, 1),
+        )
+
+
+def test_compose_succeeds_when_origins_are_defined():
+    transform2 = Transform(
+        np.diag(2 / Quantity((5 * u.mm, 10 * u.mm))),
+        np.zeros(2) * u.mm,
+        np.zeros(2),
+    )
+    transform = Transform(
+        np.eye(2),
+        np.zeros(2),
+        np.array([0.2, 0.3]),
+    )
+
+    result = (
+        transform.inverse()
+        .compose(transform2)
+        .to_matrix(
+            source_pixel_size=(1 * u.mm, 1 * u.mm),
+            destination_pixel_size=(1, 1),
+        )
+    )
+
+    assert result is not None
