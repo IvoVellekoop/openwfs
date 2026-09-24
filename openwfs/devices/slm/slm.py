@@ -19,6 +19,10 @@ from ...utilities import Transform
 
 TimeType = Union[Quantity[u.ms], int]
 
+import platform
+
+is_linux = platform.system() == "Linux"
+
 
 class SLM(Actuator, PhaseSLM):
     """
@@ -36,11 +40,14 @@ class SLM(Actuator, PhaseSLM):
         "_refresh_rate",
         "_transform",
         "_shape",
+        "physical_size",
+        "physical_pixel_size",
         "_window",
         "_globals",
         "_frame_buffer",
         "_monitor",
         "patches",
+        "_amplitude",
         "primary_patch",
         "_coordinate_system",
         "_pixel_reader",
@@ -64,12 +71,14 @@ class SLM(Actuator, PhaseSLM):
         self,
         monitor_id: int = WINDOWED,
         shape: Optional[tuple[int, int]] = None,
+        physical_size: Quantity["length"] | None = None,
         pos: tuple[int, int] = (0, 0),
         refresh_rate: Optional[Quantity[u.Hz]] = None,
         latency: TimeType = 2,
         duration: TimeType = 1,
         coordinate_system: str = "short",
         transform: Optional[Transform] = None,
+        amplitude: ArrayLike = 1,
         encoding="8b_r",
         hidden=True,
     ):
@@ -89,6 +98,7 @@ class SLM(Actuator, PhaseSLM):
                 Note that OpenGL does not seem to support non-integer refresh rates.
                 In these cases, it is better to set the refresh rate in the OS, and not
                 explicitly specify a refresh rate.
+            physical_size (Quantity["length"]): Physical size of the SLM with astropy units (height, width).
             latency (int): Time between the vertical retrace and the start of the SLM response to the new frame,
                 specified in milliseconds (u.ms) or multiples of the frame period (unitless).
                 see :py:attr:`~latency`
@@ -119,6 +129,9 @@ class SLM(Actuator, PhaseSLM):
         self._monitor_id = monitor_id
         default_shape, default_rate, _ = SLM._current_mode(self._monitor_id)
         self._shape = default_shape if shape is None else shape
+        # set extent to 2 for shortest axis if no physical size is provided.
+        self.physical_size = physical_size
+        self.physical_pixel_size = None if physical_size is None else Quantity(physical_size).to(u.mm) / self._shape
         self._refresh_rate = default_rate if refresh_rate is None else refresh_rate.to_value(u.Hz)
         self._frame_buffer = None
         self._monitor = None
@@ -126,7 +139,7 @@ class SLM(Actuator, PhaseSLM):
         self._globals = -1
         self._hidden = hidden
         self.patches = []
-
+        self._amplitude = np.asarray(amplitude)
         self.encoding = encoding
         self._context = None
         self._create_window()  # sets self._context, self._window and self._globals and self._frame_patch, self._monitor
@@ -581,7 +594,7 @@ class SLM(Actuator, PhaseSLM):
             GL.glBindBufferBase(GL.GL_UNIFORM_BUFFER, 1, self._globals)  # connect buffer to binding point 1
 
     @property
-    def lookup_table(self) -> Sequence[int] | None:
+    def lookup_table(self) -> Sequence[int]:
         """Lookup table that is used to map the wrapped phase range of 0-2pi to gray values
 
         The gray values are represented in the range from 0 to 2**bit_depth - 1). For an 8-bit video mode, this is 0-255.
@@ -596,8 +609,8 @@ class SLM(Actuator, PhaseSLM):
         return self._frame_buffer.lookup_table
 
     @lookup_table.setter
-    def lookup_table(self, value: Sequence[int] | None):
-        self._frame_buffer.lookup_table = value[:]
+    def lookup_table(self, value: Sequence[int]):
+        self._frame_buffer.lookup_table = value
 
     def set_phases(self, values: ArrayLike, update=True):
         self.primary_patch.set_phases(values, update)
@@ -617,7 +630,7 @@ class SLM(Actuator, PhaseSLM):
              a detector that returns `self.amplitude * exp(1.0j * self.phases.read()`
         """
         if self._field_reader is None:
-            self._field_reader = PhaseToField(self.phases)
+            self._field_reader = PhaseToField(self.phases, self.amplitude)
         return self._field_reader
 
     @property
@@ -629,6 +642,17 @@ class SLM(Actuator, PhaseSLM):
         if self._phase_reader is None:
             self._phase_reader = FrameBufferReader(self)
         return self._phase_reader
+
+    @property
+    def amplitude(self) -> float:
+        return self._amplitude
+
+    @amplitude.setter
+    def amplitude(self, value: float) -> None:
+        self._amplitude = value
+
+        if self._field_reader is not None:
+            self._field_reader.modulated_field_amplitude = value
 
     def clone(
         self,
@@ -681,7 +705,7 @@ class FrontBufferReader(Detector):
         self._context = Context(slm)
         super().__init__(
             data_shape=None,
-            pixel_size=None,
+            pixel_size=slm.physical_pixel_size,
             duration=0.0 * u.ms,
             latency=0.0 * u.ms,
             multi_threaded=False,
@@ -693,20 +717,35 @@ class FrontBufferReader(Detector):
 
     def _fetch(self, *args, **kwargs) -> np.ndarray:
         with self._context:
-            GL.glReadBuffer(GL.GL_FRONT)
-            shape = self.data_shape
-            if self._context.slm.encoding == "8b_r":
-                data = np.empty(shape, dtype="uint8")
-                GL.glReadPixels(0, 0, shape[1], shape[0], GL.GL_RED, GL.GL_UNSIGNED_BYTE, data)
-            elif self._context.slm.encoding == "10b_rb":
-                data = np.ones(shape + (3,), dtype="uint8")
-                GL.glReadPixels(0, 0, shape[1], shape[0], GL.GL_RGB, GL.GL_UNSIGNED_BYTE, data)
-                data_int16 = data.astype(np.int16)
-                data = data_int16[..., 0] << 2 | data_int16[..., 2]
+            if is_linux:
+                # On Linux, glReadPixels is bugged and returns an image of 0.
+                # Instead, as a work aroung we calculate the gray values from the phase values based on the lookup table
+                slm = self._context.slm
+                data = slm.phases.read()
+                lut = slm.lookup_table
+                max_value = 2**slm.bit_depth
+                tx = data * (1 / (2 * np.pi)) + (0.5 / max_value)
+                tx = tx - np.floor(tx)
+                lookup_index = (lut.shape[0] * tx).astype(int)
+                # map the phase values to gray values using the lookup table
+                bit_values = lut[lookup_index]
+                return bit_values
 
-            # flip data upside down, because the OpenGL convention is to have the origin at the bottom left,
-            # but we want it at the top left (like in numpy)
-            return data[::-1, :]
+            else:
+                GL.glReadBuffer(GL.GL_FRONT)
+                shape = self.data_shape
+                if self._context.slm.encoding == "8b_r":
+                    data = np.empty(shape, dtype="uint8")
+                    GL.glReadPixels(0, 0, shape[1], shape[0], GL.GL_RED, GL.GL_UNSIGNED_BYTE, data)
+                elif self._context.slm.encoding == "10b_rb":
+                    data = np.ones(shape + (3,), dtype="uint8")
+                    GL.glReadPixels(0, 0, shape[1], shape[0], GL.GL_RGB, GL.GL_UNSIGNED_BYTE, data)
+                    data_int16 = data.astype(np.int16)
+                    data = data_int16[..., 0] << 2 | data_int16[..., 2]
+
+                # flip data upside down, because the OpenGL convention is to have the origin at the bottom left,
+                # but we want it at the top left (like in numpy)
+                return data[::-1, :]
 
 
 class FrameBufferReader(Detector):
@@ -714,7 +753,7 @@ class FrameBufferReader(Detector):
         self._context = Context(slm)
         super().__init__(
             data_shape=None,
-            pixel_size=None,
+            pixel_size=slm.physical_pixel_size,
             duration=0.0 * u.ms,
             latency=0.0 * u.ms,
             multi_threaded=False,

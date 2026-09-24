@@ -1,11 +1,9 @@
 # Caution: This test file moves KCubeInertial stages. Ensure that the stages are clear of any obstructions before running these tests.
 import pytest
-import openwfs.devices as ow_d
+from openwfs.devices import KCubeInertial
 import astropy.units as u
 import numpy as np
 import os.path
-
-pytestmark = pytest.mark.kinesis_inertial
 
 kinesis_folder = r"C:\Program Files\Thorlabs\Kinesis"
 if not os.path.isdir(kinesis_folder):
@@ -15,9 +13,7 @@ if not os.path.isdir(kinesis_folder):
 @pytest.fixture(scope="module")
 def stage():
     """Fixture to create KCubeInertial stage instance for testing."""
-    stage_instance = ow_d.KCubeInertial()
-    yield stage_instance
-    del stage_instance
+    return KCubeInertial()
 
 
 @pytest.mark.parametrize("pair_channels", [True, False])
