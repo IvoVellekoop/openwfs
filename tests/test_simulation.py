@@ -15,7 +15,7 @@ from openwfs.utilities.patterns import tilt, gaussian, parabola, binary_grating,
 from openwfs.utilities.tests import get_test_microscope
 import cv2
 from openwfs.devices.slm import SLM as realSLM
-
+from astropy.units import Quantity
 
 def test_mock_camera_and_single_roi():
     """
@@ -816,20 +816,32 @@ def test_psf_area_scaling_with_na():
 
 
 def test_vector_z_stage_matches_scalar_loop():
-    shape = (1024*2,)*2
+    shape = (1024 * 2,) * 2
     domain_extent = 600 * u.um
-    pat = disk(shape, radius = 0.1* u.um, extent = domain_extent).astype(np.float32)
-    pat = set_extent(pat, extent = domain_extent)
+    pat = disk(shape, radius=0.1 * u.um, extent=domain_extent).astype(np.float32)
+    pat = set_extent(pat, extent=domain_extent)
 
     slm = realSLM(
-                monitor_id=0,
-                shape=(1200,1920),
-                physical_size=Quantity((9.6,15.36), "mm"),
-                coordinate_system="full",
-            )
+        monitor_id=0,
+        shape=(1200, 1920),
+        physical_size=Quantity((9.6, 15.36), "mm"),
+        coordinate_system="full",
+    )
     src = StaticSource(data=pat)
-    mic = Microscope(source = src, incident_field = slm.field, numerical_aperture = 0.9, wavelength = 800*u.nm, incident_transform = Transform(np.diag(2/slm.physical_size)))
-    micz = Microscope(source = src, incident_field = slm.field, numerical_aperture = 0.9, wavelength = 800*u.nm, incident_transform = Transform(np.diag(2/slm.physical_size)))
+    mic = Microscope(
+        source=src,
+        incident_field=slm.field,
+        numerical_aperture=0.9,
+        wavelength=800 * u.nm,
+        incident_transform=Transform(np.diag(2 / slm.physical_size)),
+    )
+    micz = Microscope(
+        source=src,
+        incident_field=slm.field,
+        numerical_aperture=0.9,
+        wavelength=800 * u.nm,
+        incident_transform=Transform(np.diag(2 / slm.physical_size)),
+    )
 
     # test that using the z_stage position as a vector in the mock microcope gives the same results as using a scalar z_stage position in a loop over the vector positions.
     d = 5 * u.um
