@@ -78,7 +78,7 @@ def propagation(
     k_y = k_0 * numerical_aperture * y
     k_z = np.sqrt(np.maximum((k_0 * refractive_index) ** 2 - k_x**2 - k_y**2, 0))
 
-    return unitless(distance[:, None, None] * k_z)
+    return unitless(k_z[:, :, None] * distance)
 
 
 def disk(

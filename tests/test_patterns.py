@@ -129,9 +129,9 @@ def test_propagation_vector_distance():
             numerical_aperture=0.8,
         )
 
-        individual_results.append(result[0])
+        individual_results.append(result[..., 0])
 
-    loop_result = np.stack(individual_results)
+    loop_result = np.stack(individual_results, axis=-1)
 
-    assert vector_result.shape == (10, 100, 100)
+    assert vector_result.shape == (100, 100, 10)
     np.testing.assert_allclose(vector_result, loop_result)
