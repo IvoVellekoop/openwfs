@@ -813,3 +813,54 @@ def test_psf_area_scaling_with_na():
     psf_low_na_area = np.sum(psf_low_na)
 
     assert np.isclose(psf_low_na_area / psf_area, (low_na / numerical_aperture) ** 2, rtol=1e-2)
+
+
+def test_vector_z_stage_matches_scalar_loop():
+    # test that using the z_stage position as a vector in the mock microcope gives the same results as using a scalar z_stage position in a loop over the vector positions.
+    d = 5 * u.um
+    mic.z_stage.position = d
+    micz.z_stage.position = d
+    assert np.all(mic.pupil_field.read() == micz.pupil_field.read())
+    assert np.all(mic.propagated_pupil_field.read() == micz.propagated_pupil_field.read())
+    assert np.all(mic.psf.read() == micz.psf.read())
+
+    distances = np.linspace(-50, 20, 5) * u.um
+
+    # Compute all z positions at once
+    micz.z_stage.position = distances
+
+    pupil_field_z = micz.pupil_field.read()
+    propagated_field_z = micz.propagated_pupil_field.read()
+    psf_z = micz.psf.read()
+    imgs_z = micz.read()
+
+    assert propagated_field_z.shape[-1] == len(distances)
+    assert psf_z.shape[-1] == len(distances)
+
+    # Compare each z-slice with the scalar microscope
+    for index, distance in enumerate(distances):
+        mic.z_stage.position = distance
+
+        pupil_field = mic.pupil_field.read()
+        propagated_field = mic.propagated_pupil_field.read()
+        psf = mic.psf.read()
+
+        np.testing.assert_allclose(
+            pupil_field,
+            pupil_field_z,
+        )
+
+        np.testing.assert_allclose(
+            propagated_field,
+            propagated_field_z[..., index],
+        )
+
+        np.testing.assert_allclose(
+            psf,
+            psf_z[..., index],
+        )
+
+        np.testing.assert_allclose(
+            mic.read(),
+            imgs_z[..., index],
+        )
