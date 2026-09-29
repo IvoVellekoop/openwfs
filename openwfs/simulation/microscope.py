@@ -172,13 +172,15 @@ class Microscope(Processor):
             np.ndarray: The resulting image as it would appear on a camera sensor.
         """
         shift = Quantity((self.xy_stage.y, self.xy_stage.x))
-        source = place(self.data_shape, self.pixel_size, source, shift)
+        source = place(self.data_shape[:2], self.pixel_size, source, shift)
 
         if psf.ndim == 3:
-            source = source[..., None]  # add a z dimension to the source if the psf has a z dimension
-        return fftconvolve(
-            source, psf, mode="same", axes=(0, 1)
-        )  # axes=(0, 1) ensures that the convolution is only done in the spatial dimensions, not in the z dimension if it exists.
+            source = np.broadcast_to(
+                source[..., None], psf.shape
+            )  # add a z dimension to the source if the psf has a z dimension
+
+        # axes=(0, 1) ensures that the convolution is only done in the spatial dimensions, not in the z dimension if it exists.
+        return fftconvolve(source, psf, mode="same", axes=(0, 1))
 
     @property
     def abbe_limit(self) -> Quantity:
@@ -193,7 +195,7 @@ class Microscope(Processor):
 
     @property
     def data_shape(self) -> tuple:
-        return self._data_shape
+        return self.psf.data_shape
 
     @property
     def numerical_aperture(self) -> float:
@@ -374,6 +376,11 @@ class _Propagator(Processor):
                 extent=self._pupil_extent,
                 numerical_aperture=self.numerical_aperture,
             )
+
+            # add a z dimension to the pupil field if the phase has a z dimension
+            if phase.ndim == 3 and pupil_field.ndim == 2:
+                pupil_field = pupil_field[:, :, None]
+
             pupil_field = pupil_field * np.exp(1j * phase)
 
         pupil_extent = self._pupil_extent
@@ -384,6 +391,9 @@ class _Propagator(Processor):
 
     @property
     def data_shape(self) -> tuple:
+        if np.ndim(self.z_stage.position) > 0:
+            return (*self._data_shape, len(self.z_stage.position))
+
         return self._data_shape
 
 
@@ -423,7 +433,7 @@ class _PSF(Processor):
         """
         psf = np.abs(np.fft.ifft2(pupil_field, axes=(0, 1))) ** 2
 
-        pupil_field = patterns.disk(self._data_shape, radius=1.0, extent=self._pupil_extent)
+        pupil_field = patterns.disk(self.data_shape[:2], radius=1.0, extent=self._pupil_extent)
         pupil_area = np.sum(pupil_field)  # TODO (efficiency): compute area directly from radius
 
         # Only use the spatial dimensions for normalization and not the z dimension if it exists
@@ -439,7 +449,7 @@ class _PSF(Processor):
 
         # ifft_shift shifts psf by 1 pixel when off centre, both when the array is odd and even
         # Compensate for this by rolling the kernel by -1 pixel in both x and y directions
-        psf = np.roll(psf, -1, axes=(0, 1))
+        psf = np.roll(psf, -1, axis=(0, 1))
 
         psf = psf**self.nonlinearity  # added for higher order microscopy (e.g. two-photon)
 
@@ -452,4 +462,4 @@ class _PSF(Processor):
 
     @property
     def data_shape(self) -> tuple:
-        return self._data_shape
+        return self.pupil_field.data_shape
