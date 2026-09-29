@@ -129,7 +129,7 @@ def test_propagation_vector_distance():
             numerical_aperture=0.8,
         )
 
-        individual_results.append(result[..., 0])
+        individual_results.append(result)
 
     loop_result = np.stack(individual_results, axis=-1)
 
