@@ -412,12 +412,15 @@ class _PSF(Processor):
         Returns:
             np.ndarray: The point spread function (PSF) of the microscope.
         """
-        psf = np.abs(np.fft.ifft2(pupil_field)) ** 2
+        psf = np.abs(np.fft.ifft2(pupil_field, axis=(0, 1))) ** 2
 
         pupil_field = patterns.disk(self._data_shape, radius=1.0, extent=self._pupil_extent)
         pupil_area = np.sum(pupil_field)  # TODO (efficiency): compute area directly from radius
 
-        psf = np.fft.ifftshift(psf) * (psf.size / pupil_area)
+        # Only use the spatial dimensions for normalization and not the z dimension if it exists
+        spatial_size = psf.shape[0] * psf.shape[1]
+
+        psf = np.fft.ifftshift(psf, axes=(0, 1)) * (spatial_size / pupil_area)
 
         # assuming focal length etc... of objective are the same, the area of the back focal plane should scale quadratically with
         # the numerical aperture, so the PSF should be scaled by the square of the numerical aperture to account for this.
@@ -430,7 +433,13 @@ class _PSF(Processor):
         psf = np.roll(psf, -1, axis=(0, 1))
 
         psf = psf**self.nonlinearity  # added for higher order microscopy (e.g. two-photon)
-        return set_extent(psf, self._pupil_extent)
+
+        # z is the last dimension and has no spatial extent
+        psf_extent = self._pupil_extent
+        if psf.ndim == 3 and np.ndim(psf_extent) != 0:
+            psf_extent = (*psf_extent, 0)
+
+        return set_extent(psf, psf_extent)
 
     @property
     def data_shape(self) -> tuple:
