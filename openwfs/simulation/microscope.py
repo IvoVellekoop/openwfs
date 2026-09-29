@@ -174,7 +174,11 @@ class Microscope(Processor):
         shift = Quantity((self.xy_stage.y, self.xy_stage.x))
         source = place(self.data_shape, self.pixel_size, source, shift)
 
-        return fftconvolve(source, psf, mode="same")
+        if psf.ndim == 3:
+            source = source[..., None]  # add a z dimension to the source if the psf has a z dimension
+        return fftconvolve(
+            source, psf, mode="same", axes=(0, 1)
+        )  # axes=(0, 1) ensures that the convolution is only done in the spatial dimensions, not in the z dimension if it exists.
 
     @property
     def abbe_limit(self) -> Quantity:
