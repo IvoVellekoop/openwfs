@@ -319,3 +319,4 @@ def test_compose_succeeds_when_origins_are_defined():
     )
 
     assert result is not None
+
