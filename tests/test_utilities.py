@@ -13,6 +13,7 @@ from openwfs.utilities import (
 )
 
 from openwfs.utilities.patterns import parabola, propagation
+from astropy.units import Quantity
 
 
 def test_to_matrix():
