@@ -172,7 +172,7 @@ class Microscope(Processor):
             np.ndarray: The resulting image as it would appear on a camera sensor.
         """
         shift = Quantity((self.xy_stage.y, self.xy_stage.x))
-        source = place(self._data_shape, self.pixel_size, source, shift)
+        source = place(self.data_shape, self.pixel_size, source, shift)
 
         if psf.ndim == 3:
             source = source[..., None]  # add a z dimension to the source if the psf has a z dimension
@@ -190,6 +190,10 @@ class Microscope(Processor):
             Quantity: The Abbe diffraction limit in length units.
         """
         return 0.5 * self.wavelength / self.numerical_aperture
+
+    @property
+    def data_shape(self) -> tuple:
+        return self._data_shape
 
     @property
     def numerical_aperture(self) -> float:
