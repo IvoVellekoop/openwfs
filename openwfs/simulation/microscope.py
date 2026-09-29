@@ -421,7 +421,7 @@ class _PSF(Processor):
         Returns:
             np.ndarray: The point spread function (PSF) of the microscope.
         """
-        psf = np.abs(np.fft.ifft2(pupil_field, axis=(0, 1))) ** 2
+        psf = np.abs(np.fft.ifft2(pupil_field, axes=(0, 1))) ** 2
 
         pupil_field = patterns.disk(self._data_shape, radius=1.0, extent=self._pupil_extent)
         pupil_area = np.sum(pupil_field)  # TODO (efficiency): compute area directly from radius
@@ -439,7 +439,7 @@ class _PSF(Processor):
 
         # ifft_shift shifts psf by 1 pixel when off centre, both when the array is odd and even
         # Compensate for this by rolling the kernel by -1 pixel in both x and y directions
-        psf = np.roll(psf, -1, axis=(0, 1))
+        psf = np.roll(psf, -1, axes=(0, 1))
 
         psf = psf**self.nonlinearity  # added for higher order microscopy (e.g. two-photon)
 
