@@ -17,6 +17,7 @@ import cv2
 from openwfs.devices.slm import SLM as realSLM
 from astropy.units import Quantity
 
+
 def test_mock_camera_and_single_roi():
     """
     The MockCamera wraps a Detector producing 2-D data, so that the data can be read by MicroManager.
