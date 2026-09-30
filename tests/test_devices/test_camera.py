@@ -6,7 +6,7 @@ from openwfs.devices import Camera, is_loaded
 from openwfs.processors import HDRCamera
 import os
 
-pytestmark = pytest.mark.camera
+pytestmark = [pytest.mark.camera, pytest.mark.devices]
 
 if not is_loaded(harvesters):
     pytest.skip(harvesters.message, allow_module_level=True)

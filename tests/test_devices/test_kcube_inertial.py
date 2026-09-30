@@ -5,7 +5,7 @@ import astropy.units as u
 import numpy as np
 import os.path
 
-pytestmark = pytest.mark.kinesis_inertial
+pytestmark = [pytest.mark.kinesis_inertial, pytest.mark.devices]
 
 kinesis_folder = r"C:\Program Files\Thorlabs\Kinesis"
 if not os.path.isdir(kinesis_folder):

@@ -4,7 +4,7 @@ from astropy import units as u
 from openwfs.devices import SLMBlinkHDMI
 import os.path
 
-pytestmark = pytest.mark.meadowlark_hdmi
+pytestmark = [pytest.mark.meadowlark_hdmi, pytest.mark.devices]
 
 blink_path = r"C:\Program Files\Meadowlark Optics\Blink 1920 HDMI\SDK\Blink_C_wrapper.dll"
 os.path.isfile(blink_path)
