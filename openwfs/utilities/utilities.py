@@ -208,13 +208,18 @@ class Transform:
         else:
             return self.apply(other)
 
-    def apply(self, vector: CoordinateType) -> CoordinateType:
+    def apply(self, vector: CoordinateType | None) -> CoordinateType:
         """Applies the transformation to a column vector.
 
         If `vector` is a 2-D array, applies the transformation to each column of `vector` individually.
         """
         if self.source_origin is not None:
-            vector = vector - self.source_origin
+            if vector is not None:
+                vector = vector - self.source_origin
+            else:
+                vector = -self.source_origin
+        elif vector is None:
+            return self.destination_origin
         vector = self.transform @ vector
         if self.destination_origin is not None:
             vector = vector + self.destination_origin
@@ -247,18 +252,8 @@ class Transform:
         Returns:
             Transform: the composition of the two transformations
         """
-        # The intermediate origins must either both be specified or both be None.
-        if (self.source_origin is None) != (other.destination_origin is None):
-            raise ValueError(
-                "Cannot compose transforms: self.source_origin and "
-                "other.destination_origin must either both be specified "
-                "or both be None."
-            )
-
         transform = self.transform @ other.transform
-        destination_origin = (
-            self.apply(other.destination_origin) if other.destination_origin is not None else self.destination_origin
-        )
+        destination_origin = self.apply(other.destination_origin)
         return Transform(transform, other.source_origin, destination_origin)
 
     def _standard_input(self) -> Quantity:
