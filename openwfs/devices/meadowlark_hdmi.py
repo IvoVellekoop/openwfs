@@ -31,7 +31,13 @@ class BlinkHDMIHandler:
                 raise ValueError("A different DLL has already been loaded.")
 
         if not self.sdk_created:
-            self.blink_lib.Create_SDK()
+            try:
+                self.blink_lib.Create_SDK()
+            except Exception as e:
+                print(
+                    "Error creating SDK. A common issue is the corrupted Preferences.ini file in the Blink software folder (e.g. the path of the lookup table being corrupted). Try reseting the Preferences.ini file to the settings of a new installation."
+                )
+                raise e
             self.blink_lib.Get_SLMTemp.restype = ctypes.c_double  # Taken from example file
             self.sdk_created = True
 
