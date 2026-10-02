@@ -106,3 +106,32 @@ def test_propagation(extent, refractive_index):
     ref_value = unitless(d * kz)
 
     assert np.allclose(ref_value, phi[0, 50])
+
+
+def test_propagation_vector_distance():
+    # test that propagation can handle a vector of distances and returns the correct shape and values
+    distances = np.linspace(-50, 20, 10) * u.um
+
+    vector_result = propagation(
+        shape=(100, 100),
+        distance=distances,
+        wavelength=532 * u.nm,
+        numerical_aperture=0.8,
+    )
+
+    individual_results = []
+
+    for distance in distances:
+        result = propagation(
+            shape=(100, 100),
+            distance=np.atleast_1d(distance),
+            wavelength=532 * u.nm,
+            numerical_aperture=0.8,
+        )
+
+        individual_results.append(result)
+
+    loop_result = np.stack(individual_results, axis=-1)
+
+    assert vector_result.shape == (100, 100, 10)
+    np.testing.assert_allclose(vector_result, loop_result)

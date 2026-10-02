@@ -247,6 +247,14 @@ class Transform:
         Returns:
             Transform: the composition of the two transformations
         """
+        # The intermediate origins must either both be specified or both be None.
+        if (self.source_origin is None) != (other.destination_origin is None):
+            raise ValueError(
+                "Cannot compose transforms: self.source_origin and "
+                "other.destination_origin must either both be specified "
+                "or both be None."
+            )
+
         transform = self.transform @ other.transform
         destination_origin = (
             self.apply(other.destination_origin) if other.destination_origin is not None else self.destination_origin

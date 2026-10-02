@@ -2,11 +2,16 @@ import pytest
 import numpy as np
 from astropy import units as u
 from openwfs.devices import SLMBlinkHDMI
+from openwfs.devices.meadowlark_hdmi import BlinkHDMIHandler
 import os.path
+from sys import platform
 
 pytestmark = [pytest.mark.meadowlark_hdmi, pytest.mark.devices]
 
-blink_path = r"C:\Program Files\Meadowlark Optics\Blink 1920 HDMI\SDK\Blink_C_wrapper.dll"
+if platform == "linux" or platform == "linux2":
+    pytest.skip("Meadowlark Blink is not supported on Linux. Skipping tests.", allow_module_level=True)
+
+blink_path = BlinkHDMIHandler.default_path()
 os.path.isfile(blink_path)
 if not os.path.isfile(blink_path):
     pytest.skip("Blink SDK not found. Skipping tests.", allow_module_level=True)
@@ -28,8 +33,7 @@ def slm():
         hardware_lookup_table=np.arange(1024),
         hidden=False,
     )
-    yield slm_instance
-    del slm_instance
+    return slm_instance
 
 
 def test_slm_lookup_table_set(slm):
