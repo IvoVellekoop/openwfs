@@ -67,6 +67,7 @@ safe_import("nidaqmx.constants", "nidaq")
 safe_import("nidaqmx.stream_writers", "nidaq")
 safe_import("OpenGL", "opengl")
 safe_import("OpenGL.GL", "opengl")
+safe_import("OpenGL.arrays.numpymodule", "opengl")
 safe_import("glfw", "opengl")
 safe_import("zaber_motion", "zaber")
 safe_import("serial", "zaber")
@@ -79,5 +80,5 @@ from .nidaq_gain import Gain
 from . import slm
 from .slm import SLM
 from .zaber_stage import ZaberXYStage, ZaberLinearStage
-from .kcube_inertial import KCubeInertial
+from .kinesis import KCubeInertial, MotorizedFilterFlip
 from .meadowlark_hdmi import SLMBlinkHDMI

@@ -387,7 +387,7 @@ class _Propagator(Processor):
         if pupil_field.ndim == 3 and np.ndim(self._pupil_extent) != 0:
             pupil_extent = (*pupil_extent, 0)
 
-        return set_extent(1.0*pupil_field, pupil_extent)
+        return set_extent(1.0 * pupil_field, pupil_extent)
 
     @property
     def data_shape(self) -> tuple:

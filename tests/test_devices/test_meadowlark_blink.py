@@ -6,6 +6,8 @@ from openwfs.devices.meadowlark_hdmi import BlinkHDMIHandler
 import os.path
 from sys import platform
 
+pytestmark = [pytest.mark.meadowlark_hdmi, pytest.mark.devices]
+
 if platform == "linux" or platform == "linux2":
     pytest.skip("Meadowlark Blink is not supported on Linux. Skipping tests.", allow_module_level=True)
 
