@@ -208,7 +208,7 @@ class Transform:
         else:
             return self.apply(other)
 
-    def apply(self, vector: CoordinateType) -> CoordinateType:
+    def apply(self, vector: CoordinateType | None) -> CoordinateType:
         """Applies the transformation to a column vector.
 
         If `vector` is a 2-D array, applies the transformation to each column of `vector` individually.
