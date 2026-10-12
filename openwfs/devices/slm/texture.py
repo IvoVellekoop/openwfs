@@ -22,7 +22,8 @@ class Texture:
         # overwrite the exiting one
 
         # create a single pixel texture as default (also activates the OpenGL context and binds the texture
-        self.set_data(0)
+        shape = (1, 1, 1) if self.type == GL.GL_TEXTURE_2D else (1, 1)
+        self.set_data(np.zeros(shape))
 
         # set wrapping and interpolation options
         GL.glTexParameteri(self.type, GL.GL_TEXTURE_WRAP_S, GL.GL_REPEAT)
@@ -56,10 +57,8 @@ class Texture:
 
             if self.type == GL.GL_TEXTURE_1D:
                 # check if data has the correct dimension, convert scalars to arrays of correct dimension
-                if value.ndim == 0:
-                    value = value.reshape((1, 1))
-                elif value.ndim != 2:
-                    raise ValueError("Data should be a 1-d array or a scalar with a color channel dimension")
+                if value.ndim != 2:
+                    raise ValueError("Data should be a 2-d array with a color channel dimension")
 
                 if value.shape != self._data_shape:
                     # create a new texture
@@ -87,10 +86,8 @@ class Texture:
                     )
 
             elif self.type == GL.GL_TEXTURE_2D:
-                if value.ndim == 0:
-                    value = value.reshape((1, 1, 1))
-                elif value.ndim != 3:
-                    raise ValueError("Data should be a 2-D array or a scalar with a color channel dimension")
+                if value.ndim != 3:
+                    raise ValueError("Data should be a 3-D array with a color channel dimension")
 
                 if value.shape != self._data_shape:
                     GL.glTexImage2D(
