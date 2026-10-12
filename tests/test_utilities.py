@@ -291,11 +291,58 @@ def test_compose_requires_origin_information():
         np.array([0.2, 0.3]),
     )
 
-    with pytest.raises(ValueError):
-        transform.inverse().compose(transform2).to_matrix(
+    M = (
+        transform.inverse()
+        .compose(transform2)
+        .to_matrix(
             source_pixel_size=(1 * u.mm, 1 * u.mm),
             destination_pixel_size=(1, 1),
         )
+    )
+
+    expected_M = np.array([[0.4, 0, -0.2], [0, 0.2, -0.3], [0, 0, 1]])
+    assert np.allclose(M, expected_M)
+
+
+def test_compose_none_destination_origin_equals_explicit_zero():
+    outer = Transform(
+        transform=np.array(
+            [
+                [2.0, 0.0],
+                [0.0, 3.0],
+            ]
+        ),
+        source_origin=np.array([1.0, -2.0]) * u.um,
+        destination_origin=np.array([10.0, 20.0]) * u.mm,
+    )
+
+    inner_implicit_zero = Transform(
+        transform=np.eye(2),
+        source_origin=np.array([3.0, 4.0]) * u.um,
+        destination_origin=None,
+    )
+
+    inner_explicit_zero = Transform(
+        transform=np.eye(2),
+        source_origin=np.array([3.0, 4.0]) * u.um,
+        destination_origin=np.zeros(2) * u.um,
+    )
+
+    coordinate = np.array([5.0, 8.0]) * u.um
+
+    result_implicit = outer.compose(inner_implicit_zero).apply(coordinate)
+    result_explicit = outer.compose(inner_explicit_zero).apply(coordinate)
+
+    m1 = outer.compose(inner_implicit_zero).to_matrix(
+        source_pixel_size=(1.0 * u.um, 1.0 * u.um), destination_pixel_size=(1.0 * u.um, 1.0 * u.um)
+    )
+    m2 = outer.compose(inner_explicit_zero).to_matrix(
+        source_pixel_size=(1.0 * u.um, 1.0 * u.um), destination_pixel_size=(1.0 * u.um, 1.0 * u.um)
+    )
+    print(m1)
+    print(m2)
+    assert np.all(result_implicit == result_explicit)
+    assert np.all(m1 == m2)
 
 
 def test_compose_succeeds_when_origins_are_defined():
