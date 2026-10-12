@@ -695,8 +695,7 @@ class FrontBufferReader(Detector):
         with self._context:
             data = self._context.slm._frame_buffer.get_output_pixels()  # noqa - ok to access 'friend class'
             # Has to reshape to 2D array because one of the dimensions is the color channel of the texture
-            return np.reshape(data, data.shape[0:2])  
-            
+            return np.reshape(data, data.shape[0:2])
 
 
 class FrameBufferReader(Detector):

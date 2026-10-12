@@ -57,7 +57,7 @@ class Texture:
             if self.type == GL.GL_TEXTURE_1D:
                 # check if data has the correct dimension, convert scalars to arrays of correct dimension
                 if value.ndim == 0:
-                    value = value.reshape((1,1))
+                    value = value.reshape((1, 1))
                 elif value.ndim != 2:
                     raise ValueError("Data should be a 1-d array or a scalar with a color channel dimension")
 
