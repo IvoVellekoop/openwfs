@@ -214,7 +214,12 @@ class Transform:
         If `vector` is a 2-D array, applies the transformation to each column of `vector` individually.
         """
         if self.source_origin is not None:
-            vector = vector - self.source_origin
+            if vector is not None:
+                vector = vector - self.source_origin
+            else:
+                vector = -self.source_origin
+        elif vector is None:
+            return self.destination_origin
         vector = self.transform @ vector
         if self.destination_origin is not None:
             vector = vector + self.destination_origin
@@ -248,9 +253,7 @@ class Transform:
             Transform: the composition of the two transformations
         """
         transform = self.transform @ other.transform
-        destination_origin = (
-            self.apply(other.destination_origin) if other.destination_origin is not None else self.destination_origin
-        )
+        destination_origin = self.apply(other.destination_origin)
         return Transform(transform, other.source_origin, destination_origin)
 
     def _standard_input(self) -> Quantity:
