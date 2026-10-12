@@ -77,3 +77,4 @@ jobs:
         run: |
           export DISPLAY=:99
           uv run pytest
+
