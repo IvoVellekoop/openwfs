@@ -22,7 +22,8 @@ class Texture:
         # overwrite the exiting one
 
         # create a single pixel texture as default (also activates the OpenGL context and binds the texture
-        self.set_data(0)
+        shape = (1, 1, 1) if self.type == GL.GL_TEXTURE_2D else (1, 1)
+        self.set_data(np.zeros(shape))
 
         # set wrapping and interpolation options
         GL.glTexParameteri(self.type, GL.GL_TEXTURE_WRAP_S, GL.GL_REPEAT)
