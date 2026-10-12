@@ -693,7 +693,10 @@ class FrontBufferReader(Detector):
 
     def _fetch(self, *args, **kwargs) -> np.ndarray:
         with self._context:
-            return self._context.slm._frame_buffer.get_output_pixels()  # noqa - ok to access 'friend class'
+            data = self._context.slm._frame_buffer.get_output_pixels()  # noqa - ok to access 'friend class'
+            # Has to reshape to 2D array because one of the dimensions is the color channel of the texture
+            return np.reshape(data, data.shape[0:2])  
+            
 
 
 class FrameBufferReader(Detector):
