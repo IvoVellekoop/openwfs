@@ -92,8 +92,6 @@ class Texture:
                 elif value.ndim != 3:
                     raise ValueError("Data should be a 2-D array or a scalar with a color channel dimension")
 
-                print(value.shape, self._data_shape)
-                print(self._internal_format, self._format_type, self._data_type)
                 if value.shape != self._data_shape:
                     GL.glTexImage2D(
                         GL.GL_TEXTURE_2D,

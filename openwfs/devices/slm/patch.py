@@ -92,7 +92,7 @@ class Patch(PhaseSLM):
                 caller is responsible for calling slm.update() to update the SLM.
         """
         # reshape the value to have a color dim of 1, so that it can be used as a texture
-        values_reshaped = np.reshape(values, self.context.slm.shape + (1,))
+        values_reshaped = np.reshape(values, values.shape + (1,))
         self._textures[Patch._PHASES_TEXTURE].set_data(values_reshaped)
         if update:
             self.update()
