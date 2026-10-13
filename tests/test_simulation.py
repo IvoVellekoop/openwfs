@@ -614,7 +614,6 @@ def test_mock_microscope_individual_components():
 
     psf = _PSF(
         pupil_field=pupil_field,
-        data_shape=data_shape,
         pupil_extent=wavelength / source.pixel_size / numerical_aperture,
         multi_threaded=multi_threaded,
     )
