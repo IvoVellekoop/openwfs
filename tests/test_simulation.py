@@ -14,7 +14,7 @@ from openwfs.utilities import get_pixel_size, Transform, set_extent, project, ge
 from openwfs.utilities.patterns import tilt, gaussian, parabola, binary_grating, propagation, disk
 from openwfs.utilities.tests import get_test_microscope
 import cv2
-from openwfs.devices.slm import SLM as realSLM
+from openwfs.devices.slm import SLM as realSLM, slm
 from astropy.units import Quantity
 from numpy.testing import assert_allclose
 
@@ -905,6 +905,16 @@ def test_microscope_incident_field_extent():
 
     # assert that this gives an error since the incident field has physical units (um) and no incident transform is provided
     pytest.raises(ValueError, Microscope, source=src, incident_field=slm.field, wavelength=0.5 * u.um)
+
+    # if units are wrong of the incident transform, it should also give an error
+    pytest.raises(
+        ValueError,
+        Microscope,
+        source=src,
+        incident_field=slm.field,
+        wavelength=0.5 * u.um,
+        incident_transform=Transform(np.diag(2 / (Quantity(slm.physical_size).value * u.um**2))),
+    )
 
     mic3 = Microscope(
         source=src,
