@@ -40,7 +40,7 @@ class Microscope(Processor):
         self,
         source: Detector,
         *,
-        data_shape: tuple | None = None,
+        data_shape: tuple[int, int] | None = None,
         numerical_aperture: float = 1.0,
         wavelength: Quantity[u.nm],
         nonlinearity: int = 1,
