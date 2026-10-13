@@ -210,7 +210,6 @@ class Microscope(Processor):
 
     @numerical_aperture.setter
     def numerical_aperture(self, value: float):
-        self.pupil_field.numerical_aperture = value
         self.psf._numerical_aperture = value
         self.propagated_pupil_field.numerical_aperture = value
 
