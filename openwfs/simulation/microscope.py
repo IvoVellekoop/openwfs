@@ -465,7 +465,3 @@ class _PSF(Processor):
             psf_extent = (*psf_extent, 0)
 
         return set_extent(psf, psf_extent)
-
-    @property
-    def data_shape(self) -> tuple:
-        return self.pupil_field.data_shape
