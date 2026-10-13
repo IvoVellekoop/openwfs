@@ -288,8 +288,7 @@ class _Pupil_Field(Processor):
         multi_threaded: bool = True,
     ):
 
-        super().__init__(aberrations, incident_field, multi_threaded=multi_threaded)
-        self._pupil_shape = pupil_shape
+        super().__init__(aberrations, incident_field, multi_threaded=multi_threaded, data_shape=pupil_shape)
         self._pupil_extent = pupil_extent
         self.aberration_transform = aberration_transform
         self._incident_transform = incident_transform
@@ -326,15 +325,6 @@ class _Pupil_Field(Processor):
                 transform=self._incident_transform,
             )
         return set_extent(pupil_field, self._pupil_extent)
-
-    @property
-    def data_shape(self) -> tuple:
-        """Returns the shape of the image in the pupil plane.
-
-        Returns:
-            tuple: The dimensions of the output image (height, width).
-        """
-        return self._pupil_shape
 
 
 class _Propagator(Processor):
