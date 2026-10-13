@@ -16,6 +16,7 @@ from openwfs.utilities.tests import get_test_microscope
 import cv2
 from openwfs.devices.slm import SLM as realSLM
 from astropy.units import Quantity
+from numpy.testing import assert_allclose
 
 
 def test_mock_camera_and_single_roi():
@@ -892,3 +893,25 @@ def test_vector_z_stage_matches_scalar_loop():
             mic.read(),
             imgs_z[..., index],
         )
+
+
+def test_microscope_incident_field_extent():
+    slm = SLM((256, 256))
+    src = StaticSource(data=np.zeros((256, 256)), pixel_size=6.5 * u.um)
+    mic1 = Microscope(source=src, incident_field=slm.field, wavelength=0.5 * u.um)
+    assert_allclose(get_extent(slm.field.read()), np.array([2, 2]))
+
+    slm = realSLM(monitor_id=0, hidden=True, shape=(256, 256), physical_size=(2 * u.um, 4 * u.um))
+    src = StaticSource(data=np.zeros((256, 256)), pixel_size=6.5 * u.um)
+
+    # assert that this gives an error since the incident field has physical units (um) and no incident transform is provided
+    pytest.raises(ValueError, Microscope, source=src, incident_field=slm.field, wavelength=0.5 * u.um)
+
+    mic3 = Microscope(
+        source=src,
+        incident_field=slm.field,
+        wavelength=0.5 * u.um,
+        incident_transform=Transform(np.diag(2 / Quantity(slm.physical_size))),
+    )
+
+    assert_allclose(get_extent(mic3.pupil_field.read()), get_extent(mic1.pupil_field.read()))
