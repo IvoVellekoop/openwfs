@@ -115,7 +115,7 @@ class Microscope(Processor):
                 raise ValueError(
                     "If the incident field has physical units (mm), an incident transform must be provided to convert the incident field to normalized pupil coordinates."
                 )
-  
+
         self.xy_stage = xy_stage or XYStage()
         self.z_stage = z_stage or LinearStage()
         output_shape = data_shape if data_shape is not None else source.data_shape
