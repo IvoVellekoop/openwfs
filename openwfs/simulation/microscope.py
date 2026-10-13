@@ -315,7 +315,7 @@ class _Pupil_Field(Processor):
     ) -> np.ndarray:
 
         # The aberrations and the SLM phase pattern are both mapped to the pupil plane coordinates
-        pupil_field = patterns.disk(self._pupil_shape, radius=1.0, extent=self._pupil_extent)
+        pupil_field = patterns.disk(self.data_shape, radius=1.0, extent=self._pupil_extent)
 
         # Project aberrations
         if aberrations is not None:
@@ -325,7 +325,7 @@ class _Pupil_Field(Processor):
                     aberrations,
                     source_extent=get_extent(aberrations),
                     out_extent=self._pupil_extent,
-                    out_shape=self._pupil_shape,
+                    out_shape=self.data_shape,
                     transform=self.aberration_transform,
                     interp=cv2.INTER_LINEAR,
                 )
@@ -336,7 +336,7 @@ class _Pupil_Field(Processor):
             pupil_field = pupil_field * project(
                 incident_field,
                 out_extent=self._pupil_extent,
-                out_shape=self._pupil_shape,
+                out_shape=self.data_shape,
                 transform=self._incident_transform,
             )
         return set_extent(pupil_field, self._pupil_extent)
