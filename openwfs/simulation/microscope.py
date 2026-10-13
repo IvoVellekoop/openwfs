@@ -7,7 +7,7 @@ import numpy as np
 from astropy.units import Quantity
 from scipy.signal import fftconvolve
 
-from openwfs.utilities.utilities import set_extent, get_extent
+from openwfs.utilities.utilities import set_extent, get_extent, unitless
 
 from ..core import Processor, Detector
 from ..plot_utilities import imshow  # noqa - for debugging
@@ -265,7 +265,7 @@ class Microscope(Processor):
     @incident_transform.setter
     def incident_transform(self, value: Optional[Transform]):
         try:
-            value.apply(self._incident_field.extent)
+            unitless(value.apply(self._incident_field.extent))
         except Exception as e:
             raise ValueError(
                 "The incident field extent must become dimensionless after applying "
