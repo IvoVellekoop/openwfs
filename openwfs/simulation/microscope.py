@@ -120,8 +120,15 @@ class Microscope(Processor):
         self.z_stage = z_stage or LinearStage()
         output_shape = data_shape if data_shape is not None else source.data_shape
         self._source = source
+
+        # the domain extent of the pupil plane is determined by the wavelength, pixel size of the source, and numerical aperture
+        # of the objective such that the fourier transform of the pupil field results in an array with the same pixel size as the source image.
         domain_extent = wavelength / source.pixel_size / numerical_aperture
 
+        # Three main components of the microscope simulation: the pupil field, the propagated pupil field, and the PSF.
+        # The pupil field is the field in the back focal plane of the microscope objective, which includes the effects of aberrations and SLM phase pattern.
+        # Te propagated pupil field takes the pupil field and inctroduces any defocus due to the z-stage.
+        # The PSF is calculated by taking the Fourier transform of the propagated pupil field, and is used to convolve the source image to produce the final image on the camera sensor.
         self.pupil_field = _Pupil_Field(
             pupil_shape=output_shape,
             pupil_extent=domain_extent,
