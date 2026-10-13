@@ -138,6 +138,12 @@ class Microscope(Processor):
             aberration_transform=aberration_transform,
             multi_threaded=multi_threaded,
         )
+
+        if incident_transform is not None:
+            self.incident_transform = (
+                incident_transform  # runs check in setter to make sure transform has the correct units
+            )
+
         self.propagated_pupil_field = _Propagator(
             pupil_field=self.pupil_field,
             pupil_shape=output_shape,
