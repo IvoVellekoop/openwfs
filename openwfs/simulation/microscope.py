@@ -64,9 +64,9 @@ class Microscope(Processor):
                 the wavelength and numerical_aperture together determine the resolution of the microscope.
             nonlinearity: Exponent to which the PSF is raised. This can be used to simulate two-photon microscopy (nonlinearity=2),
                 or multiphoton microscopy in general (nonlinearity > 2).
-            xy_stage (XYStage): Optional stage object that can be used to move the sample laterally.
+            xy_stage: Optional stage object that can be used to move the sample laterally.
                 Defaults to a MockXYStage.
-            z_stage (Stage): Optional stage object that moves the sample up and down to focus the microscope.
+            z_stage: Optional stage object that moves the sample up and down to focus the microscope.
                 Higher values are further away from the microscope objective.
                 Defaults to a MockStage.
             immersion_refractive_index: The refractive index of the immersion medium.
@@ -116,8 +116,8 @@ class Microscope(Processor):
                     "If the incident field has physical units (mm), an incident transform must be provided to convert the incident field to normalized pupil coordinates."
                 )
         self._incident_transform = incident_transform
-        self.xy_stage = xy_stage or XYStage(0.1 * u.um, 0.1 * u.um)
-        self.z_stage = z_stage or LinearStage(0.1 * u.um)
+        self.xy_stage = xy_stage or XYStage()
+        self.z_stage = z_stage or LinearStage()
         output_shape = data_shape if data_shape is not None else source.data_shape
         self._source = source
         domain_extent = wavelength / source.pixel_size / numerical_aperture

@@ -400,7 +400,7 @@ class XYStage(Actuator):
     Mimics an XY stage actuator
     """
 
-    def __init__(self, step_size_x: Quantity[u.um], step_size_y: Quantity[u.um]):
+    def __init__(self, step_size_x: Quantity[u.um] = 0.1 * u.um, step_size_y: Quantity[u.um] = 0.1 * u.um):
         """
 
         Args:
@@ -457,7 +457,7 @@ class LinearStage(Actuator):
     Mimics a linear translation stage
     """
 
-    def __init__(self, step_size: Quantity[u.um]):
+    def __init__(self, step_size: Quantity[u.um] = 0.1 * u.um):
         """
 
         Args:
