@@ -71,16 +71,16 @@ class Microscope(Processor):
                 Defaults to a MockStage.
             immersion_refractive_index: The refractive index of the immersion medium.
             incident_field: Produces 2-D complex images containing the field output of the SLM.
-                The incident field has an extent in units mm or is None. If the incident has units of mm,
-                an incident transform must be provided to transform the incident field to normalized pupil coordinates.
-                If the incident transform is not provided, the incident field is assumed to be in normalized pupil coordinates.
+                The incident field can be given an extent in physical units (mm) or in normalized pupil coordinates.
+                If the incident field has an extent in physical units (mm), an incident transform must be provided
+                to convert the incident field to normalized pupil coordinates.
             incident_transform (Optional[Transform]):
                 Converts the incident field with physical units (mm) to normalized pupil coordinates.
             aberrations: 2-D image containing the phase (in radians) of aberrations observed
                 in the back pupil of the microscope objective, or a Detector object that automatically produces such
                 images. The `extent` attribute corresponds to normalized pupil coordinates. For example, with a
                 numerical aperture of 0.6, the extent of the image should be 1.2. If a 2-D image without pixel_size
-                metadata is provided, the extent is automatically set to 2.0 * numerical_aperture.
+                metadata is provided, the extent is automatically set to 2.0 in pupil coordinates, covering the entire pupil.
                 Linear interpolation is used to project the aberration image to the pupil plane of the microscope objective.
                 This means that the aberration phase pattern should not be phase wrapped, otherwise this would give problems
                 with the interpolation. e.g. the middle of 0 and 2π is π, but the middle of 0 and 2π-ε is 0, not π-ε/2.
