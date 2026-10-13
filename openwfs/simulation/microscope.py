@@ -258,6 +258,15 @@ class Microscope(Processor):
 
     @incident_transform.setter
     def incident_transform(self, value: Optional[Transform]):
+        try:
+            value.apply(self._incident_field.extent)
+        except Exception as e:
+            raise ValueError(
+                "The incident field extent must become dimensionless after applying "
+                "the incident_transform. Check that the transform and the extent "
+                "have compatible units."
+            ) from e
+
         self.pupil_field._incident_transform = value
 
     def z_stack_read(self, z: Quantity["length"]) -> np.ndarray:
