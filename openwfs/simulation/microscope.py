@@ -150,7 +150,6 @@ class Microscope(Processor):
         # PSF of the microscope, which is used to convolve the source image
         self.psf = _PSF(
             pupil_field=self.propagated_pupil_field,
-            data_shape=output_shape,
             pupil_extent=domain_extent,
             numerical_aperture=numerical_aperture,
             nonlinearity=nonlinearity,
@@ -408,7 +407,6 @@ class _PSF(Processor):
         self,
         *,
         pupil_field: Detector | Processor,
-        data_shape: tuple | None = None,
         pupil_extent: float | tuple = None,
         numerical_aperture: float = 1.0,
         nonlinearity: int = 1,
@@ -418,7 +416,6 @@ class _PSF(Processor):
         self.pupil_field = pupil_field
 
         super().__init__(self.pupil_field, multi_threaded=multi_threaded)
-        self._data_shape = data_shape
         self._pupil_extent = pupil_extent
         self._numerical_aperture = numerical_aperture
         self.nonlinearity = nonlinearity
