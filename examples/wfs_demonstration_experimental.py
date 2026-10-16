@@ -22,8 +22,6 @@ from openwfs.processors import SingleRoi
 from openwfs.utilities import Transform
 
 # Adjust these parameters to your setup
-# The camera driver file path
-camera_driver_path = R"C:\Program Files\Basler\pylon 7\Runtime\x64\ProducerU3V.cti"
 monitor_id = 2
 # time to stabilize the SLM, in frames
 settle_time = 2
@@ -34,7 +32,10 @@ centering = Transform(source_origin=(0, 0), destination_origin=(0.0, 0.3))
 
 
 # This script shows how a wavefront shaping experiment can be performed from Python
-cam = Camera(camera_driver_path, PixelFormat="Mono10p")
+
+# if the cti_file path is not autmatically detected, you can specify as an argument to the Camera constructor,
+# for example cam = Camera(R"C:\Program Files\Basler\pylon 7\Runtime\x64\ProducerU3V.cti", PixelFormat="Mono10p")
+cam = Camera(PixelFormat="Mono10p")
 cam.exposure = 16.666 * u.ms
 roi_detector = SingleRoi(cam, radius=2)
 
