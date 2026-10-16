@@ -91,7 +91,13 @@ class Patch(PhaseSLM):
                 When False, the SLM is not updated, and the
                 caller is responsible for calling slm.update() to update the SLM.
         """
-        self._textures[Patch._PHASES_TEXTURE].set_data(values)
+        # reshape the value to have a color dim of 1, so that it can be used as a texture
+        values = np.asarray(values)
+        shape = (1, 1) if values.ndim == 0 else values.shape
+
+        values_reshaped = np.reshape(values, shape + (1,))
+
+        self._textures[Patch._PHASES_TEXTURE].set_data(values_reshaped)
         if update:
             self.update()
 
@@ -189,10 +195,11 @@ class FrameBufferPatch(Patch):
 
         internal_format = GL.GL_R8 if slm.encoding == "8b_r" else GL.GL_RGB8
         format_type = GL.GL_RED if slm.encoding == "8b_r" else GL.GL_RGB
+        color_dim = 1 if slm.encoding == "8b_r" else 3
         data_type = GL.GL_UNSIGNED_BYTE
         shape = self.context.slm.shape
         self._output_texture = Texture(self.context, GL.GL_TEXTURE_2D, internal_format, format_type, data_type)
-        self._output_texture.set_data(np.zeros(shape, dtype=np.uint8))
+        self._output_texture.set_data(np.zeros(shape + (color_dim,), dtype=np.uint8))
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self._output_buffer)
         GL.glFramebufferTexture2D(
             GL.GL_FRAMEBUFFER,
@@ -229,7 +236,10 @@ class FrameBufferPatch(Patch):
         elif np.min(value) < 0.0 or np.max(value) > max_value:
             raise ValueError(f"Lookup table values must be in the range [0, {max_value}]")
         self._lookup_table = np.array(value)
-        self._textures[FrameBufferPatch._LUT_TEXTURE].set_data(self._lookup_table / max_value)
+
+        # reshape the lookup table to have a color dim of 1, so that it can be used as a texture
+        reshaped_lut = self._lookup_table.reshape((self._lookup_table.size, 1))
+        self._textures[FrameBufferPatch._LUT_TEXTURE].set_data(reshaped_lut / max_value)
 
     def get_pixels(self):
         data = self._textures[FrameBufferPatch._PHASES_TEXTURE].get_data()
