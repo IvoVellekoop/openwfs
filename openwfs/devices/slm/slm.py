@@ -71,7 +71,7 @@ class SLM(Actuator, PhaseSLM):
         coordinate_system: str = "short",
         transform: Optional[Transform] = None,
         encoding="8b_r",
-        hidden=True,
+        hidden=False,
     ):
         """
         Constructs a new SLM window.
