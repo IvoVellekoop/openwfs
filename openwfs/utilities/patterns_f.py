@@ -158,7 +158,7 @@ def binary_grating(x, y, period, values, angle):
 
     """
 
-    xp = array_namespace(x, y, period, values, angle)
+    xp = array_namespace(x, y, period, angle, values[0], values[1])
     coord_along_periodic_direction = x * xp.cos(angle) + y * xp.sin(angle)
     phase_mask = xp.full(coord_along_periodic_direction.shape, values[0])
     up_values = (coord_along_periodic_direction % period) >= (period / 2)
