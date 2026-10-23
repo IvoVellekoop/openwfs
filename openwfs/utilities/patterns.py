@@ -42,7 +42,7 @@ Functions are available on openwfs.utilities.patterns_f that accept the coordina
 
 
 def coordinate_range(
-    shape: ShapeType, extent: ExtentType, offset: Optional[CoordinateType] = None
+    shape: ShapeType, extent: ExtentType, offset: Optional[CoordinateType] = None, xp=np
 ) -> (Quantity, Quantity):
     """
     Returns coordinate vectors for the two coordinates (y and x).
@@ -54,6 +54,7 @@ def coordinate_range(
         shape (ShapeType): size of the full grid (y, x) in pixels
         extent (ExtentType): extent of the coordinate range
         offset (Optional[CoordinateType]): offset to be added to the coordinates (optional)
+        xp: array namespace (default: numpy)
 
     Returns:
         Tuple[Quantity, Quantity]: coordinate vectors for the two coordinates (y and x)
@@ -61,7 +62,7 @@ def coordinate_range(
     if np.size(shape) == 1:
         shape = np.array(shape).repeat(2)
 
-    extent = Quantity(extent)
+    # extent = Quantity(extent)
     if extent.size == 1:
         extent = extent.repeat(2)
 
@@ -70,7 +71,7 @@ def coordinate_range(
 
     def c_range(res, ex, cx):
         dx = ex / res
-        return np.arange(res) * dx + (0.5 * dx - 0.5 * ex + cx)
+        return xp.arange(res) * dx + (0.5 * dx - 0.5 * ex + cx)
 
     return (
         c_range(shape[0], extent[0], offset[0]).reshape((-1, 1)),
@@ -78,11 +79,11 @@ def coordinate_range(
     )
 
 
-def r2_range(shape: ShapeType, extent: ExtentType, offset: Optional[CoordinateType] = None):
+def r2_range(shape: ShapeType, extent: ExtentType, offset: Optional[CoordinateType] = None, xp=np):
     """Convenience function to return square distance to the origin
     Equivalent to computing cx^2 + cy^2
     """
-    c0, c1 = coordinate_range(shape, extent, offset)
+    c0, c1 = coordinate_range(shape, extent, offset, xp=xp)
     return c0**2 + c1**2
 
 

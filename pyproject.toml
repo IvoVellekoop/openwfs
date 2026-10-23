@@ -30,6 +30,7 @@ dependencies = [
     "matplotlib>=3.7.3",
     "scipy>=1.11.3",
     "annotated-types>=0.7.0",
+    "array-api-compat",
 ]
 
 [project.optional-dependencies]
