@@ -9,6 +9,7 @@ ShapeType = Union[int, Sequence[int]]
 
 # a scalar quantity with optional unit attached
 ScalarType = Union[float, np.ndarray, Quantity]
+from array_api_compat import array_namespace
 
 
 def tilt(
@@ -51,7 +52,8 @@ def lens(x, y, f, wavelength, numerical_aperture):
         An array of the same shape as x and y (or broadcasted), containing the phase values of the lens pattern.
     """
     k = 2 * np.pi / wavelength
-    return unitless(k * f * (1 - np.sqrt(1 + (x**2 + y**2) * numerical_aperture**2)))
+    xp = array_namespace(x, y, f, wavelength, numerical_aperture)
+    return unitless(k * f * (1 - xp.sqrt(1 + (x**2 + y**2) * numerical_aperture**2)))
 
 
 def propagation(
@@ -76,7 +78,8 @@ def propagation(
     k_0 = 2 * np.pi / wavelength
     k_x = k_0 * numerical_aperture * x
     k_y = k_0 * numerical_aperture * y
-    k_z = np.sqrt(np.maximum((k_0 * refractive_index) ** 2 - k_x**2 - k_y**2, 0))
+    xp = array_namespace(x, y, distance, wavelength, numerical_aperture, refractive_index)
+    k_z = xp.sqrt(xp.maximum((k_0 * refractive_index) ** 2 - k_x**2 - k_y**2, 0))
 
     return unitless(distance * k_z)
 
@@ -115,7 +118,8 @@ def gaussian(
 
     """
     w2inv = -1.0 / waist**2
-    gauss = np.exp(unitless((x**2 + y**2) * w2inv))
+    xp = array_namespace(x, y, waist, truncation_radius)
+    gauss = xp.exp(unitless((x**2 + y**2) * w2inv))
     if truncation_radius is not None:
         gauss = gauss * disk(x, y, truncation_radius)
     return unitless(gauss)
@@ -154,8 +158,9 @@ def binary_grating(x, y, period, values, angle):
 
     """
 
-    coord_along_periodic_direction = x * np.cos(angle) + y * np.sin(angle)
-    phase_mask = np.full(coord_along_periodic_direction.shape, values[0])
+    xp = array_namespace(x, y, period, values, angle)
+    coord_along_periodic_direction = x * xp.cos(angle) + y * xp.sin(angle)
+    phase_mask = xp.full(coord_along_periodic_direction.shape, values[0])
     up_values = (coord_along_periodic_direction % period) >= (period / 2)
     phase_mask[up_values] = values[1]
     return phase_mask

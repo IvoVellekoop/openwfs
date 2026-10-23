@@ -62,7 +62,9 @@ def coordinate_range(
     if np.size(shape) == 1:
         shape = np.array(shape).repeat(2)
 
-    # extent = Quantity(extent)
+    if type(extent) is not Quantity:
+        extent = np.array(extent)
+
     if extent.size == 1:
         extent = extent.repeat(2)
 
