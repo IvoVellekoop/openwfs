@@ -124,7 +124,7 @@ def test_propagation_vector_distance():
     for distance in distances:
         result = propagation(
             shape=(100, 100),
-            distance=np.atleast_1d(distance),
+            distance=distance,
             wavelength=532 * u.nm,
             numerical_aperture=0.8,
         )
