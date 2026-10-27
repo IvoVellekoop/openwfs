@@ -377,7 +377,9 @@ class _Propagator(Processor):
     ) -> np.ndarray:
 
         assert pupil_field.ndim == 2
-        assert get_extent(pupil_field) is not None, "The pupil field must have an extent in normalized pupil coordinates."
+        assert (
+            get_extent(pupil_field) is not None
+        ), "The pupil field must have an extent in normalized pupil coordinates."
         pupil_extent = get_extent(pupil_field)
 
         # Add defocus from z-stage
@@ -397,11 +399,10 @@ class _Propagator(Processor):
                 pupil_extent = (*pupil_extent, 0)
 
             pupil_field = pupil_field * np.exp(1j * phase)
-        
+
             # performing operations on the pupil field removes the extent, so we need to set it again before returning
             pupil_field = set_extent(1.0 * pupil_field, pupil_extent)
 
-            
         return pupil_field
 
     @property
@@ -474,6 +475,8 @@ class _PSF(Processor):
         )
 
         if psf.ndim == 3 and np.ndim(psf_extent) != 0:
-            psf_extent = (*psf_extent, 0)
+            psf_extent = Quantity(
+                (*psf_extent, 0 * psf_extent.unit)
+            )  # add a z dimension to the extent if the psf has a z dimension
 
         return set_extent(psf, psf_extent)
