@@ -376,6 +376,10 @@ class _Propagator(Processor):
         pupil_field: np.ndarray,
     ) -> np.ndarray:
 
+        assert pupil_field.ndim == 2
+        assert get_extent(pupil_field) is not None, "The pupil field must have an extent in normalized pupil coordinates."
+        pupil_extent = get_extent(pupil_field)
+
         # Add defocus from z-stage
         if self.z_stage is not None:
             phase = propagation(
@@ -388,16 +392,16 @@ class _Propagator(Processor):
             )
 
             # add a z dimension to the pupil field if the phase has a z dimension
-            if phase.ndim == 3 and pupil_field.ndim == 2:
+            if phase.ndim == 3:
                 pupil_field = pupil_field[:, :, None]
+                pupil_extent = (*pupil_extent, 0)
 
             pupil_field = pupil_field * np.exp(1j * phase)
-
-        pupil_extent = self._pupil_extent
-        if pupil_field.ndim == 3 and np.ndim(self._pupil_extent) != 0:
-            pupil_extent = (*pupil_extent, 0)
-
-        return set_extent(1.0 * pupil_field, pupil_extent)
+        
+            # performing operations on the pupil field removes the extent, so we need to set it again before returning
+            set_extent(1.0 * pupil_field, pupil_extent)
+            
+        return pupil_field
 
     @property
     def data_shape(self) -> tuple:
