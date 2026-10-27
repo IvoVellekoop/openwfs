@@ -466,7 +466,13 @@ class _PSF(Processor):
         psf = psf**self.nonlinearity  # added for higher order microscopy (e.g. two-photon)
 
         # z is the last dimension and has no spatial extent
-        psf_extent = self._pupil_extent
+        psf_extent = Quantity(
+            np.asarray(psf.shape[:2])
+            * self.pupil_field.wavelength
+            * self.pupil_field.immersion_refractive_index
+            / (self._numerical_aperture * np.asarray(self._pupil_extent))
+        )
+
         if psf.ndim == 3 and np.ndim(psf_extent) != 0:
             psf_extent = (*psf_extent, 0)
 
