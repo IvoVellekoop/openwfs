@@ -147,7 +147,6 @@ class Microscope(Processor):
         self.propagated_pupil_field = _Propagator(
             pupil_field=self.pupil_field,
             pupil_shape=output_shape,
-            pupil_extent=domain_extent,
             wavelength=wavelength,
             numerical_aperture=numerical_aperture,
             immersion_refractive_index=immersion_refractive_index,
@@ -156,7 +155,6 @@ class Microscope(Processor):
         # PSF of the microscope, which is used to convolve the source image
         self.psf = _PSF(
             pupil_field=self.propagated_pupil_field,
-            pupil_extent=domain_extent,
             numerical_aperture=numerical_aperture,
             nonlinearity=nonlinearity,
         )
