@@ -471,7 +471,7 @@ class _PSF(Processor):
         psf_extent = Quantity(
             np.asarray(psf.shape[:2])
             * self.pupil_field.wavelength
-            / (self._numerical_aperture * np.asarray(self._pupil_extent))
+            / (self._numerical_aperture * Quantity(self._pupil_extent))
         )
 
         if psf.ndim == 3 and np.ndim(psf_extent) != 0:
