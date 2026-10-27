@@ -5,7 +5,7 @@ from astropy.units import Quantity
 
 from .utilities import ExtentType, CoordinateType, unitless
 from scipy.special import j1
-from openwfs.utilities import set_extent
+from .utilities import set_extent
 from . import patterns_f
 
 # shape of a numpy array, or a single integer that is broadcast to a square shape
