@@ -437,6 +437,10 @@ class _PSF(Processor):
         Returns:
             np.ndarray: The point spread function (PSF) of the microscope.
         """
+        assert (
+            get_extent(pupil_field) is not None
+        ), "The pupil field must have an extent in normalized pupil coordinates."
+
         pupil_extent = get_extent(pupil_field)[:2]
 
         psf = np.abs(np.fft.ifft2(pupil_field, axes=(0, 1))) ** 2
