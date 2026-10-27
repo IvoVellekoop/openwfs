@@ -603,7 +603,6 @@ def test_mock_microscope_individual_components():
     pupil_field = _Propagator(
         pupil_field=slm_aberrations,
         pupil_shape=data_shape,
-        pupil_extent=wavelength / source.pixel_size / numerical_aperture,
         numerical_aperture=numerical_aperture,
         wavelength=wavelength,
         immersion_refractive_index=immersion_refractive_index,
@@ -614,7 +613,6 @@ def test_mock_microscope_individual_components():
 
     psf = _PSF(
         pupil_field=pupil_field,
-        pupil_extent=wavelength / source.pixel_size / numerical_aperture,
         multi_threaded=multi_threaded,
     )
     psf_expected = np.zeros(data_shape)
