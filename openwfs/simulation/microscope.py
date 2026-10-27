@@ -399,7 +399,8 @@ class _Propagator(Processor):
             pupil_field = pupil_field * np.exp(1j * phase)
         
             # performing operations on the pupil field removes the extent, so we need to set it again before returning
-            set_extent(1.0 * pupil_field, pupil_extent)
+            pupil_field = set_extent(1.0 * pupil_field, pupil_extent)
+
             
         return pupil_field
 
@@ -469,7 +470,6 @@ class _PSF(Processor):
         psf_extent = Quantity(
             np.asarray(psf.shape[:2])
             * self.pupil_field.wavelength
-            * self.pupil_field.immersion_refractive_index
             / (self._numerical_aperture * np.asarray(self._pupil_extent))
         )
 
