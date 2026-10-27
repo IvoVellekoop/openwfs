@@ -11,7 +11,7 @@ from openwfs.processors import SingleRoi
 from openwfs.simulation import Microscope, Camera, StaticSource, SLM
 from openwfs.simulation.microscope import _PSF, _Pupil_Field, _Propagator
 from openwfs.utilities import get_pixel_size, Transform, set_extent, project, get_extent
-from openwfs.utilities.patterns import tilt, gaussian, parabola, binary_grating, propagation, disk
+from openwfs.utilities.patterns import tilt, gaussian, parabola, binary_grating, propagation, disk, airy_psf
 from openwfs.utilities.tests import get_test_microscope
 import cv2
 from openwfs.devices.slm import SLM as realSLM, slm
@@ -924,3 +924,49 @@ def test_microscope_incident_field_extent():
     )
 
     assert_allclose(get_extent(mic3.pupil_field.read()), get_extent(mic1.pupil_field.read()))
+
+
+def test_microscope_theoretical_psf():
+    """
+    Test that the theoretical PSF of the microscope matches the PSF computed from the pupil field.
+    """
+    # create microscope object
+    shape = (2048 + 1,) * 2
+    domain_extent = 40 * u.um
+    pat = disk(shape, radius=1 * u.um, extent=domain_extent).astype(np.float32)
+    pat = set_extent(pat, extent=domain_extent)
+    numerical_aperture = 0.4
+    wavelength = 750 * u.nm
+    refractive_index = 1.0
+
+    src = StaticSource(data=pat)
+    mic = Microscope(
+        src,
+        data_shape=shape,
+        wavelength=wavelength,
+        numerical_aperture=numerical_aperture,
+        immersion_refractive_index=refractive_index,
+    )
+
+    # loop over NA and wavelength to generate PSFs and assert theory mathces simulation
+    wavelengths = np.linspace(500, 1000, 2) * u.nm
+    NA = np.linspace(0.4, 1.0, 2)
+    refractive_indices = np.linspace(1.0, 1.7, 2)
+
+    # loop over NA and wavelength to generate PSFs and assert theory mathces simulation
+    for w in wavelengths:
+        for na in NA:
+            for n in refractive_indices:
+                mic.wavelength = w
+                mic.numerical_aperture = na
+                mic.immersion_refractive_index = n
+
+                assert mic.wavelength == w
+                assert mic.numerical_aperture == na
+                assert mic.propagated_pupil_field.wavelength == w
+                assert mic.propagated_pupil_field.numerical_aperture == na
+                psf_sim = mic.psf.read()
+                psf_sim = psf_sim / np.max(psf_sim)
+                psf_theory = airy_psf(psf_sim.shape, get_extent(psf_sim), w, na)
+
+                assert_allclose(psf_theory, psf_sim, rtol=1e-2, atol=1e-2)
