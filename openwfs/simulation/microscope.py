@@ -219,8 +219,6 @@ class Microscope(Processor):
         self.propagated_pupil_field.numerical_aperture = value
 
         self.pupil_field._pupil_extent = self.wavelength / self._source.pixel_size / self.numerical_aperture
-        self.psf._pupil_extent = self.wavelength / self._source.pixel_size / self.numerical_aperture
-        self.propagated_pupil_field._pupil_extent = self.wavelength / self._source.pixel_size / self.numerical_aperture
 
     @property
     def wavelength(self) -> Quantity:
@@ -232,8 +230,6 @@ class Microscope(Processor):
         self.propagated_pupil_field.wavelength = value
 
         self.pupil_field._pupil_extent = self.wavelength / self._source.pixel_size / self.numerical_aperture
-        self.psf._pupil_extent = self.wavelength / self._source.pixel_size / self.numerical_aperture
-        self.propagated_pupil_field._pupil_extent = self.wavelength / self._source.pixel_size / self.numerical_aperture
 
     @property
     def nonlinearity(self) -> int:
@@ -365,7 +361,6 @@ class _Propagator(Processor):
 
         super().__init__(self._pupil_field, multi_threaded=multi_threaded)
         self._data_shape = pupil_shape
-        self._pupil_extent = pupil_extent
         self.numerical_aperture = numerical_aperture
         self.wavelength = wavelength.to(u.nm)
         self.immersion_refractive_index = immersion_refractive_index
@@ -389,7 +384,7 @@ class _Propagator(Processor):
                 distance=self.z_stage.position,
                 wavelength=self.wavelength,
                 refractive_index=self.immersion_refractive_index,
-                extent=self._pupil_extent,
+                extent=pupil_extent,
                 numerical_aperture=self.numerical_aperture,
             )
 
@@ -427,7 +422,6 @@ class _PSF(Processor):
         self.pupil_field = pupil_field
 
         super().__init__(self.pupil_field, multi_threaded=multi_threaded)
-        self._pupil_extent = pupil_extent
         self._numerical_aperture = numerical_aperture
         self.nonlinearity = nonlinearity
         self._psf = None
@@ -445,9 +439,11 @@ class _PSF(Processor):
         Returns:
             np.ndarray: The point spread function (PSF) of the microscope.
         """
+        pupil_extent = get_extent(pupil_field)[:2]
+
         psf = np.abs(np.fft.ifft2(pupil_field, axes=(0, 1))) ** 2
 
-        pupil_field = patterns.disk(self.data_shape[:2], radius=1.0, extent=self._pupil_extent)
+        pupil_field = patterns.disk(self.data_shape[:2], radius=1.0, extent=pupil_extent)
         pupil_area = np.sum(pupil_field)  # TODO (efficiency): compute area directly from radius
 
         # Only use the spatial dimensions for normalization and not the z dimension if it exists
@@ -471,7 +467,7 @@ class _PSF(Processor):
         psf_extent = Quantity(
             np.asarray(psf.shape[:2])
             * self.pupil_field.wavelength
-            / (self._numerical_aperture * Quantity(self._pupil_extent))
+            / (self._numerical_aperture * Quantity(pupil_extent))
         )
 
         if psf.ndim == 3 and np.ndim(psf_extent) != 0:
