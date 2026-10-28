@@ -4,7 +4,8 @@ import numpy as np
 from astropy.units import Quantity
 
 from .utilities import ExtentType, CoordinateType, unitless
-
+from scipy.special import j1
+from .utilities import set_extent
 from . import patterns_f
 
 # shape of a numpy array, or a single integer that is broadcast to a square shape
@@ -298,3 +299,28 @@ def binary_grating(
         period = period_number_pixels_units * pixel_size[axis] * 2
 
     return patterns_f.binary_grating(*coordinate_range(shape, extent), period=period, values=values, angle=angle)
+
+
+def airy_psf(shape: tuple, extent: Quantity, wavelength: Quantity, NA: float) -> np.ndarray:
+    """
+    Produces the theoretical Airy PSF for a given wavelength and numerical aperture.
+
+    Args:
+        extent (Quantity): extent of the PSF in physical units
+        wavelength (Quantity): wavelength of light
+        NA (float): numerical aperture of the system
+
+    Returns:
+        np.ndarray: normalized intensity PSF.
+    """
+    x, y = coordinate_range(shape, extent=extent)
+    r = np.sqrt(x**2 + y**2)
+
+    r_u = unitless(2 * np.pi * NA * r / wavelength)
+
+    psfz = np.ones_like(r_u)
+    mask = r_u != 0
+
+    psfz[mask] = (2 * j1(r_u[mask]) / r_u[mask]) ** 2
+
+    return set_extent(psfz, extent=extent)

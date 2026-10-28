@@ -1,4 +1,5 @@
 import astropy.units as u
+import cv2
 import numpy as np
 import pytest
 
@@ -11,7 +12,8 @@ from openwfs.utilities import (
     set_extent,
 )
 
-from openwfs.utilities.patterns import parabola
+from openwfs.utilities.patterns import parabola, propagation
+from astropy.units import Quantity
 
 
 def test_to_matrix():
@@ -244,10 +246,124 @@ def test_inverse():
 
 
 def test_utilities_microscope():
-    import openwfs.utilities as owf_u
-    import openwfs.simulation as owf_s
+    from openwfs.utilities.tests import get_test_microscope
+    from openwfs.devices import SLM
+    from openwfs.simulation import Microscope, StaticSource
 
-    mic, slm, src = owf_u.tests.get_test_microscope()
-    assert type(mic) == owf_s.Microscope
-    assert type(slm) == owf_s.SLM
-    assert type(src) == owf_s.StaticSource
+    mic, slm, src = get_test_microscope()
+    assert type(mic) == Microscope
+    assert type(slm) == SLM
+    assert type(src) == StaticSource
+
+
+def test_transform_and_inverse_transform():
+    # example phase mask
+    phases = propagation(
+        (700, 1400),
+        30 * u.um,
+        500 * u.nm,
+        0.8,
+        1.33,
+        (2, 4),
+    )
+    phases = set_extent(phases, (2, 4))
+    transform = Transform(np.eye(2) * 1.2, (0, 0), (0.1, 0.1))
+
+    # move through a series of projections and back projections to test that the transform and inverse transform are applied correctly
+    out = project(phases, out_extent=3, out_shape=(500, 500), transform=transform, interp=cv2.INTER_LINEAR)
+    out2 = project(
+        out, out_extent=(2, 4), out_shape=phases.shape, transform=transform.inverse(), interp=cv2.INTER_LINEAR
+    )
+
+    out3 = project(out2, out_extent=1.5, out_shape=(300, 300), transform=None, interp=cv2.INTER_LINEAR)
+
+    phases3 = project(phases, out_extent=1.5, out_shape=(300, 300), transform=None, interp=cv2.INTER_LINEAR)
+
+    # compare the final output to the original phases projected directly to the final extent and shape
+    assert np.allclose(out3, phases3, atol=3e-2), "The projected fields do not match!"
+
+
+def test_compose_requires_origin_information():
+    transform2 = Transform(np.diag(2 / Quantity((5 * u.mm, 10 * u.mm))))
+    transform = Transform(
+        np.eye(2),
+        np.zeros(2),
+        np.array([0.2, 0.3]),
+    )
+
+    M = (
+        transform.inverse()
+        .compose(transform2)
+        .to_matrix(
+            source_pixel_size=(1 * u.mm, 1 * u.mm),
+            destination_pixel_size=(1, 1),
+        )
+    )
+
+    expected_M = np.array([[0.4, 0, -0.2], [0, 0.2, -0.3], [0, 0, 1]])
+    assert np.allclose(M, expected_M)
+
+
+def test_compose_none_destination_origin_equals_explicit_zero():
+    outer = Transform(
+        transform=np.array(
+            [
+                [2.0, 0.0],
+                [0.0, 3.0],
+            ]
+        ),
+        source_origin=np.array([1.0, -2.0]) * u.um,
+        destination_origin=np.array([10.0, 20.0]) * u.mm,
+    )
+
+    inner_implicit_zero = Transform(
+        transform=np.eye(2),
+        source_origin=np.array([3.0, 4.0]) * u.um,
+        destination_origin=None,
+    )
+
+    inner_explicit_zero = Transform(
+        transform=np.eye(2),
+        source_origin=np.array([3.0, 4.0]) * u.um,
+        destination_origin=np.zeros(2) * u.um,
+    )
+
+    coordinate = np.array([5.0, 8.0]) * u.um
+
+    result_implicit = outer.compose(inner_implicit_zero).apply(coordinate)
+    result_explicit = outer.compose(inner_explicit_zero).apply(coordinate)
+
+    m1 = outer.compose(inner_implicit_zero).to_matrix(
+        source_pixel_size=(1.0 * u.um, 1.0 * u.um), destination_pixel_size=(1.0 * u.um, 1.0 * u.um)
+    )
+    m2 = outer.compose(inner_explicit_zero).to_matrix(
+        source_pixel_size=(1.0 * u.um, 1.0 * u.um), destination_pixel_size=(1.0 * u.um, 1.0 * u.um)
+    )
+    print(m1)
+    print(m2)
+    assert np.all(result_implicit == result_explicit)
+    assert np.all(m1 == m2)
+
+
+def test_compose_succeeds_when_origins_are_defined():
+    transform2 = Transform(
+        np.diag(2 / Quantity((5 * u.mm, 10 * u.mm))),
+        np.zeros(2) * u.mm,
+        np.zeros(2),
+    )
+    transform = Transform(
+        np.eye(2),
+        np.zeros(2),
+        np.array([0.2, 0.3]),
+    )
+
+    result = (
+        transform.inverse()
+        .compose(transform2)
+        .to_matrix(
+            source_pixel_size=(1 * u.mm, 1 * u.mm),
+            destination_pixel_size=(1, 1),
+        )
+    )
+
+    assert result is not None
