@@ -81,7 +81,7 @@ def propagation(
     xp = array_namespace(x, y, distance, wavelength, numerical_aperture, refractive_index)
     k_z = xp.sqrt(xp.maximum((k_0 * refractive_index) ** 2 - k_x**2 - k_y**2, 0))
 
-    return unitless(distance * k_z)
+    return unitless(np.multiply.outer(k_z, distance))
 
 
 def disk(
