@@ -27,6 +27,8 @@ def unitless(data: ArrayLike) -> np.ndarray:
     Args:
         data: The input data.
         If `data` is a Quantity, it is converted to a (unitless) numpy array.
+        If `data` is a scalar, it is returned as is.
+        If `data` is a tuple, it is converted to a numpy array.
         All other data types are just returned as is.
 
     Returns:
@@ -50,6 +52,8 @@ def unitless(data: ArrayLike) -> np.ndarray:
     elif np.issubdtype(type(data), np.number):
         # Return scalars as scallars to be gpu/cpu agnostic
         return data
+    elif isinstance(data, tuple):
+        return np.array(data)
     else:
         xp = array_namespace(data)
         return xp.array(data)
