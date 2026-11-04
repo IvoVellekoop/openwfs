@@ -6,6 +6,7 @@ import numpy as np
 from astropy import units as u
 from astropy.units import Quantity
 from numpy.typing import ArrayLike
+from array_api_compat import array_namespace
 
 # A coordinate is a sequence of two floats with an optional unit attached
 CoordinateType = Union[Sequence[float], np.ndarray, Quantity]
@@ -26,6 +27,8 @@ def unitless(data: ArrayLike) -> np.ndarray:
     Args:
         data: The input data.
         If `data` is a Quantity, it is converted to a (unitless) numpy array.
+        If `data` is a scalar, it is returned as is.
+        If `data` is a tuple, it is converted to a numpy array.
         All other data types are just returned as is.
 
     Returns:
@@ -46,8 +49,14 @@ def unitless(data: ArrayLike) -> np.ndarray:
     """
     if isinstance(data, Quantity):
         return data.to_value(u.dimensionless_unscaled)
-    else:
+    elif np.issubdtype(type(data), np.number):
+        # Return scalars as scallars to be gpu/cpu agnostic
+        return data
+    elif isinstance(data, tuple):
         return np.array(data)
+    else:
+        xp = array_namespace(data)
+        return xp.array(data)
 
 
 @dataclass
