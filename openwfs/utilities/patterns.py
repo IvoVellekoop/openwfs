@@ -3,16 +3,9 @@ from typing import Union, Sequence, Optional
 import numpy as np
 from astropy.units import Quantity
 
-from .utilities import ExtentType, CoordinateType, unitless
+from .utilities import ExtentType, CoordinateType, ShapeType, ScalarType, unitless, set_extent
 from scipy.special import j1
-from .utilities import set_extent
 from . import patterns_f
-
-# shape of a numpy array, or a single integer that is broadcast to a square shape
-ShapeType = Union[int, Sequence[int]]
-
-# a scalar quantity with optional unit attached
-ScalarType = Union[float, np.ndarray, Quantity]
 
 """
 Library of functions to create commonly used patterns
@@ -111,7 +104,8 @@ def tilt(
     g = Quantity(g)
     if g.size == 1:
         g = g.repeat(2)
-    return unitless(patterns_f.tilt(*coordinate_range(shape, extent), gx=g[0], gy=g[1], phase_offset=phase_offset))
+    p = patterns_f.tilt(*coordinate_range(shape, extent), gx=g[0], gy=g[1], phase_offset=phase_offset)
+    return set_extent(p, extent=extent)
 
 
 def lens(
@@ -138,12 +132,13 @@ def lens(
     """
     offset = np.multiply(offset, -1) if offset is not None else None
 
-    return patterns_f.lens(
+    p = patterns_f.lens(
         *coordinate_range(shape, extent, offset=offset),
         f=f,
         wavelength=wavelength,
         numerical_aperture=numerical_aperture,
     )
+    return set_extent(p, extent=extent)
 
 
 def propagation(
@@ -173,13 +168,14 @@ def propagation(
 
     """
     offset = np.multiply(offset, -1) if offset is not None else None
-    return patterns_f.propagation(
+    p = patterns_f.propagation(
         *coordinate_range(shape, extent, offset=offset),
         distance=distance,
         wavelength=wavelength,
         refractive_index=refractive_index,
         numerical_aperture=numerical_aperture,
     )
+    return set_extent(p, extent=extent)
 
 
 def parabola(
@@ -203,7 +199,8 @@ def parabola(
 
     """
     offset = np.multiply(offset, -1) if offset is not None else None
-    return patterns_f.parabola(*coordinate_range(shape, extent, offset=offset), alpha=alpha)
+    p = patterns_f.parabola(*coordinate_range(shape, extent, offset=offset), alpha=alpha)
+    return set_extent(p, extent=extent)
 
 
 def disk(
@@ -227,7 +224,8 @@ def disk(
     """
 
     offset = np.multiply(offset, -1) if offset is not None else None
-    return patterns_f.disk(*coordinate_range(shape, extent, offset=offset), radius=radius)
+    p = patterns_f.disk(*coordinate_range(shape, extent, offset=offset), radius=radius)
+    return set_extent(p, extent=extent)
 
 
 def gaussian(
@@ -252,9 +250,10 @@ def gaussian(
 
     """
     offset = np.multiply(offset, -1) if offset is not None else None
-    return patterns_f.gaussian(
+    p = patterns_f.gaussian(
         *coordinate_range(shape, extent, offset=offset), waist=waist, truncation_radius=truncation_radius
     )
+    return set_extent(p, extent=extent)
 
 
 def binary_grating(
@@ -298,17 +297,18 @@ def binary_grating(
         period_number_pixels_units = int(np.round(period / 2 / pixel_size[axis]))
         period = period_number_pixels_units * pixel_size[axis] * 2
 
-    return patterns_f.binary_grating(*coordinate_range(shape, extent), period=period, values=values, angle=angle)
+    p = patterns_f.binary_grating(*coordinate_range(shape, extent), period=period, values=values, angle=angle)
+    return set_extent(p, extent=extent)
 
 
-def airy_psf(shape: tuple, extent: Quantity, wavelength: Quantity, NA: float) -> np.ndarray:
+def airy_psf(shape: ShapeType, extent: ExtentType, wavelength: Quantity, numerical_aperture: float) -> np.ndarray:
     """
     Produces the theoretical Airy PSF for a given wavelength and numerical aperture.
 
     Args:
         extent (Quantity): extent of the PSF in physical units
         wavelength (Quantity): wavelength of light
-        NA (float): numerical aperture of the system
+        numerical_aperture (float): numerical aperture of the system
 
     Returns:
         np.ndarray: normalized intensity PSF.
@@ -316,7 +316,7 @@ def airy_psf(shape: tuple, extent: Quantity, wavelength: Quantity, NA: float) ->
     x, y = coordinate_range(shape, extent=extent)
     r = np.sqrt(x**2 + y**2)
 
-    r_u = unitless(2 * np.pi * NA * r / wavelength)
+    r_u = unitless(2 * np.pi * numerical_aperture * r / wavelength)
 
     psfz = np.ones_like(r_u)
     mask = r_u != 0

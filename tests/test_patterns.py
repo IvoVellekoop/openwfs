@@ -9,15 +9,18 @@ from openwfs.utilities.patterns import (
     binary_grating,
     coordinate_range,
 )
-from openwfs.utilities import unitless
+from openwfs.utilities import unitless, get_extent
 import astropy.units as u
 
 
 @pytest.mark.parametrize("shape", [10, (7, 10)])
 def test_tilt(shape):
-    t = tilt(shape, extent=(2, 2), g=(5, 0.71))
+    extent = (2, 2)
+    t = tilt(shape, extent=extent, g=(5, 0.71))
     if np.size(shape) == 1:
         shape = (shape, shape)
+
+    assert np.allclose(get_extent(t), extent)
 
     # for a default extent of 2.0, 2.0, the tilt should span 4 * t
     phase_diff0 = 5 * 4 * (1.0 - 1.0 / shape[0])
@@ -30,23 +33,28 @@ def test_tilt(shape):
 
 def test_gaussian_disk_offset():
     shape = (101, 66)
+    extent = (2, 2)
     offset = (0.2, 0.3)
     waist = 0.25
-    g = gaussian(shape, extent=(2, 2), waist=waist, offset=offset)
+    g = gaussian(shape, extent=extent, waist=waist, offset=offset)
     argmax = np.unravel_index(np.argmax(g), g.shape)
 
     expected = np.round((np.array(offset) + 1) * (np.array(shape) - 1) / 2.0)
+    assert np.allclose(extent, get_extent(g))
     assert np.allclose(expected, argmax)
 
     shape = (101, 101)
-    d = disk(shape, radius=2 / 101, extent=(2, 2), offset=offset)
+    d = disk(shape, radius=2 / 101, extent=extent, offset=offset)
     arg_center = np.argwhere(d > 0.5)[0]
     expected = (np.array(offset) + 1) * (np.array(shape) - 1) / 2.0
     assert np.allclose(expected, arg_center)
 
 
 def test_parabola():
-    phi = parabola((11, 11), extent=(2, 2), alpha=0.5)
+    extent = (2, 2)
+    phi = parabola((11, 11), extent=extent, alpha=0.5)
+
+    assert np.allclose(get_extent(phi), extent)
     assert np.allclose(phi[5, 5], 0)
     r = -1 + 1 / 11
     assert np.allclose(phi[0, 5], 0.5 * (r**2))
@@ -55,11 +63,12 @@ def test_parabola():
 
 @pytest.mark.parametrize("extent", [2, 4])
 def test_binary_grating(extent):
-    extent = 2.0
     period = 0.1
     values = (1, 2)
     shape = (1000, 1)
     phi = binary_grating(shape, period, values, extent=extent, angle=0)
+
+    np.allclose(get_extent(phi), extent)
 
     # Check that the values are correct within the expected period
     first_up = np.argmax(phi)
@@ -99,6 +108,8 @@ def test_propagation(extent, refractive_index):
     wavelength = 0.5 * u.um
     na = 1
     phi = propagation(shape, d, wavelength, na, refractive_index=refractive_index, extent=extent)
+
+    np.allclose(get_extent(phi), extent)
 
     r_r = coordinate_range(shape, extent)[0][0, 0]
     kr = 2 * np.pi / wavelength * na * r_r

@@ -17,6 +17,12 @@ TransformType = Union[np.ndarray, Quantity, Sequence[Sequence[float]]]
 # If it has a single element, this element is automatically reproduced along all dimensions
 ExtentType = Union[float, CoordinateType]
 
+# shape of a numpy array, or a single integer that is broadcast to a square shape
+ShapeType = Union[int, Sequence[int]]
+
+# a scalar quantity with optional unit attached
+ScalarType = Union[float, np.ndarray, Quantity]
+
 
 def unitless(data: ArrayLike) -> np.ndarray:
     """
@@ -467,4 +473,5 @@ def set_extent(data: np.ndarray, extent: ExtentType) -> np.ndarray:
     >>> extent = 0.1 * u.m
     >>> modified_data = set_extent(data, extent)
     """
-    return set_pixel_size(data, extent / np.array(data.shape))
+
+    return set_pixel_size(data, np.divide(extent, np.array(data.shape)))
