@@ -33,7 +33,7 @@ class PhaseToField(Processor):
         super().__init__(slm_phases, multi_threaded=False)
         self.modulated_field_amplitude = field_amplitude
         self.non_modulated_field = non_modulated_field_fraction
-        self.extent = extent
+        self._extent = extent
 
     def _fetch(self, slm_phases: np.ndarray) -> np.ndarray:  # noqa
         """
@@ -41,7 +41,7 @@ class PhaseToField(Processor):
         non-modulated field.
         """
         field = self.modulated_field_amplitude * (np.exp(1j * slm_phases) + self.non_modulated_field)
-        return set_extent(field, self.extent)
+        return set_extent(field, self._extent)
 
 
 class _SLMTiming(Detector):
@@ -203,7 +203,11 @@ class SLM(PhaseSLM, Actuator):
             self._hardware_timing, phase_response
         )  # Simulates reading the phase from the SLM
         self._hardware_fields = PhaseToField(
-            self._hardware_phases, field_amplitude, non_modulated_field_fraction
+            # Extent is set to 2 x 2
+            self._hardware_phases,
+            (2, 2),
+            field_amplitude,
+            non_modulated_field_fraction,
         )  # Simulates reading the field from the SLM
         self._lookup_table = None  # index = input phase (scaled to -> [0, 255]), value = grey value
         self._first_update_ns = time.time_ns()
