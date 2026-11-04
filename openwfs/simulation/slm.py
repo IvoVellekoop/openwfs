@@ -8,7 +8,7 @@ from astropy.units import Quantity
 from numpy.typing import ArrayLike
 
 from ..core import Detector, Processor, PhaseSLM, Actuator
-from ..utilities import project, unitless
+from ..utilities import project, unitless, ExtentType, set_extent
 
 
 class PhaseToField(Processor):
@@ -20,6 +20,7 @@ class PhaseToField(Processor):
     def __init__(
         self,
         slm_phases: Detector,
+        extent: ExtentType,
         field_amplitude: ArrayLike = 1.0,
         non_modulated_field_fraction: float = 0.0,
     ):
@@ -32,13 +33,15 @@ class PhaseToField(Processor):
         super().__init__(slm_phases, multi_threaded=False)
         self.modulated_field_amplitude = field_amplitude
         self.non_modulated_field = non_modulated_field_fraction
+        self.extent = extent
 
     def _fetch(self, slm_phases: np.ndarray) -> np.ndarray:  # noqa
         """
         Updates the complex field output of the SLM. The output field is the sum of the modulated field and the
         non-modulated field.
         """
-        return self.modulated_field_amplitude * (np.exp(1j * slm_phases) + self.non_modulated_field)
+        field = self.modulated_field_amplitude * (np.exp(1j * slm_phases) + self.non_modulated_field)
+        return set_extent(field, self.extent)
 
 
 class _SLMTiming(Detector):

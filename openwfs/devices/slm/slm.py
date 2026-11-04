@@ -630,7 +630,7 @@ class SLM(Actuator, PhaseSLM):
              a detector that returns `self.amplitude * exp(1.0j * self.phases.read()`
         """
         if self._field_reader is None:
-            self._field_reader = PhaseToField(self.phases, self.amplitude)
+            self._field_reader = PhaseToField(self.phases, self.physical_pixel_size * self._shape, self.amplitude)
         return self._field_reader
 
     @property
