@@ -159,3 +159,20 @@ def binary_grating(x, y, period, values, angle):
     up_values = (coord_along_periodic_direction % period) >= (period / 2)
     phase_mask[up_values] = values[1]
     return phase_mask
+
+
+def butterworth_lowpass(kx, ky, kc, order=4):
+    """
+    Creates a Butterworth low-pass filter in the frequency domain.
+
+    Args:
+        kx (Quantity): The x-coordinates in the frequency domain.
+        ky (Quantity): The y-coordinates in the frequency domain.
+        kc (Quantity): The cutoff frequency of the filter.
+        order (int): The order of the Butterworth filter. Higher order means a sharper cutoff.
+
+    Returns:
+        filter (Quantity): The Butterworth low-pass filter.
+    """
+    r = np.sqrt(kx[None, :] ** 2 + ky[:, None] ** 2)
+    return unitless(1 / (1 + (r / kc) ** (2 * order)))
