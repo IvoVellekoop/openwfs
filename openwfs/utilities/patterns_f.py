@@ -87,8 +87,8 @@ def disk(x, y, radius: float, butterworth_order: Optional[int] = None):
     (x)^2 + (y)^2 <= radius^2
 
     Args:
-        x: array of the pupil plane coordinates in the x-direction. The shape of x and y should be such that they can be added together (i.e. they should be the same shape, or one of them should be broadcastable to the shape of the other).
-        y: array of the pupil plane coordinates in the y-direction. The shape of x and y should be such that they can be added together (i.e. they should be the same shape, or one of them should be broadcastable to the shape of the other).
+        x: array of the pupil plane coordinates in the x-direction.
+        y: array of the pupil plane coordinates in the y-direction.
         radius (float): radius of the disk.
         butterworth_order (Optional[int]): if None, the disk is a hard-edged disk. If an integer is provided, a Butterworth disk is returned instead, with a smooth edge whose sharpness is determined by `butterworth_order`. The higher the order, the sharper the edge of the disk.
     """
@@ -164,7 +164,7 @@ def binary_grating(x, y, period, values, angle):
     return phase_mask
 
 
-def butterworth_lowpass(kx, ky, kc, order=4):
+def _butterworth_lowpass(kx, ky, kc, order=4):
     """
     Creates a Butterworth low-pass filter in the frequency domain.
 
