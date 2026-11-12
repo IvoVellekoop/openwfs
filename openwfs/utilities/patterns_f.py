@@ -81,17 +81,20 @@ def propagation(
     return unitless(np.multiply.outer(k_z, distance))
 
 
-def disk(
-    x,
-    y,
-    radius: float,
-):
+def disk(x, y, radius: float, butterworth_order: Optional[int] = None):
     """Constructs an image of a centered (ellipsoid) disk.
 
     (x)^2 + (y)^2 <= radius^2
 
     Args:
+        x: array of the pupil plane coordinates in the x-direction.
+        y: array of the pupil plane coordinates in the y-direction.
+        radius (float): radius of the disk.
+        butterworth_order (Optional[int]): if None, the disk is a hard-edged disk. If an integer is provided, a Butterworth disk is returned instead, with a smooth edge whose sharpness is determined by `butterworth_order`. The higher the order, the sharper the edge of the disk.
     """
+    if butterworth_order is not None:
+        return _butterworth_lowpass(x.ravel(), y.ravel(), radius, order=butterworth_order)
+
     return (x**2 + y**2) <= radius**2
 
 
@@ -159,3 +162,20 @@ def binary_grating(x, y, period, values, angle):
     up_values = (coord_along_periodic_direction % period) >= (period / 2)
     phase_mask[up_values] = values[1]
     return phase_mask
+
+
+def _butterworth_lowpass(kx, ky, kc, order=4):
+    """
+    Creates a Butterworth low-pass filter in the frequency domain.
+
+    Args:
+        kx (Quantity): The x-coordinates in the frequency domain.
+        ky (Quantity): The y-coordinates in the frequency domain.
+        kc (Quantity): The cutoff frequency of the filter.
+        order (int): The order of the Butterworth filter. Higher order means a sharper cutoff.
+
+    Returns:
+        filter (Quantity): The Butterworth low-pass filter.
+    """
+    r = np.sqrt(kx[None, :] ** 2 + ky[:, None] ** 2)
+    return unitless(1 / (1 + (r / kc) ** (2 * order)))

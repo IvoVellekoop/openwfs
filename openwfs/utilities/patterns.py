@@ -208,6 +208,7 @@ def disk(
     radius: float = 1,
     extent: ExtentType = (2.0, 2.0),
     offset: Optional[CoordinateType] = None,
+    butterworth_order: Optional[int] = None,
 ):
     """Constructs an image of a centered (ellipsoid) disk.
 
@@ -218,13 +219,16 @@ def disk(
           extent: extent of the return pattern. This value is used to compute the coordinates of each pixel of the image. Scaling both the extent and radius by the same factor does not change the returned pattern, but changing their ratio does.
           radius (ScalarType): radius of the disk, should have the same unit as `extent`.
           offset: offsets the centre of the disk by offset
+          butterworth_order: if None, the disk is a hard-edged disk. If an integer is provided, the disk is a Butterworth disk with the given order. The higher the order, the sharper the edge of the disk.
 
     Return:
             An array of the same shape as the input `shape`, containing the values of the disk pattern. The values are 1 inside the disk and 0 outside the disk.
     """
 
     offset = np.multiply(offset, -1) if offset is not None else None
-    p = patterns_f.disk(*coordinate_range(shape, extent, offset=offset), radius=radius)
+    p = patterns_f.disk(
+        *coordinate_range(shape, extent, offset=offset), radius=radius, butterworth_order=butterworth_order
+    )
     return set_extent(p, extent=extent)
 
 
