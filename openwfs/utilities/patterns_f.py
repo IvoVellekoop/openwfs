@@ -81,17 +81,20 @@ def propagation(
     return unitless(np.multiply.outer(k_z, distance))
 
 
-def disk(
-    x,
-    y,
-    radius: float,
-):
+def disk(x, y, radius: float, butterworth_order: Optional[int] = None):
     """Constructs an image of a centered (ellipsoid) disk.
 
     (x)^2 + (y)^2 <= radius^2
 
     Args:
+        x: array of the pupil plane coordinates in the x-direction. The shape of x and y should be such that they can be added together (i.e. they should be the same shape, or one of them should be broadcastable to the shape of the other).
+        y: array of the pupil plane coordinates in the y-direction. The shape of x and y should be such that they can be added together (i.e. they should be the same shape, or one of them should be broadcastable to the shape of the other).
+        radius (float): radius of the disk.
+        butterworth_order (Optional[int]): if None, the disk is a hard-edged disk. If an integer is provided, a Butterworth disk is returned instead, with a smooth edge whose sharpness is determined by `butterworth_order`. The higher the order, the sharper the edge of the disk.
     """
+    if butterworth_order is not None:
+        return _butterworth_lowpass(x.ravel(), y.ravel(), radius, order=butterworth_order)
+
     return (x**2 + y**2) <= radius**2
 
 
