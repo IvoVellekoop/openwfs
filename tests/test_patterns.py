@@ -139,11 +139,15 @@ def test_propagation_vector_distance():
 
 @pytest.mark.parametrize("n", [2, 4])
 def test_disk_butterworth(n):
-    shape = (101, 101)
+    shape = (101, 201)
 
     # Put the extent such that the point r=1 matches exactly the end of the pattern
     extent = np.array((2, 2)) + 2 / (np.array(shape) - 1)
 
     butterworth_disk = disk(shape, radius=1.0, extent=extent, butterworth_order=n)
     # Check that the edge value is 0.5 which is the expected for the butterworth filter
+    assert butterworth_disk.shape == shape
     assert np.allclose(butterworth_disk[50, 0], 0.5)
+    assert np.allclose(butterworth_disk[50, -1], 0.5)
+    assert np.allclose(butterworth_disk[0, 100], 0.5)
+    assert np.allclose(butterworth_disk[-1, 100], 0.5)
