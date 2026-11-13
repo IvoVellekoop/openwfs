@@ -95,7 +95,7 @@ def tilt(
     Args:
         shape: Number of pixels of the returned pattern.
         extent: extent of the return pattern defined in normalised pupil coordinates, i.e. an extent of (2, 2) covers the entire back pupil plane of a microscope objective.
-        g(tuple of two floats): gradient vector. For an extent of (2,2), the shift in the focal plane is given by (gx, gy) * -1 / π * wavelength / numerical_aperture_aperture. Where 'numerical_aperture' is the numerical aperture of the microscope objective, and 'wavelength' is the wavelength of the light.
+        g(tuple of two floats): gradient vector. For an extent of (2,2), the shift in the focal plane is given by (gy, gx) * -1 / π * wavelength / numerical_aperture_aperture. Where 'numerical_aperture' is the numerical aperture of the microscope objective, and 'wavelength' is the wavelength of the light.
           (Note: a positive x-gradient g causes the focal point to move in the _negative_ x-direction)
         phase_offset: optional additional phase offset to be added to the pattern
     """
@@ -104,7 +104,8 @@ def tilt(
     g = Quantity(g)
     if g.size == 1:
         g = g.repeat(2)
-    p = patterns_f.tilt(*coordinate_range(shape, extent), gx=g[0], gy=g[1], phase_offset=phase_offset)
+    y, x = coordinate_range(shape, extent, offset=offset)
+    p = patterns_f.tilt(x, y, gx=g[1], gy=g[0], phase_offset=phase_offset)
     return set_extent(p, extent=extent)
 
 
@@ -132,8 +133,10 @@ def lens(
     """
     offset = np.multiply(offset, -1) if offset is not None else None
 
+    y, x = coordinate_range(shape, extent, offset=offset)
     p = patterns_f.lens(
-        *coordinate_range(shape, extent, offset=offset),
+        x,
+        y,
         f=f,
         wavelength=wavelength,
         numerical_aperture=numerical_aperture,
@@ -168,14 +171,16 @@ def propagation(
 
     """
     offset = np.multiply(offset, -1) if offset is not None else None
+    y, x = coordinate_range(shape, extent, offset=offset)
     p = patterns_f.propagation(
-        *coordinate_range(shape, extent, offset=offset),
+        x,
+        y,
         distance=distance,
         wavelength=wavelength,
         refractive_index=refractive_index,
         numerical_aperture=numerical_aperture,
     )
-    return set_extent(p, extent=extent)
+    return p
 
 
 def parabola(
@@ -199,7 +204,8 @@ def parabola(
 
     """
     offset = np.multiply(offset, -1) if offset is not None else None
-    p = patterns_f.parabola(*coordinate_range(shape, extent, offset=offset), alpha=alpha)
+    y, x = coordinate_range(shape, extent, offset=offset)
+    p = patterns_f.parabola(x, y, alpha=alpha)
     return set_extent(p, extent=extent)
 
 
@@ -226,9 +232,8 @@ def disk(
     """
 
     offset = np.multiply(offset, -1) if offset is not None else None
-    p = patterns_f.disk(
-        *coordinate_range(shape, extent, offset=offset), radius=radius, butterworth_order=butterworth_order
-    )
+    y, x = coordinate_range(shape, extent, offset=offset)
+    p = patterns_f.disk(x, y, radius=radius, butterworth_order=butterworth_order)
     return set_extent(p, extent=extent)
 
 
@@ -254,9 +259,8 @@ def gaussian(
 
     """
     offset = np.multiply(offset, -1) if offset is not None else None
-    p = patterns_f.gaussian(
-        *coordinate_range(shape, extent, offset=offset), waist=waist, truncation_radius=truncation_radius
-    )
+    y, x = coordinate_range(shape, extent, offset=offset)
+    p = patterns_f.gaussian(x, y, waist=waist, truncation_radius=truncation_radius)
     return set_extent(p, extent=extent)
 
 
@@ -285,13 +289,12 @@ def binary_grating(
     """
 
     if round_period:
-        if not (np.isclose(angle, 0) or np.isclose(angle, np.pi / 2)):
-            raise ValueError("Only angles of 0 and π/2 are supported for binary_grating with round_period=True")
-
         if np.isclose(angle, 0):
+            axis = 1
+        elif np.isclose(angle, np.pi / 2):
             axis = 0
         else:
-            axis = 1
+            raise ValueError("Only angles of 0 and π/2 are supported for binary_grating with round_period=True")
 
         pixel_size = extent / np.array(shape)
 
@@ -301,7 +304,8 @@ def binary_grating(
         period_number_pixels_units = int(np.round(period / 2 / pixel_size[axis]))
         period = period_number_pixels_units * pixel_size[axis] * 2
 
-    p = patterns_f.binary_grating(*coordinate_range(shape, extent), period=period, values=values, angle=angle)
+    y, x = coordinate_range(shape, extent)
+    p = patterns_f.binary_grating(x, y, period=period, values=values, angle=angle)
     return set_extent(p, extent=extent)
 
 
@@ -317,7 +321,7 @@ def airy_psf(shape: ShapeType, extent: ExtentType, wavelength: Quantity, numeric
     Returns:
         np.ndarray: normalized intensity PSF.
     """
-    x, y = coordinate_range(shape, extent=extent)
+    y, x = coordinate_range(shape, extent=extent)
     r = np.sqrt(x**2 + y**2)
 
     r_u = unitless(2 * np.pi * numerical_aperture * r / wavelength)
