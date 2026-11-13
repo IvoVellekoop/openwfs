@@ -90,12 +90,7 @@ def test_binary_grating(extent):
     phi_cte_2 = binary_grating(shape, 0.205, values, extent=extent, angle=np.pi / 2, round_period=True)
 
     # Ensure that phi_cte_2 is not the same as phi_cte (This only serves to check that the rounding is actually doing something, since the period is different, the pattern should be different)
-
-    import matplotlib.pyplot as plt
-
     assert not np.allclose(phi_cte, phi_cte_2)
-    plt.plot(phi_cte_2.squeeze())
-    plt.show()
     tmp = (phi_cte_2[6:-6]).reshape(-1, 26)
     # Check that the pattern has the same number of pixels up and down with a constant period
 
@@ -165,5 +160,8 @@ def test_disk_butterworth(n):
 
     butterworth_disk = disk(shape, radius=1.0, extent=extent, butterworth_order=n)
     # Check that the edge value is 0.5 which is the expected for the butterworth filter
-    assert np.allclose(shape, butterworth_disk.shape)
+    assert butterworth_disk.shape == shape
     assert np.allclose(butterworth_disk[50, 0], 0.5)
+    assert np.allclose(butterworth_disk[50, -1], 0.5)
+    assert np.allclose(butterworth_disk[0, 100], 0.5)
+    assert np.allclose(butterworth_disk[-1, 100], 0.5)
