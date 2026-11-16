@@ -245,4 +245,3 @@ def test_nm_to_noll(n, m, js):
 @pytest.mark.parametrize("j", range(1, 50))
 def test_noll_round_trip(j):
     assert j in nm_to_noll(*noll_to_nm(j))
-    
