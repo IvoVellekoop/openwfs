@@ -328,7 +328,7 @@ def airy_psf(shape: tuple, extent: Quantity, wavelength: Quantity, NA: float) ->
     return set_extent(psfz, extent=extent)
 
 
-def _noll_to_nm(j: int) -> tuple[int, int]:
+def noll_to_nm(j: int) -> tuple[int, int]:
     """
     Convert a one-based Noll index j to radial degree n and
     non-negative azimuthal frequency m.
@@ -420,7 +420,7 @@ def zernike(
         raise ValueError("Noll index j must be a positive integer.")
 
     # Convert Noll index j to n and m using Equation (8) of the reference.
-    n, m = _noll_to_nm(j)
+    n, m = noll_to_nm(j)
 
     y, x = coordinate_range(shape, extent)
     rho = unitless(np.hypot(x, y))
