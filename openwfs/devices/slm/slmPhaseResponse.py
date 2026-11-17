@@ -2,6 +2,7 @@ from . import SLM
 
 from ...core import Detector
 from ...processors import LookupTableProcessor
+from typing import Tuple
 
 
 class SLMPhaseResponse(SLM):
@@ -14,12 +15,12 @@ class SLMPhaseResponse(SLM):
         phase_response (callable): A function that defines the phase response of the SLM. It should take an array of input values and return an array of phase values.
     """
 
-    def __init__(self, phase_response, **kwargs):
+    def __init__(self, phase_response: Tuple, **kwargs):
         """
         Initializes the SLMPhaseResponse object.
 
         Args:
-            phase_response: An array which maps the linear phase response to the actual phase values.
+            phase_response: A tuple specifying a lookup table. The phase response maps the np.array of phases_response[0] to the np.array of phases_response[1]. The mapping is achieving using linear interpolation.
             kwargs: all the arguments that are passed to the SLM class. See :py:class:`~openwfs.devices.slm.SLM` for details.
         """
         self._phase_response = phase_response
@@ -27,5 +28,8 @@ class SLMPhaseResponse(SLM):
 
     @property
     def phases(self) -> Detector:
+        """
+        Returns the default phases of the SLM with a processor that applies the phase response to the default phases.
+        """
         default_phases = super().phases
         return LookupTableProcessor(default_phases, self._phase_response)
