@@ -21,6 +21,7 @@ def test_tilt(shape):
         shape = (shape, shape)
 
     assert np.allclose(get_extent(t), extent)
+    assert np.allclose(t.shape, shape)
 
     # for a default extent of 2.0, 2.0, the tilt should span 4 * t
     phase_diff0 = 0.71 * 4 * (1.0 - 1.0 / shape[0])
@@ -41,6 +42,7 @@ def test_gaussian_disk_offset():
 
     expected = np.round((np.array(offset) + 1) * (np.array(shape) - 1) / 2.0)
     assert np.allclose(extent, get_extent(g))
+    assert np.allclose(g.shape, shape)
     assert np.allclose(expected, argmax)
 
     shape = (101, 101)
@@ -52,8 +54,10 @@ def test_gaussian_disk_offset():
 
 def test_parabola():
     extent = (2, 2)
-    phi = parabola((11, 11), extent=extent, alpha=0.5)
+    shape = (11, 11)
+    phi = parabola(shape, extent=extent, alpha=0.5)
 
+    assert np.allclose(phi.shape, shape)
     assert np.allclose(get_extent(phi), extent)
     assert np.allclose(phi[5, 5], 0)
     r = -1 + 1 / 11
@@ -87,9 +91,9 @@ def test_binary_grating(extent):
     # Check that round_period does not change the pattern when the period is already an integer number of pixels
     assert np.allclose(phi_cte, phi)
 
-    phi_cte_2 = binary_grating(shape, 0.205, values, extent=extent, angle=np.pi / 2, round_period=True)
+    phi_cte_2 = binary_grating(shape, 0.105, values, extent=extent, angle=np.pi / 2, round_period=True)
 
-    # Ensure that phi_cte_2 is not the same as phi_cte (This only serves to check that the rounding is actually doing something, since the period is different, the pattern should be different)
+    # Ensure that phi_cte_2 is not the same as phi_cte, i.e. avoid false positives (This only serves to check that the rounding is actually doing something, since the period is different, the pattern should be different)
     assert not np.allclose(phi_cte, phi_cte_2)
     tmp = (phi_cte_2[6:-6]).reshape(-1, 26)
     # Check that the pattern has the same number of pixels up and down with a constant period
@@ -106,14 +110,17 @@ def test_binary_grating(extent):
 
 @pytest.mark.parametrize("extent, refractive_index", [(2, 1.0), (1, 1.5)])
 def test_propagation(extent, refractive_index):
-    shape = 101
+    shape = (101, 102)
     d = 10 * u.um
     wavelength = 0.5 * u.um
     na = 1
     phi = propagation(shape, d, wavelength, na, refractive_index=refractive_index, extent=extent)
 
-    np.allclose(get_extent(phi), extent)
+    assert np.allclose(phi.shape, shape)
+    # np.allclose(get_extent(phi), extent)
 
+    shape = 101
+    phi = propagation(shape, d, wavelength, na, refractive_index=refractive_index, extent=extent)
     r_r = coordinate_range(shape, extent)[0][0, 0]
     kr = 2 * np.pi / wavelength * na * r_r
     kz = np.sqrt((2 * np.pi * refractive_index / wavelength) ** 2 - kr**2)

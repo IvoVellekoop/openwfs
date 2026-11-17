@@ -298,21 +298,26 @@ def test_binary_gratting(extent):
     mic, slm, src = get_test_microscope(
         mic_args={"numerical_aperture": na, "wavelength": wav}, src_args={"pixel_size": 50 * u.nm}
     )
-    desired_shift = 1000 * u.nm
-    periodicity = mic.wavelength / desired_shift / mic.numerical_aperture
-
-    phi = binary_grating((512, 512), extent=extent, period=periodicity, values=(0, np.pi), angle=45 * u.deg)
 
     slm.transform = Transform(np.eye(2) * extent / 2, np.zeros(2), np.zeros(2))
     slm.set_phases(0)
     img_ref = mic.read()
+
+    pixel_size = get_pixel_size(img_ref)
+
+    desired_shift = 10 * Quantity(pixel_size[0])
+    periodicity = (
+        mic.wavelength / desired_shift / mic.numerical_aperture / np.sqrt(2)
+    )  # desired shift along the diagonal so multiplied by 2 / sqrt(2)
+
+    phi = binary_grating((512, 512), extent=extent, period=periodicity, values=(0, np.pi), angle=45 * u.deg)
+
     slm.set_phases(phi)
     img = mic.read()
 
     assert np.allclose(
         np.abs(shift_between_img_max(img_ref, img) * get_pixel_size(img_ref)),
-        np.ones(2) * np.sqrt(2) / 2 * desired_shift.to(u.nm),
-        rtol=0.05,
+        desired_shift.to(u.nm),
     )
 
 
