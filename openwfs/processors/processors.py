@@ -493,7 +493,7 @@ class LookupTableProcessor(Processor):
         Processor that applies a lookup table to the data from the source.
         Args:
             source: The data source to process.
-            lut: A tuple with lut[0] the input values and lut[1] the output values. The input values must be in ascending order. The output values will be interpolate and must be within the range of lut[0].
+            lut: A tuple with lut[0] the input values which will be mapped to lut[1] (the output values). The input values must be in ascending order. The output values will be interpolate and must be within the range of lut[0].
         """
         super().__init__(source, **kwargs)
         self.lut = lut
