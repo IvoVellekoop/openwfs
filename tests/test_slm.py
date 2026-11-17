@@ -349,7 +349,9 @@ def test_slm_mockSLM_equivalence():
     Test the equivalence of the SLM and SimSLM classes.
     """
     slm = SimSLM(shape=(70, 140))
-    slm2 = SLM(shape=(70, 140), monitor_id=0, coordinate_system="full", physical_size=(Quantity([2, 2], u.mm)))
+    slm2 = SLM(
+        shape=(70, 140), monitor_id=0, coordinate_system="full", physical_size=Quantity([2, 2], u.mm), hidden=True
+    )
     # use random seed and set phases
 
     phases = np.mod(
