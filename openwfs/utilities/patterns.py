@@ -3,16 +3,9 @@ from typing import Union, Sequence, Optional
 import numpy as np
 from astropy.units import Quantity
 
-from .utilities import ExtentType, CoordinateType, unitless
+from .utilities import ExtentType, CoordinateType, ShapeType, ScalarType, unitless, set_extent
 from scipy.special import j1
-from .utilities import set_extent
 from . import patterns_f
-
-# shape of a numpy array, or a single integer that is broadcast to a square shape
-ShapeType = Union[int, Sequence[int]]
-
-# a scalar quantity with optional unit attached
-ScalarType = Union[float, np.ndarray, Quantity]
 
 """
 Library of functions to create commonly used patterns
@@ -43,7 +36,7 @@ Functions are available on openwfs.utilities.patterns_f that accept the coordina
 
 
 def coordinate_range(
-    shape: ShapeType, extent: ExtentType, offset: Optional[CoordinateType] = None
+    shape: ShapeType, extent: ExtentType, offset: Optional[CoordinateType] = None, xp=np
 ) -> (Quantity, Quantity):
     """
     Returns coordinate vectors for the two coordinates (y and x).
@@ -55,6 +48,7 @@ def coordinate_range(
         shape (ShapeType): size of the full grid (y, x) in pixels
         extent (ExtentType): extent of the coordinate range
         offset (Optional[CoordinateType]): offset to be added to the coordinates (optional)
+        xp: array namespace (default: numpy)
 
     Returns:
         Tuple[Quantity, Quantity]: coordinate vectors for the two coordinates (y and x)
@@ -62,7 +56,9 @@ def coordinate_range(
     if np.size(shape) == 1:
         shape = np.array(shape).repeat(2)
 
-    extent = Quantity(extent)
+    if type(extent) is not Quantity:
+        extent = np.array(extent)
+
     if extent.size == 1:
         extent = extent.repeat(2)
 
@@ -71,7 +67,7 @@ def coordinate_range(
 
     def c_range(res, ex, cx):
         dx = ex / res
-        return np.arange(res) * dx + (0.5 * dx - 0.5 * ex + cx)
+        return xp.arange(res) * dx + (0.5 * dx - 0.5 * ex + cx)
 
     return (
         c_range(shape[0], extent[0], offset[0]).reshape((-1, 1)),
@@ -79,11 +75,11 @@ def coordinate_range(
     )
 
 
-def r2_range(shape: ShapeType, extent: ExtentType, offset: Optional[CoordinateType] = None):
+def r2_range(shape: ShapeType, extent: ExtentType, offset: Optional[CoordinateType] = None, xp=np):
     """Convenience function to return square distance to the origin
     Equivalent to computing cx^2 + cy^2
     """
-    c0, c1 = coordinate_range(shape, extent, offset)
+    c0, c1 = coordinate_range(shape, extent, offset, xp=xp)
     return c0**2 + c1**2
 
 
@@ -102,7 +98,7 @@ def tilt(
     Args:
         shape: Number of pixels of the returned pattern.
         extent: extent of the return pattern defined in normalised pupil coordinates, i.e. an extent of (2, 2) covers the entire back pupil plane of a microscope objective.
-        g(tuple of two floats): gradient vector. For an extent of (2,2), the shift in the focal plane is given by (gx, gy) * -1 / π * wavelength / numerical_aperture_aperture. Where 'numerical_aperture' is the numerical aperture of the microscope objective, and 'wavelength' is the wavelength of the light.
+        g(tuple of two floats): gradient vector. For an extent of (2,2), the shift in the focal plane is given by (gy, gx) * -1 / π * wavelength / numerical_aperture_aperture. Where 'numerical_aperture' is the numerical aperture of the microscope objective, and 'wavelength' is the wavelength of the light.
           (Note: a positive x-gradient g causes the focal point to move in the _negative_ x-direction)
         phase_offset: optional additional phase offset to be added to the pattern
     """
@@ -111,7 +107,9 @@ def tilt(
     g = Quantity(g)
     if g.size == 1:
         g = g.repeat(2)
-    return unitless(patterns_f.tilt(*coordinate_range(shape, extent), gx=g[0], gy=g[1], phase_offset=phase_offset))
+    y, x = coordinate_range(shape, extent, offset=offset)
+    p = patterns_f.tilt(x, y, gx=g[1], gy=g[0], phase_offset=phase_offset)
+    return set_extent(p, extent=extent)
 
 
 def lens(
@@ -138,12 +136,15 @@ def lens(
     """
     offset = np.multiply(offset, -1) if offset is not None else None
 
-    return patterns_f.lens(
-        *coordinate_range(shape, extent, offset=offset),
+    y, x = coordinate_range(shape, extent, offset=offset)
+    p = patterns_f.lens(
+        x,
+        y,
         f=f,
         wavelength=wavelength,
         numerical_aperture=numerical_aperture,
     )
+    return set_extent(p, extent=extent)
 
 
 def propagation(
@@ -173,13 +174,16 @@ def propagation(
 
     """
     offset = np.multiply(offset, -1) if offset is not None else None
-    return patterns_f.propagation(
-        *coordinate_range(shape, extent, offset=offset),
+    y, x = coordinate_range(shape, extent, offset=offset)
+    p = patterns_f.propagation(
+        x,
+        y,
         distance=distance,
         wavelength=wavelength,
         refractive_index=refractive_index,
         numerical_aperture=numerical_aperture,
     )
+    return p
 
 
 def parabola(
@@ -203,7 +207,9 @@ def parabola(
 
     """
     offset = np.multiply(offset, -1) if offset is not None else None
-    return patterns_f.parabola(*coordinate_range(shape, extent, offset=offset), alpha=alpha)
+    y, x = coordinate_range(shape, extent, offset=offset)
+    p = patterns_f.parabola(x, y, alpha=alpha)
+    return set_extent(p, extent=extent)
 
 
 def disk(
@@ -211,6 +217,7 @@ def disk(
     radius: float = 1,
     extent: ExtentType = (2.0, 2.0),
     offset: Optional[CoordinateType] = None,
+    butterworth_order: Optional[int] = None,
 ):
     """Constructs an image of a centered (ellipsoid) disk.
 
@@ -221,13 +228,16 @@ def disk(
           extent: extent of the return pattern. This value is used to compute the coordinates of each pixel of the image. Scaling both the extent and radius by the same factor does not change the returned pattern, but changing their ratio does.
           radius (ScalarType): radius of the disk, should have the same unit as `extent`.
           offset: offsets the centre of the disk by offset
+          butterworth_order: if None, the disk is a hard-edged disk. If an integer is provided, the disk is a Butterworth disk with the given order. The higher the order, the sharper the edge of the disk.
 
     Return:
             An array of the same shape as the input `shape`, containing the values of the disk pattern. The values are 1 inside the disk and 0 outside the disk.
     """
 
     offset = np.multiply(offset, -1) if offset is not None else None
-    return patterns_f.disk(*coordinate_range(shape, extent, offset=offset), radius=radius)
+    y, x = coordinate_range(shape, extent, offset=offset)
+    p = patterns_f.disk(x, y, radius=radius, butterworth_order=butterworth_order)
+    return set_extent(p, extent=extent)
 
 
 def gaussian(
@@ -252,9 +262,9 @@ def gaussian(
 
     """
     offset = np.multiply(offset, -1) if offset is not None else None
-    return patterns_f.gaussian(
-        *coordinate_range(shape, extent, offset=offset), waist=waist, truncation_radius=truncation_radius
-    )
+    y, x = coordinate_range(shape, extent, offset=offset)
+    p = patterns_f.gaussian(x, y, waist=waist, truncation_radius=truncation_radius)
+    return set_extent(p, extent=extent)
 
 
 def binary_grating(
@@ -282,13 +292,12 @@ def binary_grating(
     """
 
     if round_period:
-        if not (np.isclose(angle, 0) or np.isclose(angle, np.pi / 2)):
-            raise ValueError("Only angles of 0 and π/2 are supported for binary_grating with round_period=True")
-
         if np.isclose(angle, 0):
+            axis = 1
+        elif np.isclose(angle, np.pi / 2):
             axis = 0
         else:
-            axis = 1
+            raise ValueError("Only angles of 0 and π/2 are supported for binary_grating with round_period=True")
 
         pixel_size = extent / np.array(shape)
 
@@ -298,25 +307,27 @@ def binary_grating(
         period_number_pixels_units = int(np.round(period / 2 / pixel_size[axis]))
         period = period_number_pixels_units * pixel_size[axis] * 2
 
-    return patterns_f.binary_grating(*coordinate_range(shape, extent), period=period, values=values, angle=angle)
+    y, x = coordinate_range(shape, extent)
+    p = patterns_f.binary_grating(x, y, period=period, values=values, angle=angle)
+    return set_extent(p, extent=extent)
 
 
-def airy_psf(shape: tuple, extent: Quantity, wavelength: Quantity, NA: float) -> np.ndarray:
+def airy_psf(shape: ShapeType, extent: ExtentType, wavelength: Quantity, numerical_aperture: float) -> np.ndarray:
     """
     Produces the theoretical Airy PSF for a given wavelength and numerical aperture.
 
     Args:
         extent (Quantity): extent of the PSF in physical units
         wavelength (Quantity): wavelength of light
-        NA (float): numerical aperture of the system
+        numerical_aperture (float): numerical aperture of the system
 
     Returns:
         np.ndarray: normalized intensity PSF.
     """
-    x, y = coordinate_range(shape, extent=extent)
+    y, x = coordinate_range(shape, extent=extent)
     r = np.sqrt(x**2 + y**2)
 
-    r_u = unitless(2 * np.pi * NA * r / wavelength)
+    r_u = unitless(2 * np.pi * numerical_aperture * r / wavelength)
 
     psfz = np.ones_like(r_u)
     mask = r_u != 0

@@ -9,19 +9,23 @@ from openwfs.utilities.patterns import (
     binary_grating,
     coordinate_range,
 )
-from openwfs.utilities import unitless
+from openwfs.utilities import unitless, get_extent
 import astropy.units as u
 
 
 @pytest.mark.parametrize("shape", [10, (7, 10)])
 def test_tilt(shape):
-    t = tilt(shape, extent=(2, 2), g=(5, 0.71))
+    extent = (2, 2)
+    t = tilt(shape, extent=extent, g=(0.71, 5))
     if np.size(shape) == 1:
         shape = (shape, shape)
 
+    assert np.allclose(get_extent(t), extent)
+    assert np.allclose(t.shape, shape)
+
     # for a default extent of 2.0, 2.0, the tilt should span 4 * t
-    phase_diff0 = 5 * 4 * (1.0 - 1.0 / shape[0])
-    phase_diff1 = 0.71 * 4 * (1.0 - 1.0 / shape[1])
+    phase_diff0 = 0.71 * 4 * (1.0 - 1.0 / shape[0])
+    phase_diff1 = 5 * 4 * (1.0 - 1.0 / shape[1])
     assert np.allclose(t[-1, 0] - t[0, 0], phase_diff0)
     assert np.allclose(t[-1, -1] - t[0, -1], phase_diff0)
     assert np.allclose(t[0, -1] - t[0, 0], phase_diff1)
@@ -30,23 +34,31 @@ def test_tilt(shape):
 
 def test_gaussian_disk_offset():
     shape = (101, 66)
-    offset = (0.2, 0.3)
+    extent = (2, 2)
+    offset = (0.3, 0.2)
     waist = 0.25
-    g = gaussian(shape, extent=(2, 2), waist=waist, offset=offset)
+    g = gaussian(shape, extent=extent, waist=waist, offset=offset)
     argmax = np.unravel_index(np.argmax(g), g.shape)
 
     expected = np.round((np.array(offset) + 1) * (np.array(shape) - 1) / 2.0)
+    assert np.allclose(extent, get_extent(g))
+    assert np.allclose(g.shape, shape)
     assert np.allclose(expected, argmax)
 
     shape = (101, 101)
-    d = disk(shape, radius=2 / 101, extent=(2, 2), offset=offset)
+    d = disk(shape, radius=2 / 101, extent=extent, offset=offset)
     arg_center = np.argwhere(d > 0.5)[0]
     expected = (np.array(offset) + 1) * (np.array(shape) - 1) / 2.0
     assert np.allclose(expected, arg_center)
 
 
 def test_parabola():
-    phi = parabola((11, 11), extent=(2, 2), alpha=0.5)
+    extent = (2, 2)
+    shape = (11, 11)
+    phi = parabola(shape, extent=extent, alpha=0.5)
+
+    assert np.allclose(phi.shape, shape)
+    assert np.allclose(get_extent(phi), extent)
     assert np.allclose(phi[5, 5], 0)
     r = -1 + 1 / 11
     assert np.allclose(phi[0, 5], 0.5 * (r**2))
@@ -55,33 +67,37 @@ def test_parabola():
 
 @pytest.mark.parametrize("extent", [2, 4])
 def test_binary_grating(extent):
-    extent = 2.0
-    period = 0.1
+    period = 0.2
     values = (1, 2)
     shape = (1000, 1)
-    phi = binary_grating(shape, period, values, extent=extent, angle=0)
+    phi = binary_grating(shape, period, values, extent=extent, angle=np.pi / 2)
+
+    assert np.allclose(phi.shape, shape)
+
+    assert np.allclose(get_extent(phi), extent)
 
     # Check that the values are correct within the expected period
     first_up = np.argmax(phi)
     phi_2 = phi[first_up:]
     first_down = np.argmin(phi_2)
-    np.allclose(phi_2[0], values[1])
-    np.allclose(phi_2[first_down], values[0])
+    assert np.allclose(phi_2[0], values[1])
+    assert np.allclose(phi_2[first_down], values[0])
     p = first_down
-    np.allclose(phi_2[p : p + first_down], values[0])
-    np.allclose(phi_2[p + first_down : p + 2 * first_down], values[1])
-    np.allclose(period, 2 * p / shape[0] * extent)
+    assert np.allclose(phi_2[first_down : 2 * first_down - 1], values[0])
+    assert np.allclose(phi_2[2 * first_down : 3 * first_down - 1], values[1])
+    assert np.allclose(period, 2 * p / shape[0] * extent)
 
-    phi_cte = binary_grating(shape, period, values, extent=extent, angle=0, round_period=True)
+    phi_cte = binary_grating(shape, period, values, extent=extent, angle=np.pi / 2, round_period=True)
     # Check that round_period does not change the pattern when the period is already an integer number of pixels
     assert np.allclose(phi_cte, phi)
 
-    phi_cte_2 = binary_grating(shape, 0.105, values, extent=extent, angle=0, round_period=True)
+    phi_cte_2 = binary_grating(shape, 0.105, values, extent=extent, angle=np.pi / 2, round_period=True)
 
-    # Ensure that phi_cte_2 is not the same as phi_cte (This only serves to check that the rounding is actually doing something, since the period is different, the pattern should be different)
+    # Ensure that phi_cte_2 is not the same as phi_cte, i.e. avoid false positives (This only serves to check that the rounding is actually doing something, since the period is different, the pattern should be different)
     assert not np.allclose(phi_cte, phi_cte_2)
     tmp = (phi_cte_2[6:-6]).reshape(-1, 26)
     # Check that the pattern has the same number of pixels up and down with a constant period
+
     assert np.all(np.isclose(tmp[0:-1:2], tmp[0, :]))
     assert np.all(np.isclose(tmp[1:-1:2], tmp[1, :]))
 
@@ -94,12 +110,17 @@ def test_binary_grating(extent):
 
 @pytest.mark.parametrize("extent, refractive_index", [(2, 1.0), (1, 1.5)])
 def test_propagation(extent, refractive_index):
-    shape = 101
+    shape = (101, 102)
     d = 10 * u.um
     wavelength = 0.5 * u.um
     na = 1
     phi = propagation(shape, d, wavelength, na, refractive_index=refractive_index, extent=extent)
 
+    assert np.allclose(phi.shape, shape)
+    # np.allclose(get_extent(phi), extent)
+
+    shape = 101
+    phi = propagation(shape, d, wavelength, na, refractive_index=refractive_index, extent=extent)
     r_r = coordinate_range(shape, extent)[0][0, 0]
     kr = 2 * np.pi / wavelength * na * r_r
     kz = np.sqrt((2 * np.pi * refractive_index / wavelength) ** 2 - kr**2)
@@ -135,3 +156,19 @@ def test_propagation_vector_distance():
 
     assert vector_result.shape == (100, 100, 10)
     np.testing.assert_allclose(vector_result, loop_result)
+
+
+@pytest.mark.parametrize("n", [2, 4])
+def test_disk_butterworth(n):
+    shape = (101, 201)
+
+    # Put the extent such that the point r=1 matches exactly the end of the pattern
+    extent = np.array((2, 2)) + 2 / (np.array(shape) - 1)
+
+    butterworth_disk = disk(shape, radius=1.0, extent=extent, butterworth_order=n)
+    # Check that the edge value is 0.5 which is the expected for the butterworth filter
+    assert butterworth_disk.shape == shape
+    assert np.allclose(butterworth_disk[50, 0], 0.5)
+    assert np.allclose(butterworth_disk[50, -1], 0.5)
+    assert np.allclose(butterworth_disk[0, 100], 0.5)
+    assert np.allclose(butterworth_disk[-1, 100], 0.5)

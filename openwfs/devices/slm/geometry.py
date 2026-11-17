@@ -102,7 +102,9 @@ def rectangle(extent: ExtentType, center: CoordinateType = (0, 0)) -> Geometry:
     """
     center = unitless(center)
     extent = unitless(extent)
-    if extent.size == 1:
+    if np.isscalar(extent):
+        extent = np.array((extent, extent))
+    elif extent.size == 1:
         extent = np.array((extent, extent))
 
     left = center[1] - 0.5 * extent[1]

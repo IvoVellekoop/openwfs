@@ -6,6 +6,8 @@ from .patterns import coordinate_range, disk, gaussian, tilt
 from .utilities import (
     ExtentType,
     CoordinateType,
+    ShapeType,
+    ScalarType,
     unitless,
     get_pixel_size,
     set_pixel_size,

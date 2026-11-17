@@ -6,6 +6,7 @@ import numpy as np
 from astropy import units as u
 from astropy.units import Quantity
 from numpy.typing import ArrayLike
+from array_api_compat import array_namespace
 
 # A coordinate is a sequence of two floats with an optional unit attached
 CoordinateType = Union[Sequence[float], np.ndarray, Quantity]
@@ -17,6 +18,12 @@ TransformType = Union[np.ndarray, Quantity, Sequence[Sequence[float]]]
 # If it has a single element, this element is automatically reproduced along all dimensions
 ExtentType = Union[float, CoordinateType]
 
+# shape of a numpy array, or a single integer that is broadcast to a square shape
+ShapeType = Union[int, Sequence[int]]
+
+# a scalar quantity with optional unit attached
+ScalarType = Union[float, np.ndarray, Quantity]
+
 
 def unitless(data: ArrayLike) -> np.ndarray:
     """
@@ -26,6 +33,8 @@ def unitless(data: ArrayLike) -> np.ndarray:
     Args:
         data: The input data.
         If `data` is a Quantity, it is converted to a (unitless) numpy array.
+        If `data` is a scalar, it is returned as is.
+        If `data` is a tuple, it is converted to a numpy array.
         All other data types are just returned as is.
 
     Returns:
@@ -46,8 +55,14 @@ def unitless(data: ArrayLike) -> np.ndarray:
     """
     if isinstance(data, Quantity):
         return data.to_value(u.dimensionless_unscaled)
-    else:
+    elif np.issubdtype(type(data), np.number):
+        # Return scalars as scallars to be gpu/cpu agnostic
+        return data
+    elif isinstance(data, tuple):
         return np.array(data)
+    else:
+        xp = array_namespace(data)
+        return xp.array(data)
 
 
 @dataclass
@@ -467,4 +482,5 @@ def set_extent(data: np.ndarray, extent: ExtentType) -> np.ndarray:
     >>> extent = 0.1 * u.m
     >>> modified_data = set_extent(data, extent)
     """
-    return set_pixel_size(data, extent / np.array(data.shape))
+
+    return set_pixel_size(data, np.divide(extent, np.array(data.shape)))

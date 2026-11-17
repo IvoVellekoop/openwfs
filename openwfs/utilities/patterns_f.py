@@ -9,6 +9,7 @@ ShapeType = Union[int, Sequence[int]]
 
 # a scalar quantity with optional unit attached
 ScalarType = Union[float, np.ndarray, Quantity]
+from array_api_compat import array_namespace
 
 
 def tilt(
@@ -51,7 +52,8 @@ def lens(x, y, f, wavelength, numerical_aperture):
         An array of the same shape as x and y (or broadcasted), containing the phase values of the lens pattern.
     """
     k = 2 * np.pi / wavelength
-    return unitless(k * f * (1 - np.sqrt(1 + (x**2 + y**2) * numerical_aperture**2)))
+    xp = array_namespace(x, y, f, wavelength, numerical_aperture)
+    return unitless(k * f * (1 - xp.sqrt(1 + (x**2 + y**2) * numerical_aperture**2)))
 
 
 def propagation(
@@ -76,22 +78,26 @@ def propagation(
     k_0 = 2 * np.pi / wavelength
     k_x = k_0 * numerical_aperture * x
     k_y = k_0 * numerical_aperture * y
-    k_z = np.sqrt(np.maximum((k_0 * refractive_index) ** 2 - k_x**2 - k_y**2, 0))
+    xp = array_namespace(x, y, distance, wavelength, numerical_aperture, refractive_index)
+    k_z = xp.sqrt(xp.maximum((k_0 * refractive_index) ** 2 - k_x**2 - k_y**2, 0))
 
     return unitless(np.multiply.outer(k_z, distance))
 
 
-def disk(
-    x,
-    y,
-    radius: float,
-):
+def disk(x, y, radius: float, butterworth_order: Optional[int] = None):
     """Constructs an image of a centered (ellipsoid) disk.
 
     (x)^2 + (y)^2 <= radius^2
 
     Args:
+        x: array of the pupil plane coordinates in the x-direction.
+        y: array of the pupil plane coordinates in the y-direction.
+        radius (float): radius of the disk.
+        butterworth_order (Optional[int]): if None, the disk is a hard-edged disk. If an integer is provided, a Butterworth disk is returned instead, with a smooth edge whose sharpness is determined by `butterworth_order`. The higher the order, the sharper the edge of the disk.
     """
+    if butterworth_order is not None:
+        return _butterworth_lowpass(x.ravel(), y.ravel(), radius, order=butterworth_order)
+
     return (x**2 + y**2) <= radius**2
 
 
@@ -115,7 +121,8 @@ def gaussian(
 
     """
     w2inv = -1.0 / waist**2
-    gauss = np.exp(unitless((x**2 + y**2) * w2inv))
+    xp = array_namespace(x, y, waist, truncation_radius)
+    gauss = xp.exp(unitless((x**2 + y**2) * w2inv))
     if truncation_radius is not None:
         gauss = gauss * disk(x, y, truncation_radius)
     return unitless(gauss)
@@ -154,8 +161,26 @@ def binary_grating(x, y, period, values, angle):
 
     """
 
-    coord_along_periodic_direction = x * np.cos(angle) + y * np.sin(angle)
-    phase_mask = np.full(coord_along_periodic_direction.shape, values[0])
+    xp = array_namespace(x, y, period, angle, values[0], values[1])
+    coord_along_periodic_direction = x * xp.cos(angle) + y * xp.sin(angle)
+    phase_mask = xp.full(coord_along_periodic_direction.shape, values[0])
     up_values = (coord_along_periodic_direction % period) >= (period / 2)
     phase_mask[up_values] = values[1]
     return phase_mask
+
+
+def _butterworth_lowpass(kx, ky, kc, order=4):
+    """
+    Creates a Butterworth low-pass filter in the frequency domain.
+
+    Args:
+        kx (Quantity): The x-coordinates in the frequency domain.
+        ky (Quantity): The y-coordinates in the frequency domain.
+        kc (Quantity): The cutoff frequency of the filter.
+        order (int): The order of the Butterworth filter. Higher order means a sharper cutoff.
+
+    Returns:
+        filter (Quantity): The Butterworth low-pass filter.
+    """
+    r = np.sqrt(kx[None, :] ** 2 + ky[:, None] ** 2)
+    return unitless(1 / (1 + (r / kc) ** (2 * order)))
