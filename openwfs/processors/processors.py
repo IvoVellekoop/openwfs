@@ -1,12 +1,12 @@
 from types import EllipsisType
-from typing import Iterable, Sequence, Optional
+from typing import Iterable, Sequence, Optional, Tuple
 
 import cv2
 import numpy as np
 from astropy.units import Quantity
 
 from ..core import Processor, Detector
-from ..utilities import project, Transform
+from ..utilities import project, Transform, get_extent, set_extent
 from ..utilities.patterns import disk, gaussian
 
 
@@ -483,3 +483,23 @@ class FunctionProcessor(Processor):
 
     def busy(self):
         super().busy()
+
+
+class LookupTableProcessor(Processor):
+    """Processor that applies a lookup table to the data from the source."""
+
+    def __init__(self, source: Detector | Processor, lut: Tuple, **kwargs):
+        """
+        Processor that applies a lookup table to the data from the source.
+        Args:
+            source: The data source to process.
+            lut: A tuple with lut[0] the input values and lut[1] the output values. The input values must be in ascending order. The output values will be interpolate and must be within the range of lut[0].
+        """
+        super().__init__(source, **kwargs)
+        self.lut = lut
+
+    def _fetch(self, data: np.ndarray) -> np.ndarray:  # noqa
+        """Apply the lut table"""
+        out = np.interp(data, self.lut[0], self.lut[1])
+        extent = get_extent(data)
+        return set_extent(out, extent)
