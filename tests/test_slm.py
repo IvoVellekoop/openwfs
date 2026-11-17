@@ -6,14 +6,14 @@ import glfw
 import numpy as np
 import pytest
 
+from openwfs.utilities.tests import get_test_microscope
 from openwfs.devices import is_loaded
-from openwfs.devices.slm import SLM, Patch, geometry
+from openwfs.devices.slm import SLM, Patch, geometry, SLMPhaseResponse
 from openwfs.utilities import Transform, project
 from openwfs.simulation.slm import SLM as SimSLM
 from numpy.testing import assert_allclose
-from openwfs.utilities.patterns import propagation
-from openwfs.utilities.patterns import propagation
-from openwfs.utilities.utilities import get_pixel_size, set_extent
+from openwfs.utilities.patterns import propagation, parabola
+from openwfs.utilities.utilities import set_extent, get_extent
 from openwfs.simulation.microscope import Microscope
 from openwfs.simulation.mockdevices import StaticSource
 from astropy.units import Quantity
@@ -483,3 +483,34 @@ def test_encoding_10b_rb():
 def test_error_unknown_encoding():
     with pytest.raises(ValueError):
         SLM(monitor_id=0, encoding="unknown", shape=(1024, 1), coordinate_system="full")
+
+
+def test_slm_phase_response():
+    x_lut = np.linspace(0, 2 * np.pi, 256)
+    lut = (x_lut, x_lut / 2)
+    slm = SLMPhaseResponse(
+        phase_response=lut, shape=(70, 140), coordinate_system="full", physical_size=Quantity([2, 2], u.mm), hidden=True
+    )
+
+    phases = parabola(shape=(70, 140), extent=2, alpha=1.0)
+    slm.set_phases(phases)
+
+    assert_allclose(slm.phases.read(), phases / 2)
+    assert_allclose(slm.field.read(), np.exp(1j * phases / 2))
+    assert_allclose(get_extent(slm.phases.read()), get_extent(super(SLMPhaseResponse, slm).phases.read()))
+
+    data = np.zeros((70, 140))
+    data[30, 30] = 0
+    pixel_size = 1 * u.um
+    source = StaticSource(data=data, pixel_size=pixel_size)
+    mic = Microscope(
+        source=source,
+        numerical_aperture=0.8,
+        wavelength=500 * u.nm,
+        immersion_refractive_index=1.33,
+        incident_field=slm.field,
+        incident_transform=Transform(np.diag(2 / (Quantity([2, 1], u.mm)))),
+    )
+
+    # Check that the microscope runs without errors and produces a valid output
+    mic.read()

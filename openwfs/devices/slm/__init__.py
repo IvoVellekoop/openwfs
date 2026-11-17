@@ -5,3 +5,4 @@ from . import slm
 from .geometry import Geometry, circular, rectangle
 from .patch import Patch
 from .slm import SLM
+from .slmPhaseResponse import SLMPhaseResponse
