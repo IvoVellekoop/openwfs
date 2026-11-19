@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
 from openwfs.utilities.patterns import (
+    sample_random_n_sphere,
     tilt,
     gaussian,
     disk,
@@ -8,6 +9,9 @@ from openwfs.utilities.patterns import (
     parabola,
     binary_grating,
     coordinate_range,
+    zernike,
+    noll_to_nm,
+    nm_to_noll,
 )
 from openwfs.utilities import unitless
 import astropy.units as u
@@ -135,3 +139,125 @@ def test_propagation_vector_distance():
 
     assert vector_result.shape == (100, 100, 10)
     np.testing.assert_allclose(vector_result, loop_result)
+
+
+SHAPE = (512, 512)
+EXTENT = (2.0, 2.0)
+
+
+@pytest.fixture(scope="module")
+def pupil():
+    """Boolean mask for the sampled unit pupil."""
+    y, x = coordinate_range(SHAPE, EXTENT)
+    return unitless(x**2 + y**2) <= 1
+
+
+@pytest.mark.parametrize("j", range(1, 11))
+def test_zernike_has_unit_rms(j, pupil):
+    """Every orthonormal Zernike mode must have unit RMS."""
+    mode = zernike(SHAPE, j, EXTENT)
+
+    rms = np.sqrt(np.mean(mode[pupil] ** 2))
+
+    assert rms == pytest.approx(1.0, abs=5e-3)
+
+
+@pytest.mark.parametrize(
+    "j1, j2",
+    [
+        (1, 2),
+        (2, 3),
+        (2, 4),
+        (4, 5),
+        (5, 6),
+        (7, 8),
+        (8, 9),
+        (9, 10),
+    ],
+)
+def test_different_zernike_modes_are_orthogonal(j1, j2, pupil):
+    """The pupil-averaged inner product of different modes must be zero."""
+    mode1 = zernike(SHAPE, j1, EXTENT)
+    mode2 = zernike(SHAPE, j2, EXTENT)
+
+    inner_product = np.mean(mode1[pupil] * mode2[pupil])
+
+    assert inner_product == pytest.approx(0.0, abs=5e-3)
+
+
+def test_first_ten_zernikes_are_orthonormal(pupil):
+    """Test the complete discrete Gram matrix of the first ten modes."""
+    modes = np.array([zernike(SHAPE, j, EXTENT)[pupil] for j in range(1, 11)])
+
+    # G[i, j] is the pupil-averaged inner product of modes i and j.
+    gram_matrix = modes @ modes.T / pupil.sum()
+
+    np.testing.assert_allclose(
+        gram_matrix,
+        np.eye(10),
+        atol=5e-3,
+    )
+
+
+def test_primary_spherical_aberration():
+    """
+    Noll mode j=11 must equal the normalized spherical polynomial
+
+        Z_11 = sqrt(5) * (6 rho^4 - 6 rho^2 + 1).
+    """
+    y, x = coordinate_range(SHAPE, EXTENT)
+    rho = unitless(np.hypot(x, y))
+    pupil = rho <= 1
+
+    expected = np.where(
+        pupil,
+        np.sqrt(5) * (6 * rho**4 - 6 * rho**2 + 1),
+        0.0,
+    )
+
+    actual = zernike(SHAPE, j=11, extent=EXTENT)
+
+    np.testing.assert_allclose(actual, expected, atol=1e-12)
+
+
+def test_zernike_is_zero_outside_pupil(pupil):
+    """The generated pattern must be zero outside the unit pupil."""
+    mode = zernike(SHAPE, j=11, extent=EXTENT)
+
+    assert np.all(mode[~pupil] == 0.0)
+
+
+@pytest.mark.parametrize(
+    "j, nm",
+    [(1, (0, 0)), (2, (1, 1)), (3, (1, 1)), (4, (2, 0)), (5, (2, 2)), (6, (2, 2)), (11, (4, 0))],
+)
+def test_noll_2_nm(j, nm):
+    assert noll_to_nm(j) == nm
+
+
+@pytest.mark.parametrize(
+    "n, m, js",
+    [(0, 0, (1,)), (1, 1, (2, 3)), (2, 0, (4,)), (2, 2, (5, 6)), (4, 0, (11,))],
+)
+def test_nm_to_noll(n, m, js):
+    assert nm_to_noll(n, m) == js
+
+
+@pytest.mark.parametrize("j", range(1, 50))
+def test_noll_round_trip(j):
+    assert j in nm_to_noll(*noll_to_nm(j))
+
+
+def test_shape():
+    assert sample_random_n_sphere(7).shape == (7,)
+
+
+def test_unit_norm():
+    x = sample_random_n_sphere(7)
+    assert np.isclose(np.linalg.norm(x), 1.0)
+
+
+def test_mean_close_to_zero():
+    rng = np.random.default_rng(0)
+    x = np.array([sample_random_n_sphere(3, rng=rng) for _ in range(10000)])
+    assert np.all(np.abs(x.mean(axis=0)) < 0.03)

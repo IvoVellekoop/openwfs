@@ -7,6 +7,8 @@ from .utilities import ExtentType, CoordinateType, unitless
 from scipy.special import j1
 from .utilities import set_extent
 from . import patterns_f
+from math import factorial
+import astropy.units as u
 
 # shape of a numpy array, or a single integer that is broadcast to a square shape
 ShapeType = Union[int, Sequence[int]]
@@ -324,3 +326,185 @@ def airy_psf(shape: tuple, extent: Quantity, wavelength: Quantity, NA: float) ->
     psfz[mask] = (2 * j1(r_u[mask]) / r_u[mask]) ** 2
 
     return set_extent(psfz, extent=extent)
+
+
+def noll_to_nm(j: int) -> tuple[int, int]:
+    """
+    Convert a one-based Noll index j to radial degree n and
+    non-negative azimuthal frequency m.
+
+    The parity of j determines the angular component:
+        even j: cos(m * phi)
+        odd j:  sin(m * phi)
+
+    Args:
+        j: One-based Noll index.
+
+    Returns:
+        Tuple (n, m).
+
+    References:
+        K. Niu and C. Tian, "Zernike polynomials and their applications,"
+        Journal of Optics 24, 123001 (2022).
+        https://doi.org/10.1088/2040-8986/ac9e08
+        Equation (8)
+    """
+    if not isinstance(j, (int, np.integer)) or j < 1:
+        raise ValueError("Noll index j must be a positive integer.")
+
+    n = int(np.floor(np.sqrt(2 * j - 1) + 0.5) - 1)
+
+    if n % 2 == 0:
+        m = 2 * int(np.floor((2 * j + 1 - n * (n + 1)) / 4))
+    else:
+        m = 2 * int(np.floor((2 * (j + 1) - n * (n + 1)) / 4)) - 1
+
+    return n, m
+
+
+def nm_to_noll(n: int, m: int) -> tuple[int, ...]:
+    """
+    Convert radial degree n and non-negative azimuthal frequency m
+    to the corresponding one-based Noll index or indices.
+
+    Returns:
+        One index when m == 0.
+        Two indices when m > 0, ordered as (odd j, even j), corresponding
+        to (sin(m*phi), cos(m*phi)).
+    """
+    if (
+        not isinstance(n, (int, np.integer))
+        or not isinstance(m, (int, np.integer))
+        or n < 0
+        or m < 0
+        or m > n
+        or (n - m) % 2
+    ):
+        raise ValueError("Require integer n, m with n >= 0, 0 <= m <= n, " "and n - m even.")
+
+    first = n * (n + 1) // 2 + m
+
+    if m == 0:
+        return (first + 1,)
+
+    return (first, first + 1)
+
+
+def zernike(
+    shape: ShapeType,
+    j: int,
+    extent: ExtentType = (2.0, 2.0),
+) -> np.ndarray:
+    """
+    Construct the real orthonormal Zernike mode with Noll index j.
+
+    The unit pupil is defined by x² + y² <= 1. An extent of (2, 2)
+    covers the complete pupil. Values outside the pupil are zero.
+
+    The mode has unit RMS over the continuous unit disk.
+
+    Args:
+        shape: Number of output pixels as (y, x), or a scalar.
+        j: One-based Noll index.
+        extent: Extent in normalized pupil coordinates.
+
+    Returns:
+        A 2D array containing the orthonormal Zernike mode.
+
+    References:
+        K. Niu and C. Tian, "Zernike polynomials and their applications,"
+        Journal of Optics 24, 123001 (2022).
+        https://doi.org/10.1088/2040-8986/ac9e08
+    """
+    if not isinstance(j, (int, np.integer)) or j < 1:
+        raise ValueError("Noll index j must be a positive integer.")
+
+    # Convert Noll index j to n and m using Equation (8) of the reference.
+    n, m = noll_to_nm(j)
+
+    y, x = coordinate_range(shape, extent)
+    rho = unitless(np.hypot(x, y))
+    phi = np.arctan2(y, x).to_value(u.rad)
+    pupil = rho <= 1
+
+    # Radial polynomial R_n^m, Equation (4).
+    radial = np.zeros_like(rho, dtype=float)
+    for s in range((n - m) // 2 + 1):
+        radial += (
+            (-1) ** s
+            * factorial(n - s)
+            / (factorial(s) * factorial((n + m) // 2 - s) * factorial((n - m) // 2 - s))
+            * rho ** (n - 2 * s)
+        )
+
+    # Angular part and normalization, Equation (3).
+    if m == 0:
+        result = np.sqrt(n + 1) * radial
+    elif j % 2 == 0:
+        result = np.sqrt(2 * (n + 1)) * radial * np.cos(m * phi)
+    else:
+        result = np.sqrt(2 * (n + 1)) * radial * np.sin(m * phi)
+
+    return set_extent(np.where(pupil, result, 0.0), extent)
+
+
+def random_zernike_rms(shape, n_modes, rms, extent, rng=None):
+    """
+    Generate a random Zernike phase screen with specified RMS value.
+    The coefficients are sampled randomly from the n-sphere (n_modes-dimensional unit sphere)
+    and then scaled to achieve the desired RMS value.
+
+    Args:
+        shape (tuple): The shape of the output phase screen (height, width).
+        n_modes (int): The number of Zernike modes to include.
+        rms (float): The desired RMS value of the phase screen.
+        extent (tuple): Extent in pupil coordinates.
+        rng (np.random.Generator, optional): A random number generator instance.
+            If None, a new default_rng() will be created.
+
+    Returns:
+        np.ndarray: A 2D array representing the random Zernike phase screen.
+    """
+    rng = np.random.default_rng() if rng is None else rng
+
+    # Sample a random point from the n-sphere
+    coeffs = sample_random_n_sphere(n_modes, rng=rng)
+
+    # Scale coefficients to achieve the desired RMS value
+    coeffs *= rms
+
+    # Generate the Zernike phase screen
+    modes = np.zeros((n_modes, *shape))
+    for j in range(1, n_modes + 1):
+        modes[j - 1] = zernike(shape, j, extent)
+
+    random_wavefront = np.sum(coeffs[:, np.newaxis, np.newaxis] * modes, axis=0)
+
+    return random_wavefront
+
+
+def sample_random_n_sphere(n, rng=None):
+    """
+    Sample a random point uniformly from the n-sphere
+    (the unit sphere in n-dimensional space).
+
+    Args:
+        n (int): Dimension of the sphere.
+        rng (np.random.Generator, optional): Random number generator.
+            If None, a new default_rng() is created.
+
+    Returns:
+        np.ndarray: A random point on the unit n-sphere.
+
+    References:
+        Marsaglia, G. (1972).
+        Choosing a Point from the Surface of a Sphere.
+        Ann. Math. Statist. 43(2), 645-646.
+        DOI: 10.1214/aoms/1177692644
+    """
+    rng = np.random.default_rng() if rng is None else rng
+
+    point = rng.standard_normal(n)
+    point /= np.linalg.norm(point)
+
+    return point
