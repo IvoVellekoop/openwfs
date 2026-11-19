@@ -446,3 +446,65 @@ def zernike(
         result = np.sqrt(2 * (n + 1)) * radial * np.sin(m * phi)
 
     return set_extent(np.where(pupil, result, 0.0), extent)
+
+
+def random_zernike_rms(shape, n_modes, rms, extent, rng=None):
+    """
+    Generate a random Zernike phase screen with specified RMS value.
+    The coefficients are sampled randomly from the n-sphere (n_modes-dimensional unit sphere)
+    and then scaled to achieve the desired RMS value.
+
+    Args:
+        shape (tuple): The shape of the output phase screen (height, width).
+        n_modes (int): The number of Zernike modes to include.
+        rms (float): The desired RMS value of the phase screen.
+        extent (tuple): Extent in pupil coordinates.
+        rng (np.random.Generator, optional): A random number generator instance.
+            If None, a new default_rng() will be created.
+
+    Returns:
+        np.ndarray: A 2D array representing the random Zernike phase screen.
+    """
+    rng = np.random.default_rng() if rng is None else rng
+
+    # Sample a random point from the n-sphere
+    coeffs = sample_random_n_sphere(n_modes, rng=rng)
+
+    # Scale coefficients to achieve the desired RMS value
+    coeffs *= rms
+
+    # Generate the Zernike phase screen
+    modes = np.zeros((n_modes, *shape))
+    for j in range(1, n_modes + 1):
+        modes[j - 1] = zernike(shape, j, extent)
+
+    random_wavefront = np.sum(coeffs[:, np.newaxis, np.newaxis] * modes, axis=0)
+
+    return random_wavefront
+
+
+def sample_random_n_sphere(n, rng=None):
+    """
+    Sample a random point uniformly from the n-sphere
+    (the unit sphere in n-dimensional space).
+
+    Args:
+        n (int): Dimension of the sphere.
+        rng (np.random.Generator, optional): Random number generator.
+            If None, a new default_rng() is created.
+
+    Returns:
+        np.ndarray: A random point on the unit n-sphere.
+
+    References:
+        Marsaglia, G. (1972).
+        Choosing a Point from the Surface of a Sphere.
+        Ann. Math. Statist. 43(2), 645-646.
+        DOI: 10.1214/aoms/1177692644
+    """
+    rng = np.random.default_rng() if rng is None else rng
+
+    point = rng.standard_normal(n)
+    point /= np.linalg.norm(point)
+
+    return point
