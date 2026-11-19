@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
 from openwfs.utilities.patterns import (
+    sample_random_n_sphere,
     tilt,
     gaussian,
     disk,
@@ -245,3 +246,18 @@ def test_nm_to_noll(n, m, js):
 @pytest.mark.parametrize("j", range(1, 50))
 def test_noll_round_trip(j):
     assert j in nm_to_noll(*noll_to_nm(j))
+
+
+def test_shape():
+    assert sample_random_n_sphere(7).shape == (7,)
+
+
+def test_unit_norm():
+    x = sample_random_n_sphere(7)
+    assert np.isclose(np.linalg.norm(x), 1.0)
+
+
+def test_mean_close_to_zero():
+    rng = np.random.default_rng(0)
+    x = np.array([sample_random_n_sphere(3, rng=rng) for _ in range(10000)])
+    assert np.all(np.abs(x.mean(axis=0)) < 0.03)
