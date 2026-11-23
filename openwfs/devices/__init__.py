@@ -78,7 +78,7 @@ from .camera import Camera
 from .galvo_scanner import ScanningMicroscope, Axis
 from .nidaq_gain import Gain
 from . import slm
-from .slm import SLM
+from .slm import SLM, SLMPhaseResponse
 from .zaber_stage import ZaberXYStage, ZaberLinearStage
 from .kinesis import KCubeInertial, MotorizedFilterFlip
 from .meadowlark_hdmi import SLMBlinkHDMI

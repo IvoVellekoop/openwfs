@@ -29,7 +29,7 @@ class SLMPhaseResponse(SLM):
         Initializes the SLMPhaseResponse object.
 
         Args:
-            phase_response: A tuple specifying a lookup table. The phase response maps the np.array of phases_response[0] to the np.array of phases_response[1]. The mapping is achieving using linear interpolation.
+            phase_response: A tuple specifying a lookup table. The phase response maps the np.array of phases_response[0] to the np.array of phases_response[1]. If None, no phases response is applied (defaulting to the default SLM).
             method: The interpolation method to use. Defaults to nearest interpolation See :py:class:`~openwfs.processors.LookupTableProcessor` for details.
             fill_value: The value to use for points outside of the interpolation range. See :py:class:`~openwfs.processors.LookupTableProcessor` for details.
             bounds_error: Whether to raise an error when interpolating outside of the bounds. See :py:class:`~openwfs.processors.LookupTableProcessor` for details.
@@ -38,19 +38,40 @@ class SLMPhaseResponse(SLM):
         """
         self._phase_response = phase_response
         super().__init__(**kwargs)
-        self._mod_processor = ModProcessor(super().phases, 2 * np.pi)
-        self._lut_processor = LookupTableProcessor(
-            self._mod_processor,
-            self._phase_response,
-            method=method,
-            fill_value=fill_value,
-            bounds_error=bounds_error,
-            solver=solver,
-        )
+        self.itp_args = {
+            "method": method,
+            "fill_value": fill_value,
+            "bounds_error": bounds_error,
+            "solver": solver,
+        }
+        self.update_processor()
 
     @property
-    def phases(self) -> Detector:
+    def phases(self) -> LookupTableProcessor:
         """
         Returns the default phases of the SLM with a processor that applies the phase response to the default phases.
         """
         return self._lut_processor
+
+    @property
+    def phase_response(self) -> Tuple:
+        """
+        Returns the phase response of the SLM.
+        """
+        return self._phase_response
+
+    @phase_response.setter
+    def phase_response(self, value: Tuple) -> None:
+        self._phase_response = value
+        self.update_processor()
+
+    def update_processor(self) -> None:
+        """
+        Returns the processor that applies the phase response to the default phases.
+        """
+        if self._phase_response is None:
+            # To avoid additional computations
+            self._lut_processor = super().phases
+        else:
+            self._mod_processor = ModProcessor(super().phases, 2 * np.pi)
+            self._lut_processor = LookupTableProcessor(self._mod_processor, self._phase_response, **(self.itp_args))
