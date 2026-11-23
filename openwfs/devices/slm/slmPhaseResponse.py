@@ -39,9 +39,7 @@ class SLMPhaseResponse(SLM):
             "bounds_error": bounds_error,
             "solver": solver,
         }
-        self.lookup_table = None
-
-        self.update_processor()
+        self.create_processor()
 
     @property
     def phases(self) -> LookupTableProcessor:
@@ -60,24 +58,31 @@ class SLMPhaseResponse(SLM):
     @phase_response.setter
     def phase_response(self, value: Tuple) -> None:
         self._phase_response = value
-        self.update_processor()
+        self.update_variables_processors()
 
-    def update_processor(self) -> None:
+    def create_processor(self) -> None:
         """
-        Returns the processor that applies the phase response to the default phases.
+        Creates the processor that applies the phase response to the default phases.
         """
         self._mod_processor = ModProcessor(super().phases, 2 * np.pi)
 
-        # Applies mapping from phase to grey value
-        angle = np.linspace(0, 2 * np.pi, self.lookup_table.size + 1, endpoint=True)
-        lookup_table_to_screen = (
-            angle + np.diff(angle[0:2])[0] / 4,
-            np.append(self.lookup_table, self.lookup_table[0]),
-        )
+        lookup_table_to_screen = self._angle_to_bit_lut()
         self._bit_on_slm = LookupTableProcessor(self._mod_processor, lookup_table_to_screen, method="nearest")
 
         # Applies mapping from grey value to phase value
         self._lut_processor = LookupTableProcessor(self._bit_on_slm, self._phase_response, **(self.itp_args))
+
+    def _angle_to_bit_lut(self):
+        """
+            Returns the lookup table in the interpolation format as performed
+        by openwfs SLM object when mapping phases to angle (for a given slm.lookup_table)
+        """
+        # Applies mapping from phase to grey value
+        angle = np.linspace(0, 2 * np.pi, self.lookup_table.size + 1, endpoint=True)
+        return (
+            angle + np.diff(angle[0:2])[0] / 4,
+            np.append(self.lookup_table, self.lookup_table[0]),
+        )
 
     @property
     def lookup_table(self):
@@ -86,4 +91,12 @@ class SLMPhaseResponse(SLM):
     @lookup_table.setter
     def lookup_table(self, lut):
         SLM.lookup_table.fset(self, lut)
-        self.update_processor()
+        self.update_variables_processors()
+
+    def update_variables_processors(self):
+        """
+        Update all the processors with the new lut
+        """
+        lut_angle = self._angle_to_bit_lut()
+        self._bit_on_slm.lut = lut_angle
+        self._lut_processor.lut = self._phase_response

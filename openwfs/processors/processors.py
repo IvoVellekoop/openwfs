@@ -513,10 +513,30 @@ class LookupTableProcessor(Processor):
             kwargs: Additional keyword arguments to pass to the Processor constructor.
         """
         super().__init__(source, **kwargs)
+        self.method = method
+        self.solver = solver
+        self.bounds_error = bounds_error
+        self.fill_value = fill_value
         self.lut = lut
+
+    @property
+    def lut(self):
+        """
+        Returns the lut table applied by the processor
+        """
+        return self._lut
+
+    @lut.setter
+    def lut(self, _lut):
         self._itp = RegularGridInterpolator(
-            (self.lut[0],), self.lut[1], bounds_error=bounds_error, fill_value=fill_value, method=method, solver=solver
+            (_lut[0],),
+            _lut[1],
+            bounds_error=self.bounds_error,
+            fill_value=self.fill_value,
+            method=self.method,
+            solver=self.solver,
         )
+        self._lut = _lut
 
     def _fetch(self, data: np.ndarray) -> np.ndarray:  # noqa
         """Apply the lut table"""

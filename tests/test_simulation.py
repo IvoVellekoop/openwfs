@@ -154,6 +154,24 @@ def test_slm_tilt(has_phase_response):
     assert np.allclose(np.multiply(get_pixel_size(ref_img), measured_shift), shift)
 
 
+def test_lut_update():
+    phase_response = (np.arange(256), np.linspace(0, 2 * np.pi, 256, endpoint=False))
+    lookup_table = np.arange(256)
+    mic, slm, src = get_test_microscope(slm_args={"phase_response": phase_response})
+    tilt_pattern = tilt(slm.pixels.data_shape, extent=(2, 2), g=(10, 10))
+    slm.lookup_table = lookup_table
+    slm.set_phases(tilt_pattern)
+    bit_1 = slm._bit_on_slm.read()
+
+    img_1 = mic.read()
+
+    slm.lookup_table = np.arange(128)
+    slm.set_phases(tilt_pattern)
+    img_2 = mic.read()
+    assert not np.allclose(slm._bit_on_slm.read(), bit_1)
+    assert not np.allclose(img_2, img_1)
+
+
 def test_microscope_wavefront_shaping(caplog):
     """
     Reproduces a bug that occurs due to the location of the measurements.wait() command.
