@@ -9,4 +9,5 @@ from .processors import (
     select_roi,
     FunctionProcessor,
     LookupTableProcessor,
+    ModProcessor,
 )

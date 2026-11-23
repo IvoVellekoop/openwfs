@@ -1,8 +1,9 @@
 from . import SLM
 
 from ...core import Detector
-from ...processors import LookupTableProcessor
+from ...processors import LookupTableProcessor, ModProcessor
 from typing import Tuple
+import numpy as np
 
 
 class SLMPhaseResponse(SLM):
@@ -32,4 +33,5 @@ class SLMPhaseResponse(SLM):
         Returns the default phases of the SLM with a processor that applies the phase response to the default phases.
         """
         default_phases = super().phases
-        return LookupTableProcessor(default_phases, self._phase_response)
+        mod_phases = ModProcessor(default_phases, 2 * np.pi)
+        return LookupTableProcessor(mod_phases, self._phase_response)

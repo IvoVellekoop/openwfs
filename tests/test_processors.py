@@ -1,5 +1,6 @@
 import astropy.units as u
 import numpy as np
+from numpy.testing import assert_allclose
 import pytest
 import skimage as sk
 
@@ -11,9 +12,10 @@ from openwfs.processors import (
     FunctionProcessor,
     CropProcessor,
     LookupTableProcessor,
+    ModProcessor,
 )
 from openwfs.simulation.mockdevices import StaticSource
-from openwfs.utilities import get_extent
+from openwfs.utilities import get_extent, get_pixel_size
 
 
 @pytest.mark.skip(
@@ -154,3 +156,15 @@ def test_lut_processor():
     # Create a test input that maps to the LUT
     # No tolerance because linear interpolation should be exact
     assert np.allclose(lut_processor.read(), 3 * data)
+
+
+def test_processor_mod():
+    np.random.seed(0)  # For reproducibility
+    data = np.random.rand(10, 10) * 4 * np.pi
+    pixel_size = 1 * u.um
+    mock_source = StaticSource(data, pixel_size=pixel_size)
+
+    mod_processor = ModProcessor(mock_source, 2 * np.pi)
+
+    assert_allclose(mod_processor.read(), np.mod(data, 2 * np.pi))
+    assert_allclose(get_pixel_size(mod_processor.read()), pixel_size)
