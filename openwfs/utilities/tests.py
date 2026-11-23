@@ -2,7 +2,7 @@ import numpy as np
 import astropy.units as u
 from .utilities import Transform, get_extent
 from ..simulation import Microscope, StaticSource
-from ..devices import SLM
+from ..devices import SLMPhaseResponse
 
 
 def get_test_microscope(
@@ -49,6 +49,7 @@ def get_test_microscope(
         "hidden": True,
         "physical_size": (5.12 * u.mm, 5.12 * u.mm),
         "transform": Transform(np.diag(np.ones(2))),
+        "phase_response": (np.arange(256), np.linspace(0, 2 * np.pi, 256, endpoint=False)),
     }
     slm_args = default_slm_args | slm_args
 
@@ -62,7 +63,7 @@ def get_test_microscope(
 
     src = StaticSource(**src_args)
 
-    slm = SLM(**slm_args)
+    slm = SLMPhaseResponse(**slm_args)
 
     transform_2 = Transform(np.diag(2 / get_extent(slm.phases.read())))
     default_mic_args = {

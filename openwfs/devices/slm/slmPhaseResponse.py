@@ -44,6 +44,8 @@ class SLMPhaseResponse(SLM):
             "bounds_error": bounds_error,
             "solver": solver,
         }
+        self.lookup_table = None
+
         self.update_processor()
 
     @property
@@ -74,4 +76,19 @@ class SLMPhaseResponse(SLM):
             self._lut_processor = super().phases
         else:
             self._mod_processor = ModProcessor(super().phases, 2 * np.pi)
-            self._lut_processor = LookupTableProcessor(self._mod_processor, self._phase_response, **(self.itp_args))
+            angle = np.linspace(0, 2 * np.pi, self.lookup_table.size + 1, endpoint=True)
+            lookup_table_to_screen = (
+                angle + np.diff(angle[0:2])[0] / 4,
+                np.append(self.lookup_table, self.lookup_table[0]),
+            )
+            self._bit_on_slm = LookupTableProcessor(self._mod_processor, lookup_table_to_screen, method="nearest")
+            self._lut_processor = LookupTableProcessor(self._bit_on_slm, self._phase_response, **(self.itp_args))
+
+    @property
+    def lookup_table(self):
+        return super().lookup_table
+
+    @lookup_table.setter
+    def lookup_table(self, lut):
+        SLM.lookup_table.fset(self, lut)
+        self.update_processor()

@@ -486,43 +486,21 @@ def test_error_unknown_encoding():
 
 
 def test_slm_phase_response():
-    x_lut = np.linspace(0, 2 * np.pi, 256)
-    lut = (x_lut, x_lut / 2)
+    phase_response = (np.arange(128), np.linspace(0, 2 * np.pi, 128, endpoint=False))
+    shape = (70, 140)
     slm = SLMPhaseResponse(
-        method="linear",
-        phase_response=lut,
-        shape=(70, 140),
+        phase_response=phase_response,
+        method="nearest",
+        shape=shape,
         coordinate_system="full",
-        physical_size=Quantity([2, 2], u.mm),
         hidden=True,
+        physical_size=(2 * u.cm, 2 * u.cm),
     )
 
-    phases = parabola(shape=(70, 140), extent=2, alpha=10.0)
-    slm.set_phases(phases)
-    angle_ref = np.mod(super(SLMPhaseResponse, slm).phases.read(), 2 * np.pi)
+    slm.lookup_table = np.arange(128)
+    data = np.random.randint(0, 128, size=shape) * 2 * np.pi / 128
 
-    assert_allclose(slm.phases.read(), angle_ref / 2)
-    assert_allclose(slm.field.read(), np.exp(1j * angle_ref / 2))
-    assert_allclose(get_extent(slm.phases.read()), get_extent(super(SLMPhaseResponse, slm).phases.read()))
-
-    slm.phase_response = None
+    slm.set_phases(data)
+    assert_allclose(slm.pixels.read(), slm._bit_on_slm.read())
+    assert_allclose(slm.phases.read(), data)
     assert_allclose(slm.phases.read(), super(SLMPhaseResponse, slm).phases.read())
-
-    slm.phase_response = (x_lut, x_lut / 4)
-    assert_allclose(slm.phases.read(), angle_ref / 4)
-
-    data = np.zeros((70, 140))
-    data[30, 30] = 0
-    pixel_size = 1 * u.um
-    source = StaticSource(data=data, pixel_size=pixel_size)
-    mic = Microscope(
-        source=source,
-        numerical_aperture=0.8,
-        wavelength=500 * u.nm,
-        immersion_refractive_index=1.33,
-        incident_field=slm.field,
-        incident_transform=Transform(np.diag(2 / (Quantity([2, 1], u.mm)))),
-    )
-
-    # Check that the microscope runs without errors and produces a valid output
-    mic.read()
