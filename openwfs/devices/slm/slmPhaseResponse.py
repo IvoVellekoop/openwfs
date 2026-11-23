@@ -16,22 +16,41 @@ class SLMPhaseResponse(SLM):
         phase_response (callable): A function that defines the phase response of the SLM. It should take an array of input values and return an array of phase values.
     """
 
-    def __init__(self, phase_response: Tuple, **kwargs):
+    def __init__(
+        self,
+        phase_response: Tuple,
+        method: str = "nearest",
+        fill_value: None | float = None,
+        bounds_error: None | bool = None,
+        solver: None = None,
+        **kwargs,
+    ):
         """
         Initializes the SLMPhaseResponse object.
 
         Args:
             phase_response: A tuple specifying a lookup table. The phase response maps the np.array of phases_response[0] to the np.array of phases_response[1]. The mapping is achieving using linear interpolation.
-            kwargs: all the arguments that are passed to the SLM class. See :py:class:`~openwfs.devices.slm.SLM` for details.
+            method: The interpolation method to use. Defaults to nearest interpolation See :py:class:`~openwfs.processors.LookupTableProcessor` for details.
+            fill_value: The value to use for points outside of the interpolation range. See :py:class:`~openwfs.processors.LookupTableProcessor` for details.
+            bounds_error: Whether to raise an error when interpolating outside of the bounds. See :py:class:`~openwfs.processors.LookupTableProcessor` for details.
+            solver: The solver to use for the interpolation. See :py:class:`~openwfs.processors.LookupTableProcessor` for details.
+            **kwargs: all the arguments that are passed to the SLM class. See :py:class:`~openwfs.devices.slm.SLM` for details.
         """
         self._phase_response = phase_response
         super().__init__(**kwargs)
+        self._mod_processor = ModProcessor(super().phases, 2 * np.pi)
+        self._lut_processor = LookupTableProcessor(
+            self._mod_processor,
+            self._phase_response,
+            method=method,
+            fill_value=fill_value,
+            bounds_error=bounds_error,
+            solver=solver,
+        )
 
     @property
     def phases(self) -> Detector:
         """
         Returns the default phases of the SLM with a processor that applies the phase response to the default phases.
         """
-        default_phases = super().phases
-        mod_phases = ModProcessor(default_phases, 2 * np.pi)
-        return LookupTableProcessor(mod_phases, self._phase_response)
+        return self._lut_processor

@@ -489,14 +489,19 @@ def test_slm_phase_response():
     x_lut = np.linspace(0, 2 * np.pi, 256)
     lut = (x_lut, x_lut / 2)
     slm = SLMPhaseResponse(
-        phase_response=lut, shape=(70, 140), coordinate_system="full", physical_size=Quantity([2, 2], u.mm), hidden=True
+        method="linear",
+        phase_response=lut,
+        shape=(70, 140),
+        coordinate_system="full",
+        physical_size=Quantity([2, 2], u.mm),
+        hidden=True,
     )
 
     phases = parabola(shape=(70, 140), extent=2, alpha=10.0)
     slm.set_phases(phases)
     angle_ref = np.mod(super(SLMPhaseResponse, slm).phases.read(), 2 * np.pi) / 2
 
-    assert_allclose(slm.phases.read(), field_ref)
+    assert_allclose(slm.phases.read(), angle_ref)
     assert_allclose(slm.field.read(), np.exp(1j * angle_ref))
     assert_allclose(get_extent(slm.phases.read()), get_extent(super(SLMPhaseResponse, slm).phases.read()))
 
