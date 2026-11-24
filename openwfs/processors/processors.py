@@ -495,9 +495,9 @@ class LookupTableProcessor(Processor):
         self,
         source: Detector | Processor,
         lut: Tuple,
-        method="linear",
-        bounds_error=None,
-        fill_value=None,
+        method: str = "linear",
+        bounds_error: bool | None = None,
+        fill_value: float | None = None,
         solver=None,
         **kwargs,
     ):
@@ -527,7 +527,7 @@ class LookupTableProcessor(Processor):
         return self._lut
 
     @lut.setter
-    def lut(self, _lut):
+    def lut(self, _lut: Tuple):
         self._itp = RegularGridInterpolator(
             (_lut[0],),
             _lut[1],

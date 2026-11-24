@@ -89,7 +89,7 @@ class SLMPhaseResponse(SLM):
         return super().lookup_table
 
     @lookup_table.setter
-    def lookup_table(self, lut):
+    def lookup_table(self, lut: np.ndarray):
         SLM.lookup_table.fset(self, lut)
         self.update_variables_processors()
 
