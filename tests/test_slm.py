@@ -503,4 +503,6 @@ def test_slm_phase_response():
     slm.set_phases(data)
     assert_allclose(slm.pixels.read(), slm._bit_on_slm.read())
     assert_allclose(slm.phases.read(), data)
-    assert_allclose(slm.phases.read(), super(SLMPhaseResponse, slm).phases.read())
+
+    # Test that the maximum value is 127 because the LUT is set to be 128
+    assert slm.pixels.read().max() <= 127
