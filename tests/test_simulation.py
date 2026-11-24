@@ -5,6 +5,7 @@ import glfw
 import numpy as np
 import pytest
 import skimage
+import torch
 
 from openwfs.algorithms import StepwiseSequential
 from openwfs.processors import SingleRoi
@@ -968,3 +969,46 @@ def test_microscope_theoretical_psf():
                 psf_theory = airy_psf(psf_sim.shape, get_extent(psf_sim), w, na)
 
                 assert_allclose(psf_theory, psf_sim, rtol=1e-2, atol=1e-2)
+
+
+def test_psf_torch_matches_numpy():
+    grid_size = 128
+    extent = 20
+    wavelength = 1000 * u.nm
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # NumPy version
+    pupil_np = disk(
+        shape=(grid_size, grid_size),
+        radius=1,
+        extent=extent,
+    )
+    pupil_np = set_extent(pupil_np, extent)
+
+    source_np = StaticSource(data=pupil_np)
+    source_np.wavelength = wavelength
+
+    psf_np = _PSF(pupil_field=source_np).read()
+
+    # Torch version
+    pupil_torch = torch.as_tensor(
+        np.asarray(pupil_np),
+        dtype=torch.complex128,
+        device=device,
+    )
+    pupil_torch = set_extent(pupil_torch, extent)
+
+    source_torch = StaticSource(data=pupil_torch)
+    source_torch.wavelength = wavelength
+
+    psf_torch = _PSF(pupil_field=source_torch).read()
+    psf_torch = psf_torch.detach().cpu().numpy()
+
+    np.testing.assert_allclose(
+        psf_torch,
+        psf_np,
+        rtol=1e-10,
+        atol=1e-12,
+    )
+
+    assert np.argmax(psf_torch) == np.argmax(psf_np)

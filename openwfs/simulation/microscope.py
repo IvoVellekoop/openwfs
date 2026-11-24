@@ -1,6 +1,7 @@
 import warnings
 from typing import Optional, Union
 
+from array_api_compat import array_namespace
 import astropy.units as u
 import cv2
 import numpy as np
@@ -438,10 +439,10 @@ class _PSF(Processor):
         assert (
             get_extent(pupil_field) is not None
         ), "The pupil field must have an extent in normalized pupil coordinates."
-
+        xp = array_namespace(pupil_field)
         pupil_extent = get_extent(pupil_field)[:2]
 
-        psf = np.abs(np.fft.ifft2(pupil_field, axes=(0, 1))) ** 2
+        psf = xp.abs(xp.fft.ifftn(pupil_field, axes=(0, 1))) ** 2
 
         pupil_field = patterns.disk(self.data_shape[:2], radius=1.0, extent=pupil_extent)
         pupil_area = np.sum(pupil_field)  # TODO (efficiency): compute area directly from radius
@@ -449,7 +450,7 @@ class _PSF(Processor):
         # Only use the spatial dimensions for normalization and not the z dimension if it exists
         spatial_size = psf.shape[0] * psf.shape[1]
 
-        psf = np.fft.ifftshift(psf, axes=(0, 1)) * (spatial_size / pupil_area)
+        psf = xp.fft.ifftshift(psf, axes=(0, 1)) * (spatial_size / pupil_area)
 
         # assuming focal length etc... of objective are the same, the area of the back focal plane should scale quadratically with
         # the numerical aperture, so the PSF should be scaled by the square of the numerical aperture to account for this.
@@ -459,7 +460,7 @@ class _PSF(Processor):
 
         # ifft_shift shifts psf by 1 pixel when off centre, both when the array is odd and even
         # Compensate for this by rolling the kernel by -1 pixel in both x and y directions
-        psf = np.roll(psf, -1, axis=(0, 1))
+        psf = xp.roll(psf, (-1, -1), axis=(0, 1))
 
         psf = psf**self.nonlinearity  # added for higher order microscopy (e.g. two-photon)
 
