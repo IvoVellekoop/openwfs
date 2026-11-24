@@ -6,6 +6,7 @@ import numpy as np
 from astropy import units as u
 from astropy.units import Quantity
 from numpy.typing import ArrayLike
+import torch
 
 # A coordinate is a sequence of two floats with an optional unit attached
 CoordinateType = Union[Sequence[float], np.ndarray, Quantity]
@@ -400,6 +401,14 @@ def set_pixel_size(data: ArrayLike, pixel_size: Optional[Quantity]) -> np.ndarra
     >>> pixel_size = 0.1 * u.m
     >>> modified_data = set_pixel_size(data, pixel_size)
     """
+
+    if isinstance(data, torch.Tensor):
+        if pixel_size is not None and pixel_size.size == 1:
+            pixel_size = pixel_size * np.ones(data.ndim)
+
+        data.pixel_size = pixel_size
+        return data
+
     data = np.array(data)
 
     if pixel_size is not None and pixel_size.size == 1:
@@ -432,6 +441,9 @@ def get_pixel_size(data: np.ndarray) -> Optional[Quantity]:
 
     TODO: return 1 if no pixel size is present
     """
+    if isinstance(data, torch.Tensor):
+        return getattr(data, "pixel_size", None)
+
     metadata = data.dtype.metadata
     if metadata is None:
         return None

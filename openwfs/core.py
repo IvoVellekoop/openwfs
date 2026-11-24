@@ -11,6 +11,7 @@ import astropy.units as u
 import numpy as np
 from astropy.units import Quantity
 from numpy.typing import ArrayLike
+import torch
 
 from openwfs.utilities.utilities import get_pixel_size, set_pixel_size
 
@@ -414,7 +415,9 @@ class Detector(Device, ABC):
             awaited_args = [(arg.result() if isinstance(arg, Future) else arg) for arg in args_]
             awaited_kwargs = {key: (arg.result() if isinstance(arg, Future) else arg) for (key, arg) in kwargs_.items()}
             logging.debug("fetching data of %s ((tid: %i)).", self, threading.get_ident())
-            data = np.asarray(self._fetch(*awaited_args, **awaited_kwargs))
+            data = self._fetch(*awaited_args, **awaited_kwargs)
+            if not isinstance(data, (np.ndarray, torch.Tensor)):
+                data = np.asarray(data)
             if get_pixel_size(data) is None:
                 data = set_pixel_size(data, self.pixel_size)
             if self.data_shape is not None and data.shape != self.data_shape:
