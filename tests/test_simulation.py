@@ -119,12 +119,25 @@ def shift_between_img_max(ref_img, shifted_img):
     )
 
 
-def test_slm_tilt():
+@pytest.mark.parametrize("has_phase_response", [False, True])
+def test_slm_tilt(has_phase_response):
     """
     Display a tilt on the SLM should result in an image plane shift. If the magnification is 1, this should
     correspond to a tilt of 1 pixel for a 2 pi phase shift.
+    The test is made with and without phase response (and lookup table correction)
     """
-    mic, slm, src = get_test_microscope(mic_args={"numerical_aperture": 0.5})
+    if has_phase_response:
+        phase_response = (np.arange(128), np.linspace(0, 2 * np.pi, 128, endpoint=False))
+        lookup_table = np.arange(128)
+    else:
+        phase_response = (np.arange(256), np.linspace(0, 2 * np.pi, 256, endpoint=False))
+        lookup_table = None
+
+    mic, slm, src = get_test_microscope(
+        mic_args={"numerical_aperture": 0.5}, slm_args={"phase_response": phase_response}
+    )
+
+    slm.lookup_table = lookup_table
 
     ref_img = mic.read()
     shift = np.multiply(get_pixel_size(ref_img), (10, -5))
@@ -134,7 +147,29 @@ def test_slm_tilt():
 
     shifted_img = mic.read()
     measured_shift = shift_between_img_max(ref_img, shifted_img)
+
+    # Tests that the lut and phase response are actually doing something
+    # even if effectively they cancel each other
+    assert slm.pixels.read().max() == slm.lookup_table[-1]
     assert np.allclose(np.multiply(get_pixel_size(ref_img), measured_shift), shift)
+
+
+def test_lut_update():
+    phase_response = (np.arange(256), np.linspace(0, 2 * np.pi, 256, endpoint=False))
+    lookup_table = np.arange(256)
+    mic, slm, src = get_test_microscope(slm_args={"phase_response": phase_response})
+    tilt_pattern = tilt(slm.pixels.data_shape, extent=(2, 2), g=(10, 10))
+    slm.lookup_table = lookup_table
+    slm.set_phases(tilt_pattern)
+    bit_1 = slm._bit_on_slm.read()
+
+    img_1 = mic.read()
+
+    slm.lookup_table = np.arange(128)
+    slm.set_phases(tilt_pattern)
+    img_2 = mic.read()
+    assert not np.allclose(slm._bit_on_slm.read(), bit_1)
+    assert not np.allclose(img_2, img_1)
 
 
 def test_microscope_wavefront_shaping(caplog):

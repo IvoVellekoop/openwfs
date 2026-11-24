@@ -6,14 +6,14 @@ import glfw
 import numpy as np
 import pytest
 
+from openwfs.utilities.tests import get_test_microscope
 from openwfs.devices import is_loaded
-from openwfs.devices.slm import SLM, Patch, geometry
+from openwfs.devices.slm import SLM, Patch, geometry, SLMPhaseResponse
 from openwfs.utilities import Transform, project
 from openwfs.simulation.slm import SLM as SimSLM
 from numpy.testing import assert_allclose
-from openwfs.utilities.patterns import propagation
-from openwfs.utilities.patterns import propagation
-from openwfs.utilities.utilities import get_pixel_size, set_extent
+from openwfs.utilities.patterns import propagation, parabola
+from openwfs.utilities.utilities import set_extent, get_extent
 from openwfs.simulation.microscope import Microscope
 from openwfs.simulation.mockdevices import StaticSource
 from astropy.units import Quantity
@@ -483,3 +483,26 @@ def test_encoding_10b_rb():
 def test_error_unknown_encoding():
     with pytest.raises(ValueError):
         SLM(monitor_id=0, encoding="unknown", shape=(1024, 1), coordinate_system="full")
+
+
+def test_slm_phase_response():
+    phase_response = (np.arange(128), np.linspace(0, 2 * np.pi, 128, endpoint=False))
+    shape = (70, 140)
+    slm = SLMPhaseResponse(
+        phase_response=phase_response,
+        method="nearest",
+        shape=shape,
+        coordinate_system="full",
+        hidden=True,
+        physical_size=(2 * u.cm, 2 * u.cm),
+    )
+
+    slm.lookup_table = np.arange(128)
+    data = np.random.randint(0, 128, size=shape) * 2 * np.pi / 128
+
+    slm.set_phases(data)
+    assert_allclose(slm.pixels.read(), slm._bit_on_slm.read())
+    assert_allclose(slm.phases.read(), data)
+
+    # Test that the maximum value is 127 because the LUT is set to be 128
+    assert slm.pixels.read().max() <= 127

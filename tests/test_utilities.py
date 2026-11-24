@@ -247,12 +247,12 @@ def test_inverse():
 
 def test_utilities_microscope():
     from openwfs.utilities.tests import get_test_microscope
-    from openwfs.devices import SLM
+    from openwfs.devices import SLMPhaseResponse
     from openwfs.simulation import Microscope, StaticSource
 
     mic, slm, src = get_test_microscope()
     assert type(mic) == Microscope
-    assert type(slm) == SLM
+    assert type(slm) == SLMPhaseResponse
     assert type(src) == StaticSource
 
 

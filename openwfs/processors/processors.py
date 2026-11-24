@@ -1,12 +1,15 @@
 from types import EllipsisType
-from typing import Iterable, Sequence, Optional
+from typing import Iterable, Sequence, Optional, Tuple
 
 import cv2
 import numpy as np
 from astropy.units import Quantity
 
+from scipy.interpolate import RegularGridInterpolator
+from scipy.sparse.linalg import gcrotmk
+
 from ..core import Processor, Detector
-from ..utilities import project, Transform
+from ..utilities import project, Transform, get_extent, set_extent
 from ..utilities.patterns import disk, gaussian
 
 
@@ -483,3 +486,81 @@ class FunctionProcessor(Processor):
 
     def busy(self):
         super().busy()
+
+
+class LookupTableProcessor(Processor):
+    """Processor that applies a lookup table to the data from the source."""
+
+    def __init__(
+        self,
+        source: Detector | Processor,
+        lut: Tuple,
+        method: str = "linear",
+        bounds_error: bool | None = None,
+        fill_value: float | None = None,
+        solver=None,
+        **kwargs,
+    ):
+        """
+        Processor that applies a lookup table to the data from the source.
+        Args:
+            source: The data source to process.
+            lut: A tuple with lut[0] the input values which will be mapped to lut[1] (the output values). The input values must be in ascending order. The output values will be interpolate and must be within the range of lut[0]. This function accepts the input of the RegularGridInterpolator from scipy.interpolate to control the interpolation.
+            method: The interpolation method to use. Options are 'linear' (default), 'nearest', and 'spline'.
+            bounds_error: If True, an error is raised when interpolated values are requested outside of the range of the input values. If False, the fill_value is used instead.
+            fill_value: The value to use for points outside of the interpolation range. Default is np.nan.
+            solver: The solver to use for the interpolation. Default is gcrotmk from scipy.sparse.linalg.gcrotmk. Only used when method is 'slinear', 'cubic', or 'quintic'.
+            kwargs: Additional keyword arguments to pass to the Processor constructor.
+        """
+        super().__init__(source, **kwargs)
+        self.method = method
+        self.solver = solver
+        self.bounds_error = bounds_error
+        self.fill_value = fill_value
+        self.lut = lut
+
+    @property
+    def lut(self):
+        """
+        Returns the lut table applied by the processor
+        """
+        return self._lut
+
+    @lut.setter
+    def lut(self, _lut: Tuple):
+        self._itp = RegularGridInterpolator(
+            (_lut[0],),
+            _lut[1],
+            bounds_error=self.bounds_error,
+            fill_value=self.fill_value,
+            method=self.method,
+            solver=self.solver,
+        )
+        self._lut = _lut
+
+    def _fetch(self, data: np.ndarray) -> np.ndarray:  # noqa
+        """Apply the lut table"""
+        out = self._itp(data.ravel()).reshape(data.shape)
+        extent = get_extent(data)
+        return set_extent(out, extent)
+
+
+class ModProcessor(Processor):
+    """Processor that applies a modulo operation to the data from the source."""
+
+    def __init__(self, source: Detector | Processor, mod: float, **kwargs):
+        """
+        Processor that applies a modulo operation to the data from the source.
+        Args:
+            source: The data source to process.
+            mod: The modulo value to apply to the data.
+            kwargs: Additional keyword arguments to pass to the Processor constructor.
+        """
+        super().__init__(source, **kwargs)
+        self.mod = mod
+
+    def _fetch(self, data: np.ndarray) -> np.ndarray:  # noqa
+        """Apply the modulo operation"""
+        out = np.mod(data, self.mod)
+        extent = get_extent(data)
+        return set_extent(out, extent)

@@ -1,10 +1,21 @@
 import astropy.units as u
 import numpy as np
+from numpy.testing import assert_allclose
 import pytest
 import skimage as sk
 
-from openwfs.processors import SingleRoi, select_roi, Roi, MultipleRoi, FunctionProcessor, CropProcessor
+from openwfs.processors import (
+    SingleRoi,
+    select_roi,
+    Roi,
+    MultipleRoi,
+    FunctionProcessor,
+    CropProcessor,
+    LookupTableProcessor,
+    ModProcessor,
+)
 from openwfs.simulation.mockdevices import StaticSource
+from openwfs.utilities import get_extent, get_pixel_size
 
 
 @pytest.mark.skip(
@@ -121,3 +132,39 @@ def test_processor_on_processor():
 
     func_processsor_2 = FunctionProcessor(func_processor, func=lambda x: x + 1, data_shape=(2, 2))
     assert np.allclose(func_processsor_2.read(), 2 * data[5:7, 5:7] + 1)
+
+
+def test_lut_processor():
+    data = np.random.rand(10, 10)
+    pixel_size = 1 * u.um
+    mock_source = StaticSource(data, pixel_size=pixel_size)
+
+    x = np.linspace(0, 1, 100)
+    lut = (x, x**2)
+    lut_processor = LookupTableProcessor(mock_source, lut=lut)
+
+    # Create a test input that maps to the LUT
+    # Tolerance because of itp error
+    assert np.allclose(lut_processor.read(), data**2, rtol=1e-4, atol=1e-4)
+    assert np.allclose(lut_processor.data_shape, mock_source.data_shape)
+    assert np.allclose(get_extent(lut_processor.read()), get_extent(mock_source.read()))
+
+    x = np.linspace(0, 1, 100)
+    lut = (x, 3 * x)
+    lut_processor = LookupTableProcessor(mock_source, lut=lut)
+
+    # Create a test input that maps to the LUT
+    # No tolerance because linear interpolation should be exact
+    assert np.allclose(lut_processor.read(), 3 * data)
+
+
+def test_processor_mod():
+    np.random.seed(0)  # For reproducibility
+    data = np.random.rand(10, 10) * 4 * np.pi
+    pixel_size = 1 * u.um
+    mock_source = StaticSource(data, pixel_size=pixel_size)
+
+    mod_processor = ModProcessor(mock_source, 2 * np.pi)
+
+    assert_allclose(mod_processor.read(), np.mod(data, 2 * np.pi))
+    assert_allclose(get_pixel_size(mod_processor.read()), pixel_size)
